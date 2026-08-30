@@ -70,6 +70,15 @@ window.config = {
   // when absent, the Marketing Ops screens show a "not connected" state.
   // ONE_WSO2_MARKETINGOPS_BACKEND_URL: "<your-marketing-ops-backend-url>",
 
+  // purchasing-app backend base URL — the Procurement perspective. A Go service
+  // whose routes live under /api/v1/* (the Choreo proxy preserves that prefix).
+  // Unlike the Ballerina backends it verifies the Asgardeo token itself, so its
+  // Asgardeo application must list this app's client id in
+  // `oidc.additional_client_ids` — otherwise every request is rejected as
+  // `invalid token`. Optional — when absent, the Procurement screens show a
+  // "not connected" state.
+  // ONE_WSO2_PURCHASING_BACKEND_URL: "<your-purchasing-backend-url>",
+
   // ISAC base URL — a separate marketing application, linked to from the top of
   // the Marketing Ops rail and opened in a new tab. Nothing here calls it as an
   // API. Optional — when absent, the rail item is omitted entirely rather than

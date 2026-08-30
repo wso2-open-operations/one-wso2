@@ -557,6 +557,47 @@ export function salesforceRecordUrl(object: "Lead" | "Account", id: string): str
 //
 // Empty string = not configured, and the rail then omits the item entirely rather
 // than showing one that goes nowhere. Same contract as leaveWebAppUrl above.
+// ---------------------------------------------------------------------------
+// purchasing-app (Procurement perspective)
+// ---------------------------------------------------------------------------
+//
+// A Go service, and the second non-Ballerina backend this app talks to. Two
+// things differ from the Ballerina siblings above:
+//
+//  1. Its routes are namespaced under `/api/v1/*` and the Choreo proxy preserves
+//     that prefix, so every URL here carries it.
+//  2. It verifies the Asgardeo token ITSELF rather than trusting the gateway's
+//     `x-jwt-assertion`, because its roles live in its own database and it needs
+//     only an identity from the token. So the standard authedGet/authedPost
+//     helpers work unmodified — no per-backend header quirk.
+//
+// Trailing slashes are stripped: every builder below concatenates "/api/v1/..."
+// onto this, and a configured value ending in "/" would produce "//api/v1/...",
+// whose behaviour depends on the gateway.
+export const purchasingBackendUrl: string = (
+  window.config?.ONE_WSO2_PURCHASING_BACKEND_URL ?? ""
+).replace(/\/+$/, "");
+
+export function isPurchasingBackendConfigured(): boolean {
+  return Boolean(purchasingBackendUrl);
+}
+
+export const purchasingServiceUrls = {
+  // GET /api/v1/me — identity + roles + the server-computed is_approver flag.
+  // Authenticated but not gated: the backend self-provisions any authenticated
+  // employee with the `staff` role, so a 200 here IS the authorization and what
+  // varies is which screens the roles unlock.
+  me: `${purchasingBackendUrl}/api/v1/me`,
+  // GET /api/v1/home — the role-based overview blocks. The backend decides which
+  // apply to the caller.
+  home: `${purchasingBackendUrl}/api/v1/home`,
+  // GET /api/v1/purchase-requests[?scope=mine|approvals] — the list projection.
+  // Omitting scope gives the role-based procurement queue.
+  purchaseRequests: `${purchasingBackendUrl}/api/v1/purchase-requests`,
+  purchaseRequest: (id: number | string) =>
+    `${purchasingBackendUrl}/api/v1/purchase-requests/${encodeURIComponent(String(id))}`,
+};
+
 export const isacUrl: string = window.config?.ONE_WSO2_MARKETINGOPS_ISAC_URL ?? "";
 
 export function isIsacConfigured(): boolean {

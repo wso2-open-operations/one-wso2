@@ -27,6 +27,7 @@ import { useUserInfo } from "@api/useUserInfo";
 import { useFinanceGate } from "@features/finance/api/useFinanceGate";
 import { useLeaveGate } from "@features/leave/api/useLeaveGate";
 import { useMarketingOpsGate } from "@features/marketing-ops/api/useMarketingOpsGate";
+import { useProcurementGate } from "@features/procurement/api/useProcurementGate";
 
 // Context-sensitive left rail, built on Oxygen's compound `Sidebar`.
 //
@@ -122,10 +123,18 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
   const isMarketingOps = active.key === "marketing";
   const marketingOpsGate = useMarketingOpsGate(isMarketingOps);
 
+  // Procurement is the same shape of problem again: its rail gates on the
+  // purchasing backend's own roles (procurement / procurement_admin / admin /
+  // legal / security / compliance, held in that app's own database), which bear
+  // no relation to the people-app privilege numbers `caps` is built from.
+  const isProcurement = active.key === "procurement";
+  const procurementGate = useProcurementGate(isProcurement);
+
   const resolveVisible = (s: PerspectiveSection): boolean => {
     if (FINANCE_ITEM_IDS.has(s.id)) return financeGate.canSee(s.id);
     if (LEAVE_ITEM_IDS.has(s.id)) return leaveGate.canSee(s.id);
     if (isMarketingOps) return marketingOpsGate.canSee(s.id);
+    if (isProcurement) return procurementGate.canSee(s.id);
     return sectionAllowed(s.requires, caps);
   };
 
