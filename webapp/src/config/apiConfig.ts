@@ -598,6 +598,39 @@ export const purchasingServiceUrls = {
     `${purchasingBackendUrl}/api/v1/purchase-requests/${encodeURIComponent(String(id))}`,
 };
 
+// The purchasing-app FRONTEND itself (not its backend), for deep-linking to a
+// purchase request's detail view.
+//
+// Phase 1 ports the three list screens but not the detail screen, and a request
+// reference is the primary thing you click on all three of them. Pointing it at
+// an in-app route that does not exist yet is worse than not linking it: the
+// catch-all in App.tsx would redirect the user to their landing perspective, so
+// the click reads as the app throwing them out for no reason. Until the detail
+// screen lands, the reference goes to the app that DOES have it.
+//
+// Empty string = not configured, and the caller renders the reference as plain
+// text rather than a broken relative URL. Same contract as leaveWebAppUrl.
+export const purchasingWebAppUrl: string = (
+  window.config?.ONE_WSO2_PURCHASING_WEB_APP_URL ?? ""
+).replace(/\/+$/, "");
+
+export function isPurchasingWebAppConfigured(): boolean {
+  return Boolean(purchasingWebAppUrl);
+}
+
+/**
+ * A purchase request's detail page in the standalone purchasing app, or
+ * undefined when that app's URL is not configured.
+ *
+ * Returning undefined rather than a relative "/requests/4" is deliberate: that
+ * path resolves against THIS origin, where it is not a route, so a caller that
+ * forgot to check would silently produce the same bounce this exists to avoid.
+ */
+export function purchasingWebAppRequestUrl(id: number | string): string | undefined {
+  if (!purchasingWebAppUrl) return undefined;
+  return `${purchasingWebAppUrl}/requests/${encodeURIComponent(String(id))}`;
+}
+
 export const isacUrl: string = window.config?.ONE_WSO2_MARKETINGOPS_ISAC_URL ?? "";
 
 export function isIsacConfigured(): boolean {

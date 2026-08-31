@@ -72,8 +72,9 @@ export function permissionsFrom(me: PurchasingMe | undefined): ProcurementPermis
 }
 
 // Which permission each rail item needs. Items absent from this map are open to
-// every authenticated caller (Home, My requests, New request, Approvals — the
-// things any employee does for themself).
+// every authenticated caller (My requests, New request, Approvals — the things
+// any employee does for themself). The perspective's overview is not listed at
+// all: SideRail renders that row from `active.path`, not from this registry.
 export const ITEM_PERMISSION: Record<string, keyof ProcurementPermissions> = {
   "proc-requests": "procurement",
   "proc-quotations": "procurement",

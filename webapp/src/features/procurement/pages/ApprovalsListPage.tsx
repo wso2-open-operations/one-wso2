@@ -22,14 +22,12 @@
 // simply empty for people who approve nothing.
 
 import { useState } from "react";
-import { Link } from "react-router";
 import {
   Box,
   Checkbox,
   Chip,
   CircularProgress,
   FormControlLabel,
-  Link as MuiLink,
   Paper,
   Table,
   TableBody,
@@ -39,11 +37,10 @@ import {
   TableRow,
   Typography,
 } from "@wso2/oxygen-ui";
+import PrReferenceLink from "@features/procurement/components/PrReferenceLink";
 import ProcurementShell from "@features/procurement/components/ProcurementShell";
 import StatusBadge from "@features/procurement/components/StatusBadge";
 import { useApprovalRequests } from "@features/procurement/api/usePurchaseRequests";
-import { procurementRoutes } from "@features/procurement/constants/routes";
-import { prReference } from "@features/procurement/util/prDisplay";
 import type { ApprovalStatus } from "@features/procurement/api/purchasingTypes";
 
 /** The caller's own decision on a request awaiting them. */
@@ -139,13 +136,7 @@ export default function ApprovalsListPage() {
               {rows.map((pr) => (
                 <TableRow key={pr.id} hover>
                   <TableCell>
-                    <MuiLink
-                      component={Link}
-                      to={procurementRoutes.request(pr.id)}
-                      sx={{ fontWeight: 500 }}
-                    >
-                      {prReference(pr)}
-                    </MuiLink>
+                    <PrReferenceLink pr={pr} fontWeight={500} />
                   </TableCell>
                   <TableCell>
                     {pr.title || (

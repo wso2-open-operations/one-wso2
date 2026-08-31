@@ -59,7 +59,9 @@ function me(roles: Role[], isApprover = false): PurchasingMe {
   };
 }
 
-const OPEN_TO_ALL = ["proc-home", "proc-my-requests", "proc-approvals"];
+// The perspective overview is absent on purpose — SideRail renders that row from
+// `active.path`, so registering it here duplicated it. See procurementApps.ts.
+const OPEN_TO_ALL = ["proc-my-requests", "proc-approvals"];
 const QUEUE = [
   "proc-requests",
   "proc-quotations",
@@ -149,7 +151,7 @@ describe("procurementCanSee", () => {
   });
 
   it("hides every screen that has no route yet, even from an admin", () => {
-    // Phase 1 routes only the three open screens. An item with no route must be
+    // Phase 1 routes only the two open screens. An item with no route must be
     // hidden rather than rendered as a row that goes nowhere — and hidden from
     // ADMINS too, since permission is not the constraint here.
     for (const id of [...QUEUE, ...ELEVATED, ...ADMIN_ONLY]) {
@@ -181,7 +183,7 @@ describe("procurementCanSee", () => {
       const decided = id in ITEM_PERMISSION || open.has(id);
       expect(decided, `${id} has no permission decision`).toBe(true);
     }
-    expect(PROCUREMENT_ITEM_IDS.size).toBe(14);
+    expect(PROCUREMENT_ITEM_IDS.size).toBe(13);
   });
 
   it("permissions each restricted item at the level the standalone app does", () => {
@@ -227,6 +229,13 @@ describe("PROCUREMENT_APPS registry", () => {
     const withPath = items.filter((it) => it.path).map((it) => it.id).sort();
     expect([...PROCUREMENT_ROUTED_ITEM_IDS].sort()).toEqual(withPath);
     expect(PROCUREMENT_ITEM_IDS.size).toBe(items.length);
+  });
+
+  it("does not register the perspective's own overview — SideRail renders that row", () => {
+    // A registry item whose path IS the perspective root renders the Overview
+    // row twice, and the nested copy steals the active highlight because
+    // SideRail's `activeItem` resolves sections before the overview.
+    for (const it of items) expect(it.path).not.toBe(PROCUREMENT_BASE);
   });
 
   it("gives every item a description, since the launcher renders it", () => {

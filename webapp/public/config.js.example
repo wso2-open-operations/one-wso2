@@ -79,6 +79,13 @@ window.config = {
   // "not connected" state.
   // ONE_WSO2_PURCHASING_BACKEND_URL: "<your-purchasing-backend-url>",
 
+  // purchasing-app FRONTEND base URL (not its backend) — deep-links to a
+  // purchase request's detail view, which this app does not host yet: Phase 1
+  // ports the list screens only. Optional — when absent, a request reference
+  // renders as plain text instead of a link. Same contract as
+  // ONE_WSO2_LEAVE_WEB_APP_URL.
+  // ONE_WSO2_PURCHASING_WEB_APP_URL: "<your-purchasing-web-app-url>",
+
   // ISAC base URL — a separate marketing application, linked to from the top of
   // the Marketing Ops rail and opened in a new tab. Nothing here calls it as an
   // API. Optional — when absent, the rail item is omitted entirely rather than

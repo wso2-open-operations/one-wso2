@@ -18,19 +18,18 @@
 // procurement queue when that lands. Ported from the standalone app's
 // components/PurchaseRequestsList.tsx.
 //
-// Differences from the source, both because the portal owns the page chrome:
-// the title/subtitle block is gone (ProcurementShell renders it), and paths run
-// through procurementRoutes rather than being literals.
+// Differences from the source: the title/subtitle block is gone (ProcurementShell
+// renders it, because the portal owns the page chrome), and the reference column
+// goes through PrReferenceLink — the detail view isn't ported yet, so it links
+// out to the standalone app rather than to a route that doesn't exist.
 
 import type { ReactNode } from "react";
-import { Link } from "react-router";
 import {
   Box,
   Card,
   CardContent,
   Chip,
   CircularProgress,
-  Link as MuiLink,
   Paper,
   Table,
   TableBody,
@@ -40,9 +39,9 @@ import {
   TableRow,
   Typography,
 } from "@wso2/oxygen-ui";
+import PrReferenceLink from "@features/procurement/components/PrReferenceLink";
 import StatusBadge from "@features/procurement/components/StatusBadge";
-import { procurementRoutes } from "@features/procurement/constants/routes";
-import { prPriority, prPriorityColor, prReference } from "@features/procurement/util/prDisplay";
+import { prPriority, prPriorityColor } from "@features/procurement/util/prDisplay";
 import type { PurchaseRequest, PurchasingMe } from "@features/procurement/api/purchasingTypes";
 
 export default function PurchaseRequestsList({
@@ -126,13 +125,7 @@ export default function PurchaseRequestsList({
               {data.map((pr) => (
                 <TableRow key={pr.id} hover>
                   <TableCell>
-                    <MuiLink
-                      component={Link}
-                      to={procurementRoutes.request(pr.id)}
-                      sx={{ fontWeight: 600 }}
-                    >
-                      {prReference(pr)}
-                    </MuiLink>
+                    <PrReferenceLink pr={pr} />
                   </TableCell>
                   <TableCell>{pr.title || <Dash />}</TableCell>
                   <TableCell>

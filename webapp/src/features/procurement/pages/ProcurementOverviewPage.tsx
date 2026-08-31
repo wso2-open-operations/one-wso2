@@ -37,6 +37,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
+import PrReferenceLink from "@features/procurement/components/PrReferenceLink";
 import ProcurementShell from "@features/procurement/components/ProcurementShell";
 import { useProcurementHome } from "@features/procurement/api/usePurchaseRequests";
 import { procurementRoutes } from "@features/procurement/constants/routes";
@@ -256,32 +257,32 @@ function ActivityCard({
             {items.map((a, i) => (
               <Box key={activityKey(a)}>
                 {i > 0 && <Divider />}
+                {/* The source app made the whole row a link to the request. The
+                    detail view isn't ported, so the link is now on the reference
+                    alone (PrReferenceLink, which leaves the app) — and the row
+                    is inert, with no hover wash promising a click it can't
+                    honour. Restore the row link in Phase 2, when there is an
+                    in-app destination for it. */}
                 <Box
-                  component={Link}
-                  to={procurementRoutes.request(a.purchase_request_id)}
                   sx={{
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 1.5,
                     py: 1.25,
-                    textDecoration: "none",
-                    color: "inherit",
-                    "&:hover": { bgcolor: "action.hover" },
                   }}
                 >
                   <Box sx={{ minWidth: 0 }}>
                     <Typography component="span" variant="body2" sx={{ fontWeight: 500 }}>
                       {activityLabel(a.action, a.qualifier)}
                     </Typography>
-                    <Typography
-                      component="span"
-                      variant="caption"
-                      color="primary.main"
-                      sx={{ ml: 1 }}
-                    >
-                      {a.reference || `#${a.purchase_request_id}`}
-                    </Typography>
+                    <Box component="span" sx={{ ml: 1 }}>
+                      <PrReferenceLink
+                        pr={{ id: a.purchase_request_id, reference: a.reference }}
+                        variant="caption"
+                        fontWeight={500}
+                      />
+                    </Box>
                     {a.title && (
                       <Typography
                         component="span"

@@ -30,12 +30,23 @@ export function p(path = ""): string {
 }
 
 // Named routes, so pages and the rail registry cannot drift apart.
+//
+// Most of these are NOT registered in App.tsx yet — the table is deliberately
+// ahead of the routes, the same way the rail registry is. Nothing may link to an
+// entry before its `<Route>` exists: App.tsx's catch-all turns such a click into
+// a silent redirect to the user's landing perspective. `request` is the one that
+// bit: until the detail view is ported, a reference links OUT to the standalone
+// app instead — see PrReferenceLink and purchasingWebAppRequestUrl.
 export const procurementRoutes = {
+  /** Routed. Also the perspective root, which is why the rail registry omits it. */
   home: p(),
+  /** Routed. */
   myRequests: p("/my-requests"),
   newRequest: p("/requests/new"),
   requests: p("/requests"),
+  /** NOT routed until Phase 2. See the note above before linking to this. */
   request: (id: number | string) => p(`/requests/${id}`),
+  /** Routed. */
   approvals: p("/approvals"),
   quotations: p("/quotations"),
   contracts: p("/contracts"),

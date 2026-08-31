@@ -24,11 +24,17 @@
 // useProcurementGate decides visibility, keyed on the ids below — which is why
 // they must stay in sync with ITEM_PERMISSION there.
 //
-// Phase 1 ships the four open items; the rest are registered so the rail's shape
+// Phase 1 ships the two open items; the rest are registered so the rail's shape
 // and gating are right from the start, and each becomes reachable as its screens
 // land (see docs/plans/21-one-wso2-port.md, Phases 2–4). Items whose route does
 // not exist yet carry no `path`, so the rail renders them as plain, unclickable
 // labels rather than links to a 404.
+//
+// The perspective's own overview (`/procurement`) is deliberately NOT an item
+// here. SideRail already renders an "Overview" row for `active.path` on every
+// perspective, and registering the same destination again showed the row twice —
+// with the nested copy winning the active highlight, since `activeItem` resolves
+// sections before the overview.
 
 import {
   ActivityIcon,
@@ -37,7 +43,6 @@ import {
   ClipboardListIcon,
   FileSignatureIcon,
   FileTextIcon,
-  HouseIcon,
   PackageCheckIcon,
   ReceiptTextIcon,
   ScrollTextIcon,
@@ -58,12 +63,6 @@ export const PROCUREMENT_APPS: readonly MenuApp[] = [
     purpose:
       "Raise a purchasing request, track the ones you've submitted, and act on the ones waiting for your approval.",
     items: [
-      {
-        id: "proc-home",
-        label: "Overview",
-        desc: "A snapshot of your requests, your approvals and — for the procurement team — the queue.",
-        path: procurementRoutes.home,
-      },
       {
         id: "proc-my-requests",
         label: "My requests",
@@ -176,7 +175,6 @@ export const PROCUREMENT_ITEM_IDS: ReadonlySet<string> = new Set(
 // because MenuAppItem has no icon field — the group carries the icon in this
 // portal, and these are only used where a leaf is rendered on its own.
 export const PROCUREMENT_ITEM_ICONS = {
-  "proc-home": HouseIcon,
   "proc-my-requests": ShoppingCartIcon,
   "proc-approvals": ClipboardCheckIcon,
   "proc-requests": ClipboardListIcon,
