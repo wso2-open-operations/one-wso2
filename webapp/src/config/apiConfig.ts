@@ -567,8 +567,10 @@ export function isIsacConfigured(): boolean {
 // purchasing-app (Procurement perspective)
 // ---------------------------------------------------------------------------
 //
-// A Go service, and the second non-Ballerina backend this app talks to. Two
-// things differ from the Ballerina siblings above:
+// A Go service, and the second non-Ballerina backend this app talks to. The
+// service is reused unchanged from the standalone app; see
+// docs/ported-apps/purchasing-app.md for the contract and the behaviour it
+// defines. Two things differ from the Ballerina siblings above:
 //
 //  1. Its routes are namespaced under `/api/v1/*` and the Choreo proxy preserves
 //     that prefix, so every URL here carries it.

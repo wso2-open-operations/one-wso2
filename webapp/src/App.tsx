@@ -222,6 +222,8 @@ export default function App() {
           {/* Procurement perspective — the purchasing app's UI, ported. Phase 1
               is the three screens every employee needs: the role-based overview,
               their own requests, and the approvals waiting on them. The
+              functional spec and the deviation list live in
+              docs/ported-apps/purchasing-app.md. The
               procurement queue, quotations, contracts, GRNs, invoices, analytics
               and the admin screens land in later phases (docs/plans/21 in the
               purchasing repo). Until then those items are registered but

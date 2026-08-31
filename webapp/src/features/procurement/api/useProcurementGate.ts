@@ -27,7 +27,8 @@
 // The predicates below are the same ones the standalone app's lib/nav/navModel.ts
 // gates on. They are the shared contract between the two front ends: change a
 // role rule here and there in the same PR. Everything is UX only — every
-// endpoint is enforced server-side regardless.
+// endpoint is enforced server-side regardless. The role matrix this implements is
+// tabulated in docs/ported-apps/purchasing-app.md §4.
 
 import { describeError } from "@api/errors";
 import { usePurchasingMe } from "./usePurchasingMe";
