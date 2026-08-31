@@ -571,6 +571,14 @@ export function salesforceRecordUrl(object: "Lead" | "Account", id: string): str
 //     only an identity from the token. So the standard authedGet/authedPost
 //     helpers work unmodified — no per-backend header quirk.
 //
+// Both of those are also why this backend needs TWO deployment-side entries that
+// no Ballerina sibling does, and neither fails in a way the UI can explain:
+// this app's client id in its `oidc.additional_client_ids` (else `invalid
+// token`), and this app's ORIGIN in its `cors.allowed_origins`, which the
+// backend matches exactly unless the list is `*` (else the browser blocks the
+// request before auth runs, and all ProcurementShell can report is that it
+// couldn't reach the backend). See webapp/README.md.
+//
 // Trailing slashes are stripped: every builder below concatenates "/api/v1/..."
 // onto this, and a configured value ending in "/" would produce "//api/v1/...",
 // whose behaviour depends on the gateway.
