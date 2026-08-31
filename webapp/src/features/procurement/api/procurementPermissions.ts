@@ -39,6 +39,17 @@ export interface ProcurementPermissions {
   isApprover: boolean;
 }
 
+/**
+ * A permission a SCREEN may gate on.
+ *
+ * `isApprover` is deliberately excluded. It describes work that exists (someone
+ * asked this person to approve something), not a surface they may open — the
+ * Approvals screen is open to everyone precisely because holding no approvals is
+ * an empty list, not a refusal. Gating a screen on it would hide that screen
+ * from someone the moment their queue emptied.
+ */
+export type ProcurementRequirement = Exclude<keyof ProcurementPermissions, "isApprover">;
+
 const NONE: ProcurementPermissions = {
   procurement: false,
   isAdmin: false,
@@ -72,9 +83,12 @@ export function permissionsFrom(me: PurchasingMe | undefined): ProcurementPermis
 }
 
 // Which permission each rail item needs. Items absent from this map are open to
-// every authenticated caller (My requests, New request, Approvals — the things
-// any employee does for themself). The perspective's overview is not listed at
-// all: SideRail renders that row from `active.path`, not from this registry.
+// every authenticated caller — in Phase 1 that is My requests and Approvals, the
+// things any employee does for themself, joined by New request when the
+// requisition form is ported.
+//
+// The perspective's overview is not listed at all: SideRail renders that row
+// from `active.path`, not from this registry.
 export const ITEM_PERMISSION: Record<string, keyof ProcurementPermissions> = {
   "proc-requests": "procurement",
   "proc-quotations": "procurement",

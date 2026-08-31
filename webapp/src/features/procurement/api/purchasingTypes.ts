@@ -24,7 +24,9 @@
 // demand-driven for the same reason.
 //
 // The contract is owned by the backend. When it changes, BOTH front ends have to
-// be updated in the same PR — see docs/plans/21-one-wso2-port.md.
+// be updated in the same PR — see `docs/plans/21-one-wso2-port.md` in the
+// purchasing-app repo (it does not exist here), and this repo's own
+// `docs/ported-apps/purchasing-app.md` for the behaviour these screens define.
 
 export type Role =
   | "staff"

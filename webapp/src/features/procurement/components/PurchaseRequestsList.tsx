@@ -22,8 +22,12 @@
 // renders it, because the portal owns the page chrome), and the reference column
 // goes through PrReferenceLink — the detail view isn't ported yet, so it links
 // out to the standalone app rather than to a route that doesn't exist.
+//
+// The source's `toolbar` / `filtersActive` props are NOT carried over. Nothing in
+// Phase 1 filters anything, so they were an unreachable prop and an unreachable
+// empty state; the procurement queue can reintroduce the filter UI it actually
+// needs when it lands, rather than inheriting a guess at it.
 
-import type { ReactNode } from "react";
 import {
   Box,
   Card,
@@ -39,6 +43,7 @@ import {
   TableRow,
   Typography,
 } from "@wso2/oxygen-ui";
+import ErrorNotice from "@components/error-notice/ErrorNotice";
 import PrReferenceLink from "@features/procurement/components/PrReferenceLink";
 import StatusBadge from "@features/procurement/components/StatusBadge";
 import { prPriority, prPriorityColor } from "@features/procurement/util/prDisplay";
@@ -48,24 +53,23 @@ export default function PurchaseRequestsList({
   data,
   isLoading,
   isError,
+  error,
+  onRetry,
   me,
   emptyMessage = "No purchase requests yet",
-  toolbar,
-  filtersActive = false,
 }: {
   data: PurchaseRequest[] | undefined;
   isLoading: boolean;
   isError: boolean;
+  /** The caught error, so ErrorNotice can name the cause. Never rendered raw. */
+  error?: unknown;
+  /** Omit only where retrying cannot help — every current caller passes one. */
+  onRetry?: () => void;
   me: PurchasingMe | undefined;
   emptyMessage?: string;
-  toolbar?: ReactNode;
-  /** Empty because filters exclude everything, not because none exist. */
-  filtersActive?: boolean;
 }) {
   return (
     <Box>
-      {toolbar}
-
       {isLoading && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CircularProgress size={18} />
@@ -74,33 +78,25 @@ export default function PurchaseRequestsList({
           </Typography>
         </Box>
       )}
+      {/* A retry, not a dead sentence: this is a 5-second-polled list, so the
+          commonest cause is a transient gateway failure and the fix is to ask
+          again. Same notice the rest of the app uses. */}
       {isError && (
-        <Typography variant="body2" color="error.main">
-          Failed to load requests.
-        </Typography>
+        <ErrorNotice error={error} onRetry={onRetry}>
+          Couldn&apos;t load your requests.
+        </ErrorNotice>
       )}
 
       {data && data.length === 0 && (
         <Card variant="outlined" sx={{ borderStyle: "dashed" }}>
           <CardContent sx={{ py: 6, textAlign: "center" }}>
-            {filtersActive ? (
-              <>
-                <Typography variant="subtitle2">No requests match these filters</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  Try clearing or widening the filters above.
-                </Typography>
-              </>
-            ) : (
-              <>
-                <Typography variant="subtitle2">{emptyMessage}</Typography>
-                {/* No "create one" button yet: raising a request is the
-                    requisition form, which lands in Phase 2. Saying where to go
-                    beats a button that goes nowhere. */}
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  New requests are raised in the purchasing app for now.
-                </Typography>
-              </>
-            )}
+            <Typography variant="subtitle2">{emptyMessage}</Typography>
+            {/* No "create one" button yet: raising a request is the requisition
+                form, which lands in Phase 2. Saying where to go beats a button
+                that goes nowhere. */}
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              New requests are raised in the purchasing app for now.
+            </Typography>
           </CardContent>
         </Card>
       )}

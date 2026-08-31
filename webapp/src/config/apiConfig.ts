@@ -557,6 +557,12 @@ export function salesforceRecordUrl(object: "Lead" | "Account", id: string): str
 //
 // Empty string = not configured, and the rail then omits the item entirely rather
 // than showing one that goes nowhere. Same contract as leaveWebAppUrl above.
+export const isacUrl: string = window.config?.ONE_WSO2_MARKETINGOPS_ISAC_URL ?? "";
+
+export function isIsacConfigured(): boolean {
+  return Boolean(isacUrl);
+}
+
 // ---------------------------------------------------------------------------
 // purchasing-app (Procurement perspective)
 // ---------------------------------------------------------------------------
@@ -602,8 +608,6 @@ export const purchasingServiceUrls = {
   // GET /api/v1/purchase-requests[?scope=mine|approvals] — the list projection.
   // Omitting scope gives the role-based procurement queue.
   purchaseRequests: `${purchasingBackendUrl}/api/v1/purchase-requests`,
-  purchaseRequest: (id: number | string) =>
-    `${purchasingBackendUrl}/api/v1/purchase-requests/${encodeURIComponent(String(id))}`,
 };
 
 // The purchasing-app FRONTEND itself (not its backend), for deep-linking to a
@@ -637,12 +641,6 @@ export function isPurchasingWebAppConfigured(): boolean {
 export function purchasingWebAppRequestUrl(id: number | string): string | undefined {
   if (!purchasingWebAppUrl) return undefined;
   return `${purchasingWebAppUrl}/requests/${encodeURIComponent(String(id))}`;
-}
-
-export const isacUrl: string = window.config?.ONE_WSO2_MARKETINGOPS_ISAC_URL ?? "";
-
-export function isIsacConfigured(): boolean {
-  return Boolean(isacUrl);
 }
 
 export const promotionServiceUrls = {

@@ -35,10 +35,11 @@ import {
   permissionsFrom,
   procurementCanSee,
   type ProcurementPermissions,
+  type ProcurementRequirement,
 } from "./procurementPermissions";
 
 export { permissionsFrom, procurementCanSee };
-export type { ProcurementPermissions };
+export type { ProcurementPermissions, ProcurementRequirement };
 
 export interface ProcurementGate {
   canSee: (itemId: string) => boolean;

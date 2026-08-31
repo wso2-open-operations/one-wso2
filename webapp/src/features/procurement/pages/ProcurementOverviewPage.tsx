@@ -37,6 +37,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
+import ErrorNotice from "@components/error-notice/ErrorNotice";
 import PrReferenceLink from "@features/procurement/components/PrReferenceLink";
 import ProcurementShell from "@features/procurement/components/ProcurementShell";
 import { useProcurementHome } from "@features/procurement/api/usePurchaseRequests";
@@ -50,7 +51,7 @@ import type {
 } from "@features/procurement/api/purchasingTypes";
 
 export default function ProcurementOverviewPage() {
-  const { data, isPending, isError } = useProcurementHome();
+  const { data, isPending, isError, error, refetch } = useProcurementHome();
 
   return (
     <ProcurementShell
@@ -59,9 +60,9 @@ export default function ProcurementOverviewPage() {
     >
       {isPending && <CircularProgress size={24} />}
       {isError && (
-        <Typography variant="body2" color="error.main">
-          Failed to load your overview.
-        </Typography>
+        <ErrorNotice error={error} onRetry={() => void refetch()}>
+          Couldn&apos;t load your overview.
+        </ErrorNotice>
       )}
 
       {data && (

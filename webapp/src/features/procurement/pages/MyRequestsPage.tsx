@@ -34,6 +34,8 @@ export default function MyRequestsPage() {
         data={requests.data}
         isLoading={requests.isPending}
         isError={requests.isError}
+        error={requests.error}
+        onRetry={() => void requests.refetch()}
         me={me.data}
         emptyMessage="You haven't submitted any requests yet"
       />

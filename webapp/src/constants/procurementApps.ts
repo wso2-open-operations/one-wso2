@@ -26,7 +26,8 @@
 //
 // Phase 1 ships the two open items; the rest are registered so the rail's shape
 // and gating are right from the start, and each becomes reachable as its screens
-// land (see docs/plans/21-one-wso2-port.md, Phases 2–4). Items whose route does
+// land (Phases 2–4 of `docs/plans/21-one-wso2-port.md` in the purchasing-app
+// repo). Items whose route does
 // not exist yet carry no `path`, so the rail renders them as plain, unclickable
 // labels rather than links to a 404.
 //

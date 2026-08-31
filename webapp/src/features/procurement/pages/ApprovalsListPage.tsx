@@ -37,6 +37,7 @@ import {
   TableRow,
   Typography,
 } from "@wso2/oxygen-ui";
+import ErrorNotice from "@components/error-notice/ErrorNotice";
 import PrReferenceLink from "@features/procurement/components/PrReferenceLink";
 import ProcurementShell from "@features/procurement/components/ProcurementShell";
 import StatusBadge from "@features/procurement/components/StatusBadge";
@@ -62,7 +63,7 @@ function MyApprovalBadge({ state }: { state?: ApprovalStatus | null }) {
 }
 
 export default function ApprovalsListPage() {
-  const { data, isPending, isError } = useApprovalRequests();
+  const { data, isPending, isError, error, refetch } = useApprovalRequests();
   // Two independent filters. Pending is on by default; "Reviewed" covers the
   // acted-on rows — recommendation cards cannot be rejected, so a rejected row
   // is always a named-approval decision.
@@ -103,9 +104,9 @@ export default function ApprovalsListPage() {
 
       {isPending && <CircularProgress size={24} />}
       {isError && (
-        <Typography variant="body2" color="error.main">
-          Failed to load approvals.
-        </Typography>
+        <ErrorNotice error={error} onRetry={() => void refetch()}>
+          Couldn&apos;t load your approvals.
+        </ErrorNotice>
       )}
 
       {data && rows.length === 0 && (

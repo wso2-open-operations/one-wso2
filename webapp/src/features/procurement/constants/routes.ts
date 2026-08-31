@@ -42,6 +42,7 @@ export const procurementRoutes = {
   home: p(),
   /** Routed. */
   myRequests: p("/my-requests"),
+  /** NOT routed until Phase 2, which ports the requisition form. */
   newRequest: p("/requests/new"),
   requests: p("/requests"),
   /** NOT routed until Phase 2. See the note above before linking to this. */
