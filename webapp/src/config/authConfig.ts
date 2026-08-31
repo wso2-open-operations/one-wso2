@@ -78,6 +78,16 @@ declare global {
       // like the others) whose routes live under /api/*. Optional — when
       // absent, MarketingOpsShell shows a "not connected" state.
       ONE_WSO2_MARKETINGOPS_BACKEND_URL?: string;
+      // purchasing-app backend base URL. A Go service under /api/v1/*, with its
+      // own role scheme (/api/v1/me) unrelated to the people-app privileges the
+      // rest of the app gates on. Optional — when absent, the Procurement
+      // screens show a "not connected" state.
+      ONE_WSO2_PURCHASING_BACKEND_URL?: string;
+      // The purchasing-app FRONTEND base URL (not its backend) — for
+      // deep-linking to a purchase request's detail view, which this app does
+      // not host yet. Optional — when absent, a reference renders as plain text
+      // instead of a link. Same contract as ONE_WSO2_LEAVE_WEB_APP_URL.
+      ONE_WSO2_PURCHASING_WEB_APP_URL?: string;
       // ISAC's own base URL — a separate marketing application, linked to
       // from the top of the Marketing Ops rail and opened in a new tab.
       // Nothing here calls it as an API. Optional — when absent, the rail

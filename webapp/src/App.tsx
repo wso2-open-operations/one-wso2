@@ -32,6 +32,9 @@ import MyTeamPage from "@features/my/my-team/pages/MyTeamPage";
 import TeamMemberPage from "@features/my/my-team/pages/TeamMemberPage";
 import FinancePage from "@features/finance/pages/FinancePage";
 import MarketingOpsPage from "@features/marketing-ops/pages/MarketingOpsPage";
+import ProcurementOverviewPage from "@features/procurement/pages/ProcurementOverviewPage";
+import ProcurementMyRequestsPage from "@features/procurement/pages/MyRequestsPage";
+import ProcurementApprovalsPage from "@features/procurement/pages/ApprovalsListPage";
 import AdCampaignsAnalyticsPage from "@features/marketing-ops/ad-campaigns/pages/AdCampaignsAnalyticsPage";
 import UtmGeneratorPage from "@features/marketing-ops/utilities/pages/UtmGeneratorPage";
 import AssetNameGeneratorPage from "@features/marketing-ops/utilities/pages/AssetNameGeneratorPage";
@@ -216,6 +219,23 @@ export default function App() {
               menu app. One page, as the original was. The functional spec and
               the deviation list live in docs/ported-apps/menu-app.md. */}
           <Route path="me/menu" element={<MenuHomePage />} />
+          {/* Procurement perspective — the purchasing app's UI, ported. Phase 1
+              is the three screens every employee needs: the role-based overview,
+              their own requests, and the approvals waiting on them. The
+              functional spec and the deviation list live in
+              docs/ported-apps/purchasing-app.md. The
+              procurement queue, quotations, contracts, GRNs, invoices, analytics
+              and the admin screens land in later phases (docs/plans/21 in the
+              purchasing repo). Until then those items are registered but
+              unrouted, and the rail hides them — a group whose children are all
+              hidden disappears with them.
+
+              Every route is role-gated by the purchasing backend itself; the
+              rail and ProcurementShell only decide what to show. */}
+          <Route path="procurement" element={<ProcurementOverviewPage />} />
+          <Route path="procurement/my-requests" element={<ProcurementMyRequestsPage />} />
+          <Route path="procurement/approvals" element={<ProcurementApprovalsPage />} />
+
           {/* Catch-all → landing */}
           <Route path="*" element={<Navigate to={landingPath()} replace />} />
         </Route>

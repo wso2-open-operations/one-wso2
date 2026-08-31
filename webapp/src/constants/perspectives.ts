@@ -26,6 +26,7 @@ import {
   MegaphoneIcon,
   SatelliteDishIcon,
   ScaleIcon,
+  ShoppingCartIcon,
   UserRoundIcon,
   UserRoundMinusIcon,
   UsersIcon,
@@ -37,6 +38,7 @@ import {
 import type { Capability, MenuApp } from "@constants/appMenu";
 import { FINANCE_APPS } from "@constants/financeApps";
 import { MARKETING_OPS_APPS } from "@constants/marketingOpsApps";
+import { PROCUREMENT_APPS } from "@constants/procurementApps";
 import { ME_APPS } from "@constants/meApps";
 
 export interface PerspectiveSection {
@@ -129,6 +131,11 @@ export const PEOPLE_OPS_SECTIONS: PerspectiveSection[] = [
   },
 ];
 
+
+// Procurement. Sections come straight from the registry; the rail gates them
+// against the purchasing backend's own roles via useProcurementGate, not the
+// `requires` capabilities the other perspectives use.
+const PROCUREMENT_SECTIONS: PerspectiveSection[] = appsToSections(PROCUREMENT_APPS);
 
 // Marketing Ops. Built from the registry now so the rail is ready, but the
 // perspective itself stays locked (`access: false` below) until Phase 1
@@ -240,6 +247,19 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     access: true,
     path: "/marketing-ops",
     sections: MARKETING_OPS_SECTIONS,
+  },
+  {
+    key: "procurement",
+    label: "Procurement",
+    // Gated on the purchasing backend's OWN roles (its `users`/`user_roles`
+    // tables, granted in-app), not on people-app privileges — see
+    // useProcurementGate. Every employee may raise and track a request; the
+    // procurement, admin and approver screens are role-gated inside.
+    externallyGated: true,
+    icon: ShoppingCartIcon,
+    access: true,
+    path: "/procurement",
+    sections: PROCUREMENT_SECTIONS,
   },
   // Locked until the Service Requests surface has real content — the page was a
   // static prototype and the persona showed as clickable in the waffle even

@@ -563,6 +563,88 @@ export function isIsacConfigured(): boolean {
   return Boolean(isacUrl);
 }
 
+// ---------------------------------------------------------------------------
+// purchasing-app (Procurement perspective)
+// ---------------------------------------------------------------------------
+//
+// A Go service, and the second non-Ballerina backend this app talks to. The
+// service is reused unchanged from the standalone app; see
+// docs/ported-apps/purchasing-app.md for the contract and the behaviour it
+// defines. Two things differ from the Ballerina siblings above:
+//
+//  1. Its routes are namespaced under `/api/v1/*` and the Choreo proxy preserves
+//     that prefix, so every URL here carries it.
+//  2. It verifies the Asgardeo token ITSELF rather than trusting the gateway's
+//     `x-jwt-assertion`, because its roles live in its own database and it needs
+//     only an identity from the token. So the standard authedGet/authedPost
+//     helpers work unmodified — no per-backend header quirk.
+//
+// Both of those are also why this backend needs TWO deployment-side entries that
+// no Ballerina sibling does, and neither fails in a way the UI can explain:
+// this app's client id in its `oidc.additional_client_ids` (else `invalid
+// token`), and this app's ORIGIN in its `cors.allowed_origins`, which the
+// backend matches exactly unless the list is `*` (else the browser blocks the
+// request before auth runs, and all ProcurementShell can report is that it
+// couldn't reach the backend). See webapp/README.md.
+//
+// Trailing slashes are stripped: every builder below concatenates "/api/v1/..."
+// onto this, and a configured value ending in "/" would produce "//api/v1/...",
+// whose behaviour depends on the gateway.
+export const purchasingBackendUrl: string = (
+  window.config?.ONE_WSO2_PURCHASING_BACKEND_URL ?? ""
+).replace(/\/+$/, "");
+
+export function isPurchasingBackendConfigured(): boolean {
+  return Boolean(purchasingBackendUrl);
+}
+
+export const purchasingServiceUrls = {
+  // GET /api/v1/me — identity + roles + the server-computed is_approver flag.
+  // Authenticated but not gated: the backend self-provisions any authenticated
+  // employee with the `staff` role, so a 200 here IS the authorization and what
+  // varies is which screens the roles unlock.
+  me: `${purchasingBackendUrl}/api/v1/me`,
+  // GET /api/v1/home — the role-based overview blocks. The backend decides which
+  // apply to the caller.
+  home: `${purchasingBackendUrl}/api/v1/home`,
+  // GET /api/v1/purchase-requests[?scope=mine|approvals] — the list projection.
+  // Omitting scope gives the role-based procurement queue.
+  purchaseRequests: `${purchasingBackendUrl}/api/v1/purchase-requests`,
+};
+
+// The purchasing-app FRONTEND itself (not its backend), for deep-linking to a
+// purchase request's detail view.
+//
+// Phase 1 ports the three list screens but not the detail screen, and a request
+// reference is the primary thing you click on all three of them. Pointing it at
+// an in-app route that does not exist yet is worse than not linking it: the
+// catch-all in App.tsx would redirect the user to their landing perspective, so
+// the click reads as the app throwing them out for no reason. Until the detail
+// screen lands, the reference goes to the app that DOES have it.
+//
+// Empty string = not configured, and the caller renders the reference as plain
+// text rather than a broken relative URL. Same contract as leaveWebAppUrl.
+export const purchasingWebAppUrl: string = (
+  window.config?.ONE_WSO2_PURCHASING_WEB_APP_URL ?? ""
+).replace(/\/+$/, "");
+
+export function isPurchasingWebAppConfigured(): boolean {
+  return Boolean(purchasingWebAppUrl);
+}
+
+/**
+ * A purchase request's detail page in the standalone purchasing app, or
+ * undefined when that app's URL is not configured.
+ *
+ * Returning undefined rather than a relative "/requests/4" is deliberate: that
+ * path resolves against THIS origin, where it is not a route, so a caller that
+ * forgot to check would silently produce the same bounce this exists to avoid.
+ */
+export function purchasingWebAppRequestUrl(id: number | string): string | undefined {
+  if (!purchasingWebAppUrl) return undefined;
+  return `${purchasingWebAppUrl}/requests/${encodeURIComponent(String(id))}`;
+}
+
 export const promotionServiceUrls = {
   // GET /employee-info?employeeWorkEmail=<email> — returns the caller's
   // EmployeeInfoWithLead (startDate, jobBand, lastPromotedDate, reportingLead,

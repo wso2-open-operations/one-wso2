@@ -98,6 +98,14 @@ export const PERSPECTIVE_HUES: Record<string, PerspectiveHue> = {
     light: { bg: "#FBE6EF", fg: "#B02E6B" },
     dark: { bg: "#2C212A", fg: "#E04A8F" },
   },
+  // Teal: distinct from Me's orange, People's blue, Finance's green, Workspace's
+  // violet, Marketing's pink and Requests' gold at the sizes the rail and
+  // launcher tiles use.
+  procurement: {
+    hue: "#0E8F8F",
+    light: { bg: "#DEF0F0", fg: "#0B6E6E" },
+    dark: { bg: "#1B2828", fg: "#17AFAF" },
+  },
   requests: {
     hue: "#C08A16",
     light: { bg: "#F6EFDE", fg: "#8A6410" },
