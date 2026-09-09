@@ -55,7 +55,7 @@ export default function FinancePage() {
       to: expenseFinancePaths.new,
       icon: ReceiptTextIcon,
       title: "Expense Claims",
-      description: "File a new expense claim, or see the ones you have already submitted.",
+      description: "File a new expense claim.",
     },
     {
       id: "cc",

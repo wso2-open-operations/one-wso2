@@ -15,31 +15,18 @@
 // under the License.
 
 import { useEffect, useState } from "react";
-import { pdf } from "@react-pdf/renderer";
 import {
-  Avatar,
   Box,
   Button,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
-  IconButton,
   Stack,
   TextField,
-  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import {
-  HistoryIcon,
-  PrinterIcon,
-  ReceiptTextIcon,
-  UserRoundIcon,
-  UsersIcon,
-  type LucideIcon,
-} from "@wso2/oxygen-ui-icons-react";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { expenseServiceUrls } from "@config/apiConfig";
 import { useNotifications } from "@context/notifications/NotificationsContext";
@@ -54,14 +41,7 @@ import {
   useResubmitExpenseClaim,
 } from "./useExpenseMutations";
 import { AddExpenseDialog, type DraftLine } from "./ExpenseLineDialog";
-import { ClaimReportDocument, type ClaimReceiptAsset } from "./ExpenseClaimReport";
-import {
-  nextStatus,
-  type ApproverView,
-  type ExpenseAppData,
-  type ExpenseClaim,
-  type ExpenseEmployee,
-} from "./expenseTypes";
+import { nextStatus, type ApproverView, type ExpenseAppData, type ExpenseClaim } from "./expenseTypes";
 
 // Expense claim detail slide-over — read-only for History, or with
 // stage-appropriate Approve/Reject for Lead / Finance approvals.
@@ -70,8 +50,6 @@ export function ExpenseClaimDetailsDialog({
   onClose,
   review,
   appData,
-  employees,
-  onDecided,
 }: {
   claim: ExpenseClaim | null;
   onClose: () => void;
@@ -81,8 +59,6 @@ export function ExpenseClaimDetailsDialog({
    * approver views, which never resubmit.
    */
   appData?: ExpenseAppData;
-  employees?: ExpenseEmployee[];
-  onDecided?: (claim: ExpenseClaim, decision: "approve" | "reject") => void;
 }) {
   const getAccessToken = useAccessToken();
   const { showError, showSuccess } = useNotifications();
@@ -98,7 +74,6 @@ export function ExpenseClaimDetailsDialog({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [confirmingResubmit, setConfirmingResubmit] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
 
   // Reset transient state when the target claim changes — the dialog stays
   // mounted, so a typed reason / open reject panel would otherwise carry
@@ -112,11 +87,7 @@ export function ExpenseClaimDetailsDialog({
     setEditingIndex(null);
     setConfirmingResubmit(false);
     setConfirmingDiscard(false);
-    setActivityOpen(false);
   }, [claimId]);
-
-  const employee = employees?.find((e) => e.workEmail === claim?.employeeEmail);
-  const employeeName = employee ? [employee.firstName, employee.lastName].filter(Boolean).join(" ") : null;
 
   // ClaimDetails.tsx:120-124 — the employee's own view of a claim rejected at
   // either stage. Not offered to an approver looking at the same claim.
@@ -155,39 +126,6 @@ export function ExpenseClaimDetailsDialog({
       return fetchReceiptObjectUrl(expenseServiceUrls.receiptFile(fileName), accessToken);
     });
   };
-  const [downloadingReport, setDownloadingReport] = useState(false);
-  const downloadReport = async () => {
-    if (!claim) return;
-    setDownloadingReport(true);
-    try {
-      const accessToken = await getAccessToken();
-      const assets: ClaimReceiptAsset[] = [];
-      for (let i = 0; i < claim.transactions.length; i++) {
-        const fileName = claim.transactions[i].receiptUrl;
-        if (!fileName) continue;
-        try {
-          const source = await fetchReceiptObjectUrl(expenseServiceUrls.receiptFile(fileName), accessToken);
-          assets.push({ index: i, url: source.url, type: source.type });
-        } catch {
-          // Missing/failed receipt — ClaimReportDocument prints a note for it.
-        }
-      }
-      const blob = await pdf(<ClaimReportDocument claim={claim} receipts={assets} />).toBlob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${claim.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      assets.forEach((a) => URL.revokeObjectURL(a.url));
-    } catch (err) {
-      showError(describeError(err));
-    } finally {
-      setDownloadingReport(false);
-    }
-  };
 
   const decide = (decision: "approve" | "reject") => {
     if (!claim || !review) return;
@@ -204,7 +142,6 @@ export function ExpenseClaimDetailsDialog({
           showSuccess(decision === "approve" ? "Claim approved" : "Claim rejected");
           setRejecting(false);
           setReason("");
-          onDecided?.(claim, decision);
           onClose();
         },
         onError: (err) => showError(describeError(err)),
@@ -220,41 +157,12 @@ export function ExpenseClaimDetailsDialog({
       <DialogTitle sx={{ fontSize: 17, fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
         <span>Claim {claim?.id}</span>
         <StatusChip label={meta.label} color={meta.color} />
-        {/* ClaimDetails.tsx:410-456 — the claim-activity drawer, ported as a
-            nested dialog since this whole view is already a modal. */}
-        {/* ClaimDetails.tsx:236-262 — the report download is finance-only. */}
-        {review === "FINANCE" && claim && (
-          <Tooltip title="Download report">
-            <IconButton size="small" sx={{ ml: "auto" }} onClick={downloadReport} disabled={downloadingReport}>
-              {downloadingReport ? <CircularProgress size={16} /> : <PrinterIcon size={17} />}
-            </IconButton>
-          </Tooltip>
-        )}
-        <Tooltip title="Claim activity">
-          <IconButton size="small" sx={{ ml: review === "FINANCE" ? 0 : "auto" }} onClick={() => setActivityOpen(true)}>
-            <HistoryIcon size={17} />
-          </IconButton>
-        </Tooltip>
       </DialogTitle>
       <DialogContent dividers>
         {claim && (
           <Stack spacing={1.5}>
             <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-              {employeeName ? (
-                <Box>
-                  <Typography sx={{ fontSize: 10, color: "text.disabled", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    Employee
-                  </Typography>
-                  <Tooltip title={claim.employeeEmail} arrow>
-                    <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mt: 0.25 }}>
-                      <Avatar src={employee?.employeeThumbnail ?? undefined} alt={employeeName} sx={{ width: 20, height: 20, fontSize: 11 }} />
-                      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{employeeName}</Typography>
-                    </Stack>
-                  </Tooltip>
-                </Box>
-              ) : (
-                <Meta label="Employee" value={claim.employeeEmail} />
-              )}
+              <Meta label="Employee" value={claim.employeeEmail} />
               <Meta label="Submitted" value={formatNice(claim.createdDate)} />
               <Meta label="Total" value={money(claim.totalAmount, cur)} />
             </Box>
@@ -391,10 +299,6 @@ export function ExpenseClaimDetailsDialog({
     {editingIndex !== null && appData && (
       <AddExpenseDialog
         appData={appData}
-        travels={appData.travels}
-        travelsLoading={false}
-        onBehalfOfEmail={null}
-        onBehalfOfName={null}
         editing={shownLines[editingIndex]}
         restrictionFrom={claim?.createdDate}
         uploading={receiptUpload.isPending}
@@ -487,20 +391,6 @@ export function ExpenseClaimDetailsDialog({
         </Button>
       </DialogActions>
     </Dialog>
-
-    {/* ClaimDetails.tsx:410-456 (Drawer + Timeline) — the three-stage approval
-        activity, ported as a nested dialog since this whole view is already
-        a modal rather than a page with room for a side drawer. */}
-    <Dialog open={activityOpen} onClose={() => setActivityOpen(false)} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>Claim Activity</DialogTitle>
-      <DialogContent dividers>{claim && <ClaimActivityTimeline claim={claim} />}</DialogContent>
-      <DialogActions>
-        <Button size="small" onClick={() => setActivityOpen(false)}>
-          Close
-        </Button>
-      </DialogActions>
-    </Dialog>
-
     <ReceiptViewer load={receiptLoad} onClose={() => setReceiptLoad(null)} />
     </>
   );
@@ -514,104 +404,5 @@ function Meta({ label, value }: { label: string; value: string }) {
       </Typography>
       <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{value}</Typography>
     </Box>
-  );
-}
-
-type ActivityTone = "success" | "warning" | "error" | "neutral";
-
-const ACTIVITY_TONE_COLOR: Record<ActivityTone, string> = {
-  success: "success.main",
-  warning: "warning.main",
-  error: "error.main",
-  neutral: "grey.400",
-};
-
-interface ActivityStage {
-  label: string;
-  Icon: LucideIcon;
-  date: string | null;
-  reason?: string | null;
-  tone: ActivityTone;
-  statusLabel?: "Pending" | "Approved" | "Rejected";
-}
-
-// CustomTimelineItem.tsx — same three stages and status→colour mapping, laid
-// out by hand (Box dot + connector) instead of pulling in @mui/lab, which
-// nothing else in this app depends on.
-function ClaimActivityTimeline({ claim }: { claim: ExpenseClaim }) {
-  const s = claim.statusDetails;
-
-  const leadStage: ActivityStage =
-    s.status === "PENDING_LEAD"
-      ? { label: "Lead Review", Icon: UserRoundIcon, date: null, tone: "warning", statusLabel: "Pending" }
-      : s.status === "LEAD_REJECTED"
-        ? { label: "Lead Review", Icon: UserRoundIcon, date: s.leadRejectedDate, reason: s.leadRejectedReason, tone: "error", statusLabel: "Rejected" }
-        : { label: "Lead Review", Icon: UserRoundIcon, date: s.leadApprovedDate, tone: "success" };
-
-  const financeStage: ActivityStage =
-    s.status === "PENDING_FINANCE"
-      ? { label: "Finance Review", Icon: UsersIcon, date: null, tone: "warning", statusLabel: "Pending" }
-      : s.status === "FINANCE_REJECTED"
-        ? { label: "Finance Review", Icon: UsersIcon, date: s.financeRejectedDate, tone: "error", statusLabel: "Rejected" }
-        : s.status === "APPROVED"
-          ? { label: "Finance Review", Icon: UsersIcon, date: s.financeApprovedDate, tone: "success", statusLabel: "Approved" }
-          // Hasn't reached finance yet (still with the lead, or lead-rejected).
-          : { label: "Finance Review", Icon: UsersIcon, date: null, tone: "neutral" };
-
-  const stages: ActivityStage[] = [
-    { label: "Claim Submission", Icon: ReceiptTextIcon, date: claim.createdDate, tone: "success" },
-    leadStage,
-    financeStage,
-  ];
-
-  return (
-    <Stack spacing={0}>
-      {stages.map((stage, i) => (
-        <Box key={stage.label} sx={{ display: "flex", gap: 1.5 }}>
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <Box
-              sx={{
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "1.5px solid",
-                borderColor: ACTIVITY_TONE_COLOR[stage.tone],
-                color: ACTIVITY_TONE_COLOR[stage.tone],
-                flexShrink: 0,
-              }}
-            >
-              <stage.Icon size={14} />
-            </Box>
-            {i < stages.length - 1 && (
-              <Box sx={{ width: 2, flex: 1, minHeight: 28, bgcolor: "divider", my: 0.5 }} />
-            )}
-          </Box>
-          <Box sx={{ pb: 2.5, pt: 0.25 }}>
-            <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: ACTIVITY_TONE_COLOR[stage.tone] }}>
-              {stage.label}
-              {stage.statusLabel && (
-                <Typography component="span" sx={{ fontSize: 11.5, fontWeight: 500, ml: 0.5 }}>
-                  ({stage.statusLabel})
-                </Typography>
-              )}
-            </Typography>
-            <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
-              {stage.date ? formatNice(stage.date) : "—"}
-            </Typography>
-            {stage.reason && (
-              <Typography sx={{ fontSize: 12, mt: 0.5 }}>
-                <Typography component="span" sx={{ fontWeight: 500 }}>
-                  Reason:
-                </Typography>{" "}
-                {stage.reason}
-              </Typography>
-            )}
-          </Box>
-        </Box>
-      ))}
-    </Stack>
   );
 }

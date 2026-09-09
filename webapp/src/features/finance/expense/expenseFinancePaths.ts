@@ -18,5 +18,4 @@ export const EXPENSE_FINANCE_PATH = "/finance/expense-claims";
 
 export const expenseFinancePaths = {
   new: `${EXPENSE_FINANCE_PATH}/new`,
-  history: `${EXPENSE_FINANCE_PATH}/history`,
 } as const;

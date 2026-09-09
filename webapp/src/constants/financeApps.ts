@@ -69,10 +69,9 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
     key: "expense",
     name: "Expense Claims",
     icon: ReceiptTextIcon,
-    purpose: "File a new expense claim, or see the ones you have already submitted.",
+    purpose: "File a new expense claim.",
     items: [
       { id: "expense-new", label: "New Claim", desc: "File a new expense claim.", path: expenseFinancePaths.new },
-      { id: "expense-history", label: "Claim History", desc: "Expense claims you have filed.", path: expenseFinancePaths.history },
     ],
   },
   {

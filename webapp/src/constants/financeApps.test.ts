@@ -37,11 +37,11 @@ describe("where each finance app lives", () => {
   // card app is not part of the set every employee needs.
   //
   // "expense" is a deliberate exception to "each app lives in exactly one
-  // place": its New Claim / History routes under Finance render the very same
-  // pages as "claims" → Expense under Me (see expenseFinancePaths.ts) — a
-  // second door onto the same rooms, not a fork. It still has its own
-  // registry key, distinct from "claims", which is what the other invariants
-  // below actually depend on.
+  // place": its New Claim route under Finance renders the very same page as
+  // "claims" → Expense under Me (see expenseFinancePaths.ts) — a second door
+  // onto the same room, not a fork. It still has its own registry key,
+  // distinct from "claims", which is what the other invariants below
+  // actually depend on.
   it("keeps claims with the person, and both the card and expense claims with finance", () => {
     expect(keys(ME_FINANCE_APPS)).toEqual(["claims"]);
     expect(keys(FINANCE_PERSPECTIVE_APPS)).toEqual(["expense", "cc"]);
