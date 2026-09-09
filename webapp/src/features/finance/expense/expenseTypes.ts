@@ -43,6 +43,10 @@ export interface ExpenseEmployee {
   workEmail: string;
   employeeThumbnail: string | null;
 }
+export interface ExpenseEmployeeTravel {
+  jobNumber: string;
+  customerName?: string | null;
+}
 
 export interface ExpenseAppData {
   userInfo: {
@@ -57,8 +61,9 @@ export interface ExpenseAppData {
   currencyCode: string; // reimbursement / subsidiary currency
   countryCode: string;
   travels: ExpenseTravelData[];
-  draft: { transactions: ExpenseTransaction[] } | null;
+  draft: { transactions: ExpenseTransaction[]; onBehalfOfEmail: string | null } | null;
   pastDateRestrictionDays: number | null;
+  onBehalfOfEmployees: string[];
 }
 
 // Line item as returned on a claim (backend enriches with reimbursement
@@ -135,6 +140,7 @@ export interface ExpenseClaimSearchPayload {
 
 export interface ExpenseClaimPayload {
   transactions: ExpenseTransactionPayload[];
+  onBehalfOfEmail?: string | null;
 }
 
 export interface ExpenseStatusPayload {

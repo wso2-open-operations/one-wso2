@@ -27,6 +27,7 @@ export default function FinanceShell({
   eyebrow,
   title,
   subtitle,
+  action,
   configured,
   configKey,
   children,
@@ -36,6 +37,7 @@ export default function FinanceShell({
   eyebrow: { icon: LucideIcon; label: string };
   title: string;
   subtitle?: string;
+  action?: ReactNode;
   configured: boolean;
   configKey: string; // e.g. "ONE_WSO2_OPD_BACKEND_URL"
   children: ReactNode;
@@ -53,9 +55,12 @@ export default function FinanceShell({
         size="small"
         sx={{ mb: 0.5 }}
       />
-      <Typography variant="h5" sx={{ mb: 0.5 }}>
-        {title}
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.5 }}>
+        <Typography variant="h5" sx={{ flex: 1 }}>
+          {title}
+        </Typography>
+        {action}
+      </Box>
       {subtitle && (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2.25, maxWidth: "70ch" }}>
           {subtitle}

@@ -35,13 +35,20 @@ const paths = (apps: readonly { items: readonly { path?: string }[] }[]) =>
 describe("where each finance app lives", () => {
   // Everyone files claims. Not everyone has a corporate card, which is why the
   // card app is not part of the set every employee needs.
-  it("keeps claims with the person and the card with finance", () => {
+  //
+  // "expense" is a deliberate exception to "each app lives in exactly one
+  // place": its New Claim / History routes under Finance render the very same
+  // pages as "claims" → Expense under Me (see expenseFinancePaths.ts) — a
+  // second door onto the same rooms, not a fork. It still has its own
+  // registry key, distinct from "claims", which is what the other invariants
+  // below actually depend on.
+  it("keeps claims with the person, and both the card and expense claims with finance", () => {
     expect(keys(ME_FINANCE_APPS)).toEqual(["claims"]);
-    expect(keys(FINANCE_PERSPECTIVE_APPS)).toEqual(["cc"]);
+    expect(keys(FINANCE_PERSPECTIVE_APPS)).toEqual(["expense", "cc"]);
   });
 
-  it("puts every app in exactly one of the two", () => {
-    expect(keys(FINANCE_APPS).sort()).toEqual(["cc", "claims"]);
+  it("puts every app KEY in exactly one of the two", () => {
+    expect(keys(FINANCE_APPS).sort()).toEqual(["cc", "claims", "expense"]);
     const overlap = keys(ME_FINANCE_APPS).filter((k) => keys(FINANCE_PERSPECTIVE_APPS).includes(k));
     expect(overlap).toEqual([]);
   });

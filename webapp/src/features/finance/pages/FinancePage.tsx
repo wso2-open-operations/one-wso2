@@ -17,12 +17,13 @@
  */
 
 import { Box, Card, Skeleton, Typography } from "@wso2/oxygen-ui";
-import { ArrowRightIcon, CheckCheckIcon, CreditCardIcon } from "@wso2/oxygen-ui-icons-react";
+import { ArrowRightIcon, CheckCheckIcon, CreditCardIcon, ReceiptTextIcon } from "@wso2/oxygen-ui-icons-react";
 import { NavLink } from "react-router";
 import PerspectiveHeader from "@components/perspective-header/PerspectiveHeader";
 import { useFinanceGate } from "../api/useFinanceGate";
 import { CLAIM_APPROVAL_PATH } from "../approvals/claimApprovalTabs";
 import { ccPaths } from "../cc/ccPaths";
+import { expenseFinancePaths } from "../expense/expenseFinancePaths";
 
 // The Finance overview. It said "coming soon" while the perspective was empty;
 // Claim approval is here now, so it lists what is here instead.
@@ -47,6 +48,14 @@ export default function FinancePage() {
       icon: CheckCheckIcon,
       title: "Claim approval",
       description: "Expense and OPD claims waiting on your decision, and the ones already decided.",
+    },
+    {
+      id: "expense",
+      show: gate.canSee("expense-new"),
+      to: expenseFinancePaths.new,
+      icon: ReceiptTextIcon,
+      title: "Expense Claims",
+      description: "File a new expense claim, or see the ones you have already submitted.",
     },
     {
       id: "cc",

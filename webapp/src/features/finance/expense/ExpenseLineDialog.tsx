@@ -35,8 +35,13 @@ import { useNotifications } from "@context/notifications/NotificationsContext";
 import { describeError } from "../util/financeError";
 import { money, todayIso, daysAgoIso, toIso } from "../util/financeFormat";
 import { RECEIPT_ACCEPT, EXPENSE_RECEIPT_MAX_BYTES, maxSizeLabel } from "../util/financeReceipts";
+const RECEIPT_TYPES = new Set(RECEIPT_ACCEPT.split(","));
 import { useExchangeRates, useExpenseTypes } from "./useExpense";
-import type { ExpenseAppData, ExpenseTransactionPayload } from "./expenseTypes";
+import type {
+  ExpenseAppData,
+  ExpenseEmployeeTravel,
+  ExpenseTransactionPayload,
+} from "./expenseTypes";
 
 export const COMMENT_MAX = 100;
 export const NO_JOB = "N/A";
@@ -56,6 +61,10 @@ export interface DraftLine extends ExpenseTransactionPayload {
 // between NewClaim and ClaimDetails.
 export function AddExpenseDialog({
   appData,
+  travels,
+  travelsLoading,
+  onBehalfOfEmail = null,
+  onBehalfOfName = null,
   editing,
   restrictionFrom,
   uploading,
@@ -64,6 +73,19 @@ export function AddExpenseDialog({
   onAdd,
 }: {
   appData: ExpenseAppData;
+  /**
+   * Job numbers to offer. Omit for the ordinary case — the signed-in person's
+   * own `appData.travels`. The New Claim screen passes an explicit list
+   * because filing on behalf of someone else swaps in THEIR job numbers
+   * (ExpenseForm.tsx:66).
+   */
+  travels?: ExpenseEmployeeTravel[];
+  /** True while an on-behalf-of travels fetch is still in flight. */
+  travelsLoading?: boolean;
+  /** Set when this line is being added to a claim filed for someone else. */
+  onBehalfOfEmail?: string | null;
+  /** That employee's display name, resolved by the caller (ExpenseForm.tsx:68-69). */
+  onBehalfOfName?: string | null;
   /** The line being corrected, if any — otherwise a new one is being added. */
   editing: DraftLine | undefined;
   /**
@@ -80,6 +102,8 @@ export function AddExpenseDialog({
 }) {
   const { showError } = useNotifications();
   const reimbursementCurrency = appData.currencyCode;
+  // Omitted means "the signed-in person's own", which is what appData carries.
+  const jobNumbers: ExpenseEmployeeTravel[] = travels ?? appData.travels;
   // ExpenseForm.tsx:133-143 compares the bill date against a TIMESTAMP
   // (`now - N days`) with `isAfter`, while the date itself is midnight — so
   // midnight of N days ago is never after it, and the oldest date the source
@@ -108,6 +132,7 @@ export function AddExpenseDialog({
   const [comment, setComment] = useState(editing?.comment ?? "");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(editing?.receiptUrl ?? null);
   const [fileName, setFileName] = useState(editing?.receiptUrl ?? "");
+  const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // The picker's `min`/`max` steer, but the field is typeable and neither
@@ -119,7 +144,7 @@ export function AddExpenseDialog({
     date.length > 0 && date <= today && (minDate == null || date >= minDate);
 
   const rates = useExchangeRates(reimbursementCurrency, date);
-  const expenseTypes = useExpenseTypes(jobNumber === NO_JOB ? undefined : jobNumber);
+  const expenseTypes = useExpenseTypes(jobNumber === NO_JOB ? undefined : jobNumber, onBehalfOfEmail);
 
   // Conversion rate for the chosen currency: 1 when it's already the
   // reimbursement currency; null when a foreign currency has no rate in the
@@ -151,9 +176,11 @@ export function AddExpenseDialog({
     comment.length <= COMMENT_MAX &&
     Boolean(receiptUrl);
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const acceptFile = async (file: File) => {
+    if (!RECEIPT_TYPES.has(file.type)) {
+      showError("Invalid file type. Please upload a JPG, PNG or PDF file.");
+      return;
+    }
     if (file.size > EXPENSE_RECEIPT_MAX_BYTES) {
       showError(`Receipt must be ${maxSizeLabel(EXPENSE_RECEIPT_MAX_BYTES)} or smaller.`);
       return;
@@ -169,9 +196,22 @@ export function AddExpenseDialog({
     }
   };
 
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await acceptFile(file);
+  };
+
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>{editing ? "Edit expense" : "Add an expense"}</DialogTitle>
+      <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>
+        {editing ? "Edit expense" : "Add an expense"}
+        {onBehalfOfName && (
+          <Typography component="span" sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary", ml: 0.75 }}>
+            (for {onBehalfOfName})
+          </Typography>
+        )}
+      </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} sx={{ pt: 0.5 }}>
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
@@ -201,13 +241,15 @@ export function AddExpenseDialog({
               <FormControl size="small" fullWidth>
                 <Select
                   value={jobNumber}
+            
+                  disabled={travelsLoading}
                   onChange={(e) => {
                     setJobNumber(String(e.target.value));
                     setExpenseTypeId(""); // type list depends on the job number
                   }}
                 >
                   <MenuItem value={NO_JOB}>N/A (non-travel)</MenuItem>
-                  {appData.travels.map((t) => (
+                  {jobNumbers.map((t) => (
                     <MenuItem key={t.jobNumber} value={t.jobNumber}>
                       {t.jobNumber}
                       {t.customerName ? ` — ${t.customerName}` : ""}
@@ -249,6 +291,13 @@ export function AddExpenseDialog({
                 <Typography sx={{ fontSize: 14, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                   {rateReady ? money(reimbursementAmount, reimbursementCurrency) : "—"}
                 </Typography>
+                {/* AmountPreviewCard.tsx:74-86 — the rate the estimate above
+                    was computed from, live as the amount/currency change. */}
+                {rateReady && currency !== reimbursementCurrency && (
+                  <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                    (1 {currency} = {rate} {reimbursementCurrency})
+                  </Typography>
+                )}
               </Box>
               {!rateReady && (
                 <Typography sx={{ fontSize: 11, color: "warning.main", mt: 0.5 }}>
@@ -296,23 +345,63 @@ export function AddExpenseDialog({
           <Box>
             <FieldLabel>Receipt</FieldLabel>
             <input ref={fileInput} type="file" accept={RECEIPT_ACCEPT} onChange={handleFile} style={{ display: "none" }} />
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => fileInput.current?.click()}
-                disabled={uploading}
-                sx={{ textTransform: "none", fontWeight: 600 }}
-              >
-                {uploading ? "Uploading…" : receiptUrl ? "Replace file" : "Upload receipt"}
-              </Button>
-              <Typography sx={{ fontSize: 12, color: receiptUrl ? "success.main" : "text.disabled" }} noWrap>
-                {receiptUrl && (
-                  <CheckIcon size={13} style={{ color: "var(--oxygen-palette-success-main)", flexShrink: 0 }} />
+            <Box
+              onDragOver={(e: React.DragEvent) => {
+                if (uploading) return;
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e: React.DragEvent) => {
+                e.preventDefault();
+                setDragging(false);
+                if (uploading) return;
+                const files = Array.from(e.dataTransfer.files);
+                // :94-97 — a multi-file drop is refused outright rather than
+                // silently taking the first one.
+                if (files.length > 1) {
+                  showError("Unable to upload more than one file at a time.");
+                  return;
+                }
+                if (files[0]) void acceptFile(files[0]);
+              }}
+              onClick={() => !uploading && fileInput.current?.click()}
+              sx={{
+                border: "1px dashed",
+                borderColor: dragging ? "primary.main" : "divider",
+                bgcolor: dragging ? "action.hover" : "transparent",
+                borderRadius: 1,
+                px: 1.5,
+                py: 1.25,
+                cursor: uploading ? "default" : "pointer",
+                transition: "border-color .12s, background-color .12s",
+                "&:hover": { borderColor: uploading ? "divider" : "primary.main" },
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={1.25}>
+                {receiptUrl && !uploading && (
+                  <CheckIcon size={14} style={{ color: "var(--oxygen-palette-success-main)", flexShrink: 0 }} />
                 )}
-                {receiptUrl ? fileName : `JPG, PNG or PDF · max ${maxSizeLabel(EXPENSE_RECEIPT_MAX_BYTES)}`}
-              </Typography>
-            </Stack>
+                <Typography
+                  sx={{ fontSize: 12.5, fontWeight: receiptUrl ? 600 : 400, color: receiptUrl ? "success.main" : "text.primary" }}
+                  noWrap
+                >
+                  {uploading
+                    ? "Uploading…"
+                    : receiptUrl
+                      ? fileName
+                      : dragging
+                        ? "Drop the receipt here"
+                        : "Drop a receipt here, or click to browse"}
+                </Typography>
+                <Box sx={{ flex: 1 }} />
+                <Typography sx={{ fontSize: 11.5, color: "text.disabled" }} noWrap>
+                  {receiptUrl && !uploading
+                    ? "Click to replace"
+                    : `JPG, PNG or PDF · max ${maxSizeLabel(EXPENSE_RECEIPT_MAX_BYTES)}`}
+                </Typography>
+              </Stack>
+            </Box>
           </Box>
         </Stack>
       </DialogContent>

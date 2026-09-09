@@ -29,6 +29,7 @@
 
 import { CreditCardIcon, ReceiptTextIcon } from "@wso2/oxygen-ui-icons-react";
 import { CC_PATH } from "@features/finance/cc/ccPaths";
+import { expenseFinancePaths } from "@features/finance/expense/expenseFinancePaths";
 import type { MenuApp } from "@constants/appMenu";
 
 /**
@@ -64,6 +65,16 @@ export const ME_FINANCE_APPS: readonly MenuApp[] = [
  * needs; it sits with the other finance operations instead.
  */
 export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
+  {
+    key: "expense",
+    name: "Expense Claims",
+    icon: ReceiptTextIcon,
+    purpose: "File a new expense claim, or see the ones you have already submitted.",
+    items: [
+      { id: "expense-new", label: "New Claim", desc: "File a new expense claim.", path: expenseFinancePaths.new },
+      { id: "expense-history", label: "Claim History", desc: "Expense claims you have filed.", path: expenseFinancePaths.history },
+    ],
+  },
   {
     key: "cc",
     name: "Credit Card Expenses",

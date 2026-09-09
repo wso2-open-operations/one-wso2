@@ -27,6 +27,7 @@ import type {
   ExpenseClaim,
   ExpenseClaimSearchPayload,
   ExpenseEmployee,
+  ExpenseEmployeeTravel,
   ExpenseTypeData,
 } from "./expenseTypes";
 
@@ -85,9 +86,11 @@ export function useExpenseClaims(payload: ExpenseClaimSearchPayload, enabled = t
   return foldIdentityError(query, subState, retryIdentity);
 }
 
-// GET /user-configurations/expense-types — the expense-type dropdown,
-// scoped to the caller's country and (optionally) a travel job number.
-export function useExpenseTypes(travelJobNumber: string | undefined, enabled = true) {
+export function useExpenseTypes(
+  travelJobNumber: string | undefined,
+  onBehalfOfEmail?: string | null,
+  enabled = true,
+) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const { state: subState, retry: retryIdentity } = useAsgardeoSub();
@@ -95,11 +98,32 @@ export function useExpenseTypes(travelJobNumber: string | undefined, enabled = t
   const configured = isExpenseBackendConfigured();
   const query = useQuery<ExpenseTypeData[]>({
     // Country-scoped per caller — key per user like the sibling queries.
-    queryKey: ["expense-types", userSub, travelJobNumber ?? null],
+    queryKey: ["expense-types", userSub, travelJobNumber ?? null, onBehalfOfEmail ?? null],
     enabled: enabled && isSignedIn && configured && Boolean(userSub),
     queryFn: async () => {
       const accessToken = await getAccessToken();
-      return authedGet<ExpenseTypeData[]>(expenseServiceUrls.expenseTypes(travelJobNumber), accessToken);
+      return authedGet<ExpenseTypeData[]>(
+        expenseServiceUrls.expenseTypes(travelJobNumber, onBehalfOfEmail),
+        accessToken,
+      );
+    },
+    staleTime: 10 * 60 * 1000,
+    retry: financeRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+export function useOnBehalfOfTravels(email: string | null) {
+  const { isSignedIn } = useAsgardeo();
+  const getAccessToken = useAccessToken();
+  const { state: subState, retry: retryIdentity } = useAsgardeoSub();
+  const userSub = subState.status === "ready" ? subState.sub : undefined;
+  const configured = isExpenseBackendConfigured();
+  const query = useQuery<ExpenseEmployeeTravel[]>({
+    queryKey: ["expense-onbehalf-travels", userSub, email],
+    enabled: isSignedIn && configured && Boolean(userSub) && Boolean(email),
+    queryFn: async () => {
+      const accessToken = await getAccessToken();
+      return authedGet<ExpenseEmployeeTravel[]>(expenseServiceUrls.employeeTravels(email!), accessToken);
     },
     staleTime: 10 * 60 * 1000,
     retry: financeRetry,
