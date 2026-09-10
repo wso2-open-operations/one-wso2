@@ -405,7 +405,19 @@ function SubmitterBody() {
                               return fetchReceiptObjectUrl(expenseServiceUrls.receiptFile(fileName), accessToken);
                             });
                           }}
-                          sx={{ borderRadius: 1, border: 1, borderColor: "divider", color: "text.secondary" }}
+                          sx={{
+                            borderRadius: 1,
+                            bgcolor: "grey.500",
+                            color: "white",
+                            "&:hover": { bgcolor: "grey.700" },
+                            // Muted rather than grey-on-grey when there is no
+                            // receipt to open, so "nothing to see" reads as
+                            // unavailable instead of just a darker square.
+                            "&.Mui-disabled": {
+                              bgcolor: "action.disabledBackground",
+                              color: "action.disabled",
+                            },
+                          }}
                         >
                           <ReceiptTextIcon size={14} />
                         </IconButton>
