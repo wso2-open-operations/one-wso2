@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
   Alert,
   Autocomplete,
@@ -59,6 +59,73 @@ import {
 } from "./useExpenseSubmitter";
 import type { SubmitterDraftLine, SubmitterTravel } from "./expenseSubmitterTypes";
 
+/** Never shrink below this, however little room the window leaves. */
+const MIN_CARD_HEIGHT = 420;
+
+/**
+ * How tall the claim card may grow: everything between its top edge and the
+ * bottom of the area the page is drawn in.
+ *
+ * Measured rather than a `calc(100vh - …)`, following AttendeeGrid: the page
+ * does not own the whole viewport (AppLayout keeps the top bar and footer
+ * outside its scroller), and what sits above the card MOVES — the subtitle
+ * wraps when the sidebar expands, and the action row only exists once a claim
+ * has a line. Every guessed constant was wrong in one of those states, either
+ * leaving a gap under the card or bringing back a scrollbar.
+ *
+ * A floor, not a fixed height: a claim with many items still grows past it and
+ * the page scrolls, which is the one case where scrolling is correct.
+ */
+function useFillHeight<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [height, setHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const measure = () => {
+      const el = ref.current;
+      if (!el) return;
+      setHeight(Math.max(MIN_CARD_HEIGHT, availableBelow(el)));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    // Anything above the card changing height moves its top edge. Absent in
+    // jsdom, so the observer is optional — the resize listener and the mount
+    // measurement still give the right answer without it.
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(document.body);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return [ref, height] as const;
+}
+
+/**
+ * Room left between an element's top edge and the bottom of whatever scrolls
+ * it — the app shell's content area, or the window if nothing above it
+ * scrolls. The scroller's own bottom padding is left free so the card stops
+ * where every other page's content stops.
+ *
+ * The offset is taken within the scroller's CONTENT, not the viewport. A
+ * viewport-relative top shrinks as the page scrolls, so the card would be told
+ * it had more room the further down you went — growing, pushing the page
+ * longer, and feeding its own scrollbar.
+ */
+function availableBelow(el: HTMLElement): number {
+  const top = el.getBoundingClientRect().top;
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (style.overflowY === "auto" || style.overflowY === "scroll") {
+      const paddingBottom = parseFloat(style.paddingBottom) || 0;
+      const offsetInContent = top - node.getBoundingClientRect().top + node.scrollTop;
+      return node.clientHeight - paddingBottom - offsetInContent;
+    }
+  }
+  return window.innerHeight - (top + window.scrollY);
+}
+
 /**
  * New expense claim, filed from the Finance perspective. The same form the
  * Me-side screen offers, plus the one thing only finance can do: file the
@@ -80,6 +147,7 @@ export default function ExpenseSubmitterPage() {
 }
 
 function SubmitterBody() {
+  const [fillRef, fillHeight] = useFillHeight<HTMLDivElement>();
   const appData = useSubmitterAppData();
   const employees = useExpenseEmployees();
   const upload = useExpenseReceiptUpload();
@@ -183,7 +251,7 @@ function SubmitterBody() {
 
   if (appData.isLoading) {
     return (
-      <Stack spacing={1.75} sx={{ maxWidth: 1200 }}>
+      <Stack spacing={1.75}>
         <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 1.5 }} />
         <Skeleton variant="rectangular" height={160} sx={{ borderRadius: 1.5 }} />
       </Stack>
@@ -228,7 +296,7 @@ function SubmitterBody() {
   };
 
   return (
-    <Stack spacing={1.75} sx={{ maxWidth: 1200 }}>
+    <Stack spacing={1.75}>
       {/* Add Item, Delete All and Submit sit above the list rather than inside
           it. All three only exist once there is a line: on an empty claim the
           centred call to action below is the only way in. */}
@@ -261,8 +329,20 @@ function SubmitterBody() {
       )}
 
       {/* Column flex so the Total row sits at the BOTTOM of the card, with the
-          empty space above it rather than trailing after it. */}
-      <Card variant="outlined" sx={{ p: 3, minHeight: 760, display: "flex", flexDirection: "column" }}>
+          empty space above it rather than trailing after it. `fillHeight` is a
+          measured floor, so the card reaches the bottom of the page exactly —
+          no gap under it, and no scrollbar from asking for more room than the
+          page has. */}
+      <Card
+        ref={fillRef}
+        variant="outlined"
+        sx={{
+          p: 3,
+          minHeight: fillHeight ?? 420,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
           <SubmitterFieldLabel>Expenses in this claim</SubmitterFieldLabel>
           {/* Once the picker is gone (below), this is the only thing saying
