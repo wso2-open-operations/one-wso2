@@ -342,6 +342,26 @@ export function SubmitterLineDialog({
                 if (files[0]) void acceptFile(files[0]);
               }}
               onClick={() => !uploading && fileInput.current?.click()}
+              // A receipt is required for the line to be valid, so this control
+              // cannot be pointer-only — without keyboard access there is no way
+              // to complete the form at all. It stays focusable while uploading
+              // rather than dropping out of the tab order mid-upload.
+              role="button"
+              tabIndex={0}
+              aria-disabled={uploading}
+              aria-label={
+                receiptUrl
+                  ? `Receipt ${fileName}. Activate to replace it.`
+                  : "Add a receipt. JPG, PNG or PDF."
+              }
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (uploading) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  // Space would otherwise scroll the dialog behind the control.
+                  e.preventDefault();
+                  fileInput.current?.click();
+                }
+              }}
               sx={{
                 border: "1px dashed",
                 borderColor: dragging ? "primary.main" : "divider",
@@ -352,6 +372,11 @@ export function SubmitterLineDialog({
                 cursor: uploading ? "default" : "pointer",
                 transition: "border-color .12s, background-color .12s",
                 "&:hover": { borderColor: uploading ? "divider" : "primary.main" },
+                "&:focus-visible": {
+                  outline: "2px solid",
+                  outlineColor: "primary.main",
+                  outlineOffset: 2,
+                },
               }}
             >
               <Stack direction="row" alignItems="center" spacing={1.25}>

@@ -63,6 +63,13 @@ import type { SubmitterDraftLine, SubmitterTravel } from "./expenseSubmitterType
 const MIN_CARD_HEIGHT = 420;
 
 /**
+ * How long a receipt's object URL is kept alive after a download is triggered.
+ * Long enough for the browser to have read the blob, short enough not to hold
+ * a file in memory for the rest of the session.
+ */
+const RECEIPT_URL_TTL_MS = 60_000;
+
+/**
  * How tall the claim card may grow: everything between its top edge and the
  * bottom of the area the page is drawn in.
  *
@@ -212,28 +219,30 @@ function SubmitterBody() {
   // silently, which would make a stale draft look like work in progress.
   const savedDraft = useMemo(() => {
     const drafted = appData.data?.draft?.transactions ?? [];
-    // Drafts are sent as the trimmed payload, so don't assume the echoed draft
-    // carries the derived figures — recompute them if absent, or the restored
-    // total is NaN and renders as "Rs. 0.00".
-    return drafted.map((t) => {
-      const rate = Number.isFinite(t.currencyConversionRate) ? t.currencyConversionRate : 1;
-      const reimbursementAmount = Number.isFinite(t.reimbursementAmount)
-        ? t.reimbursementAmount
-        : Math.round(t.amount * rate * 100) / 100;
-      return {
-        date: t.date,
-        amount: t.amount,
-        currency: t.currency,
-        expenseTypeId: t.expenseTypeId,
-        comment: t.comment ?? null,
-        receiptUrl: t.receiptUrl ?? null,
-        travelJobNumber: t.travelJobNumber ?? null,
-        reimbursementAmount,
-        reimbursementCurrency: t.reimbursementCurrency ?? reimbursementCurrency,
-        expenseType: t.expenseType ?? "",
-      };
-    });
-  }, [appData.data, reimbursementCurrency]);
+    // The backend PRICES a draft as it saves it — `ExpenseClaimDraftTransaction`
+    // requires currencyConversionRate, reimbursementAmount and
+    // reimbursementCurrency, and `validateExpenseClaimDraftTransactions` fills
+    // them from the same path a submitted claim goes through. So the echoed
+    // line is taken as it stands.
+    //
+    // Deliberately NOT re-derived with a rate of 1 when a figure looks absent:
+    // on a foreign-currency line that shows the raw foreign amount as though it
+    // were already converted, understating the total by the whole rate. If the
+    // figures are ever genuinely missing, the total should look wrong rather
+    // than quietly plausible.
+    return drafted.map((t) => ({
+      date: t.date,
+      amount: t.amount,
+      currency: t.currency,
+      expenseTypeId: t.expenseTypeId,
+      comment: t.comment ?? null,
+      receiptUrl: t.receiptUrl ?? null,
+      travelJobNumber: t.travelJobNumber ?? null,
+      reimbursementAmount: t.reimbursementAmount,
+      reimbursementCurrency: t.reimbursementCurrency,
+      expenseType: t.expenseType ?? "",
+    }));
+  }, [appData.data]);
 
   // Restoring a draft also restores WHOSE it was, which would silently
   // override whoever is currently picked. Simplest correct rule: only offer it
@@ -497,18 +506,28 @@ function SubmitterBody() {
                                 // Same binary endpoint as View, but saved
                                 // straight to disk rather than previewed.
                                 e.preventDefault();
-                                const accessToken = await getAccessToken();
-                                const { url } = await fetchReceiptObjectUrl(
-                                  expenseServiceUrls.receiptFile(it.receiptUrl!),
-                                  accessToken,
-                                );
-                                const link = document.createElement("a");
-                                link.href = url;
-                                link.download = it.receiptUrl!;
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                URL.revokeObjectURL(url);
+                                try {
+                                  const accessToken = await getAccessToken();
+                                  const { url } = await fetchReceiptObjectUrl(
+                                    expenseServiceUrls.receiptFile(it.receiptUrl!),
+                                    accessToken,
+                                  );
+                                  const link = document.createElement("a");
+                                  link.href = url;
+                                  link.download = it.receiptUrl!;
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                  // Revoked on a later task, not this one: the
+                                  // browser reads the blob asynchronously after
+                                  // the click, so revoking straight away can
+                                  // cancel the download before it begins.
+                                  setTimeout(() => URL.revokeObjectURL(url), RECEIPT_URL_TTL_MS);
+                                } catch (err) {
+                                  // Without this the token or fetch failing
+                                  // left the button looking like it did nothing.
+                                  showError(describeError(err));
+                                }
                               }}
                               sx={{ fontSize: 12, textTransform: "none", color: "text.secondary", borderColor: "divider" }}
                             >
