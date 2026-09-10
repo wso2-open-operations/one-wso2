@@ -83,30 +83,45 @@ const RECEIPT_URL_TTL_MS = 60_000;
  * A floor, not a fixed height: a claim with many items still grows past it and
  * the page scrolls, which is the one case where scrolling is correct.
  */
-function useFillHeight<T extends HTMLElement>() {
+function useFillHeight<T extends HTMLElement>(watch?: unknown) {
   const ref = useRef<T>(null);
   const [height, setHeight] = useState<number | null>(null);
 
   useEffect(() => {
-    const measure = () => {
-      const el = ref.current;
-      if (!el) return;
-      setHeight(Math.max(MIN_CARD_HEIGHT, availableBelow(el)));
-    };
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setHeight(Math.max(MIN_CARD_HEIGHT, availableBelow(el)));
     measure();
     window.addEventListener("resize", measure);
-    // Anything above the card changing height moves its top edge. Absent in
-    // jsdom, so the observer is optional — the resize listener and the mount
-    // measurement still give the right answer without it.
+    // Watch the SCROLLER, not `document.body`: AppLayout pins the shell to
+    // `100dvh` with `overflow: hidden`, so the body's box never changes size
+    // and an observer on it would never fire once. The scroller does change —
+    // collapsing the sidebar rewraps the subtitle and moves the card's top.
+    //
+    // Absent in jsdom, so the observer is optional; the mount measurement, the
+    // resize listener and `watch` still give the right answer without it.
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    observer?.observe(document.body);
+    const scroller = scrollParent(el);
+    if (scroller) observer?.observe(scroller);
     return () => {
       window.removeEventListener("resize", measure);
       observer?.disconnect();
     };
-  }, []);
+    // `watch` re-measures on the things that move the card but leave every box
+    // above it the same size — chiefly the action row, which only exists once
+    // the claim has a line and shifts the card down ~56px when it appears.
+  }, [watch]);
 
   return [ref, height] as const;
+}
+
+/** Nearest ancestor that scrolls, or null if nothing above this one does. */
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if (overflowY === "auto" || overflowY === "scroll") return node;
+  }
+  return null;
 }
 
 /**
@@ -122,15 +137,11 @@ function useFillHeight<T extends HTMLElement>() {
  */
 function availableBelow(el: HTMLElement): number {
   const top = el.getBoundingClientRect().top;
-  for (let node = el.parentElement; node; node = node.parentElement) {
-    const style = getComputedStyle(node);
-    if (style.overflowY === "auto" || style.overflowY === "scroll") {
-      const paddingBottom = parseFloat(style.paddingBottom) || 0;
-      const offsetInContent = top - node.getBoundingClientRect().top + node.scrollTop;
-      return node.clientHeight - paddingBottom - offsetInContent;
-    }
-  }
-  return window.innerHeight - (top + window.scrollY);
+  const scroller = scrollParent(el);
+  if (!scroller) return window.innerHeight - (top + window.scrollY);
+  const paddingBottom = parseFloat(getComputedStyle(scroller).paddingBottom) || 0;
+  const offsetInContent = top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  return scroller.clientHeight - paddingBottom - offsetInContent;
 }
 
 /**
@@ -154,7 +165,6 @@ export default function ExpenseSubmitterPage() {
 }
 
 function SubmitterBody() {
-  const [fillRef, fillHeight] = useFillHeight<HTMLDivElement>();
   const appData = useSubmitterAppData();
   const employees = useExpenseEmployees();
   const upload = useExpenseReceiptUpload();
@@ -165,6 +175,9 @@ function SubmitterBody() {
   const getAccessToken = useAccessToken();
 
   const [items, setItems] = useState<SubmitterDraftLine[]>([]);
+  // Re-measured when the list goes empty or non-empty, because that is when the
+  // action row above the card appears and shifts its top edge.
+  const [fillRef, fillHeight] = useFillHeight<HTMLDivElement>(items.length > 0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
@@ -347,7 +360,9 @@ function SubmitterBody() {
         variant="outlined"
         sx={{
           p: 3,
-          minHeight: fillHeight ?? 420,
+          // A FIXED height, not a floor: the card fills the page and the item
+          // list inside it scrolls, so adding expenses never grows the page.
+          height: fillHeight ?? 420,
           display: "flex",
           flexDirection: "column",
         }}
@@ -421,7 +436,14 @@ function SubmitterBody() {
             </Stack>
           </Stack>
         ) : (
-          <Stack spacing={1.5} sx={{ flex: 1, alignContent: "flex-start" }}>
+          // Only THIS list scrolls. The "Expenses in this claim" heading above
+          // and the Total row below stay put, the way the source app does it —
+          // `minHeight: 0` is what lets a flex child shrink enough to scroll
+          // instead of pushing the card open.
+          <Stack
+            spacing={1.5}
+            sx={{ flex: 1, minHeight: 0, overflowY: "auto", alignContent: "flex-start", pr: 0.5 }}
+          >
             {items.map((it, i) => {
               // The rate is derived from amount vs. reimbursementAmount rather
               // than stored: both already agree once the line was priced,
@@ -433,7 +455,10 @@ function SubmitterBody() {
                     <Typography sx={{ fontSize: 12.5, fontWeight: 700, letterSpacing: "0.03em" }}>
                       EXPENSE ITEM {i + 1}
                     </Typography>
-                    <Stack direction="row" spacing={0.75}>
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                      {/* Reads with the actions rather than over the buttons
+                          below, so the row is Receipt · edit · remove. */}
+                      <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Receipt</Typography>
                       <IconButton
                         size="small"
                         aria-label="Edit expense"
@@ -480,7 +505,6 @@ function SubmitterBody() {
 
                     <Stack alignItems="flex-end" spacing={1.5} sx={{ flexShrink: 0 }}>
                       <Box sx={{ textAlign: "right" }}>
-                        <ItemFieldLabel>Receipt</ItemFieldLabel>
                         {it.receiptUrl ? (
                           <Stack direction="row" spacing={1}>
                             <Button
