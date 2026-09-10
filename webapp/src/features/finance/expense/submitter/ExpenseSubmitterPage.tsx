@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Autocomplete,
@@ -30,9 +30,10 @@ import {
   Skeleton,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { PencilIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
+import { PencilIcon, ReceiptTextIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
 import { useNavigate } from "react-router";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { isExpenseBackendConfigured, expenseServiceUrls } from "@config/apiConfig";
@@ -46,6 +47,7 @@ import { describeError } from "../../util/financeError";
 import { money, formatNice } from "../../util/financeFormat";
 import { fetchReceiptObjectUrl, type ReceiptSource } from "../../util/financeReceipts";
 import { useDraftAutosave } from "../../util/useDraftAutosave";
+import { useFillHeight } from "../../util/useFillHeight";
 import { claimTabPath } from "../../claims/claimsTabs";
 import { useExpenseEmployees } from "../useExpense";
 import { useExpenseReceiptUpload } from "../useExpenseMutations";
@@ -58,91 +60,6 @@ import {
   useSubmitterDraftSync,
 } from "./useExpenseSubmitter";
 import type { SubmitterDraftLine, SubmitterTravel } from "./expenseSubmitterTypes";
-
-/** Never shrink below this, however little room the window leaves. */
-const MIN_CARD_HEIGHT = 420;
-
-/**
- * How long a receipt's object URL is kept alive after a download is triggered.
- * Long enough for the browser to have read the blob, short enough not to hold
- * a file in memory for the rest of the session.
- */
-const RECEIPT_URL_TTL_MS = 60_000;
-
-/**
- * How tall the claim card may grow: everything between its top edge and the
- * bottom of the area the page is drawn in.
- *
- * Measured rather than a `calc(100vh - …)`, following AttendeeGrid: the page
- * does not own the whole viewport (AppLayout keeps the top bar and footer
- * outside its scroller), and what sits above the card MOVES — the subtitle
- * wraps when the sidebar expands, and the action row only exists once a claim
- * has a line. Every guessed constant was wrong in one of those states, either
- * leaving a gap under the card or bringing back a scrollbar.
- *
- * A floor, not a fixed height: a claim with many items still grows past it and
- * the page scrolls, which is the one case where scrolling is correct.
- */
-function useFillHeight<T extends HTMLElement>(watch?: unknown) {
-  const ref = useRef<T>(null);
-  const [height, setHeight] = useState<number | null>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => setHeight(Math.max(MIN_CARD_HEIGHT, availableBelow(el)));
-    measure();
-    window.addEventListener("resize", measure);
-    // Watch the SCROLLER, not `document.body`: AppLayout pins the shell to
-    // `100dvh` with `overflow: hidden`, so the body's box never changes size
-    // and an observer on it would never fire once. The scroller does change —
-    // collapsing the sidebar rewraps the subtitle and moves the card's top.
-    //
-    // Absent in jsdom, so the observer is optional; the mount measurement, the
-    // resize listener and `watch` still give the right answer without it.
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    const scroller = scrollParent(el);
-    if (scroller) observer?.observe(scroller);
-    return () => {
-      window.removeEventListener("resize", measure);
-      observer?.disconnect();
-    };
-    // `watch` re-measures on the things that move the card but leave every box
-    // above it the same size — chiefly the action row, which only exists once
-    // the claim has a line and shifts the card down ~56px when it appears.
-  }, [watch]);
-
-  return [ref, height] as const;
-}
-
-/** Nearest ancestor that scrolls, or null if nothing above this one does. */
-function scrollParent(el: HTMLElement): HTMLElement | null {
-  for (let node = el.parentElement; node; node = node.parentElement) {
-    const overflowY = getComputedStyle(node).overflowY;
-    if (overflowY === "auto" || overflowY === "scroll") return node;
-  }
-  return null;
-}
-
-/**
- * Room left between an element's top edge and the bottom of whatever scrolls
- * it — the app shell's content area, or the window if nothing above it
- * scrolls. The scroller's own bottom padding is left free so the card stops
- * where every other page's content stops.
- *
- * The offset is taken within the scroller's CONTENT, not the viewport. A
- * viewport-relative top shrinks as the page scrolls, so the card would be told
- * it had more room the further down you went — growing, pushing the page
- * longer, and feeding its own scrollbar.
- */
-function availableBelow(el: HTMLElement): number {
-  const top = el.getBoundingClientRect().top;
-  const scroller = scrollParent(el);
-  if (!scroller) return window.innerHeight - (top + window.scrollY);
-  const paddingBottom = parseFloat(getComputedStyle(scroller).paddingBottom) || 0;
-  const offsetInContent = top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-  return scroller.clientHeight - paddingBottom - offsetInContent;
-}
 
 /**
  * New expense claim, filed from the Finance perspective. The same form the
@@ -319,42 +236,11 @@ function SubmitterBody() {
 
   return (
     <Stack spacing={1.75}>
-      {/* Add Item, Delete All and Submit sit above the list rather than inside
-          it. All three only exist once there is a line: on an empty claim the
-          centred call to action below is the only way in. */}
-      {items.length > 0 && (
-        <Stack direction="row" spacing={1.5} justifyContent="flex-end" alignItems="center">
-          <Button
-            variant="outlined"
-            color="error"
-            onClick={() => setConfirmingDeleteAll(true)}
-            sx={{ fontWeight: 600, textTransform: "none" }}
-          >
-            Delete All
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={() => setDialogOpen(true)}
-            sx={{ fontWeight: 600, textTransform: "none" }}
-          >
-            + Add expense
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => setConfirmingSubmit(true)}
-            disabled={submit.isPending}
-            sx={{ fontWeight: 600, textTransform: "none" }}
-          >
-            {submit.isPending ? "Submitting…" : "Submit claim"}
-          </Button>
-        </Stack>
-      )}
-
       {/* Column flex so the Total row sits at the BOTTOM of the card, with the
-          empty space above it rather than trailing after it. `fillHeight` is a
-          measured floor, so the card reaches the bottom of the page exactly —
-          no gap under it, and no scrollbar from asking for more room than the
-          page has. */}
+          empty space above it rather than trailing after it. `fillHeight` is
+          measured, so the card reaches the bottom of the page exactly — no gap
+          under it, and no scrollbar from asking for more room than the page
+          has. */}
       <Card
         ref={fillRef}
         variant="outlined"
@@ -376,6 +262,48 @@ function SubmitterBody() {
           )}
           <DraftStatusChip state={draftState} />
           <Box sx={{ flex: 1 }} />
+
+          {/* The claim's actions live in this header, opposite the draft chip,
+              rather than on their own row above the card — that row cost the
+              list a chunk of height for three buttons. All three only exist
+              once there is a line: on an empty claim the centred call to
+              action below is the only way in. */}
+          {items.length > 0 && (
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexShrink: 0 }}>
+              <Tooltip describeChild title="Remove every expense from this claim" arrow>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  onClick={() => setConfirmingDeleteAll(true)}
+                  sx={{ fontWeight: 600, textTransform: "none" }}
+                >
+                  Delete All
+                </Button>
+              </Tooltip>
+              <Tooltip describeChild title="Add another expense to this claim" arrow>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setDialogOpen(true)}
+                  sx={{ fontWeight: 600, textTransform: "none" }}
+                >
+                  + Add expense
+                </Button>
+              </Tooltip>
+              <Tooltip describeChild title="Send this claim for review" arrow>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => setConfirmingSubmit(true)}
+                  disabled={submit.isPending}
+                  sx={{ fontWeight: 600, textTransform: "none" }}
+                >
+                  {submit.isPending ? "Submitting…" : "Submit claim"}
+                </Button>
+              </Tooltip>
+            </Stack>
+          )}
         </Stack>
 
         {items.length === 0 ? (
@@ -450,7 +378,11 @@ function SubmitterBody() {
               // self-currency included (rate 1).
               const conversionRate = it.amount > 0 ? it.reimbursementAmount / it.amount : 0;
               return (
-                <Card key={i} variant="outlined" sx={{ bgcolor: "action.hover", p: 2 }}>
+                // `flexShrink: 0` so the card keeps its natural height inside
+                // the scrolling list. Without it the cards are flex children of
+                // a fixed-height column, so they compress to fit and their
+                // contents get clipped instead of the list scrolling.
+                <Card key={i} variant="outlined" sx={{ bgcolor: "action.hover", p: 2, flexShrink: 0 }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                     <Typography sx={{ fontSize: 12.5, fontWeight: 700, letterSpacing: "0.03em" }}>
                       EXPENSE ITEM {i + 1}
@@ -458,26 +390,49 @@ function SubmitterBody() {
                     <Stack direction="row" spacing={1.25} alignItems="center">
                       {/* Reads with the actions rather than over the buttons
                           below, so the row is Receipt · edit · remove. */}
-                      <Typography sx={{ fontSize: 12, fontWeight: 700 }}>Receipt</Typography>
-                      <IconButton
-                        size="small"
-                        aria-label="Edit expense"
-                        onClick={() => {
-                          setEditingIndex(i);
-                          setDialogOpen(true);
-                        }}
-                        sx={{ borderRadius: 1, bgcolor: "grey.500", color: "white", "&:hover": { bgcolor: "grey.700" } }}
-                      >
-                        <PencilIcon size={14} />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        aria-label="Remove expense"
-                        onClick={() => setDeletingIndex(i)}
-                        sx={{ borderRadius: 1, bgcolor: "error.main", color: "white", "&:hover": { bgcolor: "error.dark" } }}
-                      >
-                        <XIcon size={15} />
-                      </IconButton>
+                      {/* An icon rather than the word "Receipt" plus a pair of
+                          buttons: the viewer it opens carries its own Download,
+                          so a second one out here was a duplicate. */}
+                      <Tooltip describeChild title={it.receiptUrl ? "View or download the receipt" : "No receipt attached"} arrow>
+                        <IconButton
+                          size="small"
+                          aria-label={it.receiptUrl ? "View receipt" : "No receipt attached"}
+                          disabled={!it.receiptUrl}
+                          onClick={() => {
+                            const fileName = it.receiptUrl!;
+                            setReceiptLoad(() => async () => {
+                              const accessToken = await getAccessToken();
+                              return fetchReceiptObjectUrl(expenseServiceUrls.receiptFile(fileName), accessToken);
+                            });
+                          }}
+                          sx={{ borderRadius: 1, border: 1, borderColor: "divider", color: "text.secondary" }}
+                        >
+                          <ReceiptTextIcon size={14} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip describeChild title="Edit this expense" arrow>
+                        <IconButton
+                          size="small"
+                          aria-label="Edit expense"
+                          onClick={() => {
+                            setEditingIndex(i);
+                            setDialogOpen(true);
+                          }}
+                          sx={{ borderRadius: 1, bgcolor: "grey.500", color: "white", "&:hover": { bgcolor: "grey.700" } }}
+                        >
+                          <PencilIcon size={14} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip describeChild title="Remove this expense from the claim" arrow>
+                        <IconButton
+                          size="small"
+                          aria-label="Remove expense"
+                          onClick={() => setDeletingIndex(i)}
+                          sx={{ borderRadius: 1, bgcolor: "error.main", color: "white", "&:hover": { bgcolor: "error.dark" } }}
+                        >
+                          <XIcon size={15} />
+                        </IconButton>
+                      </Tooltip>
                     </Stack>
                   </Stack>
 
@@ -504,65 +459,6 @@ function SubmitterBody() {
                     </Stack>
 
                     <Stack alignItems="flex-end" spacing={1.5} sx={{ flexShrink: 0 }}>
-                      <Box sx={{ textAlign: "right" }}>
-                        {it.receiptUrl ? (
-                          <Stack direction="row" spacing={1}>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => {
-                                const fileName = it.receiptUrl!;
-                                setReceiptLoad(() => async () => {
-                                  const accessToken = await getAccessToken();
-                                  return fetchReceiptObjectUrl(expenseServiceUrls.receiptFile(fileName), accessToken);
-                                });
-                              }}
-                              sx={{ fontSize: 12, textTransform: "none", color: "text.secondary", borderColor: "divider" }}
-                            >
-                              View
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              component="a"
-                              href={expenseServiceUrls.receiptFile(it.receiptUrl)}
-                              onClick={async (e: MouseEvent) => {
-                                // Same binary endpoint as View, but saved
-                                // straight to disk rather than previewed.
-                                e.preventDefault();
-                                try {
-                                  const accessToken = await getAccessToken();
-                                  const { url } = await fetchReceiptObjectUrl(
-                                    expenseServiceUrls.receiptFile(it.receiptUrl!),
-                                    accessToken,
-                                  );
-                                  const link = document.createElement("a");
-                                  link.href = url;
-                                  link.download = it.receiptUrl!;
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
-                                  // Revoked on a later task, not this one: the
-                                  // browser reads the blob asynchronously after
-                                  // the click, so revoking straight away can
-                                  // cancel the download before it begins.
-                                  setTimeout(() => URL.revokeObjectURL(url), RECEIPT_URL_TTL_MS);
-                                } catch (err) {
-                                  // Without this the token or fetch failing
-                                  // left the button looking like it did nothing.
-                                  showError(describeError(err));
-                                }
-                              }}
-                              sx={{ fontSize: 12, textTransform: "none", color: "text.secondary", borderColor: "divider" }}
-                            >
-                              Download
-                            </Button>
-                          </Stack>
-                        ) : (
-                          <Typography sx={{ fontSize: 13, color: "text.disabled" }}>None</Typography>
-                        )}
-                      </Box>
-
                       <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, px: 1.5, py: 1, minWidth: 220 }}>
                         <Stack direction="row" justifyContent="space-between" spacing={2}>
                           <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>Reimbursement Amount</Typography>
