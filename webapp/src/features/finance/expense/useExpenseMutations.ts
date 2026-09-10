@@ -75,14 +75,10 @@ export function useResubmitExpenseClaim() {
 export function useExpenseDraftSync() {
   const getAccessToken = useAccessToken();
   const qc = useQueryClient();
-  const save = useMutation<
-    void,
-    Error,
-    { transactions: ExpenseTransactionPayload[]; onBehalfOfEmail: string | null }
-  >({
-    mutationFn: async ({ transactions, onBehalfOfEmail }) => {
+  const save = useMutation<void, Error, ExpenseTransactionPayload[]>({
+    mutationFn: async (transactions) => {
       const accessToken = await getAccessToken();
-      await authedPost<unknown>(expenseServiceUrls.claimDrafts, accessToken, { transactions, onBehalfOfEmail });
+      await authedPost<unknown>(expenseServiceUrls.claimDrafts, accessToken, { transactions });
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["expense-app-data"] });

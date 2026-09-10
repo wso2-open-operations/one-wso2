@@ -34,7 +34,7 @@ vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "tok
 vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
 
 const draftLine = {
-  date: localIsoDateOffset(-10),
+  date: "2026-08-10",
   amount: 40,
   currency: "USD",
   currencyConversionRate: 300,
@@ -48,13 +48,11 @@ const draftLine = {
 };
 
 const state = {
-  draft: null as { transactions: unknown[]; onBehalfOfEmail?: string | null } | null,
+  draft: null as { transactions: unknown[] } | null,
   managerEmail: "lead@wso2.com" as string | null,
   employees: [
     { workEmail: "lead@wso2.com", firstName: "Ada", lastName: "Lovelace", employeeThumbnail: null },
   ] as unknown[],
-  onBehalfOfEmployees: [] as string[],
-  onBehalfOfTravels: [] as { jobNumber: string }[],
 };
 
 vi.mock("../useExpense", () => ({
@@ -73,7 +71,6 @@ vi.mock("../useExpense", () => ({
       travels: [{ jobNumber: "JOB-1", customerName: null, engagementCode: null, country: null, productUnit: null, businessUnit: null }],
       draft: state.draft,
       pastDateRestrictionDays: 30,
-      onBehalfOfEmployees: state.onBehalfOfEmployees,
     },
     isLoading: false,
     isError: false,
@@ -82,14 +79,12 @@ vi.mock("../useExpense", () => ({
   useExpenseEmployees: () => ({ data: state.employees, isLoading: false, isError: false }),
   useExpenseTypes: () => ({ data: [{ id: 3, type: "Taxi" }], isLoading: false, isError: false }),
   useExchangeRates: () => ({ data: [{ currencyCode: "USD", exchangeRate: 300 }], isLoading: false, isError: false }),
-  useOnBehalfOfTravels: () => ({ data: state.onBehalfOfTravels, isLoading: false, isError: false }),
 }));
 
 const submitMutate = vi.fn();
 const draftRemove = vi.fn();
-const uploadMutate = vi.fn(async () => "r.pdf");
 vi.mock("../useExpenseMutations", () => ({
-  useExpenseReceiptUpload: () => ({ mutateAsync: uploadMutate, isPending: false }),
+  useExpenseReceiptUpload: () => ({ mutateAsync: vi.fn(async () => "r.pdf"), isPending: false }),
   useSubmitExpenseClaim: () => ({ mutate: submitMutate, isPending: false, isError: false, error: null }),
   useExpenseDraftSync: () => ({
     save: { mutateAsync: vi.fn(async () => undefined) },
@@ -98,12 +93,7 @@ vi.mock("../useExpenseMutations", () => ({
 }));
 
 vi.mock("../../components/FinanceShell", () => ({
-  default: ({ children, action }: { children: ReactNode; action?: ReactNode }) => (
-    <>
-      {action}
-      {children}
-    </>
-  ),
+  default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 const { default: ExpenseNewClaimPage } = await import("./ExpenseNewClaimPage");
@@ -113,19 +103,8 @@ beforeEach(() => {
   submitMutate.mockClear();
   navigate.mockClear();
   draftRemove.mockClear();
-  uploadMutate.mockClear();
   state.draft = null;
   state.managerEmail = "lead@wso2.com";
-  state.employees = [
-    { workEmail: "lead@wso2.com", firstName: "Ada", lastName: "Lovelace", employeeThumbnail: null },
-  ];
-  state.onBehalfOfEmployees = [];
-  state.onBehalfOfTravels = [];
-});
-
-afterEach(() => {
-  const cancel = screen.queryByRole("button", { name: "Cancel" });
-  if (cancel) fireEvent.click(cancel);
 });
 
 function show() {
@@ -161,15 +140,14 @@ describe("a saved draft is offered, not assumed", () => {
     state.draft = { transactions: [draftLine] };
     show();
     fireEvent.click(await screen.findByRole("button", { name: "Restore Draft" }));
-    // The total lives in the card's Total Amount footer, not the Submit
-    // button's label (AmountFooter.tsx's split) — and also on the line
-    // itself, hence findAll.
-    expect((await screen.findAllByText("Rs. 12,000.00")).length).toBeGreaterThan(0);
+    expect(
+      await screen.findByRole("button", { name: "Submit claim (Rs. 12,000.00)" }),
+    ).toBeInTheDocument();
   });
 
   it("offers nothing to restore when there is no draft", async () => {
     show();
-    await screen.findByText(/haven't added any expenses yet/);
+    await screen.findByText(/No expenses yet/);
     expect(screen.queryByRole("button", { name: "Restore Draft" })).not.toBeInTheDocument();
   });
 
@@ -235,130 +213,9 @@ describe("submitting is confirmed", () => {
   });
 });
 
-// FileUploadArea.tsx:91-247 — the source accepts a receipt dropped onto the
-// form, not only one picked through a file dialog. A dropped file skips the
-// input's `accept` filter, so the type check has to be our own.
-describe("attaching a receipt by drag and drop", () => {
-  const openForm = async () => {
-    show();
-    fireEvent.click(await screen.findByRole("button", { name: "+ Add expense" }));
-    return await screen.findByText(/Drop a receipt here/);
-  };
-
-  it("uploads a file dropped on the receipt area", async () => {
-    const zone = await openForm();
-    const file = new File(["x"], "taxi.pdf", { type: "application/pdf" });
-    fireEvent.drop(zone, { dataTransfer: { files: [file] } });
-    await waitFor(() => expect(uploadMutate).toHaveBeenCalled());
-  });
-
-  it("refuses a file type the backend would reject", async () => {
-    const zone = await openForm();
-    const file = new File(["x"], "notes.txt", { type: "text/plain" });
-    fireEvent.drop(zone, { dataTransfer: { files: [file] } });
-    expect(await screen.findByText(/Invalid file type/)).toBeInTheDocument();
-    expect(uploadMutate).not.toHaveBeenCalled();
-  });
-
-  it("refuses a multi-file drop rather than silently taking the first", async () => {
-    const zone = await openForm();
-    const files = [
-      new File(["x"], "a.pdf", { type: "application/pdf" }),
-      new File(["y"], "b.pdf", { type: "application/pdf" }),
-    ];
-    fireEvent.drop(zone, { dataTransfer: { files } });
-    expect(await screen.findByText(/more than one file/)).toBeInTheDocument();
-    expect(uploadMutate).not.toHaveBeenCalled();
-  });
-});
-
-// NewClaim.tsx:170-198 — a finance/admin user files FOR someone else. The
-// employee goes on the payload; without it the backend files the claim
-// against the submitter, which is the wrong person's money.
-describe("filing on behalf of someone else", () => {
-  it("offers no picker to someone with nobody to file for", async () => {
-    show();
-    expect(screen.queryByLabelText("Submitting for")).not.toBeInTheDocument();
-  });
-
-  // ExpenseForm.tsx:66 — the job numbers offered must be the CLAIM OWNER's.
-  // Offering the submitter's own would file the line against a job the
-  // employee never travelled on.
-  it("swaps in the chosen employee's job numbers, not the submitter's", async () => {
-    state.onBehalfOfEmployees = ["colleague@wso2.com"];
-    state.employees = [
-      { workEmail: "lead@wso2.com", firstName: "Ada", lastName: "Lovelace", employeeThumbnail: null },
-      { workEmail: "colleague@wso2.com", firstName: "Grace", lastName: "Hopper", employeeThumbnail: null },
-    ];
-    state.onBehalfOfTravels = [{ jobNumber: "JOB-HERS" }];
-    show();
-
-    // Pick the employee before any line exists — the only time it is offered.
-    fireEvent.change(screen.getByLabelText("Submitting for"), { target: { value: "Grace" } });
-    fireEvent.click(await screen.findByText("Grace Hopper"));
-
-    fireEvent.click(await screen.findByRole("button", { name: "+ Add expense" }));
-    // The form says whose claim this line joins...
-    expect(await screen.findByText("(for Grace Hopper)")).toBeInTheDocument();
-    // ...and offers her job numbers, not the signed-in user's JOB-1. The
-    // job-number Select is identified by its default value: its caption is a
-    // plain Typography, so it carries no accessible name of its own.
-    fireEvent.mouseDown(screen.getByText("N/A (non-travel)"));
-    expect(await screen.findByRole("option", { name: /JOB-HERS/ })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /JOB-1/ })).not.toBeInTheDocument();
-  });
-
-  it("restores which employee a saved draft was for", async () => {
-    state.onBehalfOfEmployees = ["colleague@wso2.com"];
-    state.draft = { transactions: [draftLine], onBehalfOfEmail: "colleague@wso2.com" };
-    show();
-    fireEvent.click(await screen.findByRole("button", { name: "Restore Draft" }));
-
-    fireEvent.click(await screen.findByRole("button", { name: /Submit claim/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Submit" }));
-    await waitFor(() =>
-      expect(submitMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ onBehalfOfEmail: "colleague@wso2.com" }),
-        expect.anything(),
-      ),
-    );
-  });
-});
-
 // NewClaim.tsx:139 passes AccessMode.EDIT_DELETE — a line can be corrected in
 // place. The port could only remove and retype it, which on this form means
 // re-picking the job number, expense type, currency and receipt.
-// Clearing the whole claim throws away more work than removing one line, so
-// it asks first — and only actually clears once confirmed.
-describe("clearing every line at once", () => {
-  it("asks before wiping the claim, and leaves it alone on cancel", async () => {
-    state.draft = { transactions: [draftLine] };
-    show();
-    fireEvent.click(await screen.findByRole("button", { name: "Restore Draft" }));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Delete All" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
-
-    // Still there.
-    expect(await screen.findByText("Taxi")).toBeInTheDocument();
-  });
-
-  it("clears every line once confirmed", async () => {
-    state.draft = { transactions: [draftLine] };
-    show();
-    fireEvent.click(await screen.findByRole("button", { name: "Restore Draft" }));
-    expect(await screen.findByText("Taxi")).toBeInTheDocument();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Delete All" }));
-    // The confirm button inside the dialog, not the header one that opened it.
-    const confirm = (await screen.findAllByRole("button", { name: "Delete All" })).at(-1)!;
-    fireEvent.click(confirm);
-
-    await waitFor(() => expect(screen.queryByText("Taxi")).not.toBeInTheDocument());
-    expect(await screen.findByText(/haven't added any expenses yet/)).toBeInTheDocument();
-  });
-});
-
 describe("correcting a line", () => {
   it("opens the line's values for editing", async () => {
     state.draft = { transactions: [draftLine] };
@@ -382,9 +239,10 @@ describe("correcting a line", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("button", { name: "Remove expense" })).toHaveLength(1),
     );
-    // 50 USD at the mocked rate of 300 = 15,000 reimbursed, shown in the
-    // card's Total Amount footer (and on the line itself).
-    expect(screen.getAllByText("Rs. 15,000.00").length).toBeGreaterThan(0);
+    // 50 USD at the mocked rate of 300 = 15,000 reimbursed.
+    expect(
+      screen.getByRole("button", { name: "Submit claim (Rs. 15,000.00)" }),
+    ).toBeInTheDocument();
   });
 
   it("adds a second line when not editing", async () => {

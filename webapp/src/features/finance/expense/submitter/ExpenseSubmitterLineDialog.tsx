@@ -14,7 +14,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 import { useMemo, useRef, useState } from "react";
 import {
   Box,
@@ -32,74 +31,68 @@ import {
 } from "@wso2/oxygen-ui";
 import { CheckIcon } from "@wso2/oxygen-ui-icons-react";
 import { useNotifications } from "@context/notifications/NotificationsContext";
-import { describeError } from "../util/financeError";
-import { money, todayIso, daysAgoIso, toIso } from "../util/financeFormat";
-import { RECEIPT_ACCEPT, EXPENSE_RECEIPT_MAX_BYTES, maxSizeLabel } from "../util/financeReceipts";
-import { useExchangeRates, useExpenseTypes } from "./useExpense";
-import type { ExpenseAppData, ExpenseTransactionPayload } from "./expenseTypes";
+import { describeError } from "../../util/financeError";
+import { money, todayIso, daysAgoIso, toIso } from "../../util/financeFormat";
+import { RECEIPT_ACCEPT, EXPENSE_RECEIPT_MAX_BYTES, maxSizeLabel } from "../../util/financeReceipts";
+import { useExchangeRates } from "../useExpense";
+import type { ExpenseAppData } from "../expenseTypes";
+import { useSubmitterExpenseTypes } from "./useExpenseSubmitter";
+import type { SubmitterDraftLine, SubmitterTravel } from "./expenseSubmitterTypes";
+
+const RECEIPT_TYPES = new Set(RECEIPT_ACCEPT.split(","));
 
 export const COMMENT_MAX = 100;
 export const NO_JOB = "N/A";
 
-/**
- * A line as the form holds it: the wire payload plus the figures the form
- * derives for display (the backend recomputes them on submit).
- */
-export interface DraftLine extends ExpenseTransactionPayload {
-  reimbursementAmount: number;
-  reimbursementCurrency: string;
-  expenseType: string;
-}
-
-// One expense line, added or corrected. Shared by the New Claim screen and the
-// resubmission of a rejected claim, the way the source shares ExpenseForm
-// between NewClaim and ClaimDetails.
-export function AddExpenseDialog({
+// One expense line on a claim being filed from the Finance side. Unlike the
+// Me-side form's dialog, the job numbers and expense types it offers belong to
+// whoever the claim is FOR, which is why it takes them as inputs rather than
+// reading the signed-in person's `appData.travels`.
+export function SubmitterLineDialog({
   appData,
+  travels,
+  travelsLoading,
+  onBehalfOfEmail,
+  onBehalfOfName,
   editing,
-  restrictionFrom,
   uploading,
   onUpload,
   onClose,
   onAdd,
 }: {
   appData: ExpenseAppData;
+  /** The claim owner's job numbers — theirs, not necessarily the caller's. */
+  travels: SubmitterTravel[];
+  /** True while an on-behalf-of travels fetch is still in flight. */
+  travelsLoading: boolean;
+  /** Null when the caller is filing for themselves. */
+  onBehalfOfEmail: string | null;
+  /** That employee's display name, resolved by the caller. */
+  onBehalfOfName: string | null;
   /** The line being corrected, if any — otherwise a new one is being added. */
-  editing: DraftLine | undefined;
-  /**
-   * Date the past-date limit counts back from. ExpenseForm.tsx:137-139 measures
-   * a resubmission from the claim's own createdDate, so correcting an old claim
-   * does not fail a rule its lines already satisfied when first filed. Defaults
-   * to today for a new claim.
-   */
-  restrictionFrom?: string;
+  editing: SubmitterDraftLine | undefined;
   uploading: boolean;
   onUpload: (file: File) => Promise<string>;
   onClose: () => void;
-  onAdd: (line: DraftLine) => void;
+  onAdd: (line: SubmitterDraftLine) => void;
 }) {
   const { showError } = useNotifications();
   const reimbursementCurrency = appData.currencyCode;
-  // ExpenseForm.tsx:133-143 compares the bill date against a TIMESTAMP
-  // (`now - N days`) with `isAfter`, while the date itself is midnight — so
-  // midnight of N days ago is never after it, and the oldest date the source
-  // accepts is N-1 days ago. "Within the last N days" counting today as the
-  // first. An inclusive min at N days ago allowed one day more.
+
+  // The bill date floor. `setDate` moves a LOCAL field, so the date has to be
+  // read back from local fields too — `toISOString()` is UTC and names the day
+  // before between midnight UTC and local midnight, loosening the bound by a
+  // day and disagreeing with the `daysAgoIso` fallback.
   const restrictionDays = appData.pastDateRestrictionDays;
   const minDate = useMemo(() => {
     if (restrictionDays == null) return undefined;
-    const from = restrictionFrom ? new Date(restrictionFrom) : new Date();
-    if (Number.isNaN(from.getTime())) return daysAgoIso(restrictionDays - 1);
+    const from = new Date();
     from.setDate(from.getDate() - (restrictionDays - 1));
-    // `setDate` moved a LOCAL field, so the date has to be read back from local
-    // fields too. `toISOString()` is UTC and names the day before between
-    // midnight UTC and local midnight, which loosened the bound by a day — and
-    // disagreed with the `daysAgoIso` fallback two lines up.
+    if (Number.isNaN(from.getTime())) return daysAgoIso(restrictionDays - 1);
     return toIso(from);
-  }, [restrictionDays, restrictionFrom]);
+  }, [restrictionDays]);
 
   // Seeded from the line being edited, so the dialog opens on its values.
-  // ExpenseForm.tsx:81-97 does the same via initialFormData.
   const [date, setDate] = useState(editing?.date.substring(0, 10) ?? todayIso());
   const [currency, setCurrency] = useState(editing?.currency ?? reimbursementCurrency);
   const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
@@ -108,24 +101,25 @@ export function AddExpenseDialog({
   const [comment, setComment] = useState(editing?.comment ?? "");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(editing?.receiptUrl ?? null);
   const [fileName, setFileName] = useState(editing?.receiptUrl ?? "");
+  const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // The picker's `min`/`max` steer, but the field is typeable and neither
-  // attribute takes part in `valid` — so both ends are checked here. The source
-  // sets maxDate={new Date()} (CustomDatePicker.tsx:73): a bill cannot be dated
-  // in the future.
+  // attribute takes part in `valid` — so both ends are checked here. A bill
+  // cannot be dated in the future.
   const today = todayIso();
-  const dateWithinLimit =
-    date.length > 0 && date <= today && (minDate == null || date >= minDate);
+  const dateWithinLimit = date.length > 0 && date <= today && (minDate == null || date >= minDate);
 
   const rates = useExchangeRates(reimbursementCurrency, date);
-  const expenseTypes = useExpenseTypes(jobNumber === NO_JOB ? undefined : jobNumber);
+  const expenseTypes = useSubmitterExpenseTypes(
+    jobNumber === NO_JOB ? undefined : jobNumber,
+    onBehalfOfEmail,
+  );
 
   // Conversion rate for the chosen currency: 1 when it's already the
   // reimbursement currency; null when a foreign currency has no rate in the
-  // fetched list (missing, or the list is stale/loading after a date change).
-  // null must NOT collapse to 1 — that would let the user submit the raw
-  // foreign amount as if it were already converted.
+  // fetched list. null must NOT collapse to 1 — that would let the raw foreign
+  // amount through as if it were already converted.
   const rate = useMemo<number | null>(() => {
     if (currency === reimbursementCurrency) return 1;
     const found = (rates.data ?? []).find((r) => r.currencyCode === currency);
@@ -151,9 +145,11 @@ export function AddExpenseDialog({
     comment.length <= COMMENT_MAX &&
     Boolean(receiptUrl);
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const acceptFile = async (file: File) => {
+    if (!RECEIPT_TYPES.has(file.type)) {
+      showError("Invalid file type. Please upload a JPG, PNG or PDF file.");
+      return;
+    }
     if (file.size > EXPENSE_RECEIPT_MAX_BYTES) {
       showError(`Receipt must be ${maxSizeLabel(EXPENSE_RECEIPT_MAX_BYTES)} or smaller.`);
       return;
@@ -169,14 +165,27 @@ export function AddExpenseDialog({
     }
   };
 
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await acceptFile(file);
+  };
+
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>{editing ? "Edit expense" : "Add an expense"}</DialogTitle>
+      <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>
+        {editing ? "Edit expense" : "Add an expense"}
+        {onBehalfOfName && (
+          <Typography component="span" sx={{ fontSize: 13, fontWeight: 500, color: "text.secondary", ml: 0.75 }}>
+            (for {onBehalfOfName})
+          </Typography>
+        )}
+      </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} sx={{ pt: 0.5 }}>
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
             <Box>
-              <FieldLabel>Bill date</FieldLabel>
+              <SubmitterFieldLabel>Bill date</SubmitterFieldLabel>
               <TextField
                 type="date"
                 size="small"
@@ -197,17 +206,19 @@ export function AddExpenseDialog({
               />
             </Box>
             <Box>
-              <FieldLabel>Job number</FieldLabel>
+              <SubmitterFieldLabel>Job number</SubmitterFieldLabel>
               <FormControl size="small" fullWidth>
                 <Select
                   value={jobNumber}
+                  disabled={travelsLoading}
+                  inputProps={{ "aria-label": "Job number" }}
                   onChange={(e) => {
                     setJobNumber(String(e.target.value));
                     setExpenseTypeId(""); // type list depends on the job number
                   }}
                 >
                   <MenuItem value={NO_JOB}>N/A (non-travel)</MenuItem>
-                  {appData.travels.map((t) => (
+                  {travels.map((t) => (
                     <MenuItem key={t.jobNumber} value={t.jobNumber}>
                       {t.jobNumber}
                       {t.customerName ? ` — ${t.customerName}` : ""}
@@ -220,9 +231,14 @@ export function AddExpenseDialog({
 
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" }, gap: 1.5, alignItems: "end" }}>
             <Box>
-              <FieldLabel>Currency</FieldLabel>
+              <SubmitterFieldLabel>Currency</SubmitterFieldLabel>
               <FormControl size="small" fullWidth>
-                <Select value={currency} onChange={(e) => setCurrency(String(e.target.value))} disabled={rates.isLoading}>
+                <Select
+                  value={currency}
+                  onChange={(e) => setCurrency(String(e.target.value))}
+                  disabled={rates.isLoading}
+                  inputProps={{ "aria-label": "Currency" }}
+                >
                   {currencyOptions.map((c) => (
                     <MenuItem key={c} value={c}>
                       {c}
@@ -232,7 +248,7 @@ export function AddExpenseDialog({
               </FormControl>
             </Box>
             <Box>
-              <FieldLabel>Amount</FieldLabel>
+              <SubmitterFieldLabel>Amount</SubmitterFieldLabel>
               <TextField
                 type="number"
                 size="small"
@@ -240,15 +256,20 @@ export function AddExpenseDialog({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                inputProps={{ min: 0, step: "0.01" }}
+                inputProps={{ min: 0, step: "0.01", "aria-label": "Amount" }}
               />
             </Box>
             <Box>
-              <FieldLabel>Reimbursement (est.)</FieldLabel>
+              <SubmitterFieldLabel>Reimbursement (est.)</SubmitterFieldLabel>
               <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, px: 1.25, py: 0.9 }}>
                 <Typography sx={{ fontSize: 14, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                   {rateReady ? money(reimbursementAmount, reimbursementCurrency) : "—"}
                 </Typography>
+                {rateReady && currency !== reimbursementCurrency && (
+                  <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                    (1 {currency} = {rate} {reimbursementCurrency})
+                  </Typography>
+                )}
               </Box>
               {!rateReady && (
                 <Typography sx={{ fontSize: 11, color: "warning.main", mt: 0.5 }}>
@@ -261,14 +282,17 @@ export function AddExpenseDialog({
           </Box>
 
           <Box>
-            <FieldLabel>Expense type</FieldLabel>
+            <SubmitterFieldLabel>Expense type</SubmitterFieldLabel>
             <FormControl size="small" fullWidth>
               <Select<number | "">
                 value={expenseTypeId}
                 onChange={(e) => setExpenseTypeId(e.target.value === "" ? "" : Number(e.target.value))}
                 disabled={expenseTypes.isLoading}
                 displayEmpty
-                renderValue={(v) => (v === "" ? <span style={{ opacity: 0.6 }}>Select a type…</span> : selectedType?.type ?? String(v))}
+                inputProps={{ "aria-label": "Expense type" }}
+                renderValue={(v) =>
+                  v === "" ? <span style={{ opacity: 0.6 }}>Select a type…</span> : selectedType?.type ?? String(v)
+                }
               >
                 {(expenseTypes.data ?? []).map((t) => (
                   <MenuItem key={t.id} value={t.id}>
@@ -280,7 +304,7 @@ export function AddExpenseDialog({
           </Box>
 
           <Box>
-            <FieldLabel>Description</FieldLabel>
+            <SubmitterFieldLabel>Description</SubmitterFieldLabel>
             <TextField
               size="small"
               fullWidth
@@ -290,29 +314,74 @@ export function AddExpenseDialog({
               onChange={(e) => setComment(e.target.value.slice(0, COMMENT_MAX))}
               placeholder="What was this expense for?"
               helperText={`${comment.length}/${COMMENT_MAX}`}
+              inputProps={{ "aria-label": "Description" }}
             />
           </Box>
 
           <Box>
-            <FieldLabel>Receipt</FieldLabel>
+            <SubmitterFieldLabel>Receipt</SubmitterFieldLabel>
             <input ref={fileInput} type="file" accept={RECEIPT_ACCEPT} onChange={handleFile} style={{ display: "none" }} />
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => fileInput.current?.click()}
-                disabled={uploading}
-                sx={{ textTransform: "none", fontWeight: 600 }}
-              >
-                {uploading ? "Uploading…" : receiptUrl ? "Replace file" : "Upload receipt"}
-              </Button>
-              <Typography sx={{ fontSize: 12, color: receiptUrl ? "success.main" : "text.disabled" }} noWrap>
-                {receiptUrl && (
-                  <CheckIcon size={13} style={{ color: "var(--oxygen-palette-success-main)", flexShrink: 0 }} />
+            <Box
+              onDragOver={(e: React.DragEvent) => {
+                if (uploading) return;
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e: React.DragEvent) => {
+                e.preventDefault();
+                setDragging(false);
+                if (uploading) return;
+                const files = Array.from(e.dataTransfer.files);
+                // A multi-file drop is refused outright rather than silently
+                // taking the first one.
+                if (files.length > 1) {
+                  showError("Unable to upload more than one file at a time.");
+                  return;
+                }
+                if (files[0]) void acceptFile(files[0]);
+              }}
+              onClick={() => !uploading && fileInput.current?.click()}
+              sx={{
+                border: "1px dashed",
+                borderColor: dragging ? "primary.main" : "divider",
+                bgcolor: dragging ? "action.hover" : "transparent",
+                borderRadius: 1,
+                px: 1.5,
+                py: 1.25,
+                cursor: uploading ? "default" : "pointer",
+                transition: "border-color .12s, background-color .12s",
+                "&:hover": { borderColor: uploading ? "divider" : "primary.main" },
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={1.25}>
+                {receiptUrl && !uploading && (
+                  <CheckIcon size={14} style={{ color: "var(--oxygen-palette-success-main)", flexShrink: 0 }} />
                 )}
-                {receiptUrl ? fileName : `JPG, PNG or PDF · max ${maxSizeLabel(EXPENSE_RECEIPT_MAX_BYTES)}`}
-              </Typography>
-            </Stack>
+                <Typography
+                  sx={{
+                    fontSize: 12.5,
+                    fontWeight: receiptUrl ? 600 : 400,
+                    color: receiptUrl ? "success.main" : "text.primary",
+                  }}
+                  noWrap
+                >
+                  {uploading
+                    ? "Uploading…"
+                    : receiptUrl
+                      ? fileName
+                      : dragging
+                        ? "Drop the receipt here"
+                        : "Drop a receipt here, or click to browse"}
+                </Typography>
+                <Box sx={{ flex: 1 }} />
+                <Typography sx={{ fontSize: 11.5, color: "text.disabled" }} noWrap>
+                  {receiptUrl && !uploading
+                    ? "Click to replace"
+                    : `JPG, PNG or PDF · max ${maxSizeLabel(EXPENSE_RECEIPT_MAX_BYTES)}`}
+                </Typography>
+              </Stack>
+            </Box>
           </Box>
         </Stack>
       </DialogContent>
@@ -346,10 +415,17 @@ export function AddExpenseDialog({
   );
 }
 
-export function FieldLabel({ children }: { children: React.ReactNode }) {
+export function SubmitterFieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <Typography
-      sx={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "text.disabled", fontWeight: 600, mb: 0.75 }}
+      sx={{
+        fontSize: 10.5,
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        color: "text.disabled",
+        fontWeight: 600,
+        mb: 0.75,
+      }}
     >
       {children}
     </Typography>

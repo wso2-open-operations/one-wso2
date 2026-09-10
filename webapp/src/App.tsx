@@ -86,6 +86,7 @@ import CcApprovePage from "@features/finance/cc/pages/CcApprovePage";
 import CcHistoryPage from "@features/finance/cc/pages/CcHistoryPage";
 import CcSettingsPage from "@features/finance/cc/pages/CcSettingsPage";
 import ExpenseNewClaimPage from "@features/finance/expense/pages/ExpenseNewClaimPage";
+import ExpenseSubmitterPage from "@features/finance/expense/submitter/ExpenseSubmitterPage";
 import ExpenseClaimsTab from "@features/finance/expense/pages/ExpenseHistoryPage";
 import ClaimApprovalPage, {
   ClaimApprovalIndex,
@@ -213,7 +214,7 @@ export default function App() {
           </Route>
           <Route path="me/claims/expense/new" element={<ExpenseNewClaimPage />} />
           <Route path="me/claims/opd/new" element={<OpdNewClaimPage />} />
-          <Route path="finance/expense-claims/new" element={<ExpenseNewClaimPage />} />
+          <Route path="finance/expense-claims/new" element={<ExpenseSubmitterPage />} />
           <Route path="finance/cc/dashboard" element={<CcDashboardPage />} />
           <Route path="finance/cc/new" element={<CcNewTransactionsPage />} />
           <Route path="finance/cc/pending" element={<CcPendingPage />} />

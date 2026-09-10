@@ -117,4 +117,5 @@ export const FINANCE_EYEBROW = {
   // now, and their own titles say which type is being filed.
   claims: eyebrowFor("claims"),
   cc: eyebrowFor("cc"),
+  expense: eyebrowFor("expense"),
 } as const;

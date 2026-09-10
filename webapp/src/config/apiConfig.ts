@@ -309,15 +309,10 @@ export const expenseServiceUrls = {
   claimTransactions: (claimId: string) =>
     `${expenseBackendUrl}/claims/${encodeURIComponent(claimId)}/transactions`,
   employees: `${expenseBackendUrl}/employees`,
-  employeeTravels: (email: string) =>
-    `${expenseBackendUrl}/employees/${encodeURIComponent(email)}/travels`,
-  expenseTypes: (travelJobNumber?: string, onBehalfOfEmail?: string | null) => {
-    const params = new URLSearchParams();
-    if (travelJobNumber) params.set("travelJobNumber", travelJobNumber);
-    if (onBehalfOfEmail) params.set("onBehalfOfEmail", onBehalfOfEmail);
-    const qs = params.toString();
-    return `${expenseBackendUrl}/user-configurations/expense-types${qs ? `?${qs}` : ""}`;
-  },
+  expenseTypes: (travelJobNumber?: string) =>
+    `${expenseBackendUrl}/user-configurations/expense-types${
+      travelJobNumber ? `?travelJobNumber=${encodeURIComponent(travelJobNumber)}` : ""
+    }`,
   exchangeRates: (baseCode: string, date: string) =>
     `${expenseBackendUrl}/currencies/${encodeURIComponent(baseCode)}/rates/${encodeURIComponent(date)}`,
   receiptUpload: (email: string) =>
