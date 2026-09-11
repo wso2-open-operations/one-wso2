@@ -37,6 +37,8 @@ Internal cross-persona portal for WSO2. React 19 + TypeScript + Vite SPA that po
 
 `public/config.js` is git-ignored — never commit env-specific values. At deploy time, Choreo (or whatever hosts the static bundle) injects a fresh `config.js` per environment; the same build serves any env.
 
+> **Porting Finance MIS?** [`scripts/mis-port-facts.sh`](../scripts/mis-port-facts.sh) walks the Choreo and Asgardeo consoles for the values that app needs, checks each backend hostname against the production CSP, and probes whether a One WSO2 token is actually accepted by its three services. Run it from the repo root; it answers the open questions in [the MIS port spec](../docs/ported-apps/mis.md) §11.
+
 ### Development
 
 ```bash
