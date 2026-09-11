@@ -57,6 +57,7 @@
 import {
   ChartNoAxesCombinedIcon,
   MegaphoneIcon,
+  PaletteIcon,
   RefreshCwIcon,
   SettingsIcon,
   TicketIcon,
@@ -136,6 +137,15 @@ export const MARKETING_OPS_APPS: readonly MenuApp[] = [
         requires: ["admin"],
         path: "/marketing-ops/ad-campaigns/analytics",
       },
+      // Same capability gate as Analytics (`adcampaigns`) — same backend,
+      // same operation, a different screen.
+      {
+        id: "mops-campaign-tracker",
+        label: "Campaign Tracker",
+        desc: "Weekly operating rhythm for live campaigns — register, weekly change log, and budget pacing for Google Ads and LinkedIn.",
+        requires: ["admin"],
+        path: "/marketing-ops/ad-campaigns/campaign-tracker",
+      },
     ],
   },
   {
@@ -208,6 +218,22 @@ export const MARKETING_OPS_APPS: readonly MenuApp[] = [
         desc: "History of pipeline runs and their outcomes.",
         requires: ["admin"],
         path: "/marketing-ops/crm-upload/runs",
+      },
+    ],
+  },
+  {
+    key: "design-studio",
+    name: "Design Studio",
+    icon: PaletteIcon,
+    purpose:
+      "Build branded LinkedIn post and banner graphics from the shared background-image library.",
+    items: [
+      {
+        id: "mops-design-studio-post-builder",
+        label: "Post Builder",
+        desc: "Design a LinkedIn post or banner — pick a type, fill in content, choose a background, and export.",
+        requires: ["admin"],
+        path: "/marketing-ops/design-studio/post-builder",
       },
     ],
   },
@@ -317,6 +343,7 @@ export const MARKETING_OPS_EYEBROW = {
   adCampaigns: eyebrowFor("ad-campaigns"),
   events: eyebrowFor("events"),
   crmUpload: eyebrowFor("crm-upload"),
+  designStudio: eyebrowFor("design-studio"),
   utilities: eyebrowFor("utilities"),
   admin: eyebrowFor("admin"),
 } as const;

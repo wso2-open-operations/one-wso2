@@ -50,6 +50,7 @@ const RESTRICTED_IDS = new Set(
 const ITEM_CAPABILITY: Record<string, MarketingOpsCapability> = {
   // Phase 2
   "mops-ad-analytics": "adcampaigns",
+  "mops-campaign-tracker": "adcampaigns",
   // Phase 3
   "mops-email-create": "emailworkbench",
   "mops-email-history": "emailworkbench",
@@ -67,6 +68,9 @@ const ITEM_CAPABILITY: Record<string, MarketingOpsCapability> = {
   "mops-crm-review": "crmupload",
   "mops-crm-records": "crmupload",
   "mops-crm-runs": "crmupload",
+  // Design Studio — backend/shared/access_map.yaml gates its router on the
+  // `designstudio` group.
+  "mops-design-studio-post-builder": "designstudio",
 };
 
 // Menu ids belonging to the Marketing Admin app. Gated on `isAdmin` alone
