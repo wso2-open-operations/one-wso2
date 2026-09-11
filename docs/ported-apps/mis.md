@@ -85,7 +85,12 @@ cartesian charts. Every chart ships a companion table beneath it, per the house 
 The monthly P&L flash: Revenue, Cost of Sales with sub-levels, Gross Profit, Gross Margin, and ARR and
 Booking per business unit. **The only screen in MIS that writes.** Two write paths:
 
-- **Comments** — create, edit and delete against the admin backend.
+- **Comments** — create, edit and delete against the admin backend. ⚠ **Resolve before building
+  this.** The Choreo component behind `ADMIN_API_URL` is named "MIS Admin Backend - DEPRECATED", its
+  Production deployment is **suspended**, and its last commit is over two years old — yet the live MIS
+  config still points at it. Either comments are already broken in production, or they have moved and
+  the config is stale. Porting a feature against a dead backend would be the most expensive possible
+  way to discover which.
 - **Budget and forecast values** — inline cell edits against the flash backend, rejected server-side
   after the monthly cutoff (§3).
 
@@ -193,11 +198,22 @@ key construction: the key must include the serialised body, not just the URL.
 | `GET /sub-regions` | Flash | Sub-region list. |
 | `GET`, `PATCH /income-accounts` | Flash | Revenue budget/forecast. **Write.** |
 | `GET`, `PATCH /cost-of-sales-accounts` | Flash | Cost-of-sales budget/forecast. **Write.** |
-| `GET /comments/all`, `GET`/`POST`/`PATCH`/`DELETE /comments` | Admin | Flash comments. **Write.** |
+| `GET /comments/all`, `GET`/`POST`/`PATCH`/`DELETE /comments` | Admin | Flash comments. **Write.** ⚠ The Admin component is named "DEPRECATED" and its Production deployment is **suspended** — see §2.5. |
 
 Each service gets its own `isMisArrConfigured()` / `isMisFlashConfigured()` / `isMisAdminConfigured()`
 guard rather than one combined check, so the ARR screens still work when the Admin comments URL is
-unset.
+unset. That is not hypothetical: the Admin backend is deprecated and suspended in Production (§2.5),
+and its staging URL is on a CSP-blocked domain (§11.2), so leaving `ONE_WSO2_MIS_ADMIN_BACKEND_URL`
+empty and letting the comments screens report "not connected" is the correct configuration today.
+
+Base URLs differ by environment in both host *and* path — `apis.wso2.com/.../v1` in production,
+`apis-stg.wso2.com/.../v1.0` in staging — so the version segment is part of the configured URL rather
+than something the client appends.
+
+**Rollout.** Both live One WSO2 configs carry an `ONE_WSO2_PREVIEW_FEATURES` object (currently
+`{ expenseSubmitter: true }`) that is absent from `public/config.js.example`. It is the established
+way to land a screen for some users before all of them, and is the mechanism to reach for if MIS ships
+to Finance ahead of general availability.
 
 ## 7. Deviations from the source, and why
 
@@ -308,27 +324,54 @@ It is renamed on port.
 
 ## 11. Unverified — questions for a live tenant
 
+Worked over with the Choreo CLI on 2026-09-12: **item 2 is answered and closed**, item 1 is
+substantially de-risked but not proven, and item 3 is confirmed still open. Item 5 is new, and is the
+one that most changes the plan. The full record — production URLs, component states, probe results —
+is in the gitignored `My Findings Finance MIS.md` at the repo root.
+
 1. **Can One WSO2's Asgardeo token reach the three MIS services at all?** They sit behind Choreo's
    gateway expecting `x-jwt-assertion` and enforce a WSO2 email-domain regex. Same tenant? Same
-   Choreo project, or Project-scoped visibility? Does the token carry the `groups` claim? Nothing in
-   either repo settles this, and it is the one blocker that invalidates the plan if the answer is no.
-2. **Are the three gateway hostnames under `*.wso2.com`?** `vite.config.ts` sets
-   `connect-src 'self' https://*.wso2.com https://*.asgardeo.io` on production builds. Choreo's default
-   `*.choreoapis.dev` is not on that list. What hostname do the already-ported OPD, CC and
-   expense-claims backends use?
+   Choreo project, or Project-scoped visibility? **Largely de-risked, not proven.** MIS and One WSO2
+   are separate SPA clients in the *same* Asgardeo tenant (`api.asgardeo.io/t/wso2`); all three MIS
+   endpoints declare Visibility **Public**; and MIS sits in Choreo project **Finance Web** — the same
+   project as the OPD, CC and expense-claims backends One WSO2 already calls in production.
+   Unauthenticated probes return `401` on all three, identical to those known-good backends, so DNS,
+   TLS, gateway and paths are all correct and only the token is untested. **One authenticated call
+   still settles it**, and One WSO2 is live at `https://one.wso2.com` to get a token from.
+2. ~~**Are the three gateway hostnames under `*.wso2.com`?**~~ **ANSWERED, and the answer differs by
+   environment.**
+
+   *Production* is clean: all three are `https://apis.wso2.com/dvig/mis-{arr,flash,admin}-backend/endpoint-9090-803/`**`v1`**,
+   inside the existing `connect-src` allowlist, matching all nine of One WSO2's own backend URLs.
+
+   *Staging is not.* MIS's `Stage` config-map points ARR and Flash at
+   `https://apis-stg.wso2.com/...` (fine) but Admin at the raw
+   `https://<uuid>-az-stg.prod.wdt.choreoapis.dev/...` — **which the CSP blocks**. Configure One WSO2
+   against staging with that URL and the comments calls fail silently in a production build, with no
+   console error. Choreo advertises a `*.choreoapis.dev` URL for every endpoint alongside the vanity
+   one; **always take the `*.wso2.com` form**, and treat a `choreoapis.dev` URL appearing in any
+   config as a defect.
+
+   Also note the paths disagree across environments: **production ends `/v1`, staging ends `/v1.0`**.
+   That belongs in configuration, never in code.
 3. **What are the real LDAP groups behind `987` and `789`?** `arrDashboardUserRoles` and
-   `flashDashboardUserRoles` are `configurable string[] = ?` supplied from Choreo config. Unlike its
-   sibling apps, MIS has no entry in `digiops-finance/.gitsecret` and no `.choreo/component.yaml`.
+   `flashDashboardUserRoles` are `configurable string[] = ?` supplied from Choreo config. **Confirmed
+   still open**: both are declared in the component's Ballerina schema but read "(not set)" there,
+   because their values arrive from a *secret* file mount, and the Choreo CLI does not return secret
+   contents. Read them from the Choreo console or via `scripts/mis-port-facts.sh` stage 5.
 4. **Does `GET /user-info` return 200 with empty privileges for a non-MIS employee, or 403?** This
    decides whether the gate can show an honest locked state or must treat a denial as absence.
-5. **Which of the five screens is actually used, and by how many people?** It changes what the tracer
+5. **Is the Flash comments backend alive?** `mis-admin-backend` is deprecated and suspended in
+   Production while the live MIS config still points at it (§2.5). Establish whether comments work in
+   production today before porting them — and if they moved, to what.
+6. **Which of the five screens is actually used, and by how many people?** It changes what the tracer
    bullet should prove first and what may not need porting at all.
-6. **Who signs off the re-placed screens**, per [ADR 0002](../adr/0002-rethink-ia-rather-than-transcribe.md)?
-7. **Is a minimum-width notice acceptable** in a shell that otherwise promises every screen works at
+7. **Who signs off the re-placed screens**, per [ADR 0002](../adr/0002-rethink-ia-rather-than-transcribe.md)?
+8. **Is a minimum-width notice acceptable** in a shell that otherwise promises every screen works at
    every width, or should the Build degrade some other way below 1024px? The prototype's Variant C — one
    Period at a time, rendered vertically — worked at 400px with no horizontal scroll and is the
    candidate answer, at the cost of making period-over-period comparison impossible. It is kept on the
    prototype branch rather than discarded, for exactly this question.
-8. **Per-screen control detail.** This spec covers routes, rules, the URL contract, the API surface and
+9. **Per-screen control detail.** This spec covers routes, rules, the URL contract, the API surface and
    the role model. The individual controls of the 1,823-line FilterBar and the 2,254-line ARR Analysis
    page still need a line-by-line read before their sections in §2 are complete.
