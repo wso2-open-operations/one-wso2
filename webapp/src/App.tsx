@@ -93,6 +93,7 @@ import CcHistoryPage from "@features/finance/cc/pages/CcHistoryPage";
 import CcSettingsPage from "@features/finance/cc/pages/CcSettingsPage";
 import ExpenseNewClaimPage from "@features/finance/expense/pages/ExpenseNewClaimPage";
 import ExpenseSubmitterPage from "@features/finance/expense/submitter/ExpenseSubmitterPage";
+import ExpenseClaimHistoryPage from "@features/finance/expense/history/ExpenseClaimHistoryPage";
 import ExpenseClaimsTab from "@features/finance/expense/pages/ExpenseHistoryPage";
 import ClaimApprovalPage, {
   ClaimApprovalIndex,
@@ -226,6 +227,10 @@ export default function App() {
           {isPreviewEnabled("expenseSubmitter") && (
             <Route path="finance/expense-claims/new" element={<ExpenseSubmitterPage />} />
           )}
+          {/* Not behind that flag. The preview holds back a SECOND way to file
+              a claim until it is reconciled with Me → Claims; reading what you
+              have already filed has no such duplicate to reconcile. */}
+          <Route path="finance/expense-claims/history" element={<ExpenseClaimHistoryPage />} />
           <Route path="finance/cc/dashboard" element={<CcDashboardPage />} />
           <Route path="finance/cc/new" element={<CcNewTransactionsPage />} />
           <Route path="finance/cc/pending" element={<CcPendingPage />} />

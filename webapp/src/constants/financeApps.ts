@@ -66,32 +66,35 @@ export const ME_FINANCE_APPS: readonly MenuApp[] = [
  * needs; it sits with the other finance operations instead.
  */
 export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
-  // Held behind a preview flag: Me → Claims already offers a new-claim flow,
-  // and showing a second entry point under Finance before the two are
-  // reconciled would leave people with two ways in and no way to tell which
-  // one they want.
-  //
-  // Spread in rather than filtered out, so with the flag off the entry does not
-  // exist at all — the rail sections and favourites both derive from this list.
-  //
-  // It is NOT the whole story. The Finance overview builds its tiles by hand
-  // and asks `useFinanceGate` by item id, so that surface is gated there
-  // instead; removing the entry here would have left its tile pointing at a
-  // route that no longer exists. The launcher shows perspectives rather than
-  // app items, so it is unaffected either way.
-  ...(isPreviewEnabled("expenseSubmitter")
-    ? [
-        {
-          key: "expense",
-          name: "Expense Claims",
-          icon: ReceiptTextIcon,
-          purpose: "File a new expense claim.",
-          items: [
+  {
+    key: "expense",
+    name: "Expense Claims",
+    icon: ReceiptTextIcon,
+    purpose: "File a new expense claim, or track the ones already submitted.",
+    items: [
+      // New Claim is held behind a preview flag: Me → Claims already offers a
+      // new-claim flow, and showing a second entry point under Finance before
+      // the two are reconciled would leave people with two ways in and no way
+      // to tell which one they want.
+      //
+      // Spread in rather than filtered out, so with the flag off the item does
+      // not exist at all — the rail sections and favourites both derive from
+      // this list. It is NOT the whole story: the Finance overview builds its
+      // tiles by hand and asks `useFinanceGate` by item id, so that surface is
+      // gated there too.
+      //
+      // The flag is on the ITEM, not the app. Claim History has no duplicate
+      // under Me to reconcile — the Me-side history is a different screen on a
+      // different route — so hiding the whole app would hold back something
+      // that is ready.
+      ...(isPreviewEnabled("expenseSubmitter")
+        ? [
             { id: "expense-new", label: "New Claim", desc: "File a new expense claim.", path: expenseFinancePaths.new },
-          ],
-        },
-      ]
-    : []),
+          ]
+        : []),
+      { id: "expense-history", label: "Claim History", desc: "Claims you have submitted, and where each one has got to.", path: expenseFinancePaths.history },
+    ],
+  },
   {
     key: "cc",
     name: "Credit Card Expenses",

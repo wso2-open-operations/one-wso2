@@ -46,35 +46,46 @@ afterEach(() => {
 const keys = (apps: readonly { key: string }[]) => apps.map((a) => a.key);
 const paths = (apps: readonly { items: readonly { path?: string }[] }[]) =>
   apps.flatMap((a) => a.items.map((i) => i.path ?? ""));
+const itemIds = (apps: readonly { items: readonly { id: string }[] }[]) =>
+  apps.flatMap((a) => a.items.map((i) => i.id));
 
 describe("where each finance app lives", () => {
   // Everyone files claims. Not everyone has a corporate card, which is why the
   // card app is not part of the set every employee needs.
   //
-  // "expense" is a deliberate exception to "each app lives in exactly one
-  // place": its New Claim route under Finance renders a submitter page for the
-  // same claims "claims" → Expense under Me files — a second door onto the same
-  // room, not a fork. It is behind a preview flag until the two doors are
-  // reconciled, so every assertion below states which state it is describing.
-  it("keeps claims with the person, and the card app with finance", async () => {
+  // "expense" covers the same ground as "claims" → Expense under Me, but with
+  // its own screens (expense/submitter, expense/history) rather than the Me
+  // ones — the Finance side can file for another employee, which the Me side
+  // cannot. It keeps its own registry key, distinct from "claims", which is
+  // what the other invariants below actually depend on.
+  it("keeps claims with the person, and both the card and expense claims with finance", async () => {
     const { ME_FINANCE_APPS, FINANCE_PERSPECTIVE_APPS } = await load();
     expect(keys(ME_FINANCE_APPS)).toEqual(["claims"]);
-    expect(keys(FINANCE_PERSPECTIVE_APPS)).toEqual(["cc"]);
+    expect(keys(FINANCE_PERSPECTIVE_APPS)).toEqual(["expense", "cc"]);
   });
 
-  it("adds the expense app to finance only when the preview flag is on", async () => {
+  // The preview flag holds back New Claim, which duplicates Me → Claims. It
+  // does not hold back the app, because Claim History has no such duplicate.
+  it("adds New Claim only when the preview flag is on", async () => {
     const off = await load({ expenseSubmitter: false });
-    expect(keys(off.FINANCE_PERSPECTIVE_APPS)).toEqual(["cc"]);
+    expect(itemIds(off.FINANCE_PERSPECTIVE_APPS)).not.toContain("expense-new");
 
     const on = await load({ expenseSubmitter: true });
-    expect(keys(on.FINANCE_PERSPECTIVE_APPS)).toEqual(["expense", "cc"]);
+    expect(itemIds(on.FINANCE_PERSPECTIVE_APPS)).toContain("expense-new");
   });
 
-  it("is hidden by an absent flag, not only by an explicit false", async () => {
+  it("hides New Claim on an absent flag, not only on an explicit false", async () => {
     // Production ships no entry at all; safety must not depend on remembering
     // to write `false`.
     const { FINANCE_PERSPECTIVE_APPS } = await load();
-    expect(keys(FINANCE_PERSPECTIVE_APPS)).not.toContain("expense");
+    expect(itemIds(FINANCE_PERSPECTIVE_APPS)).not.toContain("expense-new");
+  });
+
+  it("keeps Claim History whatever the flag says", async () => {
+    for (const preview of [{}, { expenseSubmitter: true }]) {
+      const { FINANCE_PERSPECTIVE_APPS } = await load(preview);
+      expect(itemIds(FINANCE_PERSPECTIVE_APPS)).toContain("expense-history");
+    }
   });
 
   it("puts every app KEY in exactly one of the two", async () => {
@@ -84,8 +95,7 @@ describe("where each finance app lives", () => {
         keys(FINANCE_PERSPECTIVE_APPS).includes(k),
       );
       expect(overlap).toEqual([]);
-      expect(keys(FINANCE_APPS)).toContain("claims");
-      expect(keys(FINANCE_APPS)).toContain("cc");
+      expect(keys(FINANCE_APPS).sort()).toEqual(["cc", "claims", "expense"]);
     }
   });
 
