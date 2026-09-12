@@ -21,6 +21,8 @@ import { isMisArrConfigured } from "@config/apiConfig";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useMisGate } from "../api/useMisGate";
 import MisLocked from "./MisLocked";
+import PacificTimeChip from "./PacificTimeChip";
+import { ScalePreferenceProvider } from "../util/ScalePreferenceContext";
 
 // Shared page frame for every Finance MIS screen: the app eyebrow, a title and
 // subtitle, and — the reason this exists — ONE place that owns every degraded
@@ -71,36 +73,53 @@ export default function MisShell({
   const isLocked = configured && !gate.isResolving && !gate.isError && !gate.canSee(gateId);
 
   return (
-    <Box>
-      <Chip
-        icon={<ChartNoAxesCombinedIcon size={14} />}
-        label="MIS"
-        color="primary"
-        // Outlined, not filled: white-on-orange at chip text sizes is ~3.6:1 and
-        // fails WCAG AA. Outlined routes through the a11y overlay, which shifts
-        // the label and border to primary.dark in light mode. Matches the
-        // Finance, Leave and Marketing Ops shells.
-        variant="outlined"
-        size="small"
-        sx={{ mb: 0.5 }}
-      />
-      {/* An h1, not a styled div: it is the page's heading, and a screen-reader
-          user navigating by headings needs something to land on. */}
-      <Typography component="h1" variant="h5" sx={{ mb: 0.5, mt: 0 }}>
-        {title}
-      </Typography>
-      {/* Dropped on the locked rung alone: a subtitle sells the screen, which is
-          right on one you can use and wrong above a panel about to refuse you. */}
-      {subtitle && !isLocked && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2.25, maxWidth: "70ch" }}>
-          {subtitle}
+    // Scale is a cross-page preference, so it is provided once here rather than
+    // by each screen — the same argument as the degraded states below. A screen
+    // that forgot the provider would throw; one that carried its own would hold
+    // a Scale the next MIS screen did not share.
+    <ScalePreferenceProvider>
+      <Box>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          sx={{ mb: 0.5, alignItems: "center", flexWrap: "wrap", rowGap: 0.75 }}
+        >
+          <Chip
+            icon={<ChartNoAxesCombinedIcon size={14} />}
+            label="MIS"
+            color="primary"
+            // Outlined, not filled: white-on-orange at chip text sizes is ~3.6:1
+            // and fails WCAG AA. Outlined routes through the a11y overlay, which
+            // shifts the label and border to primary.dark in light mode. Matches
+            // the Finance, Leave and Marketing Ops shells.
+            variant="outlined"
+            size="small"
+          />
+          {/* Permanent, on every rung — spec §3 and ticket 05 both say the word.
+              Unconditional beats "only where there are figures": the reader who
+              most needs to know which clock MIS runs on is the one who has just
+              arrived, and a chip that comes and goes is one more thing on the
+              page whose absence means something. */}
+          <PacificTimeChip />
+        </Stack>
+        {/* An h1, not a styled div: it is the page's heading, and a screen-reader
+            user navigating by headings needs something to land on. */}
+        <Typography component="h1" variant="h5" sx={{ mb: 0.5, mt: 0 }}>
+          {title}
         </Typography>
-      )}
+        {/* Dropped on the locked rung alone: a subtitle sells the screen, which is
+            right on one you can use and wrong above a panel about to refuse you. */}
+        {subtitle && !isLocked && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2.25, maxWidth: "70ch" }}>
+            {subtitle}
+          </Typography>
+        )}
 
-      <MisBody configured={configured} gate={gate} gateId={gateId}>
-        {children}
-      </MisBody>
-    </Box>
+        <MisBody configured={configured} gate={gate} gateId={gateId}>
+          {children}
+        </MisBody>
+      </Box>
+    </ScalePreferenceProvider>
   );
 }
 

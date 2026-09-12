@@ -21,6 +21,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import MisShell from "@features/finance/mis/components/MisShell";
 import type { MisGate } from "@features/finance/mis/api/useMisGate";
+import { useScalePreference } from "@features/finance/mis/util/ScalePreferenceContext";
 
 const configured = vi.hoisted(() => ({ value: true }));
 vi.mock("@config/apiConfig", () => ({
@@ -123,5 +124,59 @@ describe("the subtitle", () => {
   it("survives every other rung", () => {
     renderShell({ isResolving: true, canSee: () => false });
     expect(screen.getByText(SUBTITLE)).toBeInTheDocument();
+  });
+});
+
+// Spec §3: every MIS screen carries the chip, so no screen has to remember it —
+// the same argument that puts the degraded states here.
+describe("the Pacific Time chip", () => {
+  const chip = () => screen.queryByText(/^Pacific Time \((PST|PDT|PT)\)$/);
+
+  it("sits above a screen showing figures", () => {
+    renderShell();
+    expect(chip()).toBeInTheDocument();
+  });
+
+  // "Permanent" is the spec's own word, and the subtitle is the contrast: that
+  // one IS dropped on the locked rung, because it sells a screen being withheld.
+  // A timezone states a fact about MIS rather than advertising anything, so it
+  // survives every rung the subtitle does not.
+  it("survives a locked screen", () => {
+    renderShell({ isAuthorized: false, canSee: () => false });
+    expect(chip()).toBeInTheDocument();
+  });
+
+  it("survives the privilege check being in flight", () => {
+    renderShell({ isResolving: true, canSee: () => false });
+    expect(chip()).toBeInTheDocument();
+  });
+
+  it("survives the backend not being connected", () => {
+    configured.value = false;
+    renderShell();
+    expect(chip()).toBeInTheDocument();
+  });
+});
+
+describe("the Scale preference", () => {
+  // Mounted here rather than per screen for the same reason everything else in
+  // this file is: a screen that forgot the provider would throw, and a screen
+  // that carried its own would hold a Scale the next MIS screen did not share.
+  function ScaleProbe() {
+    return <span data-testid="preference">{useScalePreference().preference}</span>;
+  }
+
+  it("is readable from a MIS screen without the screen providing it", () => {
+    gate.value = ALLOWED;
+    localStorage.setItem("one-wso2.scale", "thousands");
+    render(
+      <MemoryRouter>
+        <MisShell gateId="mis-arr-build" title="ARR Build">
+          <ScaleProbe />
+        </MisShell>
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("preference")).toHaveTextContent("thousands");
+    localStorage.clear();
   });
 });

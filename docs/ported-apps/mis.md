@@ -266,6 +266,31 @@ easiest rule in this port to get silently wrong, so it is built once and handed 
 the URL contract testable and shippable without a timezone in it. The source always computes the
 ranges; here a caller that supplies no computer gets no `annuallyDateRanges`.
 
+**Period boundaries are civil-date arithmetic, not `Date` arithmetic.** The source reduces an
+instant to a Pacific calendar date correctly, and then builds every boundary with
+`new Date(year, 0, 1)` and reads Pacific parts back out of it. That is a LOCAL midnight, so for a
+viewer east of California every annual column opens and closes a day early — `2025/12/31` where the
+column is 2026's. The port does the arithmetic on the three numbers instead, and the boundaries stop
+depending on where the reader is sitting (§10.8).
+
+**This is a knowing exception to [ADR 0003](../adr/0003-bug-for-bug-parity-during-the-parallel-period.md),
+not a case the ADR fails to reach.** The team reconciling the two apps is in Colombo, so this is not a
+difference confined to some hypothetical remote viewer: through the whole parallel period the old
+frontend and the port will disagree about every Annually boundary, for exactly the people signing off
+the figures. It is taken anyway, because §3 settled it before the ADR could apply — "Every Period
+boundary, and the Period label itself, is computed in `America/Los_Angeles`, not the viewer's zone and
+not UTC" — and §10.8 states it as a test rather than a preference. The source's behaviour here is not
+a business rule anyone agreed to; it is a bug that makes one saved link report different revenue to
+two people. Reproducing it would mean shipping a port that fails its own spec's test suite.
+**§10.23's parity check must expect this difference** and reconcile against Pacific-dated ranges
+rather than against whatever the old frontend happens to render in Colombo.
+
+One further case differs, and only on one day in four years: **a 29 February as-of is clamped into a
+common year rather than rolled forward.** `new Date(2025, 1, 29)` is 1 March, so the source's
+year-to-date "as at 29 February" silently includes a day of March in three years out of four. The port
+ends those years on the 28th. Flagged rather than reproduced because the parallel period contains no
+29 February — the next one is in 2028 — so there is no reconciliation this can break.
+
 **The apply stamp.** The source puts `_applyId: Date.now()` on every Applied filter set, as a token
 its hand-rolled fetch effects compare to decide whether to refetch
 (`arrDashboard/hooks/useExitArrByBU.js:170`). It is not ported. TanStack Query already does that job
