@@ -44,13 +44,15 @@ import { Link as RouterLink } from "react-router";
 // is also where App.tsx sends "/" and any unmatched route. Without it the only
 // exit is the browser's back button, which is what makes a locked door feel
 // like a wall.
-export default function MisLocked({ hasSomeMisAccess }: { hasSomeMisAccess: boolean }) {
+export default function MisLocked({ isAuthorized }: { isAuthorized: boolean }) {
   return (
     <Card variant="outlined" sx={{ mt: 1.5, p: 3, maxWidth: 620 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.75 }}>
         {/* Neutral, not tinted: the padlock is the whole message and it should
-            not read as a status colour. */}
+            not read as a status colour. Hidden from assistive tech — the
+            heading beside it says the same thing in words. */}
         <Box
+          aria-hidden="true"
           sx={{
             width: 40,
             height: 40,
@@ -66,13 +68,19 @@ export default function MisLocked({ hasSomeMisAccess }: { hasSomeMisAccess: bool
           <LockIcon size={20} />
         </Box>
         <Box>
-          <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
-            {hasSomeMisAccess
+          {/* h2 under the shell's h1, so heading order holds for anyone
+              navigating by headings — variant="subtitle1" would render an h6
+              and leave a four-level gap. Matches MarketingOpsLocked. */}
+          <Typography
+            component="h2"
+            sx={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", mb: 0.6 }}
+          >
+            {isAuthorized
               ? "This is not one of the MIS screens you can open"
               : "You don't have access to Finance MIS"}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "60ch" }}>
-            {hasSomeMisAccess
+            {isAuthorized
               ? "Finance MIS grants the revenue dashboards and the Flash Dashboard separately, and this screen belongs to the half you don't hold. The MIS screens you can open are in the Finance menu on the left."
               : "Finance MIS reports company-wide recurring revenue and the monthly P&L, so access is granted to specific finance and leadership groups rather than to everyone. Ask a Finance MIS administrator if you need it."}
           </Typography>

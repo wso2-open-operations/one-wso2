@@ -20,8 +20,17 @@ _Avoid_: role, permission, scope, privilege
 
 **Privilege**:
 A numeric permission code issued by one backend's own `/user-info`. Always name the backend: the
-number space is shared but the meanings are not, so `987` is people-app's "every authenticated
-employee" and Finance MIS's "may see the ARR Dashboard".
+number space is shared but the meanings are not. Both of Finance MIS's numbers are already spoken
+for here, and neither collision is the safe kind:
+
+| Number | people-app / One WSO2 | leave-app | Finance MIS |
+|---|---|---|---|
+| `987` | every authenticated employee (`PRIVILEGE.EMPLOYEE`) | `LEAVE_PRIVILEGE.EMPLOYEE` | may see the ARR dashboards |
+| `789` | — | `LEAVE_PRIVILEGE.PEOPLE_OPS_TEAM` | may see the Flash Dashboard |
+
+So reading MIS access off the shared capability set grants company-wide revenue reporting to
+everybody, and reading it off leave-app's array grants the P&L to People Ops. Each is only meaningful
+beside the endpoint that issued it, which is why every app has its own Gate.
 _Avoid_: bare "privilege" with no backend named; capability; role
 
 **Gate**:

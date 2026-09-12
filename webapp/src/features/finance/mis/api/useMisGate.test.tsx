@@ -68,12 +68,9 @@ beforeEach(() => {
 });
 
 describe("the ARR privilege", () => {
-  it("opens the three Build screens and ARR Analysis", () => {
+  it("opens ARR Build", () => {
     state.privileges = [ARR];
     expect(gate().canSee("mis-arr-build")).toBe(true);
-    expect(gate().canSee("mis-qrr-build")).toBe(true);
-    expect(gate().canSee("mis-mrr-build")).toBe(true);
-    expect(gate().canSee("mis-analysis")).toBe(true);
   });
 
   // Test checklist §10.10. The two privileges are independent — the backend
@@ -95,9 +92,6 @@ describe("the Flash privilege", () => {
   it("does not open the Build screens", () => {
     state.privileges = [FLASH];
     expect(gate().canSee("mis-arr-build")).toBe(false);
-    expect(gate().canSee("mis-qrr-build")).toBe(false);
-    expect(gate().canSee("mis-mrr-build")).toBe(false);
-    expect(gate().canSee("mis-analysis")).toBe(false);
   });
 
   it("is held alongside the ARR one by someone who has both", () => {
@@ -113,7 +107,7 @@ describe("the Flash privilege", () => {
 describe("someone holding neither privilege", () => {
   it("sees no MIS screen at all", () => {
     state.privileges = [];
-    for (const id of ["mis-arr-build", "mis-qrr-build", "mis-mrr-build", "mis-analysis", "mis-flash"]) {
+    for (const id of ["mis-arr-build", "mis-flash"]) {
       expect(gate().canSee(id), `${id} is visible without a MIS privilege`).toBe(false);
     }
   });
@@ -136,6 +130,9 @@ describe("someone holding neither privilege", () => {
 describe("an id this gate has no mapping for", () => {
   it("is hidden even from someone holding both privileges", () => {
     state.privileges = [ARR, FLASH];
+    // QRR Build is a real screen that is not ported yet, so it is the honest
+    // example: in the registry's future, absent from ITEM_PRIVILEGE today.
+    expect(gate().canSee("mis-qrr-build")).toBe(false);
     expect(gate().canSee("mis-something-added-later")).toBe(false);
   });
 

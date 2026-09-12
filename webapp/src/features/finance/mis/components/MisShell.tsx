@@ -150,7 +150,7 @@ function MisBody({
   }
 
   if (!gate.canSee(gateId)) {
-    return <MisLocked hasSomeMisAccess={gate.isAuthorized} />;
+    return <MisLocked isAuthorized={gate.isAuthorized} />;
   }
 
   return <>{children}</>;

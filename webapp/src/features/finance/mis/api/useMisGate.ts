@@ -19,6 +19,23 @@ import { isMisArrConfigured } from "@config/apiConfig";
 import { useMisUserInfo } from "./useMisUserInfo";
 import { MIS_PRIVILEGE, misHasPrivilege } from "./misTypes";
 
+// Which MIS privilege each menu item needs. The ONLY place a One WSO2 menu id
+// is tied to a MIS privilege number — same shape, and the same reason, as
+// useMarketingOpsGate's ITEM_CAPABILITY.
+//
+// One privilege covers ALL the ARR screens, not one per screen: the source app
+// gates ARR Build, QRR, MRR and ARR Analysis on a single ARR_DASHBOARD number
+// (Config.js:56). So the three still being ported join this map with
+// ARR_DASHBOARD, in the ticket that adds each route.
+//
+// An id missing from this map is refused. That is stricter than the sibling
+// gates, which fall through to an open default for their unrestricted items —
+// MIS has no unrestricted screen, so there is nothing for a default to open.
+const ITEM_PRIVILEGE: Record<string, number> = {
+  "mis-arr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
+  "mis-flash": MIS_PRIVILEGE.FLASH_DASHBOARD,
+};
+
 export interface MisGate {
   // May this menu item be shown? Used by the rail and the pages alike, so a
   // visible item is always one whose screen the caller can actually open.
@@ -52,27 +69,19 @@ export interface MisGate {
 export function useMisGate(enabled = true): MisGate {
   const userInfo = useMisUserInfo(enabled);
 
+  // Independent, not nested. The backend pushes each number on its own group
+  // check, so holding one and not the other is the ordinary case: finance sees
+  // Flash, revenue leadership sees ARR, and few people see both.
   const hasArr = misHasPrivilege(userInfo.data, MIS_PRIVILEGE.ARR_DASHBOARD);
   const hasFlash = misHasPrivilege(userInfo.data, MIS_PRIVILEGE.FLASH_DASHBOARD);
 
   const canSee = (itemId: string): boolean => {
-    switch (itemId) {
-      // One privilege covers all four ARR screens — the source app gates them
-      // on a single ARR_DASHBOARD number too (Config.js:56), rather than one
-      // per screen.
-      case "mis-arr-build":
-      case "mis-qrr-build":
-      case "mis-mrr-build":
-      case "mis-analysis":
-        return hasArr;
-      // Independent of the above, not a superset of it. The backend pushes
-      // each number on its own group check, so holding one and not the other
-      // is the ordinary case: finance sees Flash, revenue leadership sees ARR.
-      case "mis-flash":
-        return hasFlash;
-      default:
-        return false;
-    }
+    const required = ITEM_PRIVILEGE[itemId];
+    if (required === MIS_PRIVILEGE.ARR_DASHBOARD) return hasArr;
+    if (required === MIS_PRIVILEGE.FLASH_DASHBOARD) return hasFlash;
+    // Unmapped: refused. A screen added to the registry without a line in
+    // ITEM_PRIVILEGE is invisible rather than public.
+    return false;
   };
 
   return {

@@ -54,52 +54,39 @@ export const MIS_PATH = "/finance/mis";
 // screen. See docs/ported-apps/mis.md §7.
 export const misPaths = {
   arrBuild: `${MIS_PATH}/arr-build`,
-  qrrBuild: `${MIS_PATH}/qrr-build`,
-  mrrBuild: `${MIS_PATH}/mrr-build`,
-  analysis: `${MIS_PATH}/analysis`,
   flash: `${MIS_PATH}/flash`,
 } as const;
 
+// Only the screens that HAVE a route are listed. QRR Build, MRR Build and ARR
+// Analysis are not here yet, and listing them early would not be harmless: the
+// rail renders every visible child of a group whether or not it carries a path,
+// and a pathless one falls through SideRail's onSelect to scrollToSection() —
+// a no-op anywhere but the perspective's own overview page. So an entry without
+// a route is a row that silently does nothing when clicked.
+//
+// Each of those screens joins this list in the ticket that ports it, together
+// with its route, its case in useMisGate, and its tests. misApps.test.ts and
+// misRail.test.ts both assert the registry and the routes stay in step.
 export const MIS_APPS: readonly MenuApp[] = [
   {
     key: "mis",
     name: "MIS",
     icon: ChartNoAxesCombinedIcon,
     purpose: "Company recurring revenue, how it moved over a period, and the monthly P&L flash.",
+    // Stay a group even while one privilege sees only one screen. Someone
+    // holding just the ARR privilege has exactly one MIS row today and will
+    // have four once QRR, MRR and ARR Analysis land, so collapsing to a leaf
+    // now would teach a shape that changes under them — "ARR Build" would
+    // vanish as a concept and reappear the day the second screen ships. The
+    // case appMenu.ts names for this flag.
+    alwaysGroup: true,
     items: [
       {
         id: "mis-arr-build",
         label: "ARR Build",
-        desc: "Annual recurring revenue from opening to closing balance, by period.",
+        desc: "The annual Build: recurring revenue from an Opening to a Closing balance, by period.",
         requires: ["admin"],
         path: misPaths.arrBuild,
-      },
-      // No `path` yet on the three below, deliberately. A pathless item is a
-      // "not here yet" card on the Finance overview rather than a rail entry
-      // that navigates nowhere — the same way marketingOpsApps.ts stays ahead
-      // of its own implementation, phase by phase. The ticket that ports each
-      // screen uncomments its path here and adds the route, in one change, so
-      // the rail never advertises a screen that does not exist.
-      {
-        id: "mis-qrr-build",
-        label: "QRR Build",
-        desc: "The same build, quarterly, with a cumulative view.",
-        requires: ["admin"],
-        // path: misPaths.qrrBuild,   ← ticket 12
-      },
-      {
-        id: "mis-mrr-build",
-        label: "MRR Build",
-        desc: "The same build, monthly, with a cumulative view.",
-        requires: ["admin"],
-        // path: misPaths.mrrBuild,   ← ticket 12
-      },
-      {
-        id: "mis-analysis",
-        label: "ARR Analysis",
-        desc: "Current ARR by partner model, region, industry and customer lifetime.",
-        requires: ["admin"],
-        // path: misPaths.analysis,   ← ticket 13
       },
       {
         id: "mis-flash",

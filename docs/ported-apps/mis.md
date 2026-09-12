@@ -9,9 +9,17 @@ JavaScript, plus 3,602 lines of tests) and the three Ballerina services under
 `digiops-finance/apps/mis/backend`. Where the two disagree, the server is authoritative and the
 divergence is recorded in §8.
 
-**In One WSO2:** one `MenuApp` in `FINANCE_PERSPECTIVE_APPS`, under the existing **Finance**
-perspective, at `/finance/mis/*`. Its module is `src/features/finance/mis/`. Three backend URLs —
-`ONE_WSO2_MIS_ARR_BACKEND_URL`, `ONE_WSO2_MIS_FLASH_BACKEND_URL`, `ONE_WSO2_MIS_ADMIN_BACKEND_URL`.
+**In One WSO2:** one `MenuApp` under the existing **Finance** perspective, at `/finance/mis/*`. Its
+module is `src/features/finance/mis/`. Three backend URLs — `ONE_WSO2_MIS_ARR_BACKEND_URL`,
+`ONE_WSO2_MIS_FLASH_BACKEND_URL`, `ONE_WSO2_MIS_ADMIN_BACKEND_URL`.
+
+> **Amended during ticket 01.** This section originally said the `MenuApp` goes *in*
+> `FINANCE_PERSPECTIVE_APPS`. It cannot: that constant feeds `FINANCE_ITEM_IDS`, which is how
+> `SideRail` decides to ask `useFinanceGate` — the gate for the three claim backends, which knows
+> nothing of MIS privileges and would answer for every MIS id by falling through to its open
+> default. The registry lives in its own `constants/misApps.ts` with its own `MIS_ITEM_IDS`, and is
+> spread into the Finance perspective's sections where it is surfaced. Same shape as
+> `marketingOpsApps.ts`, and the same reason.
 
 It sits under Finance rather than becoming its own perspective because the audience split that would
 justify a sixth perspective — company revenue reporting for leadership, a P&L working surface for
@@ -329,6 +337,13 @@ substantially de-risked but not proven, and item 3 is confirmed still open. Item
 one that most changes the plan. The full record — production URLs, component states, probe results —
 is in the gitignored `My Findings Finance MIS.md` at the repo root.
 
+**Ticket 01 (the shell wiring) is built.** It did not close item 1 or 4 — neither can be closed by
+code — but it *instruments* both: `/finance/mis/arr-build` now renders the raw `privileges` array
+`GET /user-info` returned and what it resolved to, so one signed-in visit answers both at once. That
+visit is the only thing standing between this spec and a settled premise. It needs
+`http://localhost:3000` registered as an allowed redirect on the One WSO2 **staging** Asgardeo app,
+or a live session at `https://one.wso2.com`.
+
 1. **Can One WSO2's Asgardeo token reach the three MIS services at all?** They sit behind Choreo's
    gateway expecting `x-jwt-assertion` and enforce a WSO2 email-domain regex. Same tenant? Same
    Choreo project, or Project-scoped visibility? **Largely de-risked, not proven.** MIS and One WSO2
@@ -361,6 +376,12 @@ is in the gitignored `My Findings Finance MIS.md` at the repo root.
    contents. Read them from the Choreo console or via `scripts/mis-port-facts.sh` stage 5.
 4. **Does `GET /user-info` return 200 with empty privileges for a non-MIS employee, or 403?** This
    decides whether the gate can show an honest locked state or must treat a denial as absence.
+   **Probably 200-with-empty, on the source's evidence.** `arr-backend/service.bal:55-69` builds
+   `int[] privileges = []` and pushes each number only if the caller's groups match, then returns the
+   record unconditionally — there is no 403 branch on that path. The gate is therefore built for an
+   honest locked state, and `useMisGate` distinguishes "no privileges" from "the call failed"
+   regardless, so a 403 would surface as an error with a retry rather than a wrong message. Still
+   worth confirming against the live gateway, which may answer before the service does.
 5. **Is the Flash comments backend alive?** `mis-admin-backend` is deprecated and suspended in
    Production while the live MIS config still points at it (§2.5). Establish whether comments work in
    production today before porting them — and if they moved, to what.
@@ -375,3 +396,9 @@ is in the gitignored `My Findings Finance MIS.md` at the repo root.
 9. **Per-screen control detail.** This spec covers routes, rules, the URL contract, the API surface and
    the role model. The individual controls of the 1,823-line FilterBar and the 2,254-line ARR Analysis
    page still need a line-by-line read before their sections in §2 are complete.
+10. ~~**Is `987` the only privilege number that collides?**~~ **ANSWERED, and no — `789` collides
+    too.** Found while building ticket 01. MIS's Flash privilege `789` is also leave-app's
+    `LEAVE_PRIVILEGE.PEOPLE_OPS_TEAM` (`features/leave/api/leaveTypes.ts:58-63`), so *both* MIS
+    numbers are already spoken for in this app. Recorded in `CONTEXT.md` under **Privilege**. It
+    changes nothing in the design — the gate was always going to read MIS's own `/user-info` — but it
+    removes the temptation to treat 987 as the single special case.
