@@ -259,6 +259,13 @@ site, as everywhere else in this repo.
 **Minimum width.** MIS shows a dismissible notice below 1024px. `AppShellLayout` deliberately makes
 the main column shrinkable and there is no notice component. Resolved as a shared one — see §11.
 
+**The apply stamp.** The source puts `_applyId: Date.now()` on every Applied filter set, as a token
+its hand-rolled fetch effects compare to decide whether to refetch
+(`arrDashboard/hooks/useExitArrByBU.js:170`). It is not ported. TanStack Query already does that job
+from the query key, which §6 requires to carry the serialised filter body — and a timestamp inside
+that key would make every key unique, miss the cache on every apply, and refetch on every hydrate.
+Dropping it changes no behaviour; keeping it would.
+
 ## 8. Source behaviour reproduced deliberately, though it looks wrong
 
 Kept because the two apps run side by side during the parallel period and must agree.
@@ -279,6 +286,11 @@ never-imported dependencies `react-csv`, `react-number-format`, `styled-jsx`.
 
 The source directory `components/flashConsole/tableView.js/` is a directory whose name ends in `.js`.
 It is renamed on port.
+
+`applyWindow`'s call to `mirrorsTypeToArrType` in `arrDashboard/utils/viewState.js` cannot fire: the
+mirror is a Quarterly/Monthly rule, and both of those Periods have already returned from the guard at
+the top of the same function. On Annually the mirror would be a no-op anyway, because `arrType` *is*
+that Period's type key. The mirror is ported where it is reachable, in `hydrateAppliedFilters`.
 
 ## 10. Test checklist
 
