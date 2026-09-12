@@ -104,6 +104,19 @@ function cssRulesFor(element: Element): string[] {
   return out;
 }
 
+/** The rules painting a row's cells at rest, or under the pointer. */
+const rowCellRules = (row: Element, hovered: boolean) =>
+  cssRulesFor(row)
+    .map((rule) => rule.replace(/\s*>\s*/g, ">"))
+    .filter((rule) =>
+      hovered ? /:hover>(th|td)/.test(rule) : />(th|td)/.test(rule) && !rule.includes(":hover"),
+    );
+
+const gradientLayers = (css: string) => (css.match(/linear-gradient/g) ?? []).length;
+
+const rowLabelled = (label: string) =>
+  bodyRows().find((row) => row.textContent?.includes(label))!;
+
 // The two header rows have no height under jsdom, which is the one thing the
 // offset mechanism cannot be tested without. Heights are supplied here and
 // changed mid-test, which is what a resize or a zoom does to it.
@@ -245,15 +258,12 @@ describe("the row under the pointer", () => {
   // across the scrolling figures and stops dead at the row label — the one cell
   // saying which row is highlighted. jsdom cannot match :hover, so the rule
   // emotion generated is read instead.
-  /** The rules that highlight a row's CELLS, as emotion generated them. */
-  const cellHoverRules = (row: Element) =>
-    cssRulesFor(row)
-      .map((rule) => rule.replace(/\s*>\s*/g, ">"))
-      .filter((rule) => /:hover>(th|td)/.test(rule));
-
   it("is highlighted per cell, reaching the pinned label as well as the figures", () => {
     renderTable(5);
-    const selectors = cellHoverRules(bodyRows()[0]).join(" ");
+    // An ordinary movement row, not a balance row: a balance row already rests
+    // on a tint, so sampling one would prove the selector exists without
+    // proving anything changes.
+    const selectors = rowCellRules(rowLabelled("New"), true).join(" ");
     // The row label is a <th scope="row">, so a rule reaching only <td> would
     // leave out exactly the cell this exists for.
     expect(selectors).toContain(":hover>th");
@@ -262,11 +272,25 @@ describe("the row under the pointer", () => {
 
   it("paints the highlight opaquely, so it survives on the pinned cell", () => {
     renderTable(5);
-    const rule = cellHoverRules(bodyRows()[0]).join(" ");
+    const rule = rowCellRules(rowLabelled("New"), true).join(" ");
     // A translucent background-color alone would let the scrolling columns show
     // through the pinned cell. The tint is composited inside the cell instead.
     expect(rule).toContain("background-image");
     expect(rule).toContain("linear-gradient");
+  });
+
+  // A balance row already rests on the hover tint, so highlighting it with that
+  // same tint repaints the identical colour and nothing happens — the pointer
+  // crosses the Closing balance, the row a Build exists to land on, and the
+  // screen does not move. The prototype hit this and called it "fine"; on a
+  // table two dozen columns wide it is not.
+  it("still deepens a row that already rests on a tint", () => {
+    renderTable(5);
+    const closing = rowLabelled("Ending ARR");
+    const resting = gradientLayers(rowCellRules(closing, false).join(" "));
+    const hovered = gradientLayers(rowCellRules(closing, true).join(" "));
+    expect(resting).toBeGreaterThan(0);
+    expect(hovered).toBeGreaterThan(resting);
   });
 
   // MUI's own row highlight is `.MuiTableRow-hover:hover { background-color:
@@ -485,9 +509,24 @@ describe("the figures themselves", () => {
     expect(getComputedStyle(openingPct).color).not.toBe(getComputedStyle(cellsOf(bodyRows()[0])[1]).color);
   });
 
-  it("draws the rule an accountant draws above a total", () => {
+  // A Closing balance is emphasised AND ruled. Both used to be written to the
+  // same computed sx key, which does not merge — the rule replaced the emphasis
+  // outright and the one row a Build exists to land on rendered unbolded and
+  // untinted, with a stroke above it and nothing else to say what it was.
+  it("gives a Closing balance the rule AND the weight AND the tint", () => {
     renderTable(5);
-    const closing = bodyRows().find((row) => row.textContent?.includes("Ending ARR"))!;
-    expect(cssRulesFor(closing).join(" ")).toContain("border-top");
+    const resting = rowCellRules(rowLabelled("Ending ARR"), false).join(" ");
+    expect(resting).toContain("border-top");
+    expect(resting).toContain("font-weight: 700");
+    expect(resting).toContain("linear-gradient");
+  });
+
+  it("emphasises a balance that carries no rule, and rules nothing else", () => {
+    renderTable(5);
+    const opening = rowCellRules(rowLabelled("Opening ARR"), false).join(" ");
+    expect(opening).toContain("font-weight: 700");
+    expect(opening).toContain("linear-gradient");
+    expect(opening).not.toContain("border-top");
+    expect(rowCellRules(rowLabelled("New"), false).join(" ")).not.toContain("font-weight: 700");
   });
 });

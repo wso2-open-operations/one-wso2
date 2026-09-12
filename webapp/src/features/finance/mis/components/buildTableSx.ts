@@ -55,19 +55,32 @@ export const Z = {
 } as const;
 
 /**
- * An opaque tint.
+ * One or more tints, composited OPAQUELY.
  *
  * A translucent `backgroundColor` is fine on an ordinary cell and wrong on a
  * sticky one: the columns scrolling behind a pinned cell show straight through
  * it, and the frozen pane reads as a smear over the data rather than as a pane.
- * Painting the tint as a one-colour gradient over an opaque base composites it
+ * Painting each tint as a one-colour gradient over an opaque base composites it
  * inside the cell instead. The same trick, for the same reason, as
  * `AttendeeGrid`'s `tinted`.
+ *
+ * It takes several because they LAYER. A balance row already rests at one tint,
+ * so highlighting it with that same tint again would repaint the identical
+ * colour and change nothing — see `rowSx`.
  */
-export const opaqueTint = (tint: string) => ({
+export const opaqueTint = (...tints: readonly string[]) => ({
   backgroundColor: "background.paper",
-  backgroundImage: `linear-gradient(${tint}, ${tint})`,
+  backgroundImage: tints.map((tint) => `linear-gradient(${tint}, ${tint})`).join(", "),
 });
+
+/**
+ * The selector a row's resting treatment is painted through.
+ *
+ * Per cell, not on the `<tr>`, for the same reason as the hover below: neither
+ * a weight nor a fill set on the row reaches through the pinned cell's own
+ * opaque background.
+ */
+export const EMPHASIS_CELLS = "& > th, & > td";
 
 /**
  * The selector the row highlight is painted through.
@@ -84,28 +97,46 @@ export const opaqueTint = (tint: string) => ({
  */
 export const HOVER_CELLS = "&:hover > th, &:hover > td";
 
-/** Every cell of the row under the pointer, pinned label included. */
-export const hoverSx = (tint: string) => ({
-  [HOVER_CELLS]: opaqueTint(tint),
-});
-
 /**
- * A balance line — Opening, Closing, a Gross Profit.
+ * Everything one row's cells wear: its resting treatment and its highlight.
  *
- * Emphasised on every cell rather than on the row, for the same reason as the
- * hover: a weight or a fill set on the `<tr>` does not reach through the pinned
- * cell's opaque background.
+ * ONE function rather than three objects the caller spreads together, because
+ * spreading them cannot work. `EMPHASIS_CELLS` is a computed key, so two
+ * objects that both carry it do not merge — the later one replaces the earlier
+ * wholesale. A Closing balance is `emphasis` AND `ruleAbove`, so the rule
+ * silently took the weight and the tint away from the one row a Build exists to
+ * land on, and left it looking like any other line with a stroke above it.
+ *
+ * The highlight LAYERS over the resting tint rather than replacing it. A single
+ * tint would be a no-op on a balance row, which already rests at exactly that
+ * colour: the pointer would cross the row a reader most wants to track and
+ * nothing would happen. The prototype hit this and wrote it down — "on the
+ * balance rows this is a no-op, which is fine" — and it is not fine on a table
+ * two dozen columns wide.
  */
-export const EMPHASIS_CELLS = "& > th, & > td";
-
-export const emphasisSx = (tint: string) => ({
-  [EMPHASIS_CELLS]: { fontWeight: 700, ...opaqueTint(tint) },
-});
-
-/** The rule an accountant draws above a total. */
-export const RULE_ABOVE_SX = {
-  [EMPHASIS_CELLS]: { borderTop: "2px solid", borderTopColor: "text.secondary" },
-} as const;
+export const rowSx = ({
+  emphasis,
+  ruleAbove,
+  tint,
+}: {
+  emphasis?: boolean;
+  ruleAbove?: boolean;
+  /** The theme's hover fill. Also the resting fill of a balance row. */
+  tint: string;
+}) => {
+  const resting = {
+    ...(emphasis ? { fontWeight: 700, ...opaqueTint(tint) } : {}),
+    /** The rule an accountant draws above a total. */
+    ...(ruleAbove ? { borderTop: "2px solid", borderTopColor: "text.secondary" } : {}),
+  };
+  return {
+    ...(Object.keys(resting).length > 0 ? { [EMPHASIS_CELLS]: resting } : {}),
+    // Two layers on a row that already wears one, so the pointer always
+    // deepens the row rather than repainting it. `:hover` outranks the resting
+    // rule on specificity, so order here is not what decides it.
+    [HOVER_CELLS]: emphasis ? opaqueTint(tint, tint) : opaqueTint(tint),
+  };
+};
 
 /**
  * Shared by every cell in the table.

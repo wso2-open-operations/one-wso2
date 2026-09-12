@@ -36,15 +36,13 @@ import {
   type BuildSubColumn,
 } from "./buildTableModel";
 import {
-  emphasisSx,
   groupEdgeSx,
-  hoverSx,
+  rowSx,
   HEAD_CELL_SX,
   MAX_BODY_HEIGHT,
   NUMERIC_CELL_SX,
   ROW_LABEL_CELL_SX,
   ROW_LABEL_WIDTH,
-  RULE_ABOVE_SX,
   Z,
 } from "./buildTableSx";
 
@@ -139,8 +137,7 @@ export default function BuildTable({
       return next;
     });
 
-  const hover = hoverSx(theme.palette.action.hover);
-  const emphasis = emphasisSx(theme.palette.action.hover);
+  const tint = theme.palette.action.hover;
   const minWidth = tableMinWidth(columnGroups.length, subColumns, rowLabelWidth);
 
   return (
@@ -245,12 +242,7 @@ export default function BuildTable({
             {visible.map(({ row, depth, expandable, expanded }) => (
               <TableRow
                 key={row.id}
-                sx={{
-                  ...(row.emphasis ? emphasis : {}),
-                  ...(row.ruleAbove ? RULE_ABOVE_SX : {}),
-                  // Last, so the pointer wins over the resting treatment.
-                  ...hover,
-                }}
+                sx={rowSx({ emphasis: row.emphasis, ruleAbove: row.ruleAbove, tint })}
               >
                 <TableCell
                   component="th"
