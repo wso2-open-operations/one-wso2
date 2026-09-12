@@ -91,6 +91,18 @@ export type MisViewType = (typeof MIS_VIEW_TYPES)[number];
 export const MIS_CHANNEL_DIRECT = ["All", "Channel", "Direct"] as const;
 export type MisChannelDirect = (typeof MIS_CHANNEL_DIRECT)[number];
 
+/**
+ * Whether the reader has narrowed to a single partner book.
+ *
+ * Two rules turn on this one question and must agree: the backend is told about
+ * `partnerType` only when it is narrowed, and the transfer rows are only worth
+ * showing then — with both books on screen a transfer is internal. Written once
+ * so the grid cannot show transfer rows for figures the backend was never asked
+ * to split.
+ */
+export const isOnePartnerBook = (channelDirect: string): boolean =>
+  channelDirect === "Channel" || channelDirect === "Direct";
+
 /** How much of the forecast pipeline a forecast type includes. */
 export const MIS_CONFIDENCE_LEVELS = [
   "Commit",

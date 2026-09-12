@@ -1,0 +1,228 @@
+// Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+// The bodies of the `POST /arr-summary` calls one Build needs — one per column.
+//
+// Ported from the fetch loop in digiops-finance
+// `arrDashboard/hooks/useArrTableSummary.js`. Pulled out as a pure function
+// because it is where the port's arithmetic actually lives: which dates a
+// column covers, which column it is compared against, and which of the Applied
+// filters the backend is told about. The hook around it (`useArrSummary`) is
+// then only plumbing, and this is testable without a backend.
+//
+// Dates cross over here. A Period range is written `yyyy/MM/dd`, because that is
+// what the grids and the Excel export show; the wire wants `yyyy-MM-dd`. The
+// source converts at the same boundary and so does this.
+
+import { addYears, formatCivilDate } from "../util/misPacificTime";
+import { annualOpeningDate } from "../util/misPeriods";
+import {
+  CUSTOM_UNIT,
+  LIST_FILTER_PARAMS,
+  isOnePartnerBook,
+  type MisAppliedFilters,
+  type MisDateRange,
+} from "../util/misViewVocabulary";
+
+/** One column's `POST /arr-summary` body. */
+export interface ArrSummaryRequest {
+  /** The Period's type value — `Total ARR` unless the reader narrowed it. */
+  arrType: string;
+  /** Backend unit codes. One entry unless the reader built a custom selection. */
+  businessUnits: string[];
+  /** `yyyy-MM-dd`. The date the column's OPENING balance is read at. */
+  startDate: string;
+  /** `yyyy-MM-dd`. The date the column closes on. */
+  endDate: string;
+  /** The range the y/y rows are measured against. */
+  prevColDateRange: { startDate: string; endDate: string };
+  /** Only on the leftmost column, and only ever `true`. */
+  isFirstColumn?: true;
+  /** Present only when the reader narrowed the filter each one names. */
+  salesRegions?: string[];
+  subRegions?: string[];
+  industries?: string[];
+  subIndustries?: string[];
+  shippingCountries?: string[];
+  billingCountries?: string[];
+  accountOwners?: string[];
+  technicalOwners?: string[];
+  channelManagers?: string[];
+  /** `Channel` or `Direct`. Absent while the reader is looking at both. */
+  partnerType?: string;
+  /** The confidence level, on a Forecasted type only. */
+  forecastType?: string;
+}
+
+/**
+ * The unit code each `buProductSelection` becomes on the wire.
+ *
+ * The two vocabularies are reversed — `BU_APIM` in a link, `APIM_BU` in a
+ * request — so this is a translation and not a pass-through, and a missing
+ * entry has to fall back rather than send a code the backend will not know.
+ * Verbatim from `useArrTableSummary.js`.
+ */
+const BACKEND_UNIT_CODES: Readonly<Record<string, string>> = {
+  BU_ALL: "ALL_BU",
+  BU_APIM: "APIM_BU",
+  BU_IAM: "IAM_BU",
+  BU_INTEGRATION: "INTEGRATION_BU",
+  BU_CHOREO: "CHOREO_BU",
+  BU_AGENT_PLATFORM: "AGENT_PLATFORM_BU",
+  SW_ALL: "ALL_SOFTWARE",
+  SW_APIM: "APIM_SOFTWARE",
+  SW_IAM: "IAM_SOFTWARE",
+  SW_INTEGRATION: "INTEGRATION_SOFTWARE",
+  SW_CHOREO: "CHOREO_SOFTWARE",
+  CL_ALL: "ALL_CLOUD",
+  CL_APIM: "APIM_CLOUD",
+  CL_IAM: "IAM_CLOUD",
+  CL_INTEGRATION: "INTEGRATION_CLOUD",
+  CL_CHOREO: "CHOREO_CLOUD",
+  CL_AGENT_PLATFORM: "AGENT_PLATFORM_CLOUD",
+  CL_MOESIF: "MOESIF_CLOUD",
+};
+
+/** Every business unit, which is what an unrecognised selection falls back to. */
+const ALL_BUSINESS_UNITS = "ALL_BU";
+
+/** The wire name each list filter is sent under. `accountOwner` is `accountOwners`. */
+const LIST_FILTER_WIRE_NAMES: Readonly<Record<string, string>> = {
+  salesRegion: "salesRegions",
+  subRegion: "subRegions",
+  billingCountry: "billingCountries",
+  shippingCountry: "shippingCountries",
+  industry: "industries",
+  subIndustry: "subIndustries",
+  accountOwner: "accountOwners",
+  technicalOwner: "technicalOwners",
+  channelManager: "channelManagers",
+};
+
+/**
+ * Whether a confidence level applies, asked of each Period's own type key.
+ *
+ * Three INDEPENDENT checks, not one over whichever key happens to be set. The
+ * summary tables mirror a Quarterly or Monthly type into `arrType` (spec §3),
+ * so a filter set can legitimately carry both — and collapsing the three with
+ * `arrType || qrrType || mrrType` would read the mirror and silently drop the
+ * confidence off a Forecasted QRR. Mirrors `useArrTableSummary.js:272-275`.
+ *
+ * Renewal is deliberately absent: it turns forecast COLUMNS on without carrying
+ * a confidence.
+ */
+const carriesConfidence = (filters: MisAppliedFilters): boolean =>
+  filters.arrType === "Forecasted ARR" ||
+  filters.qrrType === "Forecasted QRR" ||
+  filters.mrrType === "Forecasted MRR";
+
+/**
+ * One request per column, oldest first, in the order the columns read.
+ *
+ * `startDate` is deliberately NOT the range's own start. It is the date the
+ * opening balance is read at — the close of the period before this one — while
+ * `endDate` closes the column. A Build rolls a balance forward, so the pair the
+ * backend needs is two balance dates, not the span between them.
+ */
+export function arrSummaryRequests(
+  ranges: readonly MisDateRange[],
+  filters: MisAppliedFilters,
+): ArrSummaryRequest[] {
+  const businessUnits = businessUnitsFor(filters);
+  // A custom selection that names nothing is a reader part-way through
+  // choosing. The source asks for nothing and shows an empty table, which is
+  // the right answer: falling back to every unit would put the whole company's
+  // revenue on screen under a filter chip that says otherwise.
+  if (!businessUnits) return [];
+  const shared = { arrType: typeValueOf(filters), businessUnits, ...narrowedFilters(filters) };
+
+  return ranges.map((range, index) => {
+    const endDate = toWireDate(range.end);
+    const startDate = openingDateFor(range);
+    const previous = index === 0 ? undefined : ranges[index - 1];
+    return {
+      ...shared,
+      startDate,
+      endDate,
+      prevColDateRange: previous
+        ? { startDate: openingDateFor(previous), endDate: toWireDate(previous.end) }
+        : // Nothing to the left, so the same window a year earlier. The y/y rows
+          // need a comparison in the leftmost column too, and this is the only
+          // one available.
+          { startDate: aYearEarlier(startDate), endDate: aYearEarlier(endDate) },
+      ...(index === 0 ? { isFirstColumn: true as const } : {}),
+    };
+  });
+}
+
+/** The Period's own type value, or Total when none is set. */
+const typeValueOf = (filters: MisAppliedFilters): string =>
+  filters.arrType || filters.qrrType || filters.mrrType || "Total ARR";
+
+/**
+ * Which units to ask for, or `null` when the reader has asked for none.
+ *
+ * A custom selection sends the chosen list itself rather than a code. Business
+ * units win over product units when both are set, which is the source's
+ * precedence.
+ */
+function businessUnitsFor(filters: MisAppliedFilters): string[] | null {
+  if (filters.buProductSelection !== CUSTOM_UNIT) {
+    return [BACKEND_UNIT_CODES[filters.buProductSelection] ?? ALL_BUSINESS_UNITS];
+  }
+  const units = filters.customBusinessUnits?.filter(Boolean) ?? [];
+  if (units.length) return units;
+  const products = filters.customProductUnits?.filter(Boolean) ?? [];
+  return products.length ? products : null;
+}
+
+/**
+ * The filters the reader actually narrowed, under their wire names.
+ *
+ * An unset filter is OMITTED rather than sent empty. `salesRegions: []` is a
+ * different claim from saying nothing — one asks for no regions, the other for
+ * all of them — and which of those a backend means by an empty array is not
+ * something to find out from a revenue report.
+ */
+function narrowedFilters(filters: MisAppliedFilters): Record<string, string[] | string> {
+  const narrowed: Record<string, string[] | string> = {};
+  for (const [key] of LIST_FILTER_PARAMS) {
+    const values = filters[key];
+    if (values?.length) narrowed[LIST_FILTER_WIRE_NAMES[key]] = values;
+  }
+  // The same question the transfer ROWS turn on — see `isOnePartnerBook`. They
+  // have to agree, or the grid shows a split the backend was never asked for.
+  if (isOnePartnerBook(filters.channelDirect)) narrowed.partnerType = filters.channelDirect;
+  // Only a Forecasted type carries one. Renewal enables forecast columns without
+  // a confidence, and sending one there would filter a renewals figure by a
+  // pipeline stage it has nothing to do with.
+  if (carriesConfidence(filters) && filters.confidenceLevel) {
+    narrowed.forecastType = filters.confidenceLevel;
+  }
+  return narrowed;
+}
+
+/** The date a column's opening balance is read at, on the wire. */
+const openingDateFor = (range: MisDateRange): string => toWireDate(annualOpeningDate(range));
+
+/** `2026/09/12` → `2026-09-12`. */
+const toWireDate = (date: string): string => date.replace(/\//g, "-");
+
+/** `2026-09-12` → `2025-09-12`, clamping a leap day rather than rolling it. */
+function aYearEarlier(wireDate: string): string {
+  const [year, month, day] = wireDate.split("-").map(Number);
+  return toWireDate(formatCivilDate(addYears({ year, month, day }, -1)));
+}

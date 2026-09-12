@@ -58,6 +58,19 @@ vi.mock("../api/useMisUserInfo", () => ({
   useMisUserInfo: () => ({ data: { privileges: [987] } }),
 }));
 
+// Same reason, one layer along: the ARR Build's figures come through
+// useArrSummary, which reaches @asgardeo/react for a token. Routing does not
+// care what the Build says, only that it is the thing that rendered.
+vi.mock("../api/useArrSummary", () => ({
+  useArrSummary: () => ({
+    columns: [],
+    isLoading: false,
+    isError: false,
+    errorMessage: "",
+    retry: () => {},
+  }),
+}));
+
 const { default: MisArrBuildPage } = await import("./MisArrBuildPage");
 const { default: MisFlashPage } = await import("./MisFlashPage");
 

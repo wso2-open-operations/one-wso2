@@ -285,11 +285,29 @@ two people. Reproducing it would mean shipping a port that fails its own spec's 
 **§10.23's parity check must expect this difference** and reconcile against Pacific-dated ranges
 rather than against whatever the old frontend happens to render in Colombo.
 
+The same correction reaches one more date, and it is worth naming because it is not a Period boundary.
+The leftmost Build column has no column to its left, so its y/y rows are compared against **the same
+range a year earlier**, which the source computes with `new Date(startDate)` — a UTC instant — and
+then `setFullYear`, which operates in LOCAL time (`useArrTableSummary.js`). East of California that
+lands a day early, so in Colombo the source compares the first column against a range one day short.
+The port shifts the civil date instead. Same reasoning, same exception, same note for §10.23.
+
 One further case differs, and only on one day in four years: **a 29 February as-of is clamped into a
 common year rather than rolled forward.** `new Date(2025, 1, 29)` is 1 March, so the source's
 year-to-date "as at 29 February" silently includes a day of March in three years out of four. The port
 ends those years on the 28th. Flagged rather than reproduced because the parallel period contains no
 29 February — the next one is in 2028 — so there is no reconciliation this can break.
+
+**The Build's columns are fetched in parallel, one query each.** `POST /arr-summary` answers one
+column, so a Build is one call per column — five at the default Years Back. The source runs them in a
+sequential loop guarded by a request-id ref, so a stale run cannot finish after a fresh one. The port
+gives each column its own React Query entry keyed by its own request body. Three things follow:
+widening Years Back re-asks only for the columns whose body actually changed (the new one, and the
+one that stopped being leftmost — `isFirstColumn` is positional); a column that fails blanks itself
+and the rest of the Build still reads; and the request-id ref is not ported, because Query owns the
+races. The cost is six concurrent reads where the source made six consecutive ones. **Ticket 06 is
+the ticket that measures real volume — if the gateway objects to the concurrency, this is the
+decision to revisit**, and `useArrSummary` is the one place it lives.
 
 **The apply stamp.** The source puts `_applyId: Date.now()` on every Applied filter set, as a token
 its hand-rolled fetch effects compare to decide whether to refetch
@@ -318,6 +336,39 @@ never-imported dependencies `react-csv`, `react-number-format`, `styled-jsx`.
 
 The source directory `components/flashConsole/tableView.js/` is a directory whose name ends in `.js`.
 It is renamed on port.
+
+**The sixth Annual Period, on the Subscription table only.** On a Calendar Window the source computes
+Annually column bounds with two generators that disagree by one:
+
+- `annuallyDateRanges` is `getAnnualPeriods({yearsBack})`, which counts PRIOR years and adds the
+  current one on top — six ranges at Years Back 5 (`arrDashboard/utils/viewState.js:267`).
+- The Subscription grid builds its own with `generateFullYearRanges(-(yearsBack - 1), 0, …)`, which
+  is five (`arrDashboard/utils/tableUtils.js`, `case 'subscription'`).
+
+**Only the Subscription table reads the shorter one.** Every other Annually table takes its columns
+straight from `annuallyDateRanges` and therefore draws six. So the extra oldest range is not dead in
+general — it is dead on this one table, where it is recomputed on every apply and never drawn and
+never fetched. A TTM Window has no split at all: there the columns *are* `annuallyDateRanges`.
+
+The port keeps the distinction where the source puts it. `pacificAnnualRanges` — the shared
+`annualRangesFor` seam that fills `annuallyDateRanges` — stays faithful, so the tables in tickets 10
+and 13 still get their six. `subscriptionColumnRanges` takes the last `yearsBack` of them for this
+table. `getAnnualPeriods` itself is untouched; it is the function the source's own tests pin.
+Nothing user-visible changes: Years Back 5 draws five Subscription columns in both apps.
+
+**Nothing in the Subscription Build is totalled client-side.** ADR 0004 obliges hand-computed totals
+because the community grid cannot aggregate, and that obligation is real for the summary tables — but
+not here. `Ending ARR`, `Net New`, `Total New ARR` and `Total Churn ARR` all arrive on the response
+(`useArrTableSummary.js`, the row mapper), so the port adds no arithmetic of its own and must not: a
+client-side total would be a second opinion about a figure the backend already has one about, and the
+two would diverge the first time a filter changed the backend's definition.
+
+**The Subscription Build's row count is fixed, not measured.** Ticket 06 owes ticket 07 a row count.
+For this table the answer is a property of the code: every row is a named metric line, so the grid is
+**34 rows** (**38** when Channel or Direct narrows it, which adds the four transfer rows) whatever the
+backend returns — the figures arrive as columns, never as rows. Windowing (ticket 07) is therefore a
+question about Software/Cloud Customers (ticket 10) and the account table (ticket 13), which ARE
+per-customer, and not about this one. The count is pinned by a test in `arrBuildRows.test.ts`.
 
 `isAllowedTtmEndingMonth`'s second parameter. `viewState.js:173` and `:245` both pass `asOf` to it and
 `ttmPeriods.js:58` declares no second parameter, so it has never been read. The ported signature takes

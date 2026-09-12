@@ -14,22 +14,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Alert, Box, Chip, Stack, Typography } from "@wso2/oxygen-ui";
+import { useMemo } from "react";
+import { Box, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { useDocumentTitle } from "@hooks/useDocumentTitle";
+import ErrorNotice from "@components/error-notice/ErrorNotice";
 import MisShell from "../components/MisShell";
-import { useMisUserInfo } from "../api/useMisUserInfo";
-import { MIS_PRIVILEGE, misHasPrivilege } from "../api/misTypes";
+import BuildTable, { type BuildCellFor } from "../components/BuildTable";
+import {
+  ARR_BUILD_SECTION_IDS,
+  arrBuildFieldFor,
+  arrBuildRows,
+  type ArrSummaryResponse,
+} from "../components/arrBuildRows";
+import { useArrSummary, type ArrSummaryColumn } from "../api/useArrSummary";
+import { pacificAnnualRanges, subscriptionColumnRanges } from "../util/misPeriods";
+import { amountUnitCaption, formatMisValue, misValueTypeForRow } from "../util/misMoney";
+import { useMisViewState } from "../util/useMisViewState";
+import { useMisScale } from "../util/useMisScale";
+import { MIS_PERIODS } from "../util/misViewVocabulary";
 
-// ARR Build — the annual recurring-revenue Build. The table itself lands in
-// ticket 06; this is the tracer bullet that proves the route in front of it.
+// ARR Build — the annual recurring-revenue Build, on live figures.
 //
-// What it renders for now is the answer to the one question the whole port
-// rests on: does One WSO2's Asgardeo token reach the MIS gateway at all? The
-// two services are separate SPA clients in the same tenant, MIS sits in the
-// same Choreo project as backends this app already calls, and unauthenticated
-// probes return 401 exactly as those do — so everything except the token is
-// confirmed. Only a real signed-in call settles the rest, and this is the
-// screen that makes it. See docs/ported-apps/mis.md §11.1 and §11.4.
+// This is the slice that proves the fetch-to-render path end to end, so that
+// the tables after it are variation rather than invention. Everything on screen
+// is assembled from parts that were built and tested on their own:
+//
+//   the view      `useMisViewState` (02) reads the Period from the route and
+//                 everything else from the query string
+//   the columns   `pacificAnnualRanges` (05) cuts them in Pacific Time
+//   the rows      `arrBuildRows` names them and says which field each reads
+//   the figures   `useArrSummary` fetches one column per query
+//   the money     `formatMisValue` (05) decides what Scale may touch
+//   the table     `BuildTable` (03) renders it
+//
+// No filter bar yet — defaults only; that is ticket 09, and it binds to the
+// same `useMisViewState` this page already holds. No windowing (07), no
+// drill-down (10).
+
 export default function MisArrBuildPage() {
   useDocumentTitle("ARR Build");
 
@@ -39,55 +60,107 @@ export default function MisArrBuildPage() {
       title="ARR Build"
       subtitle="Annual recurring revenue from an opening balance to a closing balance, one column per period."
     >
-      <PrivilegeReadout />
+      <ArrBuild />
     </MisShell>
   );
 }
 
-// Deliberately temporary, and deliberately explicit: it prints what /user-info
-// actually returned rather than only what was concluded from it. Ticket 06
-// replaces this with the Build table, and the finding it produces goes into the
-// spec before that happens.
-function PrivilegeReadout() {
-  const userInfo = useMisUserInfo();
-  const privileges = userInfo.data?.privileges;
-  const hasArr = misHasPrivilege(userInfo.data, MIS_PRIVILEGE.ARR_DASHBOARD);
-  const hasFlash = misHasPrivilege(userInfo.data, MIS_PRIVILEGE.FLASH_DASHBOARD);
+/** Inside the shell, so it is only mounted once the gate has said yes. */
+function ArrBuild() {
+  const view = useMisViewState(MIS_PERIODS.ANNUALLY, { annualRangesFor: pacificAnnualRanges });
+  const { scale } = useMisScale(view);
+
+  // Drawn from the ranges the URL contract already hydrated into the Applied
+  // set, so the columns and the filters cannot disagree about which Periods are
+  // on screen. Sliced, because on a Calendar Window this particular table shows
+  // one fewer than the Applied set carries — see subscriptionColumnRanges.
+  const ranges = useMemo(
+    () => subscriptionColumnRanges(view.viewWindow, view.filters),
+    [view.viewWindow, view.filters],
+  );
+  const summary = useArrSummary(ranges, view.filters);
+
+  const rows = useMemo(
+    () => arrBuildRows(view.filters.channelDirect),
+    [view.filters.channelDirect],
+  );
+  // Not memoised, deliberately: `summary.columns` is rebuilt on every render,
+  // so a useMemo over it would never hit — and babel-plugin-react-compiler
+  // already handles what genuinely can be.
+  const byColumn = responsesByColumn(summary.columns);
+  const cell: BuildCellFor = (row, group) => {
+    const field = arrBuildFieldFor(row.id);
+    const raw = field ? byColumn.get(group.key)?.[field] : undefined;
+    return {
+      text: formatMisValue(raw, misValueTypeForRow(row.label), { scale }),
+      negative: typeof raw === "number" && raw < 0,
+    };
+  };
+
+  if (summary.isLoading) {
+    return <Skeleton variant="rectangular" height={320} sx={{ borderRadius: 1.5, mt: 1.5 }} />;
+  }
+
+  // Only when EVERY column failed. One bad column blanks itself and the Build
+  // still reads — see useArrSummary.
+  if (summary.isError) {
+    return (
+      <ErrorNotice onRetry={summary.retry} sx={{ mt: 1.5 }}>
+        Couldn't load the Build. {summary.errorMessage}
+      </ErrorNotice>
+    );
+  }
+
+  if (!summary.columns.length) {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
+        No periods to show. Widen Years Back, or choose at least one business unit.
+      </Typography>
+    );
+  }
 
   return (
     <Box sx={{ mt: 1.5 }}>
-      <Alert severity="success" sx={{ mb: 2 }}>
-        The MIS ARR backend accepted this session's token and answered{" "}
-        <code>GET /user-info</code>. That is what this screen exists to establish;
-        the Build table itself is still to come.
-      </Alert>
-
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>
-        What it returned for you
-      </Typography>
-      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap", gap: 1 }}>
-        <Chip
-          size="small"
-          variant="outlined"
-          color={hasArr ? "success" : "default"}
-          label={`ARR dashboards (${MIS_PRIVILEGE.ARR_DASHBOARD}) — ${hasArr ? "granted" : "not granted"}`}
-        />
-        <Chip
-          size="small"
-          variant="outlined"
-          color={hasFlash ? "success" : "default"}
-          label={`Flash Dashboard (${MIS_PRIVILEGE.FLASH_DASHBOARD}) — ${hasFlash ? "granted" : "not granted"}`}
-        />
+      {/* Above the grid rather than beside the control, because Finance's
+          workflow is to crop a table into a slide deck: a figure that has left
+          the screen it was set on has to carry its own units. */}
+      <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 0.75 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+          {amountUnitCaption(scale)}
+        </Typography>
       </Stack>
-
-      {/* The raw array, because the shape is itself part of what is being
-          established — whether a non-MIS employee gets 200 with an empty array
-          or a 403 decides whether the gate can show an honest locked state or
-          has to treat a denial as absence (§11.4). */}
-      <Typography variant="body2" color="text.secondary">
-        Raw <code>privileges</code>:{" "}
-        <code>{Array.isArray(privileges) ? JSON.stringify(privileges) : "not an array"}</code>
-      </Typography>
+      <BuildTable
+        label="ARR Build — Subscription"
+        rowLabelHeader="Summary"
+        columnGroups={summary.columns.map(({ label }) => ({ key: label, label }))}
+        subColumns={SUB_COLUMNS}
+        rows={rows}
+        cell={cell}
+        // All five open. A Subscription Build IS the summary — there are no
+        // customer lines under it to hold back — so opening it collapsed would
+        // hide the whole table behind five clicks.
+        defaultExpandedIds={ARR_BUILD_SECTION_IDS}
+      />
     </Box>
   );
 }
+
+/**
+ * One figure per Period, not a pair.
+ *
+ * `BuildTable` repeats its sub-columns under every Period so that a table can
+ * put an Amount beside a % of Opening. The Subscription Build has no such pair:
+ * the percentages are rows of their own, further down. So there is one
+ * sub-column, and it names what the figure IS — which is worth a line of header
+ * given the Period above it only says which dates it covers.
+ */
+const SUB_COLUMNS = [{ key: "amount", label: "ARR", width: 170 }] as const;
+
+/**
+ * A column's header is its identity — no two columns close on the same date —
+ * so it is what `BuildTable` groups by and what `cell` looks a figure up with.
+ */
+const responsesByColumn = (
+  columns: readonly ArrSummaryColumn[],
+): ReadonlyMap<string, ArrSummaryResponse | undefined> =>
+  new Map(columns.map((column) => [column.label, column.response]));

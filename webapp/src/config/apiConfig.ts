@@ -1439,6 +1439,9 @@ export const misArrServiceUrls = {
   // Privileges for both dashboards, plus the employee's display fields.
   // Drives useMisGate.
   userInfo: `${misArrBackendUrl}/user-info`,
+  // A read that takes a filter body, so it is a POST — which makes the React
+  // Query key the body rather than the URL. See §6 of the port spec.
+  arrSummary: `${misArrBackendUrl}/arr-summary`,
 };
 
 export const misFlashBackendUrl: string = stripTrailingSlashes(

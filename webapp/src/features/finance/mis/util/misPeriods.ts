@@ -43,6 +43,7 @@ import {
   ENDING_MONTH_TODAY,
   MIS_WINDOWS,
   MONTH_NAMES,
+  type MisAppliedFilters,
   type MisDateRange,
   type MisWindow,
 } from "./misViewVocabulary";
@@ -190,6 +191,30 @@ const trailingYearEnding = (end: MisCivilDate): MisDateRange => {
 };
 
 /**
+ * The balance date an Annually column opens from, `yyyy/MM/dd`.
+ *
+ * A TTM range carries its own, computed a year and a day back. A Calendar year
+ * always opens at the previous 31 December — Year-to-date moves where a column
+ * CLOSES, never where its opening balance is read.
+ *
+ * Both the column header and the `/arr-summary` request need this date, which
+ * is why it is a named rule here rather than a slice of the end date computed
+ * twice in two modules that could drift apart.
+ */
+export function annualOpeningDate(range: MisDateRange): string {
+  return range.opening ?? formatCivilDate(endOfYear(Number(range.end.slice(0, 4)) - 1));
+}
+
+/**
+ * The header a Build shows above an Annually column: `{opening} - {end}`.
+ *
+ * Both halves are balance dates, so the header says which twelve months the
+ * figures beneath it cover without a reader having to open the filter bar.
+ */
+export const annualColumnLabel = (range: MisDateRange): string =>
+  range.header ?? `${annualOpeningDate(range)} - ${range.end}`;
+
+/**
  * The Annually column ranges, ready to hand to `useMisViewState` — which is the
  * `annualRangesFor` seam spec §7 leaves open, filled in Pacific Time.
  *
@@ -199,6 +224,7 @@ const trailingYearEnding = (end: MisCivilDate): MisDateRange => {
  *
  * It reads the clock on every call, deliberately. A session left open across
  * Pacific midnight recomputes rather than going on reporting yesterday.
+ *
  */
 export const pacificAnnualRanges: AnnualRangesFor = (viewWindow: MisWindow, filters) =>
   viewWindow === MIS_WINDOWS.TTM
@@ -208,3 +234,32 @@ export const pacificAnnualRanges: AnnualRangesFor = (viewWindow: MisWindow, filt
         endingMonth: filters.endingMonth,
         yearsBack: filters.yearsBack,
       });
+
+/**
+ * The ranges the SUBSCRIPTION Build's columns cover — which is not the same
+ * list as the Applied set's `annuallyDateRanges`, on a Calendar Window.
+ *
+ * The source computes Annually bounds with two generators that disagree by one,
+ * and the Subscription table is the only one that reads the shorter:
+ *
+ *   annuallyDateRanges   getAnnualPeriods({yearsBack})              6 at Years Back 5
+ *                        (viewState.js:267) — and nine other Annually
+ *                        tables take their columns straight from it
+ *   Subscription         generateFullYearRanges(-(yearsBack - 1), 0)  5 at Years Back 5
+ *                        (tableUtils.js, `case 'subscription'`)
+ *
+ * So on a Calendar Window this table draws the LAST `yearsBack` of the ranges
+ * and the oldest is never shown — see spec §9. Kept as a slice of the Applied
+ * set rather than a second computation, so the columns are literally drawn from
+ * the ranges the filters carry and the two cannot drift.
+ *
+ * A TTM Window has no such split: there the columns ARE `annuallyDateRanges`.
+ */
+export function subscriptionColumnRanges(
+  viewWindow: MisWindow,
+  filters: Pick<MisAppliedFilters, "annuallyDateRanges" | "yearsBack">,
+): readonly MisDateRange[] {
+  const ranges = filters.annuallyDateRanges ?? [];
+  if (viewWindow === MIS_WINDOWS.TTM) return ranges;
+  return ranges.slice(-Math.max(1, filters.yearsBack));
+}
