@@ -87,6 +87,8 @@ Use `@`-prefixed aliases instead of relative imports beyond one level (defined i
 
 | Alias | Points to |
 |---|---|
+| `@` | `src` |
+| `@api` | `src/api` |
 | `@components` | `src/components` |
 | `@config` | `src/config` |
 | `@constants` | `src/constants` |
@@ -94,6 +96,7 @@ Use `@`-prefixed aliases instead of relative imports beyond one level (defined i
 | `@features` | `src/features` |
 | `@hooks` | `src/hooks` |
 | `@layouts` | `src/layouts` |
+| `@utils` | `src/utils` |
 
 ## Directory Layout
 
@@ -112,6 +115,8 @@ webapp/
 │   ├── context/             → PerspectiveContext, ThemeModeContext
 │   ├── layouts/             → AuthGuard, AppLayout (shell)
 │   ├── components/          → shell chrome (TopBar, SideRail, WaffleOverlay, AskNoveraPalette)
+│   ├── hooks/               → cross-feature hooks (useDocumentTitle, useUrlViewState)
+│   ├── utils/               → cross-feature pure helpers (localDate, queryState)
 │   └── features/            → feature-sliced folders
 │       ├── people-ops/      → flagship perspective (hiring, candidates, performance, ops)
 │       ├── my/              → profile perspective (live data via people-app backend)

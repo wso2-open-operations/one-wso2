@@ -47,17 +47,16 @@ export interface UrlViewState<TRead, TWrite = TRead> {
   /**
    * Put a view in the address.
    *
-   * Replaces the current history entry by default: applying a filter is not a
-   * step the reader should have to take back one at a time, and pushing one
-   * entry per applied filter buries the page they arrived from. Pass
-   * `{ push: true }` for a move that IS worth going back from.
+   * Replaces the current history entry rather than pushing one: applying a
+   * filter is not a step the reader should have to take back one at a time, and
+   * an entry per applied filter buries the page they arrived from.
    *
    * The serialised view becomes the whole query string, so anything else the
    * address was carrying does not survive. That is what "a view is fully
    * described by its URL" costs, and the alternative — merging — leaves
    * parameters behind that no longer describe anything on screen.
    */
-  setView(next: TWrite, options?: { push?: boolean }): void;
+  setView(next: TWrite): void;
 }
 
 /**
@@ -78,8 +77,8 @@ export function useUrlViewState<TRead, TWrite = TRead>({
   const view = useMemo(() => parse(search), [parse, search]);
 
   const setView = useCallback(
-    (next: TWrite, { push = false }: { push?: boolean } = {}) => {
-      setSearchParams(serialize(next), { replace: !push });
+    (next: TWrite) => {
+      setSearchParams(serialize(next), { replace: true });
     },
     [serialize, setSearchParams],
   );

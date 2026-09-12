@@ -46,14 +46,24 @@
 // and leaving the screen on its defaults.
 
 /**
- * How one parameter crosses the boundary between a URL and a typed value.
+ * How one parameter is read out of a URL.
  *
  * `parse` returns `undefined` for anything it does not recognise — that is the
  * whole of rule 2, and it is why every codec here returns rather than throws.
+ *
+ * Separate from the full codec because not every parameter is read and written
+ * the same way round. A parameter with exactly one writable value — `scale=k`,
+ * `window=ttm` — has no `format` worth writing: the caller either sets the
+ * literal or omits the parameter, and a `format` that ignores its argument and
+ * returns the literal anyway would be a lie the type could not catch.
  */
-export interface QueryParamCodec<T> {
+export interface QueryParamReader<T> {
   /** The value this raw string means, or `undefined` if it means nothing here. */
   parse(raw: string): T | undefined;
+}
+
+/** A parameter that crosses the boundary in both directions. */
+export interface QueryParamCodec<T> extends QueryParamReader<T> {
   /** How the value is written into a query string. */
   format(value: T): string;
 }
@@ -159,7 +169,7 @@ export interface QueryReader {
    * for a parameter that rides along in the URL without being part of the view,
    * such as a display preference.
    */
-  read<T>(param: string, codec: QueryParamCodec<T>, options?: { countsAsViewState?: boolean }): T | undefined;
+  read<T>(param: string, codec: QueryParamReader<T>, options?: { countsAsViewState?: boolean }): T | undefined;
   /** How many parameters so far meant something. */
   readonly recognised: number;
 }

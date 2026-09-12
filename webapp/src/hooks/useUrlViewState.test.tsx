@@ -35,7 +35,7 @@ const wordCodec: UrlViewCodec<string> = {
 
 function renderAt(search: string) {
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <MemoryRouter initialEntries={[`/finance/mis/arr-build${search}`]}>{children}</MemoryRouter>
+    <MemoryRouter initialEntries={[`/a-screen${search}`]}>{children}</MemoryRouter>
   );
   return renderHook(
     () => ({
@@ -79,15 +79,6 @@ describe("writing", () => {
     const { result } = renderAt("?q=opening");
     act(() => result.current.state.setView("closing"));
     expect(result.current.navigationType).toBe("REPLACE");
-  });
-
-  // A step the reader should be able to take back — moving between two named
-  // screens, say — is worth an entry, so the caller can ask for one.
-  it("pushes an entry when the caller asks for one", () => {
-    const { result } = renderAt("?q=opening");
-    act(() => result.current.state.setView("closing", { push: true }));
-    expect(result.current.navigationType).toBe("PUSH");
-    expect(result.current.location.search).toBe("?q=closing");
   });
 
   // A default view serialises to nothing, and nothing has to reach the address

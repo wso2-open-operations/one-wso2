@@ -61,9 +61,9 @@ export const MIS_WINDOWS = {
 export type MisWindow = (typeof MIS_WINDOWS)[keyof typeof MIS_WINDOWS];
 
 /**
- * The display magnitude for currency values. It scales currency rows only, and
- * never counts or percentages — a rule the formatter enforces (ticket 05), not
- * this module.
+ * How currency figures are shown: at full value, or in thousands. It scales
+ * currency rows only, and never counts or percentages — a rule the formatter
+ * enforces (ticket 05), not this module.
  */
 export const MIS_SCALES = {
   UNITS: "units",
@@ -80,21 +80,29 @@ export const MONTH_NAMES = [
 ] as const;
 
 /** Every value Ending Month accepts. */
-export const ENDING_MONTH_VALUES: readonly string[] = [ENDING_MONTH_TODAY, ...MONTH_NAMES];
+export const ENDING_MONTH_VALUES = [ENDING_MONTH_TODAY, ...MONTH_NAMES] as const;
+export type MisEndingMonth = (typeof ENDING_MONTH_VALUES)[number];
 
-export const MIS_VIEW_TYPES: readonly string[] = ["Global", "Sales Region", "Sub Region"];
+/** The geography a Build is cut by. */
+export const MIS_VIEW_TYPES = ["Global", "Sales Region", "Sub Region"] as const;
+export type MisViewType = (typeof MIS_VIEW_TYPES)[number];
 
-export const MIS_CHANNEL_DIRECT: readonly string[] = ["All", "Channel", "Direct"];
+/** The partner model a customer was sold through. */
+export const MIS_CHANNEL_DIRECT = ["All", "Channel", "Direct"] as const;
+export type MisChannelDirect = (typeof MIS_CHANNEL_DIRECT)[number];
 
-export const MIS_CONFIDENCE_LEVELS: readonly string[] = [
+/** How much of the forecast pipeline a forecast type includes. */
+export const MIS_CONFIDENCE_LEVELS = [
   "Commit",
   "Commit + Best Case",
   "Commit + Best Case + Upside",
   "GM",
-];
+] as const;
+export type MisConfidenceLevel = (typeof MIS_CONFIDENCE_LEVELS)[number];
 
 /** Whether the grids fetch forecast columns. Derived from the type, never chosen. */
 export const FORECAST_STATES = { ENABLE: "Enable", DISABLE: "Disable" } as const;
+export type MisForecastState = (typeof FORECAST_STATES)[keyof typeof FORECAST_STATES];
 
 /** Years Back's legal range, on every Period and every Table. */
 export const YEARS_BACK_RANGE = { min: 1, max: 10 } as const;
@@ -128,25 +136,28 @@ export interface MisDateRange {
  * The Applied filters — those the user has committed, and which therefore
  * belong in the query string.
  *
- * The display-vocabulary fields are typed `string` rather than as unions of
- * their legal values. Several of those lists come from `/app-configs` at
- * runtime, so a union here would be a compile-time promise about a runtime
- * answer; and the ones that are fixed are already validated where it counts, by
- * the codecs in `misViewState.ts`, which is the only place an outside value
+ * A field whose legal values are a closed list written down above gets that
+ * list as its type. A field whose legal values are decided elsewhere keeps
+ * `string`, because a union would be a compile-time promise about a runtime
+ * answer: the units come from the ARR backend's `/app-configs`, so do the nine
+ * list filters, and which type values are legal is a per-Table question that
+ * `allowedTypeValues` answers. Those three are validated where it counts
+ * instead — by the codecs in `misViewState.ts`, the only place an outside value
  * gets in.
  */
 export interface MisAppliedFilters {
-  viewType: string;
-  confidenceLevel: string;
-  channelDirect: string;
+  viewType: MisViewType;
+  confidenceLevel: MisConfidenceLevel;
+  channelDirect: MisChannelDirect;
   isYtd: boolean;
-  endingMonth: string;
+  endingMonth: MisEndingMonth;
   yearsBack: number;
+  /** A BU or product code from `/app-configs`, or `CUSTOM`. */
   buProductSelection: string;
   customBusinessUnits: string[];
   customProductUnits: string[];
   /** Derived from the type on every apply. Never a URL parameter. */
-  forecast: string;
+  forecast: MisForecastState;
   salesRegion: string[];
   subRegion: string[];
   billingCountry: string[];
@@ -245,4 +256,6 @@ export const mirrorsTypeToArrType = (period: MisPeriod, table: MisTable): boolea
  * this is the one place to narrow it.
  */
 export const isAllowedTtmEndingMonth = (endingMonth?: string): boolean =>
-  endingMonth == null || ENDING_MONTH_VALUES.includes(endingMonth);
+  endingMonth == null || ENDING_MONTH_VALUE_SET.has(endingMonth);
+
+const ENDING_MONTH_VALUE_SET: ReadonlySet<string> = new Set(ENDING_MONTH_VALUES);

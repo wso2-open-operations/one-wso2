@@ -33,9 +33,7 @@ import {
   defaultYearsBack,
   hydrateAppliedFilters,
   parseViewState,
-  searchWithWindow,
   serializeViewState,
-  windowFromSearch,
 } from "./misViewState";
 
 // The promise this file protects: a view of a Build screen is fully described
@@ -116,9 +114,11 @@ describe("parameter names", () => {
   // is Quarterly/Monthly-only, and `ytd` is suppressed while `window=ttm`. So
   // this is the union over the two Periods it takes to reach every one.
   //
-  // The count is 23, where ticket 02 says 22. The difference is `scale`, which
-  // §8.2 deliberately does not count as view state — see the test for that
-  // below. Nothing is missing; the two counts are counting different things.
+  // The count is 23, where ticket 02 says 22. Nothing is missing: §4's table
+  // has fourteen rows, one of which is the pair `customBu, customProduct` and
+  // one of which is all nine list filters at once. Expand the list row and not
+  // the custom pair and you get 22; expand both and you get the 23 asserted
+  // here, which is the number of parameters that actually exist.
   it("are the ones spec §4 documents, and no others", () => {
     const listFilters = {
       salesRegion: ["EMEA"],
@@ -407,26 +407,6 @@ describe("the Window parameter", () => {
     expect(view.viewWindow).toBe(MIS_WINDOWS.TTM);
     expect(view.filters).toEqual({ yearsBack: 3, endingMonth: "December" });
   });
-
-  describe("read and written on a query string directly", () => {
-    // The Period row switches between the Annually Builds and TTM by editing
-    // the address, so it needs the Window alone without going through a whole
-    // view — and must not drop the filters already in the link while doing it.
-    it("reads TTM only from window=ttm", () => {
-      expect(windowFromSearch("?window=ttm")).toBe(MIS_WINDOWS.TTM);
-      expect(windowFromSearch("window=ttm&endingMonth=June")).toBe(MIS_WINDOWS.TTM);
-      expect(windowFromSearch("?endingMonth=June")).toBe(MIS_WINDOWS.CALENDAR);
-      expect(windowFromSearch("")).toBe(MIS_WINDOWS.CALENDAR);
-    });
-
-    it("sets or clears the Window without dropping the other parameters", () => {
-      expect(params(searchWithWindow("?endingMonth=June&years=3", MIS_WINDOWS.TTM)))
-        .toEqual({ endingMonth: "June", years: "3", window: "ttm" });
-      expect(params(searchWithWindow("?window=ttm&endingMonth=June", MIS_WINDOWS.CALENDAR)))
-        .toEqual({ endingMonth: "June" });
-      expect(searchWithWindow("", MIS_WINDOWS.CALENDAR)).toBe("");
-    });
-  });
 });
 
 describe("Scale", () => {
@@ -519,7 +499,7 @@ describe("a round trip", () => {
   });
 
   it("returns identical Applied filters for a TTM view", () => {
-    const filters = {
+    const filters: MisAppliedFilters = {
       ...defaultAppliedFilters(ANNUALLY, SUBSCRIPTION),
       yearsBack: 3,
       arrType: "Closed Won ARR",
@@ -543,7 +523,7 @@ describe("a round trip", () => {
   // chose. In the URL it would be noise at best and a contradiction at worst —
   // a link asserting a forecast mode that disagrees with its own type.
   it("never writes derived or internal fields into the URL", () => {
-    const filters = {
+    const filters: MisAppliedFilters = {
       ...defaultAppliedFilters(ANNUALLY, SUBSCRIPTION),
       yearsBack: 3,
       forecast: "Enable",

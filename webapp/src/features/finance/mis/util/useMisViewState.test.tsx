@@ -19,6 +19,7 @@ import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
+import { MIS_PATH, misPaths } from "@constants/misApps";
 import { MIS_PERIODS, MIS_SCALES, MIS_TABLES, MIS_WINDOWS, type MisPeriod } from "./misViewVocabulary";
 import { useMisViewState, type UseMisViewStateOptions } from "./useMisViewState";
 
@@ -29,10 +30,13 @@ import { useMisViewState, type UseMisViewStateOptions } from "./useMisViewState"
 
 const { ANNUALLY, QUARTERLY } = MIS_PERIODS;
 
+// Only the ARR Build has a route today. QRR and MRR join the registry in
+// ticket 12; the hook only needs a path to live at, and what it acts on is the
+// Period it is handed.
 const PERIOD_PATHS: Record<MisPeriod, string> = {
-  [ANNUALLY]: "/finance/mis/arr-build",
-  [QUARTERLY]: "/finance/mis/qrr-build",
-  [MIS_PERIODS.MONTHLY]: "/finance/mis/mrr-build",
+  [ANNUALLY]: misPaths.arrBuild,
+  [QUARTERLY]: `${MIS_PATH}/qrr-build`,
+  [MIS_PERIODS.MONTHLY]: `${MIS_PATH}/mrr-build`,
 };
 
 function renderAt(period: MisPeriod, search: string, options?: UseMisViewStateOptions) {

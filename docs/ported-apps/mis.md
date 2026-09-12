@@ -259,6 +259,13 @@ site, as everywhere else in this repo.
 **Minimum width.** MIS shows a dismissible notice below 1024px. `AppShellLayout` deliberately makes
 the main column shrinkable and there is no notice component. Resolved as a shared one — see §11.
 
+**Pacific Time is injected, not imported.** The URL contract's `hydrateAppliedFilters` and
+`applyWindow` take the Annually column-range computer as an argument rather than importing it — the
+same move the Build table makes with formatting (ticket 03), for the same reason. Pacific Time is the
+easiest rule in this port to get silently wrong, so it is built once and handed in, which also keeps
+the URL contract testable and shippable without a timezone in it. The source always computes the
+ranges; here a caller that supplies no computer gets no `annuallyDateRanges`.
+
 **The apply stamp.** The source puts `_applyId: Date.now()` on every Applied filter set, as a token
 its hand-rolled fetch effects compare to decide whether to refetch
 (`arrDashboard/hooks/useExitArrByBU.js:170`). It is not ported. TanStack Query already does that job
@@ -287,10 +294,21 @@ never-imported dependencies `react-csv`, `react-number-format`, `styled-jsx`.
 The source directory `components/flashConsole/tableView.js/` is a directory whose name ends in `.js`.
 It is renamed on port.
 
+`isAllowedTtmEndingMonth`'s second parameter. `viewState.js:173` and `:245` both pass `asOf` to it and
+`ttmPeriods.js:58` declares no second parameter, so it has never been read. The ported signature takes
+one argument.
+
 `applyWindow`'s call to `mirrorsTypeToArrType` in `arrDashboard/utils/viewState.js` cannot fire: the
 mirror is a Quarterly/Monthly rule, and both of those Periods have already returned from the guard at
 the top of the same function. On Annually the mirror would be a no-op anyway, because `arrType` *is*
 that Period's type key. The mirror is ported where it is reachable, in `hydrateAppliedFilters`.
+
+**One piece of source dead code is kept rather than dropped.** `applyWindow` remembers the Ending
+Month across a Calendar → TTM switch, and restores it on the way back, only when the month is *not*
+legal on TTM — and `isAllowedTtmEndingMonth` admits every month and Today, so neither branch can run.
+It stays because, unlike the mirror above, it is not unreachable by construction: it hangs off a rule
+that exists to be narrowed, and dropping it would move the cost of narrowing that rule from nowhere to
+there. §10.6's "restores the previous YTD **and Ending Month**" is therefore live on YTD only.
 
 ## 10. Test checklist
 

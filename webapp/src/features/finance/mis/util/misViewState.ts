@@ -44,6 +44,7 @@ import {
   queryReader,
   queryWriter,
   type QueryParamCodec,
+  type QueryParamReader,
 } from "@utils/queryState";
 import {
   CUMULATIVE_KEY_BY_PERIOD,
@@ -69,6 +70,7 @@ import {
   mirrorsTypeToArrType,
   type MisAppliedFilters,
   type MisDateRange,
+  type MisEndingMonth,
   type MisPeriod,
   type MisScale,
   type MisTable,
@@ -90,16 +92,10 @@ const TABLE_BY_SLUG: Record<string, MisTable> = Object.fromEntries(
 );
 
 /**
- * Read-side codec for the Table slug.
- *
- * `format` exists only to satisfy the codec shape — the writer never uses it,
- * because Subscription's "slug" is the absence of the parameter, which a codec
- * cannot express. `serializeViewState` writes the Table itself, in two lines.
+ * Read-side only: Subscription's "slug" is the absence of the parameter, which
+ * no `format` can express. `serializeViewState` writes the Table itself.
  */
-const tableSlugParam: QueryParamCodec<MisTable> = {
-  parse: (raw) => TABLE_BY_SLUG[raw],
-  format: (table) => TABLE_SLUGS[table] ?? "",
-};
+const tableSlugParam: QueryParamReader<MisTable> = { parse: (raw) => TABLE_BY_SLUG[raw] };
 
 /** A BU or product selection, readable in a URL: `SW_APIM` ⇄ `sw-apim`. */
 const unitParam: QueryParamCodec<string> = {
@@ -110,16 +106,20 @@ const unitParam: QueryParamCodec<string> = {
   format: (code) => code.toLowerCase().replace(/_/g, "-"),
 };
 
-/** Thousands is the only Scale worth a parameter; units is the default. */
-const scaleParam: QueryParamCodec<MisScale> = {
-  parse: (raw) => (raw === "k" ? MIS_SCALES.THOUSANDS : undefined),
-  format: () => "k",
-};
+/** The only Scale that reaches a URL; units is the default and is never written. */
+const SCALE_THOUSANDS = "k";
 
-/** TTM is the only Window worth a parameter; Calendar is the default. */
-const windowParam: QueryParamCodec<MisWindow> = {
+/**
+ * Read-side only, both of them: each has exactly one value worth writing, so
+ * the writer sets the literal and omits the parameter otherwise. A `format`
+ * here would have to ignore its argument and return that literal regardless —
+ * a lie about `scale=units` and `window=calendar` that the type could not catch.
+ */
+const scaleParam: QueryParamReader<MisScale> = {
+  parse: (raw) => (raw === SCALE_THOUSANDS ? MIS_SCALES.THOUSANDS : undefined),
+};
+const windowParam: QueryParamReader<MisWindow> = {
   parse: (raw) => (raw === MIS_WINDOWS.TTM ? MIS_WINDOWS.TTM : undefined),
-  format: () => MIS_WINDOWS.TTM,
 };
 
 /**
@@ -239,7 +239,7 @@ export function serializeViewState({
   if (slug) query.set("table", slug);
   // TTM is a way of cutting an Annually column. The other two Periods have no
   // such cut, so writing it there would make a promise the screen cannot keep.
-  if (period === MIS_PERIODS.ANNUALLY && isTtm) query.set("window", windowParam.format(viewWindow));
+  if (period === MIS_PERIODS.ANNUALLY && isTtm) query.set("window", MIS_WINDOWS.TTM);
 
   query.setIfChanged("unit", filters.buProductSelection, defaults.buProductSelection, codecs.unit);
   // The custom lists are what "custom" means; beside any other selection they
@@ -269,7 +269,7 @@ export function serializeViewState({
     query.setIfChanged(param, filters[key], defaults[key], codecs.list);
   }
 
-  if (scale === MIS_SCALES.THOUSANDS) query.set("scale", scaleParam.format(scale));
+  if (scale === MIS_SCALES.THOUSANDS) query.set("scale", SCALE_THOUSANDS);
   return query.toString();
 }
 
@@ -400,7 +400,7 @@ export function hydrateAppliedFilters(
 /** The YTD and Ending Month a Calendar view had before the switch to TTM. */
 export interface MisRememberedWindow {
   isYtd?: boolean;
-  endingMonth?: string;
+  endingMonth?: MisEndingMonth;
 }
 
 export interface ApplyWindowContext {
@@ -459,6 +459,11 @@ export function applyWindow(
       filters[typeKey] = TYPE_VALUES_BY_PERIOD[period]?.[0];
       filters.forecast = FORECAST_STATES.DISABLE;
     }
+    // Every legal Ending Month is legal on TTM today, so `endingMonthAllowed`
+    // is always true and the two branches below that restore it are unreachable.
+    // They are kept, unlike the dead mirror above, because they hang off a rule
+    // that is designed to be narrowed — see `isAllowedTtmEndingMonth`. Dropping
+    // them would move the cost of narrowing it from nowhere to here.
     const endingMonthAllowed = isAllowedTtmEndingMonth(applied.endingMonth);
     // Switching TTM → TTM must not overwrite what Calendar left behind, or the
     // way home restores the reset value instead of the reader's choice.
@@ -479,26 +484,3 @@ export function applyWindow(
   return withRanges({ ...remembered });
 }
 
-/**
- * The Window a query string encodes. Omitted or unknown is Calendar.
- *
- * The Period row switches between the Annually Builds and TTM by editing the
- * address, so it needs the Window on its own without parsing a whole view.
- */
-export function windowFromSearch(search: string): MisWindow {
-  return new URLSearchParams(search.replace(/^\?/, "")).get("window") === MIS_WINDOWS.TTM
-    ? MIS_WINDOWS.TTM
-    : MIS_WINDOWS.CALENDAR;
-}
-
-/**
- * The same query string with the Window set or cleared, and every other
- * parameter left where it was — so switching to TTM does not silently drop the
- * filters the link already carried.
- */
-export function searchWithWindow(search: string, window: MisWindow): string {
-  const query = new URLSearchParams(search.replace(/^\?/, ""));
-  if (window === MIS_WINDOWS.TTM) query.set("window", MIS_WINDOWS.TTM);
-  else query.delete("window");
-  return query.toString();
-}
