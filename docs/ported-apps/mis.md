@@ -69,6 +69,33 @@ Rendered as a hand-rolled `Table size="small" stickyHeader` inside an `overflowX
 with an explicit `minWidth`, a sticky first column, and hand-computed total rows — not the DataGrid.
 See §7 for why.
 
+**The filter surface above it** — settled by the line-by-line read of the source's 1,823-line
+`arrDashboard/components/FilterBar.js` that §11.9 asked for. Four groups of control, and the
+difference that matters is *when each takes effect*, because they are not all the same kind of thing:
+
+| Group | Controls | When it takes effect |
+|---|---|---|
+| Period control | Annually, TTM — the Window, which reaches the reader as a Period option, not a control of its own (CONTEXT.md). Quarterly and Monthly are their own routes. | at once — it is a different cut |
+| Unit | BU / Software / Cloud / Custom, and the unit within it; Custom unlocks two mutually exclusive lists | at once — it is a different report |
+| Filters | View, the region list that View uses, Type, Channel/Direct, Forecast Type, Ending Month, the six account and geography lists, Country by Sales Region, Years Back, YTD, Cumulative | on **Apply** |
+| Scale | units / thousands | at once, and remembered across screens (§4) |
+
+The filter group is **pending** until Apply: the bar holds what the reader is choosing, the URL holds
+what the grid is showing, and the gap between them is what Apply closes. That is the source's model
+(`hasPendingChanges`, `lastAppliedPending`) and it is kept, for the reason the source presumably had
+it — one Build is one `POST /arr-summary` per column, so a bar that applied as you typed would ask the
+backend five times to set one filter. Dismissing a chip is the exception: it is an Apply of exactly
+one change, and it leaves any other unapplied edit pending.
+
+Four controls appear and disappear, each because its value would otherwise mean nothing: the region
+list only under the View that uses it, Forecast Type only under a Forecasted type, Years Back only
+where there are years to go back over, and YTD only on a window that is a year to a date. Seven
+controls stay in view and the rest sit behind **More**.
+
+The unit selection is **not** a filter-bar control in the source either — it lives in
+`TableNavigation.js`, and the bar carries a comment where its control used to be. It is described here
+with the bar because a reader does not care which file it came from.
+
 ### 2.2 QRR Build — `/finance/mis/qrr-build`
 
 The same Build, quarterly, plus a Cumulative toggle Annually does not have. No TTM Window.
@@ -282,7 +309,7 @@ boundary, and the Period label itself, is computed in `America/Los_Angeles`, not
 not UTC" — and §10.8 states it as a test rather than a preference. The source's behaviour here is not
 a business rule anyone agreed to; it is a bug that makes one saved link report different revenue to
 two people. Reproducing it would mean shipping a port that fails its own spec's test suite.
-**§10.23's parity check must expect this difference** and reconcile against Pacific-dated ranges
+**§10.31's parity check must expect this difference** and reconcile against Pacific-dated ranges
 rather than against whatever the old frontend happens to render in Colombo.
 
 The same correction reaches one more date, and it is worth naming because it is not a Period boundary.
@@ -290,7 +317,7 @@ The leftmost Build column has no column to its left, so its y/y rows are compare
 range a year earlier**, which the source computes with `new Date(startDate)` — a UTC instant — and
 then `setFullYear`, which operates in LOCAL time (`useArrTableSummary.js`). East of California that
 lands a day early, so in Colombo the source compares the first column against a range one day short.
-The port shifts the civil date instead. Same reasoning, same exception, same note for §10.23.
+The port shifts the civil date instead. Same reasoning, same exception, same note for §10.31.
 
 One further case differs, and only on one day in four years: **a 29 February as-of is clamped into a
 common year rather than rolled forward.** `new Date(2025, 1, 29)` is 1 March, so the source's
@@ -309,6 +336,24 @@ races. The cost is six concurrent reads where the source made six consecutive on
 the ticket that measures real volume — if the gateway objects to the concurrency, this is the
 decision to revisit**, and `useArrSummary` is the one place it lives.
 
+**The TTM Type list is part of the URL contract, not only of the filter bar.** A trailing window
+offers Total, Closed Won and Delayed — it ADDS Delayed to the Build and REMOVES Forecasted and Renewal
+from every table. The source keeps that rule in the bar alone (`FilterBar.js:493`, `arrTypeOptionsUI`)
+and its `allowedTypeValues` never learned it, so the control and the address disagree in **both**
+directions: choosing Delayed on a TTM Build moves the grid and is then dropped from the link, and a
+link carrying `window=ttm&type=Forecasted ARR` hydrates a forecast the bar has no option for. The port
+gives `allowedTypeValues` the Window, so one function answers for the menu and for the link and they
+cannot drift. The two summary tables are deliberately **not** widened: §3 states their list as a
+business rule, and the source's blanket TTM branch reaching them looks like the accident rather than
+the intent.
+
+**One rule for whether a view uses Years Back.** The source asks that question twice and gets two
+answers: the Build's control hides on a Forecasted type (`FilterBar.js:1745`), while its chip hides on
+Forecasted *or* Delayed whatever the table (`appliedFilterChips.js:81`). A Delayed Build — reachable
+on a trailing window, per the deviation above — therefore shows a Years Back of 3 with no chip saying
+so, which reads as a filter that was not applied. Asked once in the port (`usesYearsBack`), with the
+Table as part of the question, and both the control and the chip read it.
+
 **The apply stamp.** The source puts `_applyId: Date.now()` on every Applied filter set, as a token
 its hand-rolled fetch effects compare to decide whether to refetch
 (`arrDashboard/hooks/useExitArrByBU.js:170`). It is not ported. TanStack Query already does that job
@@ -326,6 +371,15 @@ Kept because the two apps run side by side during the parallel period and must a
 3. **Customers + Delayed silently resets Years Back to 1** unless the link sets `years` explicitly.
 4. **The email-domain check on the backend accepts `ws02.com` as well as `wso2.com`.** Backend
    behaviour, untouched, noted so nobody reports it as a port defect.
+5. **Both country filters offer the SHIPPING countries.** `GET /app-configs` answers with
+   `billingCountries` and `shippingCountries`; the source builds one list out of `shippingCountries`
+   (`ArrDashboard.js:52`) and hands it to both the Billing Country and the Country by Sales Region
+   control. `billingCountries` is fetched and never read. Reproduced, because a Billing Country menu
+   offering a country the other app does not would make one filter mean two things depending on which
+   app you opened. **Worth raising with Finance** — it is the kind of thing that is either a known
+   shortcut or a real defect, and the two apps running side by side is the wrong time to find out.
+6. **`BFSI` is added to the industry list client-side.** The backend has never sent it
+   (`ArrDashboard.js:54`). Kept, because Finance filters by it today.
 
 ## 9. Dead code in the source — do not port
 
@@ -432,8 +486,26 @@ there. §10.6's "restores the previous YTD **and Ending Month**" is therefore li
 22. With windowing in place, a Build of several thousand rows scrolls without dropping frames, and
     collapsing a section releases its rows.
 
+### The filter bar
+23. A control changed but not applied leaves the address alone, enables Apply, and says so in a live
+    region; Apply then puts the whole view in the address and the bar reads clean again.
+24. Choosing a value back at its default takes the parameter out of the address rather than pinning
+    the default into it.
+25. A control whose value would mean nothing is absent: the region list outside its own View, Forecast
+    Type outside a Forecasted type, Years Back under a forecast, YTD on a trailing window.
+26. Every filter with a control has a chip and vice versa — the two are driven by one rule, and the
+    Delayed Build in §7 is the case that catches them drifting.
+27. Dismissing a chip applies that one filter's default at once and leaves any other unapplied edit
+    still pending.
+28. The unit tabs, the Period control and the Scale toggle each take effect without an Apply; Clear All
+    clears the filters and leaves the unit selection alone.
+29. A TTM Build offers Delayed, carries it in the address, and survives a reload — the §7 deviation,
+    stated as the test that would have caught the source's version.
+30. With `GET /app-configs` failing, the written-down controls (Type, View, Years Back, YTD, Channel,
+    Scale) all still work and the bar says which menus are missing.
+
 ### Parity
-23. For one closed month, every figure on each ported screen matches the running MIS app, at both
+31. For one closed month, every figure on each ported screen matches the running MIS app, at both
     Scale settings, with filters at defaults and with a non-trivial applied filter set.
 
 ## 11. Unverified — questions for a live tenant
@@ -499,9 +571,16 @@ or a live session at `https://one.wso2.com`.
    Period at a time, rendered vertically — worked at 400px with no horizontal scroll and is the
    candidate answer, at the cost of making period-over-period comparison impossible. It is kept on the
    prototype branch rather than discarded, for exactly this question.
-9. **Per-screen control detail.** This spec covers routes, rules, the URL contract, the API surface and
-   the role model. The individual controls of the 1,823-line FilterBar and the 2,254-line ARR Analysis
-   page still need a line-by-line read before their sections in §2 are complete.
+9. **Per-screen control detail.** ~~The individual controls of the 1,823-line FilterBar~~ **and** the
+   2,254-line ARR Analysis page need a line-by-line read before their sections in §2 are complete.
+   **The FilterBar half is done** — read for ticket 09, and §2.1 now carries the ARR Build's control
+   detail. The read produced three findings, all recorded rather than left in the code: the TTM Type
+   list and the Years Back rule are in §7, and the two country/industry list quirks are in §8.
+
+   What the read did **not** settle, because it is a question for Finance rather than for the source:
+   whether the `billingCountries` list the backend sends was ever meant to be used (§8.5).
+
+   ARR Analysis is still unread. Its section in §2.4 is routes and flags only.
 10. ~~**Is `987` the only privilege number that collides?**~~ **ANSWERED, and no — `789` collides
     too.** Found while building ticket 01. MIS's Flash privilege `789` is also leave-app's
     `LEAVE_PRIVILEGE.PEOPLE_OPS_TEAM` (`features/leave/api/leaveTypes.ts:58-63`), so *both* MIS

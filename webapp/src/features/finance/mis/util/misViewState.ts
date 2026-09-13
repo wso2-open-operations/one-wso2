@@ -129,16 +129,17 @@ const windowParam: QueryParamReader<MisWindow> = {
  * writer can produce is by construction a value the reader accepts, which is
  * the whole of "every parameter round-trips".
  *
- * Two of them depend on the view — the type values a Table offers differ — so
- * this is a function of the Period and Table rather than a constant.
+ * Two of them depend on the view — the type values a Table offers differ, and
+ * on a TTM window they differ again — so this is a function of the Period, the
+ * Table and the Window rather than a constant.
  */
-function codecsFor(period: MisPeriod, table: MisTable) {
+function codecsFor(period: MisPeriod, table: MisTable, viewWindow: MisWindow) {
   return {
     unit: unitParam,
     years: integerParam(YEARS_BACK_RANGE),
     ytd: booleanParam,
     endingMonth: oneOfParam(ENDING_MONTH_VALUES),
-    type: oneOfParam(allowedTypeValues(period, table)),
+    type: oneOfParam(allowedTypeValues(period, table, viewWindow)),
     view: oneOfParam(MIS_VIEW_TYPES),
     confidence: oneOfParam(MIS_CONFIDENCE_LEVELS),
     channel: oneOfParam(MIS_CHANNEL_DIRECT),
@@ -156,6 +157,9 @@ export function defaultYearsBack(period: MisPeriod, table: MisTable): number {
   return table === MIS_TABLES.EXIT_ARR_BY_REGION ? 2 : 5;
 }
 
+/** What a TTM window offers whatever the Table: no forecast, and Delayed is in. */
+const TTM_TYPE_VALUES = /^(Total|Closed Won|Delayed)/;
+
 /**
  * The type values a Table offers, mirroring the filter bar's option lists:
  * the summaries take Total and Closed Won only, Customers has no Renewal, and
@@ -164,10 +168,36 @@ export function defaultYearsBack(period: MisPeriod, table: MisTable): number {
  * Validating a link against a single global list instead would restore views
  * the filter bar cannot show — a Renewal column on a summary that has no
  * Renewal option.
+ *
+ * ---- the Window, and why it is here rather than in the control -------------
+ *
+ * A TTM window has a list of its own — Total, Closed Won, Delayed — which is
+ * neither of the two above: it ADDS Delayed to the Build and REMOVES Forecasted
+ * and Renewal from everything. The source keeps that rule in the filter bar
+ * alone (`FilterBar.js:493`, `arrTypeOptionsUI`) and its own URL contract never
+ * learned it, so the two disagree in both directions: picking Delayed on a TTM
+ * Build moved the grid and was then dropped from the address, and a link
+ * carrying `window=ttm&type=Forecasted ARR` hydrated a forecast the bar has no
+ * option for. Ported here instead, once, so the control and the contract cannot
+ * drift — spec §7. It is the one place a Window has ever had to be known.
+ *
+ * The summaries are deliberately NOT widened. Spec §3 states their list as a
+ * business rule — a summary reports a balance, it does not cut a trailing
+ * window — and the source's blanket TTM branch reaching them too looks like the
+ * accident rather than the intent.
  */
-export function allowedTypeValues(period: MisPeriod, table: MisTable): readonly string[] {
+export function allowedTypeValues(
+  period: MisPeriod,
+  table: MisTable,
+  viewWindow: MisWindow = MIS_WINDOWS.CALENDAR,
+): readonly string[] {
   const all = TYPE_VALUES_BY_PERIOD[period] ?? [];
   if (isSummaryTable(table)) return all.filter((value) => !/^(Delayed|Forecasted|Renewal)/.test(value));
+  // Annually is the only Period with a Window, so one named on either of the
+  // others is not a narrowing — it is a parameter that was already ignored.
+  if (period === MIS_PERIODS.ANNUALLY && viewWindow === MIS_WINDOWS.TTM) {
+    return all.filter((value) => TTM_TYPE_VALUES.test(value));
+  }
   if (table === MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS) return all.filter((value) => !value.startsWith("Renewal"));
   return all.filter((value) => !value.startsWith("Delayed"));
 }
@@ -231,7 +261,7 @@ export function serializeViewState({
   filters = {},
 }: MisView): string {
   const defaults = defaultAppliedFilters(period, table);
-  const codecs = codecsFor(period, table);
+  const codecs = codecsFor(period, table, viewWindow);
   const query = queryWriter();
   const isTtm = viewWindow === MIS_WINDOWS.TTM;
 
@@ -313,13 +343,16 @@ export function parseViewState(search: string, { period }: { period: MisPeriod }
   // Which type values are legal depends on the Table, and an absent one means
   // Subscription rather than "no table".
   const effectiveTable = table ?? MIS_TABLES.SUBSCRIPTION;
-  const codecs = codecsFor(period, effectiveTable);
 
   // Scale is session state, not filter hydration (spec §8.2), so it is read but
   // never counted: a link carrying only `?scale=k` carries no view.
   const scale = query.read("scale", scaleParam, { countsAsViewState: false });
+  // Read before the codecs are built, not after: the Window narrows which type
+  // values are legal, so a codec made without it would accept a forecast on a
+  // trailing window.
   const viewWindow = period === MIS_PERIODS.ANNUALLY ? query.read("window", windowParam) : undefined;
   const isTtm = viewWindow === MIS_WINDOWS.TTM;
+  const codecs = codecsFor(period, effectiveTable, viewWindow ?? MIS_WINDOWS.CALENDAR);
 
   read("unit", "buProductSelection", codecs.unit);
   if (filters.buProductSelection === CUSTOM_UNIT) {

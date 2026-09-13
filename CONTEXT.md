@@ -137,3 +137,17 @@ the app.
 
 **Window** was a MIS filter control, dropped from the FilterBar but still present in the serialised
 view-state contract. Verify which before using the word at all.
+
+The verification is now done, by the line-by-line read of the source FilterBar for the ARR Build port.
+Both halves hold, and the resolution is that they never meet:
+
+- The dropped **control** is gone for good. The source's filter bar has no Window dropdown on any
+  Table or Period, and its own test suite pins that ("has no Window dropdown on Annually, Quarterly,
+  or Monthly").
+- The surviving **column cut** — calendar years or trailing twelve months — is real, is what
+  `?window=ttm` carries, and reaches the reader as the **fourth option on the Period control**
+  (`PeriodRow.js`: Annually, Quarterly, Monthly, TTM), not as a control of its own.
+
+So in this repo: `viewWindow`, `MIS_WINDOWS` and `?window=` are the column cut, and the thing a reader
+clicks is the **Period** control — on which TTM sits beside Annually. Write "Window" for the cut and
+"Period control" for the thing on screen; do not name a piece of UI "Window".

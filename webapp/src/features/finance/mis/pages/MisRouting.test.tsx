@@ -71,6 +71,29 @@ vi.mock("../api/useArrSummary", () => ({
   }),
 }));
 
+// And once more for the filter bar's menus, which reach the same place. Routing
+// cares that the Build rendered, not what its Industry list offers.
+vi.mock("../api/useMisAppConfigs", () => ({
+  useMisAppConfigs: () => ({
+    options: {
+      salesRegions: [],
+      subRegions: [],
+      countries: [],
+      industries: [],
+      subIndustries: [],
+      accountOwners: [],
+      technicalOwners: [],
+      channelManagers: [],
+      businessUnits: [],
+      productUnits: [],
+    },
+    isLoading: false,
+    isError: false,
+    errorMessage: "",
+    retry: () => {},
+  }),
+}));
+
 const { default: MisArrBuildPage } = await import("./MisArrBuildPage");
 const { default: MisFlashPage } = await import("./MisFlashPage");
 

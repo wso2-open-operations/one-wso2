@@ -56,6 +56,15 @@ describe("arriving with no query string", () => {
     expect(result.current.state.viewWindow).toBe(MIS_WINDOWS.CALENDAR);
   });
 
+  // Everything reading this state needs to know which Period it describes — the
+  // filter bar's Type menu and its labels both turn on it — and the hook was
+  // told. Handing it back is what stops a second answer being derived from the
+  // route somewhere else and disagreeing.
+  it("hands back the Period it was asked about", () => {
+    expect(renderAt(ANNUALLY, "").result.current.state.period).toBe(ANNUALLY);
+    expect(renderAt(QUARTERLY, "").result.current.state.period).toBe(QUARTERLY);
+  });
+
   it("hands over a complete Applied set, not the empty one the URL carried", () => {
     const { result } = renderAt(ANNUALLY, "");
     expect(result.current.state.filters).toMatchObject({

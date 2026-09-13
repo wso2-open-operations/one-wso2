@@ -29,9 +29,13 @@ import {
 import { useArrSummary, type ArrSummaryColumn } from "../api/useArrSummary";
 import { pacificAnnualRanges, subscriptionColumnRanges } from "../util/misPeriods";
 import { amountUnitCaption, formatMisValue, misValueTypeForRow } from "../util/misMoney";
+import type { MisViewState } from "../util/useMisViewState";
+import type { MisScale } from "../util/misViewVocabulary";
 import { useMisViewState } from "../util/useMisViewState";
 import { useMisScale } from "../util/useMisScale";
 import { MIS_PERIODS } from "../util/misViewVocabulary";
+import { useMisAppConfigs } from "../api/useMisAppConfigs";
+import MisFilterBar from "../components/MisFilterBar";
 
 // ARR Build — the annual recurring-revenue Build, on live figures.
 //
@@ -46,10 +50,11 @@ import { MIS_PERIODS } from "../util/misViewVocabulary";
 //   the figures   `useArrSummary` fetches one column per query
 //   the money     `formatMisValue` (05) decides what Scale may touch
 //   the table     `BuildTable` (03) renders it
+//   the filters   `MisFilterBar` (09) writes every one of them through the
+//                 SAME `useMisViewState` instance, so there is one view and not
+//                 a bar's copy of it beside the grid's
 //
-// No filter bar yet — defaults only; that is ticket 09, and it binds to the
-// same `useMisViewState` this page already holds. No windowing (07), no
-// drill-down (10).
+// No windowing (07), no drill-down (10).
 
 export default function MisArrBuildPage() {
   useDocumentTitle("ARR Build");
@@ -68,7 +73,38 @@ export default function MisArrBuildPage() {
 /** Inside the shell, so it is only mounted once the gate has said yes. */
 function ArrBuild() {
   const view = useMisViewState(MIS_PERIODS.ANNUALLY, { annualRangesFor: pacificAnnualRanges });
-  const { scale } = useMisScale(view);
+  const scale = useMisScale(view);
+  // The menus for the nine list filters. Fetched here rather than inside the
+  // bar so the bar stays a function of its props, and so a screen that grows a
+  // second filtered surface asks once.
+  const configs = useMisAppConfigs();
+
+  return (
+    <Box>
+      <MisFilterBar
+        view={view}
+        scale={scale}
+        options={configs.options}
+        optionsLoading={configs.isLoading}
+        // Only when the lists actually FAILED. A bar still loading them says so
+        // in the menus themselves, which is not worth a warning above the bar.
+        optionsErrorMessage={configs.isError ? configs.errorMessage : ""}
+        onRetryOptions={configs.retry}
+      />
+      <ArrBuildGrid view={view} scale={scale.scale} />
+    </Box>
+  );
+}
+
+/**
+ * The figures, below the bar.
+ *
+ * Split from the bar's own component so the bar survives every state this part
+ * can be in — loading, failed, empty. A reader whose filters returned nothing
+ * has to be able to change them, and a bar inside the early return below would
+ * have vanished with the grid.
+ */
+function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
 
   // Drawn from the ranges the URL contract already hydrated into the Applied
   // set, so the columns and the filters cannot disagree about which Periods are
@@ -120,7 +156,7 @@ function ArrBuild() {
   }
 
   return (
-    <Box sx={{ mt: 1.5 }}>
+    <Box>
       {/* Above the grid rather than beside the control, because Finance's
           workflow is to crop a table into a slide deck: a figure that has left
           the screen it was set on has to carry its own units. */}

@@ -51,6 +51,13 @@ export interface MisViewPatch {
 }
 
 export interface MisViewState {
+  /**
+   * The Period this view is of, handed straight back from the route the caller
+   * read it off. Here so that everything downstream — which type values exist,
+   * what the Type control is called, which cumulative flag applies — asks one
+   * source rather than re-deriving it from the path.
+   */
+  period: MisPeriod;
   /** Subscription when the link named no Table. */
   table: MisTable;
   /**
@@ -128,6 +135,7 @@ export function useMisViewState(
   const current: MisView = { period, table, scale: parsed.scale, viewWindow, filters };
 
   return {
+    period,
     table,
     scale: parsed.scale,
     viewWindow,

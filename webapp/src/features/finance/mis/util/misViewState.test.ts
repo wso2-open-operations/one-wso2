@@ -293,6 +293,37 @@ describe("the Type parameter", () => {
     expect(parseViewState("?type=Delayed+ARR", { period: ANNUALLY }).filters.arrType).toBeUndefined();
   });
 
+  // Found reading the source filter bar for ticket 09: a TTM Build offers
+  // Total, Closed Won and Delayed — not the Calendar list. The source's own
+  // `allowedTypeValues` never learned that, so picking Delayed on a TTM Build
+  // moved the grid and was then dropped from the address. See spec §7.
+  it("offers Total, Closed Won and Delayed on a TTM window, whatever the Table", () => {
+    const ttm = MIS_WINDOWS.TTM;
+    expect(allowedTypeValues(ANNUALLY, SUBSCRIPTION, ttm))
+      .toEqual(["Total ARR", "Closed Won ARR", "Delayed ARR"]);
+    expect(allowedTypeValues(ANNUALLY, SOFTWARE_CLOUD_CUSTOMERS, ttm))
+      .toEqual(["Total ARR", "Closed Won ARR", "Delayed ARR"]);
+    // The summaries keep their narrower list: TTM adds Delayed to the tables
+    // that can cut a trailing window, not to the two that only report a balance.
+    expect(allowedTypeValues(ANNUALLY, EXIT_ARR_BY_REGION, ttm))
+      .toEqual(["Total ARR", "Closed Won ARR"]);
+  });
+
+  it("carries a Delayed TTM Build in the address, and refuses a forecast there", () => {
+    const view = parseViewState("?window=ttm&type=Delayed+ARR", { period: ANNUALLY });
+    expect(view.filters.arrType).toBe("Delayed ARR");
+    // A TTM window has no forecast to show — which is why switching to TTM
+    // coerces one away. A link may not smuggle one back in.
+    expect(parseViewState("?window=ttm&type=Forecasted+ARR", { period: ANNUALLY }).filters.arrType)
+      .toBeUndefined();
+    expect(params(serializeViewState({
+      period: ANNUALLY,
+      table: SUBSCRIPTION,
+      viewWindow: MIS_WINDOWS.TTM,
+      filters: { ...defaultAppliedFilters(ANNUALLY, SUBSCRIPTION), arrType: "Delayed ARR" },
+    }))).toEqual({ window: "ttm", type: "Delayed ARR" });
+  });
+
   it("uses the Period's own type key and vocabulary", () => {
     expect(parseViewState("?type=Forecasted+QRR", { period: QUARTERLY }).filters)
       .toEqual({ qrrType: "Forecasted QRR" });

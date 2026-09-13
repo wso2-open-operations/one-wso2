@@ -53,7 +53,41 @@ vi.mock("@features/finance/mis/api/useArrSummary", () => ({
   useArrSummary: () => summary.value,
 }));
 
+// The filter bar's menus, stubbed at the same seam as the figures and for the
+// same reason: this file is about what a reader sees, and `useMisAppConfigs`
+// has its own tests. It also reaches @asgardeo/browser, which does not resolve
+// under Node's ESM loader.
+vi.mock("@features/finance/mis/api/useMisAppConfigs", () => ({
+  useMisAppConfigs: () => ({
+    options: {
+      salesRegions: ["APAC", "EMEA"],
+      subRegions: [],
+      countries: ["Sri Lanka"],
+      industries: ["BFSI"],
+      subIndustries: [],
+      accountOwners: [],
+      technicalOwners: [],
+      channelManagers: [],
+      businessUnits: ["APIM_BU"],
+      productUnits: [],
+    },
+    isLoading: false,
+    isError: false,
+    errorMessage: "",
+    retry: () => {},
+  }),
+}));
+
 const MisArrBuildPage = (await import("@features/finance/mis/pages/MisArrBuildPage")).default;
+
+// Driving MUI Autocompletes through userEvent is slow — each click is a full
+// pointer-event sequence re-rendered through the Oxygen theme — and the whole
+// suite runs 119 files in parallel. The default 5s is enough alone and not
+// under that load, which is how a passing file becomes an intermittent red.
+// The source's own filter-bar suite raised its timeout for the same reason
+// ("Forty rendered tests over a 1700-line component with MUI Autocompletes:
+// give each room under load").
+vi.setConfig({ testTimeout: 20_000 });
 
 /** Five columns at Years Back 5, and this is the newest of them. */
 const THIS_YEAR = "2025/12/31 - 2026/09/12";
@@ -124,6 +158,43 @@ describe("the Build itself", () => {
     for (const section of ["ARR movement", "Dollar retention", "Customers"]) {
       expect(within(table).getByText(section)).toBeInTheDocument();
     }
+  });
+});
+
+describe("the filter bar above the Build", () => {
+  it("is there, bound to the same view the grid is drawn from", () => {
+    renderPage("?type=Closed+Won+ARR&years=3");
+    expect(screen.getByLabelText("ARR Type")).toHaveValue("Only Closed Won ARR");
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+
+  it("survives a Build that is still loading, so the reader can change it", () => {
+    summary.value = { ...loaded({}), isLoading: true, columns: [] };
+    renderPage();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("ARR Type")).toBeInTheDocument();
+  });
+
+  it("survives a Build that failed, which is when it is most needed", () => {
+    summary.value = {
+      columns: [],
+      isLoading: false,
+      isError: true,
+      errorMessage: "Gateway timed out.",
+      retry: () => {},
+    };
+    renderPage();
+    expect(screen.getByText(/couldn't load the build/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear All" })).toBeInTheDocument();
+  });
+
+  it("survives a custom selection that asks for no units at all", () => {
+    // `arrSummaryRequests` answers with nothing here, deliberately — and the
+    // reader needs the units control still on screen to get out of it.
+    summary.value = { ...loaded({}), columns: [] };
+    renderPage("?unit=custom");
+    expect(screen.getByText(/no periods to show/i)).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Business Units" })).toBeInTheDocument();
   });
 });
 
