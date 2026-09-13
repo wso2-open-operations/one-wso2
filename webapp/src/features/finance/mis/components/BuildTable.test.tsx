@@ -18,7 +18,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BuildTable, { type BuildCellFor } from "./BuildTable";
-import { rowSx } from "./buildTableSx";
 import {
   ROW_WINDOW_THRESHOLD,
   type BuildColumnGroup,
@@ -74,7 +73,7 @@ const cell: BuildCellFor = (row, group, subColumn) => ({
   muted: subColumn.key === "pct",
 });
 
-function renderTable(periodCount = 5, rows: BuildRow[] = ROWS) {
+function renderTable(periodCount = 5, rows: BuildRow[] = ROWS, expanded?: readonly string[]) {
   return render(
     <BuildTable
       label="ARR Build"
@@ -83,6 +82,7 @@ function renderTable(periodCount = 5, rows: BuildRow[] = ROWS) {
       subColumns={SUB_COLUMNS}
       rows={rows}
       cell={cell}
+      defaultExpandedIds={expanded}
     />,
   );
 }
@@ -537,7 +537,17 @@ describe("the figures themselves", () => {
   });
 });
 
-describe("a Build with more rows than a document should hold", () => {
+// The timeout is raised for the whole block, and it is not papering over a slow
+// implementation. Measured: a render here costs ~540ms whatever the fixture
+// size — 151 rows and 3,000 rows both put 48 rows in the document and both cost
+// the same, which is windowing working. What costs is those 48 MUI rows in
+// jsdom, times the two passes the measurement settle takes, and the one test
+// below that deliberately renders 150 rows UNWINDOWED to have something to
+// compare against. Against vitest's 5s default that left tests landing at 1-4.4s
+// with no margin, so they passed alone and failed under load — the worst way for
+// a suite to fail. Raised to a bound the machine cannot cross rather than
+// trimmed to a number that looks better.
+describe("a Build with more rows than a document should hold", { timeout: 30_000 }, () => {
   // ADR 0004 chose a hand-rolled `<table>` and listed row windowing as required
   // scope in the same breath, because a hand-rolled table has no virtualization
   // and the per-customer Builds are hundreds of customers per business unit.
@@ -637,15 +647,27 @@ describe("a Build with more rows than a document should hold", () => {
     expect(screen.getByRole("button", { name: "New" })).toHaveFocus();
   });
 
-  it("still lets the reader work the sections that are on screen", () => {
+  it("lets the reader close a section that is being windowed, and releases its rows", async () => {
     // A windowed table nobody can operate has traded one failure for another.
-    const tree: BuildRow[] = [
-      { id: "new", label: "New", children: customers(2000) },
-      { id: "lost", label: "Lost", children: customers(2000) },
-    ];
-    renderTable(5, tree);
-    expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Lost" })).toBeInTheDocument();
+    //
+    // The section is open from the START, which is the whole point: two
+    // COLLAPSED parents would be two visible rows, which is the plain path, and
+    // a test that renders them pins nothing about windowing however many
+    // children they have. Open, this is 2,001 visible rows and the window is
+    // already running before the click.
+    const tree: BuildRow[] = [{ id: "new", label: "New", children: customers(2000) }];
+    renderTable(5, tree, ["new"]);
+    expect(spacers().length).toBeGreaterThan(0);
+    expect(screen.getByText("Customer 0")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+
+    // Released, not hidden: the rows are gone from the document and so is the
+    // space that was being held for them — a spacer left behind here would be a
+    // Build scrolling over the ghost of a section that is no longer open.
+    expect(bodyRows()).toHaveLength(1);
+    expect(spacers()).toHaveLength(0);
+    expect(screen.queryByText("Customer 0")).not.toBeInTheDocument();
   });
 
   it("shows the rows further down once the reader scrolls to them", () => {
@@ -691,9 +713,18 @@ describe("a Build with more rows than a document should hold", () => {
     renderTable(5, rows);
     const figure = cellsOf(bodyRows().find((row) => !row.hasAttribute("aria-hidden"))!)[1];
     expect(getComputedStyle(figure).borderBottomWidth).toBe("1px");
-    // The balance row carries its weight and its rule wherever the window puts it.
-    const balance = rowSx({ emphasis: true, ruleAbove: true, tint: "rgba(0,0,0,0.04)" });
-    expect(balance["& > th, & > td"]).toMatchObject({ fontWeight: 700 });
+
+    // The balance is row 300, so it starts outside the window. Scroll it in and
+    // read the row the component actually rendered: asking `rowSx` what it
+    // returns would only be the component's own styling function agreeing with
+    // itself, and would pass just as well if the window never mounted the row.
+    act(() => {
+      Object.defineProperty(scroller(), "scrollTop", { value: 300 * 30, writable: true });
+      fireEvent.scroll(scroller());
+    });
+    const balance = rowCellRules(rowLabelled("Ending ARR"), false).join(" ");
+    expect(balance).toContain("font-weight: 700");
+    expect(balance).toContain("border-top");
   });
 
   it("keeps every figure pointed at its row, its Period and its sub-column", () => {
@@ -716,7 +747,9 @@ describe("a Build with more rows than a document should hold", () => {
     expect(announced.length).toBe(2 + bodyRows().filter((r) => !r.hasAttribute("aria-hidden")).length);
   });
 
-  it("still takes a closed section's rows away entirely", async () => {
+  // The other direction from the collapse test above: that one closes a section
+  // the window is already running on, this one opens one it was not.
+  it("costs nothing while a section is closed, and windows it the moment it opens", async () => {
     const tree: BuildRow[] = [
       { id: "opening", label: "Opening ARR", emphasis: true },
       { id: "new", label: "New", children: customers(3000) },

@@ -67,6 +67,11 @@ height, so the table algorithm still sizes the columns across header and body an
 markup changes shape. Nothing here is a judgement about data; it is a property of the code, and it is
 the thing the trigger was pointed at.
 
+One measurement is worth recording here because it is the property the whole decision rests on:
+**render cost is now flat in the row count.** A probe timing the same component at 151, 300, 600,
+1,500 and 3,000 rows returns ~540ms every time, and puts 48 rows in the document every time. Cost
+tracks the window, not the Build. That is the shape the ADR needed and did not have before ticket 07.
+
 **What is not settled, and must not be read as settled.** The measurement is a synthetic flat
 3,000-row fixture under jsdom — no tree, no browser, no real formatter, no layout and no frame rate.
 Ticket 07's own notes say that firing this revisit against fixtures is what "sequenced after real data"

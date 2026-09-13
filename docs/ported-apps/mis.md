@@ -489,7 +489,7 @@ there. §10.6's "restores the previous YTD **and Ending Month**" is therefore li
 21. Row hover reads across the whole row, including under the pinned first column.
 22. With windowing in place, a Build of several thousand rows scrolls without dropping frames, and
     collapsing a section releases its rows. **Half-closed by ticket 07.** What is pinned in the suite:
-    a 3,000-row Build renders ~43 rows rather than 3,000, pads the rest so the scrollbar still
+    a 3,000-row Build renders 48 rows rather than 3,000, pads the rest so the scrollbar still
     describes the whole table, asks its formatter under 1,000 times instead of 30,000, and keeps the
     sticky header, the pinned column and the `headers` wiring while it does. Collapsing has always
     released its rows — `visibleRows` never rendered a closed subtree. What is **not** pinned is the

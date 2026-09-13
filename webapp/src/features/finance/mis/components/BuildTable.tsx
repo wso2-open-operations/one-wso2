@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import {
   Box,
   IconButton,
@@ -357,6 +357,16 @@ function RowSpacer({ height, columnCount }: { height: number; columnCount: numbe
 const ESTIMATED_ROW_HEIGHT = 25;
 
 /**
+ * An element's laid-out height, fractions kept.
+ *
+ * `getBoundingClientRect` rather than `offsetHeight` because both callers care
+ * about the fraction: the header offset is a `top` a hairline gap or an overlap
+ * either side of correct, and a row height rounded down accumulates across
+ * thousands of rows into a scrollbar that disagrees with the content.
+ */
+const measuredHeight = (element: HTMLElement) => element.getBoundingClientRect().height;
+
+/**
  * A number measured off an element, kept current as the page moves.
  *
  * Both things this table has to measure — the first header row's height and the
@@ -448,16 +458,16 @@ function useRowWindow(total: number, maxBodyHeight: number) {
     (element) => element.clientHeight,
     { enabled: windowed, watch: total },
   );
-  const [firstRowRef, measuredRowHeight] = useMeasuredValue<HTMLTableRowElement>(
-    (element) => element.getBoundingClientRect().height,
-    { enabled: windowed, watch: total },
-  );
+  const [firstRowRef, measuredRowHeight] = useMeasuredValue<HTMLTableRowElement>(measuredHeight, {
+    enabled: windowed,
+    watch: total,
+  });
   // Zero is jsdom, or a paint that has not happened yet. The estimate is a far
   // better answer than rendering every row once and windowing on the next
   // pass — and it means `rowHeight` is never zero, whatever the DOM says.
   const rowHeight = measuredRowHeight || ESTIMATED_ROW_HEIGHT;
 
-  const onScroll = (event: { currentTarget: HTMLElement }) => {
+  const onScroll = (event: UIEvent<HTMLDivElement>) => {
     const next = event.currentTarget.scrollTop;
     // Only when the window would actually move. A scroll event fires per frame;
     // re-rendering for a change of three pixels re-asks the caller for every
@@ -509,18 +519,18 @@ function useRowWindow(total: number, maxBodyHeight: number) {
  * 100% zoom, where the true height is fractional and rounding it leaves either
  * a hairline gap or an overlap. So it is measured, and used as measured.
  *
- * `ResizeObserver` is the right instrument and is absent under jsdom, so it is
- * optional here exactly as in `useFillHeight`: the mount measurement and the
- * resize listener still give the right answer without it.
+ * The measuring itself is `useMeasuredValue`'s, which is where the
+ * `ResizeObserver`-under-jsdom reasoning now lives; this hook is the question
+ * asked of it, and the paragraphs above are why the question has to be asked at
+ * all rather than answered with a constant.
  *
  * The height is state, so settling it re-renders the table — once on mount, and
- * again whenever the header row genuinely changes size. That is bounded and
- * cheap today, and it is worth knowing before ticket 07: every such render asks
- * the `cell` function for every figure on screen again, which at 12 Periods and
- * several thousand rows is the cost windowing exists to remove.
+ * again whenever the header row genuinely changes size. That is bounded, and it
+ * is why the windowing below is measured in RENDERS rather than in rows: every
+ * such render asks the `cell` function for every figure on screen again, and
+ * before windowing existed that meant every figure in the Build.
  */
-const useHeaderRowHeight = () =>
-  useMeasuredValue<HTMLTableRowElement>((element) => element.getBoundingClientRect().height);
+const useHeaderRowHeight = () => useMeasuredValue<HTMLTableRowElement>(measuredHeight);
 
 // The prop types, re-exported: a screen describing a Build should not have to
 // reach past this component into the module behind it.
