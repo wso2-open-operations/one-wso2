@@ -33,7 +33,15 @@ import type { MisViewState } from "../util/useMisViewState";
 import type { MisScale } from "../util/misViewVocabulary";
 import { useMisViewState } from "../util/useMisViewState";
 import { useMisScale } from "../util/useMisScale";
-import { MIS_PERIODS } from "../util/misViewVocabulary";
+import { MIS_PERIODS, MIS_TABLES } from "../util/misViewVocabulary";
+import { useCustomerAccounts } from "../api/useCustomerAccounts";
+import {
+  CUSTOMER_LEAD_COLUMNS,
+  CUSTOMER_SUB_COLUMNS,
+  customerAccountRows,
+  customerFigure,
+  type AccountsResponse,
+} from "../components/customerAccountRows";
 import { useMisAppConfigs } from "../api/useMisAppConfigs";
 import MisFilterBar from "../components/MisFilterBar";
 
@@ -54,7 +62,8 @@ import MisFilterBar from "../components/MisFilterBar";
 //                 SAME `useMisViewState` instance, so there is one view and not
 //                 a bar's copy of it beside the grid's
 //
-// No windowing (07), no drill-down (10).
+// Windowing is `BuildTable`'s (07). The drill-down dialog is still ticket 10's
+// and is not here yet.
 
 export default function MisArrBuildPage() {
   useDocumentTitle("ARR Build");
@@ -91,7 +100,11 @@ function ArrBuild() {
         optionsErrorMessage={configs.isError ? configs.errorMessage : ""}
         onRetryOptions={configs.retry}
       />
-      <ArrBuildGrid view={view} scale={scale.scale} />
+      {view.table === MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS ? (
+        <CustomersGrid view={view} scale={scale.scale} />
+      ) : (
+        <ArrBuildGrid view={view} scale={scale.scale} />
+      )}
     </Box>
   );
 }
@@ -176,6 +189,97 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
         // customer lines under it to hold back — so opening it collapsed would
         // hide the whole table behind five clicks.
         defaultExpandedIds={ARR_BUILD_SECTION_IDS}
+      />
+    </Box>
+  );
+}
+
+/**
+ * The Software/Cloud Customers table.
+ *
+ * The same shell as the Build above — loading, every-column-failed, no columns
+ * — over a table that is the Build's opposite shape. There the rows are the
+ * fixed metric lines and the figures arrive as columns; here every row is a
+ * customer and there are hundreds of them, which is why this is the first
+ * screen where `BuildTable`'s row windowing (07) actually runs.
+ *
+ * Its columns are the Applied set's `annuallyDateRanges` in full, NOT the
+ * `subscriptionColumnRanges` slice the Build takes. The source's own generators
+ * disagree by one year and only the Subscription table reads the shorter — see
+ * `misPeriods` — and this table's fetch uses the longer (`useCustomerAccounts.js`
+ * asks `generateFullYearRanges(-yearsBack, 0)` where Subscription asks
+ * `-(yearsBack - 1)`).
+ */
+function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
+  const ranges = view.filters.annuallyDateRanges ?? [];
+  const book = useCustomerAccounts(ranges, view.filters);
+
+  // Not memoised, for the same reason the Build's `byColumn` is not:
+  // `book.columns` is rebuilt every render, so a useMemo over it never hits.
+  const { rows, accountById } = customerAccountRows(
+    book.columns.map((column) => column.accounts ?? []),
+  );
+  const byColumn = new Map<string, ReadonlyMap<string, AccountsResponse>>(
+    book.columns.map((column) => [
+      column.label,
+      new Map((column.accounts ?? []).map((account) => [account.id, account])),
+    ]),
+  );
+
+  const leadCell = (row: { id: string }, column: { key: string }) => {
+    const account = accountById.get(row.id);
+    const definition = CUSTOMER_LEAD_COLUMNS.find((one) => one.key === column.key);
+    return account && definition ? definition.value(account) : "";
+  };
+
+  const cell: BuildCellFor = (row, group, subColumn) => {
+    const definition = CUSTOMER_SUB_COLUMNS.find((one) => one.key === subColumn.key)!;
+    const raw = customerFigure(byColumn.get(group.key)?.get(row.id), definition);
+    return {
+      // Every figure here is currency, so the Scale applies to all of them —
+      // unlike the Build, where counts and percentages share the column.
+      text: formatMisValue(raw, "currency", { scale }),
+      negative: typeof raw === "number" && raw < 0,
+      muted: raw === undefined,
+    };
+  };
+
+  if (book.isLoading) {
+    return <Skeleton variant="rectangular" height={320} sx={{ borderRadius: 1.5, mt: 1.5 }} />;
+  }
+
+  if (book.isError) {
+    return (
+      <ErrorNotice onRetry={book.retry} sx={{ mt: 1.5 }}>
+        Couldn't load the customers. {book.errorMessage}
+      </ErrorNotice>
+    );
+  }
+
+  if (!book.columns.length || !rows.length) {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
+        No customers to show. Widen Years Back, or loosen the filters.
+      </Typography>
+    );
+  }
+
+  return (
+    <Box>
+      <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 0.75 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+          {amountUnitCaption(scale)}
+        </Typography>
+      </Stack>
+      <BuildTable
+        label="ARR Build — Software/Cloud Customers"
+        rowLabelHeader="Account Name"
+        leadColumns={CUSTOMER_LEAD_COLUMNS}
+        leadCell={leadCell}
+        columnGroups={book.columns.map(({ label }) => ({ key: label, label }))}
+        subColumns={CUSTOMER_SUB_COLUMNS.map(({ key, label }) => ({ key, label, width: 150 }))}
+        rows={rows}
+        cell={cell}
       />
     </Box>
   );

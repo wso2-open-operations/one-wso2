@@ -219,16 +219,65 @@ export function rowWindow({
 export function tableMinWidth(
   groupCount: number,
   subColumns: readonly BuildSubColumn[],
-  rowLabelWidth: number,
+  leadWidth: number,
 ): number {
   const groupWidth = subColumns.reduce((total, column) => total + column.width, 0);
-  return rowLabelWidth + groupCount * groupWidth;
+  return leadWidth + groupCount * groupWidth;
+}
+
+/** A column of row identity, left of the figures. */
+export interface BuildLeadColumn {
+  key: string;
+  label: string;
+  width: number;
+  /**
+   * Frozen against horizontal scroll. Only honoured as a contiguous run from
+   * the left — see `leadColumnOffsets`.
+   */
+  pinned?: boolean;
+}
+
+/**
+ * The `left` each frozen lead column sits at, and `undefined` for the rest.
+ *
+ * `position: sticky` needs every frozen column's own offset, and that offset is
+ * the sum of the widths frozen before it. This is arithmetic rather than CSS
+ * because there is no way to say "after the previous sticky one" in a
+ * stylesheet, and getting it wrong does not look like a layout bug: the columns
+ * OVERLAP, so the one underneath is still there and simply covered, which reads
+ * as missing data.
+ *
+ * Freezing stops at the first column that does not ask for it. A frozen column
+ * with a scrolling one to its left has nowhere honest to sit — its offset would
+ * describe a gap that the scrolling column slides beneath, so it would sit on
+ * top of whatever happened to be passing under it. The source freezes Account
+ * Name and nothing else, so the rule costs nothing there and stops the
+ * eighteen-column customers table from asking for a layout that cannot be
+ * drawn.
+ *
+ * `undefined` and not `0` for an unfrozen column: a zero would freeze it at the
+ * left edge, on top of the column that belongs there.
+ */
+export function leadColumnOffsets(
+  columns: readonly BuildLeadColumn[],
+): (number | undefined)[] {
+  const offsets: (number | undefined)[] = [];
+  let frozenSoFar = 0;
+  let stillFreezing = true;
+  for (const column of columns) {
+    stillFreezing = stillFreezing && Boolean(column.pinned);
+    offsets.push(stillFreezing ? frozenSoFar : undefined);
+    if (stillFreezing) frozenSoFar += column.width;
+  }
+  return offsets;
 }
 
 /** The header cell names one Build table uses. */
 export interface BuildTableIds {
-  /** The pinned row-label column's header. */
+  /** The pinned row-label column's header — the FIRST lead column. */
   rowLabelHeader: string;
+  /** An identity column's header, for the lead columns after the first. */
+  leadHeader(columnKey: string): string;
   /** A Period's header, spanning its sub-columns. */
   groupHeader(groupKey: string): string;
   /** A sub-column's header, under one Period. */
@@ -263,6 +312,7 @@ export function buildTableIds(base: string): BuildTableIds {
     `${base}:period:${token(groupKey)}:${token(subKey)}`;
   return {
     rowLabelHeader: `${base}:rowlabel`,
+    leadHeader: (columnKey: string) => `${base}:lead:${token(columnKey)}`,
     groupHeader,
     subHeader,
     rowHeader,

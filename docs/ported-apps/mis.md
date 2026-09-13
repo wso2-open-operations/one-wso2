@@ -361,6 +361,21 @@ from the query key, which §6 requires to carry the serialised filter body — a
 that key would make every key unique, miss the cache on every apply, and refetch on every hydrate.
 Dropping it changes no behaviour; keeping it would.
 
+**The Software/Cloud Customers table loses the source's Software/Cloud header row.** The source heads
+that table with THREE rows — the Period, then a `Software` group spanning four columns and a `Cloud`
+group spanning seven, then the product — and `BuildTable` renders two. Adding a third generalises the
+measured sticky offset that [ADR 0004](../adr/0004-arr-build-tables-are-hand-rolled.md) records as the
+mechanism with no MUI precedent, so it was taken as its own decision and not folded into ticket 10.
+The grouping therefore lives in the labels: the three columns the source can afford to label plainly
+`Total` are **Software Total**, **Cloud Total** and **Total** here. Everything else keeps the source's
+wording, which already names its own half of the book. No figure changes; only the header does.
+
+**The customers table does not blank itself while refetching.** `useCustomerAccounts.js` calls
+`setData([])` at the top of every run — "Clear previous data immediately to show loading state" — which
+on a table of hundreds of customer rows empties and re-paints the whole grid on every filter change.
+React Query holds the previous answer until the next lands, so the figures go stale for a moment
+instead of going away.
+
 ## 8. Source behaviour reproduced deliberately, though it looks wrong
 
 Kept because the two apps run side by side during the parallel period and must agree.
@@ -443,6 +458,10 @@ legal on TTM — and `isAllowedTtmEndingMonth` admits every month and Today, so 
 It stays because, unlike the mirror above, it is not unreachable by construction: it hangs off a rule
 that exists to be narrowed, and dropping it would move the cost of narrowing that rule from nowhere to
 there. §10.6's "restores the previous YTD **and Ending Month**" is therefore live on YTD only.
+
+`openBankingSoftwareTotal`, in the customers table. `transformApiData` writes an `open_banking` value
+onto every account row from it, and no column definition in `tableConstants.js` reads that key. Not
+ported.
 
 ## 10. Test checklist
 

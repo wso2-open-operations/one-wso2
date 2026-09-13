@@ -95,3 +95,32 @@ look if the scrollbar ever disagrees with the content. And windowing unmounts ro
 that scrolls out of view is no longer focusable and a focused one that scrolls away drops focus to the
 document. That is inherent to virtualization rather than to this implementation, it is why the
 threshold exists, and it is worth revisiting if the per-customer Builds turn out to nest deeply.
+
+## The frozen pane, widened (ticket 10)
+
+This ADR listed a sticky row-label column among the four mechanisms the hand-rolled table makes ours
+to maintain, and it described **one** column, because the Subscription Build needs one: a row is a
+movement and the movement's name says which. The Software/Cloud Customers table needs **eighteen**
+before the first figure — Account Name, Account ID, Owner, Source, Primary Partner Name and Role,
+Delayed Day Count, both countries, Industry, Sub Industry, Sales Region, Sub Region, Activation Date,
+Churn Date, Lost Reason Category, Account Rating, Employee Count.
+
+**The decision stands and the mechanism generalises.** `BuildTable` now takes a LIST of identity
+columns and the Subscription Build passes a list of one, so the two are the same code path rather
+than a special case beside a general one. What that cost is `leadColumnOffsets`: `position: sticky`
+needs each frozen column's own `left`, which is the sum of the widths frozen before it, and there is
+no way to say "after the previous sticky one" in a stylesheet. Nine lines, pinned by unit tests on the
+arithmetic and by a rendered test reading `getComputedStyle` off the second frozen cell.
+
+**Freezing is honoured only as a contiguous run from the left.** A frozen column with a scrolling one
+to its left has nowhere honest to sit — its offset describes a gap that the scrolling column slides
+beneath, so it lands on top of whatever is passing under it. The source freezes Account Name alone, so
+the rule costs nothing today and stops an eighteen-column table asking for a layout that cannot be
+drawn. The failure it prevents is the ugly kind: overlapping columns still render, so the covered one
+reads as missing data rather than as a bug.
+
+**What this does NOT settle.** The source also groups those figure columns under a third header row
+(Period → Software/Cloud → product). That would generalise the measured two-row offset this ADR calls
+the mechanism with no precedent, and it was deliberately not taken here — the grouping lives in the
+column labels instead, recorded as a deviation in `docs/ported-apps/mis.md` §7. If a third row is ever
+wanted, this is the ADR to amend, and the offset arithmetic above is the shape the answer takes.

@@ -20,6 +20,7 @@ import { MemoryRouter } from "react-router";
 import { inZone } from "@/test/timeZone";
 import { misPaths } from "@constants/misApps";
 import type { ArrSummaryState } from "@features/finance/mis/api/useArrSummary";
+import type { CustomerAccountsState } from "@features/finance/mis/api/useCustomerAccounts";
 
 // The first real figures on screen. Everything below the shell: the Build's
 // rows, one column group per Annual Period, at default filters.
@@ -51,6 +52,11 @@ vi.mock("@features/finance/mis/api/useMisGate", () => ({
 const summary = { value: {} as ArrSummaryState };
 vi.mock("@features/finance/mis/api/useArrSummary", () => ({
   useArrSummary: () => summary.value,
+}));
+
+const customers = { value: {} as CustomerAccountsState };
+vi.mock("@features/finance/mis/api/useCustomerAccounts", () => ({
+  useCustomerAccounts: () => customers.value,
 }));
 
 // The filter bar's menus, stubbed at the same seam as the figures and for the
@@ -110,9 +116,92 @@ function renderPage(search = "") {
   );
 }
 
+const NORTHWIND = {
+  id: "0018000001abcXYZ",
+  name: "Northwind Bank",
+  accountOwnerName: "John Doe",
+  partnerType: "Direct",
+  naicsIndustry: "Technology",
+  salesRegions: "EMEA",
+  arrSoftwareTotal: 600_000,
+  arrCloudTotal: 150_000,
+  arrGrandTotal: 750_000,
+};
+
+const customerBook = (accounts: Record<string, unknown>[]): CustomerAccountsState => ({
+  columns: [{ label: THIS_YEAR, accounts: accounts as never, isError: false }],
+  isLoading: false,
+  isError: false,
+  errorMessage: "",
+  retry: () => {},
+});
+
 beforeEach(() => {
   localStorage.clear();
   summary.value = loaded({ openingArr: 1_234_567.5 });
+  customers.value = customerBook([NORTHWIND]);
+});
+
+describe("the Software/Cloud Customers table", () => {
+  // Ticket 10. `?table=customers` is the whole switch — the URL contract for it
+  // landed in 02 and the per-Table filter rules in 09, so what is new here is
+  // that a different table appears under the same bar.
+
+  it("shows the customer book, one row per account", () => {
+    renderPage("?table=customers");
+    expect(screen.getByRole("table", { name: /Customers/ })).toBeInTheDocument();
+    expect(screen.getByText("Northwind Bank")).toBeInTheDocument();
+  });
+
+  it("shows the Subscription Build when the link names no Table", () => {
+    // Subscription is the default and is never written to the URL, so "no
+    // table" and "the Build" are the same state — 02 pinned that in the
+    // contract and this is the page honouring it.
+    renderPage();
+    expect(screen.getByRole("table", { name: /Subscription/ })).toBeInTheDocument();
+    expect(screen.queryByText("Northwind Bank")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the Build rather than erroring on a Table it does not know", () => {
+    renderPage("?table=not-a-table");
+    expect(screen.getByRole("table", { name: /Subscription/ })).toBeInTheDocument();
+  });
+
+  it("gives each account its identity columns before the first figure", () => {
+    renderPage("?table=customers");
+    const row = screen.getByText("Northwind Bank").closest("tr")!;
+    const cells = within(row).getAllByRole("cell");
+    // Account ID, Owner, Source — read off the fields the wire sends them under.
+    expect(cells[0]).toHaveTextContent("0018000001abcXYZ");
+    expect(cells[1]).toHaveTextContent("John Doe");
+    expect(cells[2]).toHaveTextContent("Direct");
+  });
+
+  it("heads the figure columns so the three Totals can be told apart", () => {
+    // The source separates them with a Software/Cloud grouping row; this port
+    // renders two header rows, so the labels have to carry it. Deviation, §7.
+    renderPage("?table=customers");
+    expect(screen.getAllByText("Software Total").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Cloud Total").length).toBeGreaterThan(0);
+  });
+
+  it("says so when the whole customer book failed, and offers a retry", () => {
+    customers.value = {
+      columns: [],
+      isLoading: false,
+      isError: true,
+      errorMessage: "Gateway said no.",
+      retry: () => {},
+    };
+    renderPage("?table=customers");
+    expect(screen.getByText(/Gateway said no/)).toBeInTheDocument();
+  });
+
+  it("holds the space rather than showing an empty book while it loads", () => {
+    customers.value = { ...customerBook([]), isLoading: true, columns: [] };
+    renderPage("?table=customers");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
 });
 
 describe("while the figures are loading", () => {

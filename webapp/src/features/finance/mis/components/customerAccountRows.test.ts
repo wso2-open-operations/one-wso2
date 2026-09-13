@@ -16,6 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  CUSTOMER_LEAD_COLUMNS,
   CUSTOMER_SUB_COLUMNS,
   customerAccountRows,
   customerFigure,
@@ -56,12 +57,12 @@ const account = (id: string, name: string, over: Partial<AccountsResponse> = {})
 
 describe("which customers the table has rows for", () => {
   it("gives one row per account, labelled with the account name", () => {
-    const rows = customerAccountRows([[account("a1", "Northwind Bank"), account("a2", "Contoso")]]);
+    const { rows } = customerAccountRows([[account("a1", "Northwind Bank"), account("a2", "Contoso")]]);
     expect(rows.map((row) => row.label)).toEqual(["Northwind Bank", "Contoso"]);
   });
 
   it("carries the account id, which is what a drill-down will be opened by", () => {
-    const [row] = customerAccountRows([[account("a1", "Northwind Bank")]]);
+    const [row] = customerAccountRows([[account("a1", "Northwind Bank")]]).rows;
     expect(row.id).toBe("a1");
   });
 
@@ -70,7 +71,7 @@ describe("which customers the table has rows for", () => {
     // with children would be a section header, and windowing releases a closed
     // section's rows: a customer that could be collapsed would be a customer
     // whose figures could go missing.
-    const rows = customerAccountRows([[account("a1", "Northwind Bank")]]);
+    const { rows } = customerAccountRows([[account("a1", "Northwind Bank")]]);
     expect(rows.every((row) => row.children === undefined)).toBe(true);
   });
 });
@@ -83,7 +84,7 @@ describe("a customer book that changes between columns", () => {
   // they churn — which is exactly the figure the reader is looking for.
 
   it("unions the accounts across every column", () => {
-    const rows = customerAccountRows([
+    const { rows } = customerAccountRows([
       [account("a1", "Northwind Bank")],
       [account("a2", "Contoso")],
     ]);
@@ -91,7 +92,7 @@ describe("a customer book that changes between columns", () => {
   });
 
   it("keeps one row for a customer present in several columns", () => {
-    const rows = customerAccountRows([
+    const { rows } = customerAccountRows([
       [account("a1", "Northwind Bank"), account("a2", "Contoso")],
       [account("a1", "Northwind Bank")],
     ]);
@@ -102,7 +103,7 @@ describe("a customer book that changes between columns", () => {
     // The source builds its union with a Map keyed by id, which is
     // insertion-ordered, and iterates the periods oldest first. Pinned because
     // an unstable order makes the table reshuffle whenever a filter changes.
-    const rows = customerAccountRows([
+    const { rows } = customerAccountRows([
       [account("a2", "Contoso")],
       [account("a1", "Northwind Bank"), account("a3", "Fabrikam")],
     ]);
@@ -110,7 +111,7 @@ describe("a customer book that changes between columns", () => {
   });
 
   it("takes the name from the first column that names them", () => {
-    const rows = customerAccountRows([
+    const { rows } = customerAccountRows([
       [account("a1", "Northwind Bank")],
       [account("a1", "Northwind Bank PLC")],
     ]);
@@ -118,8 +119,8 @@ describe("a customer book that changes between columns", () => {
   });
 
   it("has no rows at all when no column answered", () => {
-    expect(customerAccountRows([])).toEqual([]);
-    expect(customerAccountRows([[], []])).toEqual([]);
+    expect(customerAccountRows([]).rows).toEqual([]);
+    expect(customerAccountRows([[], []]).rows).toEqual([]);
   });
 });
 
@@ -242,5 +243,120 @@ describe("the figure in a cell", () => {
 
   it("is zero when the backend genuinely says zero", () => {
     expect(figureFor("software-apim", account("a3", "Fabrikam"))).toBe(0);
+  });
+});
+
+describe("the account behind a row, for the identity columns", () => {
+  // The eighteen columns left of the first figure — Account ID, Owner, Source,
+  // both countries, Industry, Region, the dates — are facts about the ACCOUNT,
+  // not about any one column's reading of it. So they come from one base
+  // record per customer rather than being re-read per Period, which is what the
+  // source's `baseAccount` is.
+
+  it("hands back the account each row was built from", () => {
+    const { accountById } = customerAccountRows([
+      [account("a1", "Northwind Bank", { accountOwnerName: "John Doe", subRegion: "Northeast" })],
+    ]);
+    expect(accountById.get("a1")).toMatchObject({
+      accountOwnerName: "John Doe",
+      subRegion: "Northeast",
+    });
+  });
+
+  it("takes the account's facts from the first column that carries them", () => {
+    // Same rule as the name, and for the same reason: a Build read beside last
+    // quarter's must agree with it about who was in it and where they were.
+    const { accountById } = customerAccountRows([
+      [account("a1", "Northwind Bank", { salesRegions: "EMEA" })],
+      [account("a1", "Northwind Bank", { salesRegions: "APAC" })],
+    ]);
+    expect(accountById.get("a1")?.salesRegions).toBe("EMEA");
+  });
+
+  it("knows nothing about a customer it never saw", () => {
+    const { accountById } = customerAccountRows([[account("a1", "Northwind Bank")]]);
+    expect(accountById.get("a2")).toBeUndefined();
+  });
+});
+
+describe("the identity columns, left of the first figure", () => {
+  // Eighteen of them in the source, before a single number. This is the table
+  // that made `BuildTable` take a LIST of identity columns rather than one
+  // pinned label — ADR 0004's frozen pane, widened.
+
+  it("names them the way the source's header does", () => {
+    expect(CUSTOMER_LEAD_COLUMNS.map((column) => column.label)).toEqual([
+      "Account Name",
+      "Account ID",
+      "Account Owner",
+      "Source",
+      "Primary Partner Name",
+      "Partner Role",
+      "Delayed Day Count (From Current Date)",
+      "Billing Country",
+      "Shipping Country",
+      "Industry",
+      "Sub Industry",
+      "Sales Region",
+      "Sub Region",
+      "Activation Date",
+      "Churn Date",
+      "Lost Reason Category",
+      "Account Rating",
+      "Employee Count",
+    ]);
+  });
+
+  it("freezes Account Name and nothing else", () => {
+    // The source pins exactly one column. Pinning more would eat the width the
+    // figures need, and `leadColumnOffsets` only honours a contiguous run from
+    // the left anyway — so pinning a later one without this first would be a
+    // layout that cannot be drawn.
+    expect(CUSTOMER_LEAD_COLUMNS.filter((column) => column.pinned).map((c) => c.key)).toEqual([
+      "name",
+    ]);
+  });
+
+  it("reads each fact off the field the backend sends it under", () => {
+    // The header and the wire disagree on four of these — "Source" is
+    // `partnerType`, "Industry" is `naicsIndustry`, "Sales Region" is
+    // `salesRegions`, "Delayed Day Count" is `delayedDateCount` — which is
+    // exactly where a value can land under the wrong heading and still look
+    // plausible.
+    const full = account("a1", "Northwind Bank", {
+      accountOwnerName: "John Doe",
+      partnerType: "Direct",
+      naicsIndustry: "Technology",
+      salesRegions: "EMEA",
+      subRegion: "Northeast",
+      delayedDateCount: 12,
+      churnDate: "2026-01-31",
+      employeeCount: 4200,
+    });
+    const read = (key: string) => CUSTOMER_LEAD_COLUMNS.find((c) => c.key === key)!.value(full);
+    expect(read("owner")).toBe("John Doe");
+    expect(read("source")).toBe("Direct");
+    expect(read("industry")).toBe("Technology");
+    expect(read("sales-region")).toBe("EMEA");
+    expect(read("sub-region")).toBe("Northeast");
+    expect(read("delayed-days")).toBe("12");
+    expect(read("churn-date")).toBe("2026-01-31");
+    expect(read("employees")).toBe("4200");
+  });
+
+  it("shows an empty cell for a fact the backend did not send, not the word undefined", () => {
+    const bare = account("a1", "Northwind Bank");
+    for (const column of CUSTOMER_LEAD_COLUMNS) {
+      expect(column.value(bare)).not.toMatch(/undefined|null|NaN/);
+    }
+  });
+
+  it("shows a genuine zero rather than blanking it", () => {
+    // Delayed Day Count and Employee Count are counts: zero is a fact, and a
+    // blank there would read as "not known" for a customer who is not delayed.
+    const zeroed = account("a1", "Northwind Bank", { delayedDateCount: 0, employeeCount: 0 });
+    const read = (key: string) => CUSTOMER_LEAD_COLUMNS.find((c) => c.key === key)!.value(zeroed);
+    expect(read("delayed-days")).toBe("0");
+    expect(read("employees")).toBe("0");
   });
 });

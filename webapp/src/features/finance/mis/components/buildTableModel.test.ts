@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import {
   ROW_WINDOW_OVERSCAN,
   buildTableIds,
+  leadColumnOffsets,
   rowWindow,
   tableMinWidth,
   visibleRows,
@@ -283,5 +284,70 @@ describe("which rows are worth rendering", () => {
     const { first, last, topPad, bottomPad } = win({ rowHeight: 0 });
     expect([first, last]).toEqual([0, 1000]);
     expect([topPad, bottomPad]).toEqual([0, 0]);
+  });
+});
+
+describe("the columns of row identity, left of the figures", () => {
+  // Ticket 10. The Subscription Build needs ONE column on the left — the
+  // movement's name — and the Software/Cloud Customers table needs eighteen:
+  // Account Name, Account ID, Owner, Source, both countries, Industry, Region,
+  // Activation and Churn dates, and the rest. They are the same mechanism at
+  // two sizes, so the table takes a list and the one-column case is a list of
+  // one.
+  //
+  // What has to be arithmetic rather than CSS: `position: sticky` needs each
+  // frozen column's own `left`, and that is the sum of the widths frozen before
+  // it. Get it wrong and the columns overlap — which looks like missing data
+  // rather than like a layout bug, because the column underneath is still
+  // there, just covered.
+
+  const lead = (key: string, width: number, pinned?: boolean) => ({
+    key,
+    label: key,
+    width,
+    pinned,
+  });
+
+  it("puts the first frozen column at the left edge", () => {
+    expect(leadColumnOffsets([lead("name", 280, true)])).toEqual([0]);
+  });
+
+  it("offsets each frozen column by the ones frozen before it", () => {
+    expect(
+      leadColumnOffsets([lead("name", 280, true), lead("id", 180, true), lead("owner", 120, true)]),
+    ).toEqual([0, 280, 460]);
+  });
+
+  it("leaves an unfrozen column to scroll, with no offset at all", () => {
+    // `undefined` rather than 0: a 0 would freeze it at the left edge, on top
+    // of the column that belongs there.
+    expect(leadColumnOffsets([lead("name", 280, true), lead("id", 180)])).toEqual([0, undefined]);
+  });
+
+  it("stops freezing after the first column that is not frozen", () => {
+    // Pinning is only meaningful as a contiguous run from the left. A frozen
+    // column with a scrolling one to its LEFT has nowhere honest to sit: its
+    // offset would be a gap that the scrolling column slides underneath, so it
+    // would sit on top of whatever happened to be passing. The source pins
+    // Account Name alone and nothing else, so this rule costs nothing there and
+    // stops the eighteen-column table inventing an unrenderable layout.
+    expect(
+      leadColumnOffsets([lead("name", 280, true), lead("id", 180), lead("owner", 120, true)]),
+    ).toEqual([0, undefined, undefined]);
+  });
+
+  it("freezes nothing when nothing asked to be frozen", () => {
+    expect(leadColumnOffsets([lead("name", 280), lead("id", 180)])).toEqual([undefined, undefined]);
+  });
+
+  it("has nothing to say about no columns", () => {
+    expect(leadColumnOffsets([])).toEqual([]);
+  });
+
+  it("widens the table by every lead column, not just the frozen ones", () => {
+    // The unfrozen ones still occupy width, and a minWidth that forgot them
+    // would let the figure columns squeeze rather than the container scroll.
+    const subColumns = [{ key: "amount", label: "Amount", width: 100 }];
+    expect(tableMinWidth(2, subColumns, 280 + 180)).toBe(280 + 180 + 200);
   });
 });

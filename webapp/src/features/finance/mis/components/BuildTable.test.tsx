@@ -764,3 +764,130 @@ describe("a Build with more rows than a document should hold", { timeout: 30_000
     expect(screen.getByText("Customer 0")).toBeInTheDocument();
   });
 });
+
+describe("a table whose rows need more than a name to identify them", () => {
+  // Ticket 10. The Subscription Build identifies a row by one thing — the
+  // movement's name — and the Software/Cloud Customers table needs eighteen
+  // before the first figure: Account Name, Account ID, Owner, Source, both
+  // countries, Industry, Sub Industry, Region, Sub Region, Activation and Churn
+  // dates, Lost Reason, Rating, Employee Count. ADR 0004 owns the frozen first
+  // column; this is that mechanism widened from one column to a run of them,
+  // and the one-column Build is now the degenerate case of the same code.
+
+  const LEAD = [
+    { key: "name", label: "Account Name", width: 200, pinned: true },
+    { key: "id", label: "Account ID", width: 120, pinned: true },
+    { key: "owner", label: "Account Owner", width: 140 },
+  ];
+  const CUSTOMERS: BuildRow[] = [
+    { id: "a1", label: "Northwind Bank" },
+    { id: "a2", label: "Contoso" },
+  ];
+  /** Every lead cell says which row and column it is, so a misplaced one shows. */
+  const leadCell = (row: BuildRow, column: { key: string }) => `${row.id}/${column.key}`;
+
+  const renderWithLead = (rows: BuildRow[] = CUSTOMERS, lead = LEAD) =>
+    render(
+      <BuildTable
+        label="Software/Cloud Customers"
+        rowLabelHeader="Account Name"
+        columnGroups={periodsOf(2)}
+        subColumns={SUB_COLUMNS}
+        rows={rows}
+        cell={cell}
+        leadColumns={lead}
+        leadCell={leadCell}
+      />,
+    );
+
+  it("heads every identity column, above the Periods' own header row", () => {
+    renderWithLead();
+    const firstRow = cellsOf(headerRows()[0]).map((one) => one.textContent);
+    expect(firstRow.slice(0, 3)).toEqual(["Account Name", "Account ID", "Account Owner"]);
+    // And the sub-header row still holds only the figure columns, because each
+    // identity column spans both header rows rather than repeating.
+    expect(cellsOf(headerRows()[1])).toHaveLength(2 * SUB_COLUMNS.length);
+  });
+
+  it("puts each row's identity in its own cell, before the figures", () => {
+    renderWithLead();
+    const cells = cellsOf(rowLabelled("Northwind Bank"));
+    expect(cells[0].textContent).toContain("Northwind Bank");
+    expect(cells[1].textContent).toBe("a1/id");
+    expect(cells[2].textContent).toBe("a1/owner");
+  });
+
+  it("still names the row after the first identity column, for a screen reader", () => {
+    // The first column is the row's NAME, so it stays the `th scope="row"` that
+    // every figure in the row points at. The others are ordinary cells: an
+    // Account ID is not a second name for the row.
+    renderWithLead();
+    const cells = cellsOf(rowLabelled("Northwind Bank"));
+    expect(cells[0].tagName).toBe("TH");
+    expect(cells[0].getAttribute("scope")).toBe("row");
+    expect(cells[1].tagName).toBe("TD");
+  });
+
+  it("points every identity cell at its own column header", () => {
+    renderWithLead();
+    const cells = cellsOf(rowLabelled("Northwind Bank"));
+    for (const identity of [cells[1], cells[2]]) {
+      const headers = identity.getAttribute("headers")!.split(" ");
+      expect(headers.length).toBeGreaterThanOrEqual(1);
+      for (const id of headers) expect(document.getElementById(id)).not.toBeNull();
+    }
+  });
+
+  it("freezes the run of columns that asked to be, each past the last", () => {
+    // The arithmetic `leadColumnOffsets` exists for, checked against what was
+    // actually rendered: Account ID sits at exactly Account Name's width, or
+    // the two overlap and the ID looks like missing data.
+    renderWithLead();
+    const cells = cellsOf(rowLabelled("Northwind Bank"));
+    expect(getComputedStyle(cells[0]).position).toBe("sticky");
+    expect(getComputedStyle(cells[0]).left).toBe("0px");
+    expect(getComputedStyle(cells[1]).position).toBe("sticky");
+    expect(getComputedStyle(cells[1]).left).toBe("200px");
+  });
+
+  it("lets the columns that did not ask to be frozen scroll away", () => {
+    renderWithLead();
+    const owner = cellsOf(rowLabelled("Northwind Bank"))[2];
+    expect(getComputedStyle(owner).position).not.toBe("sticky");
+  });
+
+  it("keeps the figures pointed at their row, Period and sub-column", () => {
+    // The identity columns must not have shifted the `headers` wiring along.
+    renderWithLead();
+    const cells = cellsOf(rowLabelled("Northwind Bank"));
+    const figure = cells[LEAD.length];
+    const headers = figure.getAttribute("headers")!.split(" ");
+    expect(headers).toHaveLength(3);
+    for (const id of headers) expect(document.getElementById(id)).not.toBeNull();
+  });
+
+  it("still windows its rows, which is the case this table exists for", () => {
+    // The whole reason Software/Cloud Customers is the table ticket 07 was
+    // waiting on. Identity columns must not have cost the windowing.
+    const many: BuildRow[] = Array.from({ length: 3000 }, (_, i) => ({
+      id: `c${i}`,
+      label: `Customer ${i}`,
+    }));
+    renderWithLead(many);
+    const rendered = bodyRows().filter((row) => !row.hasAttribute("aria-hidden"));
+    expect(rendered.length).toBeLessThan(100);
+    expect(screen.queryByText("Customer 2999")).not.toBeInTheDocument();
+    // And an identity cell in a windowed row still reads.
+    expect(screen.getByText("c0/id")).toBeInTheDocument();
+  });
+
+  it("behaves exactly as before when a table names only one identity column", () => {
+    // The Subscription Build's case, which is 37 other tests in this file. Here
+    // only to say that the one-column path is the same code and not a branch.
+    renderTable(5);
+    const cells = cellsOf(rowLabelled("Opening ARR"));
+    expect(cells[0].tagName).toBe("TH");
+    expect(getComputedStyle(cells[0]).left).toBe("0px");
+    expect(cells).toHaveLength(1 + 5 * SUB_COLUMNS.length);
+  });
+});

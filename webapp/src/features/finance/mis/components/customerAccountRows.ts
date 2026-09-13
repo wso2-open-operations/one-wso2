@@ -44,12 +44,35 @@
 // definition anywhere reads it. Porting it would carry a column the source has
 // not shown for as long as its own header list has existed.
 
-import type { BuildRow } from "./buildTableModel";
+import type { BuildLeadColumn, BuildRow } from "./buildTableModel";
 
-/** One account as `POST /accounts` returns it — the fields this table reads. */
+/**
+ * One account as `POST /accounts` returns it — the fields this table reads.
+ *
+ * The first block is what the identity columns show and the second is the
+ * revenue breakdown. Field names are the wire's, not the header's: `name` is
+ * headed "Account Name", `naicsIndustry` is "Industry", `partnerType` is
+ * "Source", `delayedDateCount` is "Delayed Day Count (From Current Date)".
+ */
 export interface AccountsResponse {
   id: string;
   name: string;
+  accountOwnerName?: string;
+  partnerType?: string;
+  primaryPartnerName?: string;
+  primaryPartnerRole?: string;
+  delayedDateCount?: number;
+  billingCountry?: string;
+  shippingCountry?: string;
+  naicsIndustry?: string;
+  subIndustry?: string;
+  salesRegions?: string;
+  subRegion?: string;
+  activationDate?: string;
+  churnDate?: string;
+  lostReasonCategory?: string;
+  accountRating?: string;
+  employeeCount?: number;
   apimSoftwareTotal?: number;
   iamSoftwareTotal?: number;
   integrationSoftwareTotal?: number;
@@ -63,6 +86,77 @@ export interface AccountsResponse {
   arrCloudTotal?: number;
   arrGrandTotal?: number;
 }
+
+/** One identity column, and how to read its value off an account. */
+export interface CustomerLeadColumn extends BuildLeadColumn {
+  value: (account: AccountsResponse) => string;
+}
+
+/** Blank for a fact the backend did not send; `0` is a fact and survives. */
+const text = (value: string | number | undefined): string =>
+  value === undefined || value === null || value === "" ? "" : String(value);
+
+/**
+ * The eighteen columns before the first figure, in the source's order.
+ *
+ * This is the table that made `BuildTable` take a LIST of identity columns
+ * rather than one pinned label: the Subscription Build says which movement a
+ * row is and stops, and this one has to say which ACCOUNT a row is — who owns
+ * it, where it bills, when it activated and when it churned.
+ *
+ * Only Account Name is frozen, which is what the source freezes. Freezing more
+ * would eat the width the sixty figure columns need, and `leadColumnOffsets`
+ * only honours a contiguous run from the left in any case.
+ *
+ * The header and the wire disagree on four of these — "Source" is
+ * `partnerType`, "Industry" is `naicsIndustry`, "Sales Region" is the plural
+ * `salesRegions`, "Delayed Day Count" is `delayedDateCount` — so, as with the
+ * figure columns, the mapping is data here and pinned field by field in tests.
+ */
+export const CUSTOMER_LEAD_COLUMNS: readonly CustomerLeadColumn[] = [
+  // `value` is unread for this one: `BuildTable` renders the row's own label in
+  // the first identity column, because that is the cell carrying the tree
+  // toggle and naming the row for a screen reader. Stated so the list reads as
+  // eighteen columns rather than seventeen plus a special case.
+  { key: "name", label: "Account Name", width: 280, pinned: true, value: (a) => text(a.name) },
+  { key: "id", label: "Account ID", width: 180, value: (a) => text(a.id) },
+  { key: "owner", label: "Account Owner", width: 180, value: (a) => text(a.accountOwnerName) },
+  { key: "source", label: "Source", width: 150, value: (a) => text(a.partnerType) },
+  {
+    key: "partner-name",
+    label: "Primary Partner Name",
+    width: 200,
+    value: (a) => text(a.primaryPartnerName),
+  },
+  { key: "partner-role", label: "Partner Role", width: 160, value: (a) => text(a.primaryPartnerRole) },
+  {
+    key: "delayed-days",
+    label: "Delayed Day Count (From Current Date)",
+    width: 200,
+    value: (a) => text(a.delayedDateCount),
+  },
+  { key: "billing-country", label: "Billing Country", width: 160, value: (a) => text(a.billingCountry) },
+  {
+    key: "shipping-country",
+    label: "Shipping Country",
+    width: 160,
+    value: (a) => text(a.shippingCountry),
+  },
+  { key: "industry", label: "Industry", width: 170, value: (a) => text(a.naicsIndustry) },
+  { key: "sub-industry", label: "Sub Industry", width: 170, value: (a) => text(a.subIndustry) },
+  { key: "sales-region", label: "Sales Region", width: 160, value: (a) => text(a.salesRegions) },
+  { key: "sub-region", label: "Sub Region", width: 160, value: (a) => text(a.subRegion) },
+  { key: "activation-date", label: "Activation Date", width: 150, value: (a) => text(a.activationDate) },
+  { key: "churn-date", label: "Churn Date", width: 150, value: (a) => text(a.churnDate) },
+  {
+    key: "lost-reason",
+    label: "Lost Reason Category",
+    width: 190,
+    value: (a) => text(a.lostReasonCategory),
+  },
+  { key: "rating", label: "Account Rating", width: 150, value: (a) => text(a.accountRating) },
+  { key: "employees", label: "Employee Count", width: 150, value: (a) => text(a.employeeCount) },
+];
 
 /** One figure a customer's revenue is broken down into, within one Period. */
 export interface CustomerSubColumn {
@@ -137,17 +231,37 @@ export const CUSTOMER_SUB_COLUMNS: readonly CustomerSubColumn[] = [
  * matters more here than it looks: an unstable order reshuffles hundreds of
  * rows under the reader every time a filter changes.
  */
-export function customerAccountRows(columns: readonly (readonly AccountsResponse[])[]): BuildRow[] {
-  const byId = new Map<string, BuildRow>();
+export interface CustomerRows {
+  /** One per customer, in first-appearance order. */
+  rows: BuildRow[];
+  /**
+   * The account each row was built from, for the identity columns.
+   *
+   * Those columns show facts about the ACCOUNT — its owner, region, industry,
+   * activation and churn dates — not about any one column's reading of it, so
+   * they come from one base record rather than being re-read per Period. The
+   * source calls this `baseAccount` and fills it the same way.
+   */
+  accountById: ReadonlyMap<string, AccountsResponse>;
+}
+
+export function customerAccountRows(
+  columns: readonly (readonly AccountsResponse[])[],
+): CustomerRows {
+  const rows: BuildRow[] = [];
+  const accountById = new Map<string, AccountsResponse>();
   for (const accounts of columns) {
     for (const account of accounts) {
-      // First name wins. The alternative — the newest column's name — would
-      // rewrite history every time a customer is renamed, so a Build read
-      // beside last quarter's would not agree with it about who was in it.
-      if (!byId.has(account.id)) byId.set(account.id, { id: account.id, label: account.name });
+      // First appearance wins, for the name and for every other fact. The
+      // alternative — the newest column's — would rewrite history every time a
+      // customer is renamed or moves region, so a Build read beside last
+      // quarter's would not agree with it about who was in it.
+      if (accountById.has(account.id)) continue;
+      accountById.set(account.id, account);
+      rows.push({ id: account.id, label: account.name });
     }
   }
-  return [...byId.values()];
+  return { rows, accountById };
 }
 
 /**

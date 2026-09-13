@@ -30,10 +30,12 @@ import { ChevronDown, ChevronRight } from "@wso2/oxygen-ui-icons-react";
 import {
   ROW_WINDOW_THRESHOLD,
   buildTableIds,
+  leadColumnOffsets,
   rowWindow,
   tableMinWidth,
   visibleRows,
   type BuildColumnGroup,
+  type BuildLeadColumn,
   type BuildRow,
   type BuildSubColumn,
 } from "./buildTableModel";
@@ -43,9 +45,9 @@ import {
   HEAD_CELL_SX,
   MAX_BODY_HEIGHT,
   NUMERIC_CELL_SX,
-  ROW_LABEL_CELL_SX,
   ROW_LABEL_WIDTH,
   Z,
+  leadCellSx,
 } from "./buildTableSx";
 
 // The table every Build screen and the Flash P&L render through.
@@ -92,8 +94,21 @@ export type BuildCellFor = (
 export interface BuildTableProps {
   /** The table's accessible name. */
   label: string;
-  /** Header over the pinned row-label column. */
+  /**
+   * Header over the pinned row-label column — the first identity column, and
+   * the only one a table with nothing else to say about its rows needs.
+   */
   rowLabelHeader: string;
+  /**
+   * The identity columns, left of the figures, when a row needs more than a
+   * name. The FIRST is the row label — it carries the tree toggle, the indent
+   * and `row.label`, and it stays the cell a screen reader names the row by.
+   * Omitted, the table has exactly one, built from `rowLabelHeader` and
+   * `rowLabelWidth`, which is the Subscription Build.
+   */
+  leadColumns?: readonly BuildLeadColumn[];
+  /** The text in an identity column after the first. */
+  leadCell?: (row: BuildRow, column: BuildLeadColumn) => string;
   /** One per Period, in display order. */
   columnGroups: readonly BuildColumnGroup[];
   /** Repeated under every Period — Amount, % of Opening. */
@@ -113,6 +128,8 @@ export interface BuildTableProps {
 export default function BuildTable({
   label,
   rowLabelHeader,
+  leadColumns,
+  leadCell,
   columnGroups,
   subColumns,
   rows,
@@ -124,6 +141,22 @@ export default function BuildTable({
   const theme = useTheme();
   const ids = buildTableIds(useId());
   const [periodRowRef, periodRowHeight] = useHeaderRowHeight();
+
+  // One identity column unless the caller named more. The Subscription Build
+  // takes this path and is therefore the same code as the eighteen-column
+  // customers table rather than a branch beside it.
+  const lead: readonly BuildLeadColumn[] = useMemo(
+    () =>
+      leadColumns?.length
+        ? leadColumns
+        : [{ key: "__label", label: rowLabelHeader, width: rowLabelWidth, pinned: true }],
+    [leadColumns, rowLabelHeader, rowLabelWidth],
+  );
+  const leadOffsets = useMemo(() => leadColumnOffsets(lead), [lead]);
+  const leadWidth = lead.reduce((total, column) => total + column.width, 0);
+  /** The id heading one identity column. The first keeps the name it shipped with. */
+  const leadHeaderId = (index: number) =>
+    index === 0 ? ids.rowLabelHeader : ids.leadHeader(lead[index].key);
 
   // Seeded once. The reader's open sections must survive a refetch and a change
   // of Period — flipping Annually to Quarterly must not silently reopen a tree
@@ -139,7 +172,7 @@ export default function BuildTable({
   );
   const onScreen = visible.slice(rowsInView.first, rowsInView.last);
   /** Every column, for a spacer row to span. */
-  const columnCount = 1 + columnGroups.length * subColumns.length;
+  const columnCount = lead.length + columnGroups.length * subColumns.length;
 
   const toggle = (id: string) =>
     setExpandedIds((open) => {
@@ -149,7 +182,7 @@ export default function BuildTable({
     });
 
   const tint = theme.palette.action.hover;
-  const minWidth = tableMinWidth(columnGroups.length, subColumns, rowLabelWidth);
+  const minWidth = tableMinWidth(columnGroups.length, subColumns, leadWidth);
 
   return (
     <Box
@@ -187,25 +220,34 @@ export default function BuildTable({
           <TableHead>
             {/* ROW 1 — the row-label column, then one cell per Period. */}
             <TableRow ref={periodRowRef}>
-              <TableCell
-                id={ids.rowLabelHeader}
-                rowSpan={2}
-                scope="col"
-                style={{ width: rowLabelWidth, minWidth: rowLabelWidth }}
-                sx={{
-                  ...HEAD_CELL_SX,
-                  top: 0,
-                  left: 0,
-                  // Sticky on both axes, so it has to outrank the Period
-                  // headers it scrolls under AND the row labels it scrolls over.
-                  zIndex: Z.headerCorner,
-                  textAlign: "left",
-                  color: "text.primary",
-                  borderRight: 1,
-                }}
-              >
-                {rowLabelHeader}
-              </TableCell>
+              {lead.map((column, index) => (
+                <TableCell
+                  key={column.key}
+                  id={leadHeaderId(index)}
+                  rowSpan={2}
+                  scope="col"
+                  style={{ width: column.width, minWidth: column.width }}
+                  sx={{
+                    ...HEAD_CELL_SX,
+                    top: 0,
+                    ...(leadOffsets[index] === undefined
+                      ? {}
+                      : {
+                          position: "sticky",
+                          left: leadOffsets[index],
+                          // Sticky on BOTH axes, so it has to outrank the Period
+                          // headers it scrolls under AND the identity cells it
+                          // scrolls over.
+                          zIndex: Z.headerCorner,
+                        }),
+                    textAlign: "left",
+                    color: "text.primary",
+                    borderRight: 1,
+                  }}
+                >
+                  {column.label}
+                </TableCell>
+              ))}
               {columnGroups.map((group, groupIndex) => (
                 <TableCell
                   key={group.key}
@@ -273,8 +315,8 @@ export default function BuildTable({
                   component="th"
                   scope="row"
                   id={ids.rowHeader(row.id)}
-                  style={{ width: rowLabelWidth, minWidth: rowLabelWidth, maxWidth: rowLabelWidth }}
-                  sx={ROW_LABEL_CELL_SX}
+                  style={{ width: lead[0].width, minWidth: lead[0].width, maxWidth: lead[0].width }}
+                  sx={leadCellSx(leadOffsets[0])}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} style={{ paddingLeft: depth * 18 }}>
                     {expandable ? (
@@ -306,6 +348,36 @@ export default function BuildTable({
                     </Typography>
                   </Box>
                 </TableCell>
+
+                {/* The identity columns after the name. Ordinary cells, not row
+                    headers: an Account ID is a fact ABOUT the row, not a second
+                    name for it, so a screen reader should hear it as a value
+                    under its own column and not as part of the row's name. */}
+                {lead.slice(1).map((column, offsetIndex) => {
+                  const index = offsetIndex + 1;
+                  return (
+                    <TableCell
+                      key={column.key}
+                      headers={`${ids.rowHeader(row.id)} ${ids.leadHeader(column.key)}`}
+                      style={{ width: column.width, minWidth: column.width, maxWidth: column.width }}
+                      sx={leadCellSx(leadOffsets[index])}
+                    >
+                      <Typography
+                        component="span"
+                        sx={{
+                          fontSize: 12.5,
+                          lineHeight: 1.6,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          display: "block",
+                        }}
+                      >
+                        {leadCell?.(row, column) ?? ""}
+                      </Typography>
+                    </TableCell>
+                  );
+                })}
 
                 {columnGroups.map((group, groupIndex) =>
                   subColumns.map((subColumn, subIndex) => {

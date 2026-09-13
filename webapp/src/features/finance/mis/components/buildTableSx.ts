@@ -194,6 +194,24 @@ export const ROW_LABEL_CELL_SX = {
 } as const;
 
 /**
+ * One identity cell, frozen at `offset` or left to scroll.
+ *
+ * The same pane ADR 0004 already owns, widened from one column to a run of
+ * them: the Subscription Build names a row with a movement, and the
+ * Software/Cloud Customers table needs eighteen columns to say which account a
+ * row is. A frozen cell must also be OPAQUE — a translucent one lets the
+ * figures moving behind it show through, and the pane reads as a smear rather
+ * than as a pane — which `cellBase` already supplies.
+ *
+ * `undefined` leaves the cell in the flow. It is not `left: 0`, which would
+ * freeze it on top of the column that belongs at the left edge.
+ */
+export const leadCellSx = (offset: number | undefined) =>
+  offset === undefined
+    ? { ...ROW_LABEL_CELL_SX, position: "static" as const, left: "auto" as const, zIndex: "auto" as const }
+    : { ...ROW_LABEL_CELL_SX, left: offset };
+
+/**
  * The hairline between two Periods, on the first sub-column of each.
  *
  * Skipped on the first Period so it does not double against the pinned
