@@ -114,6 +114,7 @@ import TradeReferenceDeactivatedPage from "@features/due-diligence/trade-referen
 import DueDiligencePreferencesPage from "@features/due-diligence/preferences/pages/PreferencesPage";
 import ViewPdfPage from "@features/due-diligence/shared/pages/ViewPdfPage";
 import ViewImagePage from "@features/due-diligence/shared/pages/ViewImagePage";
+import ExpenseApprovalsScreen from "@features/finance/expense/approvals/ExpenseApprovalsScreen";
 
 export default function App() {
   return (
@@ -243,6 +244,13 @@ export default function App() {
               a claim until it is reconciled with Me → Claims; reading what you
               have already filed has no such duplicate to reconcile. */}
           <Route path="finance/expense-claims/history" element={<ExpenseClaimHistoryPage />} />
+          {/* Approving sits beside filing, where the source app's sidebar keeps
+              it. The screen gates itself on the finance flag, so a typed URL is
+              no more revealing than the menu entry it belongs to. */}
+          <Route
+            path="finance/expense-claims/finance-approvals"
+            element={<ExpenseApprovalsScreen stage="FINANCE" />}
+          />
           <Route path="finance/cc/dashboard" element={<CcDashboardPage />} />
           <Route path="finance/cc/new" element={<CcNewTransactionsPage />} />
           <Route path="finance/cc/pending" element={<CcPendingPage />} />

@@ -82,6 +82,11 @@ export function useFinanceGate(enabled = true): FinanceGate {
       // a route that no longer exists.
       case "expense-new":
         return isPreviewEnabled("expenseSubmitter");
+      // Approving expense claims, beside filing them. The finance stage only —
+      // its own flag, the way `appDataSlice.ts:104-109` decides whether the
+      // source app's Finance Approvals entry exists at all.
+      case "expense-finance-approvals":
+        return expenseFinance;
       case "cc-approve":
         return ccLeadOrFinance;
       case "cc-settings":

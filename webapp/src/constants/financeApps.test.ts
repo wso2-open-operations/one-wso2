@@ -54,18 +54,20 @@ describe("where each finance app lives", () => {
   // card app is not part of the set every employee needs.
   //
   // "expense" covers the same ground as "claims" → Expense under Me, but with
-  // its own screens (expense/submitter, expense/history) rather than the Me
-  // ones — the Finance side can file for another employee, which the Me side
-  // cannot. It keeps its own registry key, distinct from "claims", which is
-  // what the other invariants below actually depend on.
+  // its own screens (expense/submitter, expense/history, expense/approvals)
+  // rather than the Me ones — the Finance side can file for another employee
+  // and decide on other people's claims, neither of which the Me side does. It
+  // keeps its own registry key, distinct from "claims", which is what the other
+  // invariants below actually depend on.
   it("keeps claims with the person, and both the card and expense claims with finance", async () => {
     const { ME_FINANCE_APPS, FINANCE_PERSPECTIVE_APPS } = await load();
     expect(keys(ME_FINANCE_APPS)).toEqual(["claims"]);
     expect(keys(FINANCE_PERSPECTIVE_APPS)).toEqual(["expense", "cc"]);
   });
 
-  // The preview flag holds back New Claim, which duplicates Me → Claims. It
-  // does not hold back the app, because Claim History has no such duplicate.
+  // The flag gates the New Claim ITEM, not the whole app. New Claim duplicates
+  // Me → Claims; Claim History and Finance Approvals have no such duplicate, and
+  // hiding the app would take them with it.
   it("adds New Claim only when the preview flag is on", async () => {
     const off = await load({ expenseSubmitter: false });
     expect(itemIds(off.FINANCE_PERSPECTIVE_APPS)).not.toContain("expense-new");
@@ -81,10 +83,14 @@ describe("where each finance app lives", () => {
     expect(itemIds(FINANCE_PERSPECTIVE_APPS)).not.toContain("expense-new");
   });
 
-  it("keeps Claim History whatever the flag says", async () => {
+  // Both shipped entries stand on their own. The source's Lead Approvals entry
+  // is not ported.
+  it("keeps Claim History and Finance Approvals whatever the flag says", async () => {
     for (const preview of [{}, { expenseSubmitter: true }]) {
       const { FINANCE_PERSPECTIVE_APPS } = await load(preview);
       expect(itemIds(FINANCE_PERSPECTIVE_APPS)).toContain("expense-history");
+      expect(itemIds(FINANCE_PERSPECTIVE_APPS)).toContain("expense-finance-approvals");
+      expect(itemIds(FINANCE_PERSPECTIVE_APPS)).not.toContain("expense-lead-approvals");
     }
   });
 

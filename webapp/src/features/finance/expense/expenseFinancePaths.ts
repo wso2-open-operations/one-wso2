@@ -19,4 +19,9 @@ export const EXPENSE_FINANCE_PATH = "/finance/expense-claims";
 export const expenseFinancePaths = {
   new: `${EXPENSE_FINANCE_PATH}/new`,
   history: `${EXPENSE_FINANCE_PATH}/history`,
+  // Finance Approvals, beside filing — the source app's own sidebar entry and
+  // its own URL (`routes.tsx:18-20`). Its Lead Approvals entry is not ported
+  // here; the screen takes the stage as a parameter, so adding it later is a
+  // path, a nav entry and a gate, with no change to the screen itself.
+  financeApprovals: `${EXPENSE_FINANCE_PATH}/finance-approvals`,
 } as const;
