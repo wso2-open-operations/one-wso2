@@ -28,7 +28,9 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChevronDown, ChevronRight } from "@wso2/oxygen-ui-icons-react";
 import {
+  ROW_WINDOW_THRESHOLD,
   buildTableIds,
+  rowWindow,
   tableMinWidth,
   visibleRows,
   type BuildColumnGroup,
@@ -62,8 +64,10 @@ import {
 // See `useHeaderRowHeight` below.
 //
 // What this component does NOT do, deliberately: no formatting (injected, so
-// the Scale rule stays in one place — ticket 05), no fetching, no windowing
-// (ticket 07), no drill-down (ticket 10).
+// the Scale rule stays in one place — ticket 05), no fetching, no drill-down
+// (ticket 10).
+//
+// It DOES window its rows above `ROW_WINDOW_THRESHOLD` — see `useRowWindow`.
 
 /** One figure, as the caller wants it read. */
 export interface BuildCell {
@@ -129,6 +133,13 @@ export default function BuildTable({
     () => new Set(defaultExpandedIds ?? []),
   );
   const visible = useMemo(() => visibleRows(rows, expandedIds), [rows, expandedIds]);
+  const { scrollRef, firstRowRef, onScroll, rowsInView } = useRowWindow(
+    visible.length,
+    maxBodyHeight,
+  );
+  const onScreen = visible.slice(rowsInView.first, rowsInView.last);
+  /** Every column, for a spacer row to span. */
+  const columnCount = 1 + columnGroups.length * subColumns.length;
 
   const toggle = (id: string) =>
     setExpandedIds((open) => {
@@ -150,7 +161,12 @@ export default function BuildTable({
         backgroundColor: "background.paper",
       }}
     >
-      <Box sx={{ overflow: "auto", position: "relative" }} style={{ maxHeight: maxBodyHeight }}>
+      <Box
+        ref={scrollRef}
+        onScroll={onScroll}
+        sx={{ overflow: "auto", position: "relative" }}
+        style={{ maxHeight: maxBodyHeight }}
+      >
         <Table
           size="small"
           stickyHeader
@@ -239,9 +255,18 @@ export default function BuildTable({
           </TableHead>
 
           <TableBody>
-            {visible.map(({ row, depth, expandable, expanded }) => (
+            {/* The rows above the window, as height rather than as rows, so the
+                scrollbar still describes the whole table. `aria-hidden` because
+                it holds space and says nothing: a screen reader counting rows
+                should count the ones carrying figures. */}
+            <RowSpacer height={rowsInView.topPad} columnCount={columnCount} />
+            {onScreen.map(({ row, depth, expandable, expanded }, index) => (
               <TableRow
                 key={row.id}
+                // One row is measured, and every other is assumed to match it.
+                // They do: the label cannot wrap (`nowrap`) and every figure is
+                // one line, so the only variation is the 2px rule above a total.
+                ref={index === 0 ? firstRowRef : undefined}
                 sx={rowSx({ emphasis: row.emphasis, ruleAbove: row.ruleAbove, tint })}
               >
                 <TableCell
@@ -307,11 +332,165 @@ export default function BuildTable({
                 )}
               </TableRow>
             ))}
+            <RowSpacer height={rowsInView.bottomPad} columnCount={columnCount} />
           </TableBody>
         </Table>
       </Box>
     </Box>
   );
+}
+
+/** The space rows outside the window would have taken, as one empty row. */
+function RowSpacer({ height, columnCount }: { height: number; columnCount: number }) {
+  if (height <= 0) return null;
+  return (
+    <TableRow aria-hidden>
+      {/* Inline, not sx: the height is derived from the data, and every cell in
+          this table otherwise carries a bottom border that would draw a line
+          across the padding. */}
+      <TableCell colSpan={columnCount} style={{ height, padding: 0, border: "none" }} />
+    </TableRow>
+  );
+}
+
+/** A row's height before anything has been laid out. Replaced by the measurement. */
+const ESTIMATED_ROW_HEIGHT = 25;
+
+/**
+ * A number measured off an element, kept current as the page moves.
+ *
+ * Both things this table has to measure — the first header row's height and the
+ * body's own — were being measured by the same twelve lines, and
+ * `useFillHeight.ts` has a third copy. They are gathered here rather than there
+ * because that hook measures a DIFFERENT element from the one it is given (the
+ * nearest scrolling ancestor), so folding it in would change a shipped hook to
+ * remove a repetition it is not really part of. Worth doing; not worth doing
+ * inside this ticket.
+ *
+ * `ResizeObserver` is the right instrument and is absent under jsdom, so it is
+ * optional: the mount measurement, the resize listener and `watch` still give
+ * the right answer without it.
+ *
+ * Returns 0 until something has actually been laid out, which is what jsdom
+ * reports forever. Callers decide what to do about that; none of them should
+ * divide by it.
+ */
+function useMeasuredValue<T extends HTMLElement>(
+  measure: (element: T) => number,
+  { enabled = true, watch }: { enabled?: boolean; watch?: unknown } = {},
+) {
+  const ref = useRef<T>(null);
+  const [value, setValue] = useState(0);
+  // The caller's closure is rebuilt every render; the listeners are not. Held
+  // in a ref so the effect depends on what actually decides it — and kept
+  // current by an effect of its own rather than by an assignment during render,
+  // which is not a render's job to do. `useMisScale` keeps the same shape for
+  // the same reason. Declared first, so it has already run when the effect
+  // below reads it on mount.
+  const latest = useRef(measure);
+  useLayoutEffect(() => {
+    latest.current = measure;
+  });
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element || !enabled) return;
+    const run = () => setValue(latest.current(element));
+    run();
+    window.addEventListener("resize", run);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(run);
+    observer?.observe(element);
+    return () => {
+      window.removeEventListener("resize", run);
+      observer?.disconnect();
+    };
+  }, [enabled, watch]);
+
+  return [ref, value] as const;
+}
+
+/**
+ * Which rows to put in the document.
+ *
+ * ADR 0004 named this as required scope rather than a caveat: a hand-rolled
+ * `<table>` has no virtualization, and the per-customer Builds are hundreds of
+ * customers per business unit. Rendering all of them is not slow in the way a
+ * long list is slow — every row is `columnGroups × subColumns` cells, and every
+ * cell is a call into the caller's formatter, so a 3,000-row Build at five
+ * Periods asks 30,000 questions to show twenty lines. It does that again on
+ * every hover, every toggle, and every time the measured header settles.
+ *
+ * ---- what is windowed, and what is not -------------------------------------
+ *
+ * Only the rows. The table, the two header rows and the pinned column are
+ * untouched, and that is the whole design: the rows stay real `<tr>`s in a real
+ * `<tbody>`, so the table algorithm still sizes the columns across header and
+ * body, `position: sticky` still works on the label column, and the
+ * `id`/`headers` wiring still resolves. What replaces the rows outside the
+ * window is two empty rows carrying their height.
+ *
+ * `react-window` is a dependency here and cannot do this — see `rowWindow` for
+ * the primary source. Ticket 07 asked for it to be tried first; it was.
+ *
+ * Below `ROW_WINDOW_THRESHOLD` none of this runs and the table renders exactly
+ * what it rendered before. The Subscription Build is 34 rows and takes that
+ * path.
+ */
+function useRowWindow(total: number, maxBodyHeight: number) {
+  const [scrollTop, setScrollTop] = useState(0);
+  const windowed = total > ROW_WINDOW_THRESHOLD;
+
+  // Neither measurement runs below the threshold: a 34-row Build should not pay
+  // a layout read, two listeners and a re-render for a mechanism it will never
+  // use. `watch: total` re-measures when the rows change, because the row the
+  // height was taken from may no longer be there.
+  const [scrollRef, viewportHeight] = useMeasuredValue<HTMLDivElement>(
+    (element) => element.clientHeight,
+    { enabled: windowed, watch: total },
+  );
+  const [firstRowRef, measuredRowHeight] = useMeasuredValue<HTMLTableRowElement>(
+    (element) => element.getBoundingClientRect().height,
+    { enabled: windowed, watch: total },
+  );
+  // Zero is jsdom, or a paint that has not happened yet. The estimate is a far
+  // better answer than rendering every row once and windowing on the next
+  // pass — and it means `rowHeight` is never zero, whatever the DOM says.
+  const rowHeight = measuredRowHeight || ESTIMATED_ROW_HEIGHT;
+
+  const onScroll = (event: { currentTarget: HTMLElement }) => {
+    const next = event.currentTarget.scrollTop;
+    // Only when the window would actually move. A scroll event fires per frame;
+    // re-rendering for a change of three pixels re-asks the caller for every
+    // figure on screen to produce identical markup.
+    setScrollTop((previous) =>
+      Math.floor(previous / rowHeight) === Math.floor(next / rowHeight) ? previous : next,
+    );
+  };
+
+  if (!windowed) {
+    return {
+      scrollRef,
+      firstRowRef,
+      onScroll: undefined,
+      rowsInView: { first: 0, last: total, topPad: 0, bottomPad: 0 },
+    };
+  }
+
+  return {
+    scrollRef,
+    firstRowRef,
+    onScroll,
+    rowsInView: rowWindow({
+      total,
+      scrollTop,
+      // The container has no laid-out height on the first paint, and none at
+      // all under jsdom. `maxBodyHeight` is what it will settle at, so it is
+      // the right guess rather than a fallback — and it errs long, which costs
+      // a few extra rows rather than leaving a gap at the bottom of the view.
+      viewportHeight: viewportHeight || maxBodyHeight,
+      rowHeight,
+    }),
+  };
 }
 
 /**
@@ -340,26 +519,8 @@ export default function BuildTable({
  * the `cell` function for every figure on screen again, which at 12 Periods and
  * several thousand rows is the cost windowing exists to remove.
  */
-function useHeaderRowHeight() {
-  const ref = useRef<HTMLTableRowElement>(null);
-  const [height, setHeight] = useState(0);
-
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const measure = () => setHeight(element.getBoundingClientRect().height);
-    measure();
-    window.addEventListener("resize", measure);
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    observer?.observe(element);
-    return () => {
-      window.removeEventListener("resize", measure);
-      observer?.disconnect();
-    };
-  }, []);
-
-  return [ref, height] as const;
-}
+const useHeaderRowHeight = () =>
+  useMeasuredValue<HTMLTableRowElement>((element) => element.getBoundingClientRect().height);
 
 // The prop types, re-exported: a screen describing a Build should not have to
 // reach past this component into the module behind it.

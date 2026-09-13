@@ -15,10 +15,16 @@
 // under the License.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BuildTable, { type BuildCellFor } from "./BuildTable";
-import type { BuildColumnGroup, BuildRow, BuildSubColumn } from "./buildTableModel";
+import { rowSx } from "./buildTableSx";
+import {
+  ROW_WINDOW_THRESHOLD,
+  type BuildColumnGroup,
+  type BuildRow,
+  type BuildSubColumn,
+} from "./buildTableModel";
 
 // ADR 0004 committed this port to a hand-rolled table, and listed what that
 // obliges: four mechanisms MUI declines to provide, which this repo now owns
@@ -528,5 +534,200 @@ describe("the figures themselves", () => {
     expect(opening).toContain("linear-gradient");
     expect(opening).not.toContain("border-top");
     expect(rowCellRules(rowLabelled("New"), false).join(" ")).not.toContain("font-weight: 700");
+  });
+});
+
+describe("a Build with more rows than a document should hold", () => {
+  // ADR 0004 chose a hand-rolled `<table>` and listed row windowing as required
+  // scope in the same breath, because a hand-rolled table has no virtualization
+  // and the per-customer Builds are hundreds of customers per business unit.
+  //
+  // The row height under jsdom is the 30 the stub above reports, and the
+  // scroll container has no height at all, so the table falls back to its own
+  // `maxBodyHeight`. Both are the real code paths: a browser's first paint also
+  // measures nothing before layout.
+
+  /** A per-customer Build: one row each, no tree, thousands of them. */
+  const customers = (count: number): BuildRow[] =>
+    Array.from({ length: count }, (_, i) => ({ id: `c${i}`, label: `Customer ${i}` }));
+
+  const scroller = () => screen.getByRole("table").parentElement!;
+  /** The spacer rows standing in for what was not rendered. */
+  const spacers = () => Array.from(document.querySelectorAll("tbody tr[aria-hidden]"));
+  const spacerHeights = () =>
+    spacers().map((row) => Number.parseFloat((row.firstElementChild as HTMLElement).style.height));
+
+  it("renders every row while the table is still small enough to", () => {
+    // The Subscription Build is 34 rows and always will be — the figures arrive
+    // as columns. It must pay nothing for a mechanism it does not need.
+    renderTable(5, customers(34));
+    expect(bodyRows()).toHaveLength(34);
+    expect(spacers()).toHaveLength(0);
+  });
+
+  it("renders a window of them once there are thousands", () => {
+    renderTable(5, customers(3000));
+    const rendered = bodyRows().filter((row) => !row.hasAttribute("aria-hidden"));
+    expect(rendered.length).toBeGreaterThan(10);
+    expect(rendered.length).toBeLessThan(100);
+    expect(screen.getByText("Customer 0")).toBeInTheDocument();
+    expect(screen.queryByText("Customer 2999")).not.toBeInTheDocument();
+  });
+
+  it("keeps the height of the whole table, so the scrollbar does not lie", () => {
+    renderTable(5, customers(3000));
+    const rendered = bodyRows().filter((row) => !row.hasAttribute("aria-hidden"));
+    const padding = spacerHeights().reduce((total, height) => total + height, 0);
+    expect(padding + rendered.length * 30).toBe(3000 * 30);
+  });
+
+  it("asks the caller for figures only for the rows it put on screen", () => {
+    // The point of the whole exercise, and the thing that is actually
+    // expensive. Every figure is a call into the caller's formatter, so an
+    // unwindowed 3,000-row Build at five Periods asks 30,000 questions to show
+    // twenty lines — and asks them again on every hover, every toggle, and
+    // every time the measured header settles.
+    const askedFor = (rows: BuildRow[]) => {
+      const asked = vi.fn(cell);
+      render(
+        <BuildTable
+          label="ARR Build"
+          rowLabelHeader="Customer"
+          columnGroups={periodsOf(5)}
+          subColumns={SUB_COLUMNS}
+          rows={rows}
+          cell={asked}
+        />,
+      );
+      return asked.mock.calls.length;
+    };
+
+    const windowed = askedFor(customers(3000));
+    // Bounded by what is on screen, not by what exists. Two passes, not one:
+    // the first window is computed from the estimated row height and the second
+    // from the measured one, which is the same settle the two-row header makes
+    // and for the same reason. ~47 rows then ~43, at ten figures each — 900 of
+    // the 30,000 an unwindowed table would ask for.
+    expect(windowed).toBeGreaterThan(0);
+    expect(windowed).toBeLessThan(1000);
+
+    // And the unwindowed table below the threshold asks for every figure it
+    // holds, every pass — which is the behaviour being escaped, shown at the
+    // largest size that still takes that path.
+    const everything = askedFor(customers(ROW_WINDOW_THRESHOLD));
+    expect(everything).toBeGreaterThanOrEqual(ROW_WINDOW_THRESHOLD * 5 * 2);
+    // Twenty times the rows, a fraction of the questions.
+    expect(windowed).toBeLessThan(everything / 3);
+  });
+
+  it("can be worked from the keyboard, at any size", async () => {
+    // The ticket asks for this by name. Windowing removes rows from the
+    // document, so the risk is a table that can be read and not operated.
+    const tree: BuildRow[] = [{ id: "new", label: "New", children: customers(2000) }];
+    renderTable(5, tree);
+    await userEvent.tab();
+    const toggle = screen.getByRole("button", { name: "New" });
+    expect(toggle).toHaveFocus();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Customer 0")).toBeInTheDocument();
+    // Still the same control, still focused: opening two thousand rows under it
+    // did not move the reader somewhere else.
+    expect(screen.getByRole("button", { name: "New" })).toHaveFocus();
+  });
+
+  it("still lets the reader work the sections that are on screen", () => {
+    // A windowed table nobody can operate has traded one failure for another.
+    const tree: BuildRow[] = [
+      { id: "new", label: "New", children: customers(2000) },
+      { id: "lost", label: "Lost", children: customers(2000) },
+    ];
+    renderTable(5, tree);
+    expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lost" })).toBeInTheDocument();
+  });
+
+  it("shows the rows further down once the reader scrolls to them", () => {
+    renderTable(5, customers(3000));
+    expect(screen.queryByText("Customer 1000")).not.toBeInTheDocument();
+    act(() => {
+      Object.defineProperty(scroller(), "scrollTop", { value: 1000 * 30, writable: true });
+      fireEvent.scroll(scroller());
+    });
+    expect(screen.getByText("Customer 1000")).toBeInTheDocument();
+    expect(screen.queryByText("Customer 0")).not.toBeInTheDocument();
+  });
+
+  it("keeps the pinned header and the pinned label column under windowing", () => {
+    // The two mechanisms most likely to break when rows stop being continuously
+    // present — the ticket names both.
+    renderTable(5, customers(3000));
+    expect(headerRows()).toHaveLength(2);
+    const label = cellsOf(bodyRows().find((row) => !row.hasAttribute("aria-hidden"))!)[0];
+    expect(getComputedStyle(label).position).toBe("sticky");
+    expect(getComputedStyle(label).left).toBe("0px");
+    const periodHeader = cellsOf(headerRows()[0])[1];
+    expect(getComputedStyle(periodHeader).position).toBe("sticky");
+  });
+
+  it("still holds the sub-header below the Period row, not on top of it", () => {
+    // The mechanism ADR 0004 singles out as having no precedent and no help
+    // from MUI, checked in the state most likely to disturb it: the header is
+    // measured from a row that is now sitting above a windowed body.
+    renderTable(5, customers(3000));
+    const subHeader = cellsOf(headerRows()[1])[0];
+    expect(getComputedStyle(subHeader).top).toBe(`${measuredHeaderHeight}px`);
+  });
+
+  it("still dresses a row the way the Build reads it", () => {
+    // The per-cell borders and tints are two more of ADR 0004's four, and they
+    // are applied per row — so a windowed row is the one that would quietly
+    // lose them.
+    const rows: BuildRow[] = [
+      ...customers(300),
+      { id: "closing", label: "Ending ARR", emphasis: true, ruleAbove: true },
+    ];
+    renderTable(5, rows);
+    const figure = cellsOf(bodyRows().find((row) => !row.hasAttribute("aria-hidden"))!)[1];
+    expect(getComputedStyle(figure).borderBottomWidth).toBe("1px");
+    // The balance row carries its weight and its rule wherever the window puts it.
+    const balance = rowSx({ emphasis: true, ruleAbove: true, tint: "rgba(0,0,0,0.04)" });
+    expect(balance["& > th, & > td"]).toMatchObject({ fontWeight: 700 });
+  });
+
+  it("keeps every figure pointed at its row, its Period and its sub-column", () => {
+    // A windowed table a screen reader cannot traverse has traded one failure
+    // for a quieter one.
+    renderTable(5, customers(3000));
+    const row = bodyRows().find((one) => !one.hasAttribute("aria-hidden"))!;
+    const figure = cellsOf(row)[1];
+    const headers = figure.getAttribute("headers")!.split(" ");
+    expect(headers).toHaveLength(3);
+    for (const id of headers) expect(document.getElementById(id)).not.toBeNull();
+  });
+
+  it("says nothing to a screen reader about the space it is holding open", () => {
+    renderTable(5, customers(3000));
+    expect(spacers().length).toBeGreaterThan(0);
+    // getAllByRole excludes aria-hidden, so the accessibility tree sees only
+    // the header rows and the rows actually carrying figures.
+    const announced = screen.getAllByRole("row");
+    expect(announced.length).toBe(2 + bodyRows().filter((r) => !r.hasAttribute("aria-hidden")).length);
+  });
+
+  it("still takes a closed section's rows away entirely", async () => {
+    const tree: BuildRow[] = [
+      { id: "opening", label: "Opening ARR", emphasis: true },
+      { id: "new", label: "New", children: customers(3000) },
+    ];
+    renderTable(5, tree);
+    // Closed: two rows, no window needed.
+    expect(bodyRows()).toHaveLength(2);
+    expect(spacers()).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: "New" }));
+    const rendered = bodyRows().filter((row) => !row.hasAttribute("aria-hidden"));
+    expect(rendered.length).toBeLessThan(100);
+    expect(screen.getByText("Customer 0")).toBeInTheDocument();
   });
 });

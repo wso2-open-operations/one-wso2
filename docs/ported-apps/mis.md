@@ -417,12 +417,16 @@ not here. `Ending ARR`, `Net New`, `Total New ARR` and `Total Churn ARR` all arr
 client-side total would be a second opinion about a figure the backend already has one about, and the
 two would diverge the first time a filter changed the backend's definition.
 
-**The Subscription Build's row count is fixed, not measured.** Ticket 06 owes ticket 07 a row count.
+**The Subscription Build's row count is fixed, not measured.** Ticket 06 owed ticket 07 a row count.
 For this table the answer is a property of the code: every row is a named metric line, so the grid is
 **34 rows** (**38** when Channel or Direct narrows it, which adds the four transfer rows) whatever the
 backend returns — the figures arrive as columns, never as rows. Windowing (ticket 07) is therefore a
 question about Software/Cloud Customers (ticket 10) and the account table (ticket 13), which ARE
 per-customer, and not about this one. The count is pinned by a test in `arrBuildRows.test.ts`.
+
+Ticket 07 acted on that: `BuildTable` windows only above `ROW_WINDOW_THRESHOLD` (150 rows), so the
+Subscription Build takes the plain path and pays nothing for a mechanism it will never need, while the
+per-customer tables in tickets 10 and 13 get it for free the moment they arrive.
 
 `isAllowedTtmEndingMonth`'s second parameter. `viewState.js:173` and `:245` both pass `asOf` to it and
 `ttmPeriods.js:58` declares no second parameter, so it has never been read. The ported signature takes
@@ -484,7 +488,13 @@ there. §10.6's "restores the previous YTD **and Ending Month**" is therefore li
     browser zoom levels other than 100% — the second header row's offset is measured at runtime.
 21. Row hover reads across the whole row, including under the pinned first column.
 22. With windowing in place, a Build of several thousand rows scrolls without dropping frames, and
-    collapsing a section releases its rows.
+    collapsing a section releases its rows. **Half-closed by ticket 07.** What is pinned in the suite:
+    a 3,000-row Build renders ~43 rows rather than 3,000, pads the rest so the scrollbar still
+    describes the whole table, asks its formatter under 1,000 times instead of 30,000, and keeps the
+    sticky header, the pinned column and the `headers` wiring while it does. Collapsing has always
+    released its rows — `visibleRows` never rendered a closed subtree. What is **not** pinned is the
+    frame rate: jsdom has no layout and no frames. That needs a browser and real per-customer volume,
+    which arrives with **ticket 10**.
 
 ### The filter bar
 23. A control changed but not applied leaves the address alone, enables Apply, and says so in a live

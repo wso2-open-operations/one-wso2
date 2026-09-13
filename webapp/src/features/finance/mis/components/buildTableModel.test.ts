@@ -16,7 +16,9 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  ROW_WINDOW_OVERSCAN,
   buildTableIds,
+  rowWindow,
   tableMinWidth,
   visibleRows,
   type BuildRow,
@@ -195,5 +197,91 @@ describe("the header wiring a screen reader follows", () => {
   it("does not let a key containing the separator collide with the next part", () => {
     const odd = buildTableIds("t1");
     expect(odd.subHeader("a", "b:c")).not.toBe(odd.subHeader("a:b", "c"));
+  });
+});
+
+describe("which rows are worth rendering", () => {
+  // The arithmetic behind windowing, with no DOM in it. A Build of several
+  // thousand customer lines cannot put every row in the document — ADR 0004
+  // named this as required scope the moment it chose a hand-rolled table over a
+  // grid — so the table renders a slice and pads the space the rest would have
+  // taken. Getting the padding wrong is the failure that matters: the rows look
+  // right and the scrollbar lies about how much table there is.
+
+  const win = (over = {}) =>
+    rowWindow({ total: 1000, scrollTop: 0, viewportHeight: 500, rowHeight: 25, ...over });
+
+  it("renders the rows on screen, plus a margin either side to scroll into", () => {
+    const { first, last } = win();
+    expect(first).toBe(0);
+    // 500px of viewport at 25px a row is 20 rows, and the overscan is rendered
+    // above and below so a scroll of a few rows has something to show.
+    expect(last).toBe(20 + ROW_WINDOW_OVERSCAN * 2);
+  });
+
+  it("moves the window down as the reader scrolls", () => {
+    const { first, last } = win({ scrollTop: 25 * 100 });
+    expect(first).toBe(100 - ROW_WINDOW_OVERSCAN);
+    expect(last).toBe(first + 20 + ROW_WINDOW_OVERSCAN * 2);
+  });
+
+  it("pads exactly the height of the rows it did not render", () => {
+    const { first, last, topPad, bottomPad } = win({ scrollTop: 25 * 100 });
+    expect(topPad).toBe(first * 25);
+    expect(bottomPad).toBe((1000 - last) * 25);
+    // The whole table still occupies the height it would have, so the scrollbar
+    // describes the real thing rather than the window.
+    expect(topPad + (last - first) * 25 + bottomPad).toBe(1000 * 25);
+  });
+
+  it("runs out at the ends rather than off them", () => {
+    expect(win({ scrollTop: 0 }).topPad).toBe(0);
+    const atBottom = win({ scrollTop: 25 * 1000 });
+    expect(atBottom.last).toBe(1000);
+    expect(atBottom.bottomPad).toBe(0);
+    // The window is still FULL at the bottom, rather than trailing off into the
+    // last few rows: a viewport's worth is what the reader can see.
+    expect(atBottom.first).toBeLessThan(atBottom.last);
+    expect(atBottom.last - atBottom.first).toBeGreaterThanOrEqual(20);
+  });
+
+  // The failure this is written against: a reader scrolled deep into a Build
+  // collapses a section, the row count drops under them, and the scroll offset
+  // still describes where they were. Without a clamp the window starts past the
+  // end of the table — an EMPTY body under a spacer the height of where the
+  // rows used to be, which reads as a Build that has lost its figures.
+  it("comes back to the rows when the table shrinks under the reader", () => {
+    const shrunk = win({ total: 2, scrollTop: 25 * 2000 });
+    expect(shrunk).toEqual({ first: 0, last: 2, topPad: 0, bottomPad: 0 });
+  });
+
+  it("never opens a window that starts after it ends, wherever it is asked", () => {
+    // Swept rather than spot-checked: the bug above sat in one corner of this
+    // space and every assertion in this file walked past it.
+    for (const total of [0, 1, 2, 30, 999, 1000]) {
+      for (const scrollTop of [0, 250, 25 * 40, 25 * 999, 25 * 5000]) {
+        const { first, last, topPad, bottomPad } = win({ total, scrollTop });
+        expect(first).toBeLessThanOrEqual(last);
+        expect(first).toBeGreaterThanOrEqual(0);
+        expect(last).toBeLessThanOrEqual(total);
+        // And the table always occupies exactly the height it should.
+        expect(topPad + (last - first) * 25 + bottomPad).toBe(total * 25);
+      }
+    }
+  });
+
+  it("renders everything when there is less table than viewport", () => {
+    const { first, last, topPad, bottomPad } = win({ total: 10 });
+    expect([first, last]).toEqual([0, 10]);
+    expect([topPad, bottomPad]).toEqual([0, 0]);
+  });
+
+  // jsdom reports every height as zero, and so does a container that has not
+  // been laid out yet. Dividing by it would put NaN in a style attribute; the
+  // honest answer is that nothing can be excluded, so nothing is.
+  it("renders everything rather than nothing when it cannot measure a row", () => {
+    const { first, last, topPad, bottomPad } = win({ rowHeight: 0 });
+    expect([first, last]).toEqual([0, 1000]);
+    expect([topPad, bottomPad]).toEqual([0, 0]);
   });
 });

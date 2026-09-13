@@ -111,6 +111,105 @@ export function visibleRows(
 }
 
 /**
+ * Rows rendered above and below the ones actually on screen.
+ *
+ * A scroll of a few rows then has something to show without waiting for a
+ * render, and — the reason it is this size rather than two or three — a wheel
+ * gesture routinely moves further than the viewport between paints.
+ */
+export const ROW_WINDOW_OVERSCAN = 12;
+
+/**
+ * Above this many visible rows, the table renders a window instead of all of
+ * them.
+ *
+ * Below it, windowing is pure cost: the arithmetic, the scroll listener, the
+ * two spacer rows and the measurement all buy nothing on a table that fits.
+ * The Subscription Build is 34 rows (38 when Channel or Direct narrows it) and
+ * that count is a property of the code rather than of the data — every row is a
+ * named metric line and the figures arrive as COLUMNS — so it takes the plain
+ * path and always will. The tables this exists for are the per-customer ones.
+ */
+export const ROW_WINDOW_THRESHOLD = 150;
+
+/** Which slice of the rows to render, and the space the rest would have taken. */
+export interface BuildRowWindow {
+  /** Index of the first row to render. */
+  first: number;
+  /** Index one past the last row to render. */
+  last: number;
+  /** Height of the rows above `first`, in px. */
+  topPad: number;
+  /** Height of the rows below `last`, in px. */
+  bottomPad: number;
+}
+
+export interface RowWindowInput {
+  total: number;
+  scrollTop: number;
+  viewportHeight: number;
+  /** One row's height, measured. Zero when nothing has been laid out yet. */
+  rowHeight: number;
+  overscan?: number;
+}
+
+/**
+ * The rows worth putting in the document, and the padding that keeps the
+ * scrollbar honest about the ones that are not.
+ *
+ * ---- why this is arithmetic and not `react-window` -------------------------
+ *
+ * Ticket 07 says to reach for `react-window` before writing anything bespoke,
+ * and it is a dependency already. It cannot do this job. `createListComponent`
+ * hands every item `{ position: 'absolute', top, height, width: '100%' }`
+ * (`react-window@1.8.11`, `dist/index.esm.js:1099-1106`), and that style is not
+ * optional — it is how the library places rows. An absolutely positioned `<tr>`
+ * leaves the table formatting context, which takes with it the four things
+ * ADR 0004 chose a hand-rolled `<table>` to keep: the column widths the table
+ * algorithm computes across header and body, the `position: sticky` row-label
+ * column, the sticky two-row header, and the `id`/`headers` wiring that is the
+ * only way a screen reader can say which Period a figure belongs to. The
+ * library's own table examples avoid this by dropping `<table>` for
+ * `display: block` divs, which is the trade this ADR already refused.
+ *
+ * What is left is the part react-window would have contributed anyway: an
+ * index range from a scroll offset. That is this function, it is nine lines,
+ * and it is exact rather than approximate. The rows stay real `<tr>`s in a real
+ * `<tbody>` and every mechanism above keeps working untouched.
+ */
+export function rowWindow({
+  total,
+  scrollTop,
+  viewportHeight,
+  rowHeight,
+  overscan = ROW_WINDOW_OVERSCAN,
+}: RowWindowInput): BuildRowWindow {
+  // Nothing has been laid out yet — jsdom, or a first paint. Excluding rows on
+  // a measurement of zero would divide by it; rendering all of them is both
+  // correct and what the table did before this existed.
+  if (rowHeight <= 0) return { first: 0, last: total, topPad: 0, bottomPad: 0 };
+
+  const span = Math.ceil(viewportHeight / rowHeight) + overscan * 2;
+  // Clamped at BOTH ends, and the upper clamp is the one that matters. The
+  // scroll offset describes where the reader was, and the row count can drop
+  // under them — collapsing a section does exactly that. Without `total - span`
+  // the window then starts past the end of the table: an empty body under a
+  // spacer the height of where the rows used to be, which reads as a Build that
+  // has lost its figures rather than as one that has been collapsed.
+  //
+  // It also keeps the last screenful full, rather than trailing off into the
+  // final few rows as the reader reaches the bottom.
+  const first = Math.max(0, Math.min(Math.floor(scrollTop / rowHeight) - overscan, total - span));
+  const last = Math.min(total, first + span);
+  return {
+    first,
+    last,
+    topPad: first * rowHeight,
+    bottomPad: (total - last) * rowHeight,
+  };
+}
+
+/**
  * How wide the table must be before the container starts scrolling.
  *
  * Stated explicitly because the alternative is two dozen numeric columns
