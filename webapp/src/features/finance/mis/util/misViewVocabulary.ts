@@ -271,3 +271,36 @@ export const isAllowedTtmEndingMonth = (endingMonth?: string): boolean =>
   endingMonth == null || ENDING_MONTH_VALUE_SET.has(endingMonth);
 
 const ENDING_MONTH_VALUE_SET: ReadonlySet<string> = new Set(ENDING_MONTH_VALUES);
+
+/**
+ * The Period's own type value, or Total when none is set.
+ *
+ * The fallback is not defensive tidying. The first requests of a Build fire
+ * before the reader has chosen anything, and a body with no type asks a
+ * different question than a body asking for the total — so the default is
+ * stated rather than omitted, which is what the source does at both call sites.
+ */
+export const typeValueOf = (filters: MisAppliedFilters): string =>
+  filters.arrType || filters.qrrType || filters.mrrType || "Total ARR";
+
+/**
+ * Whether a confidence level applies, asked of each Period's own type key.
+ *
+ * Three INDEPENDENT checks, not one over whichever key happens to be set. The
+ * summary tables mirror a Quarterly or Monthly type into `arrType` (spec §3),
+ * so a filter set can legitimately carry both — and collapsing the three with
+ * `arrType || qrrType || mrrType` would read the mirror and silently drop the
+ * confidence off a Forecasted QRR. Mirrors `useArrTableSummary.js:272-275`.
+ *
+ * Renewal is deliberately absent: it turns forecast COLUMNS on without carrying
+ * a confidence.
+ *
+ * Lives here rather than beside one request builder because BOTH endpoints ask
+ * it — `/arr-summary` for a Build column and `/accounts` for the customer list —
+ * and the two must agree. A forecast filtered by a confidence in one table and
+ * not the other is two different customer populations under one filter chip.
+ */
+export const carriesConfidence = (filters: MisAppliedFilters): boolean =>
+  filters.arrType === "Forecasted ARR" ||
+  filters.qrrType === "Forecasted QRR" ||
+  filters.mrrType === "Forecasted MRR";

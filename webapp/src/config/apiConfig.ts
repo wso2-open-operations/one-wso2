@@ -1445,6 +1445,11 @@ export const misArrServiceUrls = {
   // A read that takes a filter body, so it is a POST — which makes the React
   // Query key the body rather than the URL. See §6 of the port spec.
   arrSummary: `${misArrBackendUrl}/arr-summary`,
+  // The customer book as at one date, behind the Software/Cloud Customers
+  // table. A POST for the same reason, and one call per column. NOT the same
+  // endpoint as the drill-down dialog's `/arr-summary/customers`, despite both
+  // returning customers — this one is the table's rows.
+  accounts: `${misArrBackendUrl}/accounts`,
 };
 
 export const misFlashBackendUrl: string = stripTrailingSlashes(

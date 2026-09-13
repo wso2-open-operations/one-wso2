@@ -32,7 +32,9 @@ import { annualOpeningDate } from "../util/misPeriods";
 import {
   CUSTOM_UNIT,
   LIST_FILTER_PARAMS,
+  carriesConfidence,
   isOnePartnerBook,
+  typeValueOf,
   type MisAppliedFilters,
   type MisDateRange,
 } from "../util/misViewVocabulary";
@@ -113,23 +115,6 @@ const LIST_FILTER_WIRE_NAMES: Readonly<Record<string, string>> = {
 };
 
 /**
- * Whether a confidence level applies, asked of each Period's own type key.
- *
- * Three INDEPENDENT checks, not one over whichever key happens to be set. The
- * summary tables mirror a Quarterly or Monthly type into `arrType` (spec §3),
- * so a filter set can legitimately carry both — and collapsing the three with
- * `arrType || qrrType || mrrType` would read the mirror and silently drop the
- * confidence off a Forecasted QRR. Mirrors `useArrTableSummary.js:272-275`.
- *
- * Renewal is deliberately absent: it turns forecast COLUMNS on without carrying
- * a confidence.
- */
-const carriesConfidence = (filters: MisAppliedFilters): boolean =>
-  filters.arrType === "Forecasted ARR" ||
-  filters.qrrType === "Forecasted QRR" ||
-  filters.mrrType === "Forecasted MRR";
-
-/**
  * One request per column, oldest first, in the order the columns read.
  *
  * `startDate` is deliberately NOT the range's own start. It is the date the
@@ -167,10 +152,6 @@ export function arrSummaryRequests(
     };
   });
 }
-
-/** The Period's own type value, or Total when none is set. */
-const typeValueOf = (filters: MisAppliedFilters): string =>
-  filters.arrType || filters.qrrType || filters.mrrType || "Total ARR";
 
 /**
  * Which units to ask for, or `null` when the reader has asked for none.

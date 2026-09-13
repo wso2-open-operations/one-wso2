@@ -1,0 +1,181 @@
+// Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+// The Software/Cloud Customers table: what its rows are, what its columns are,
+// and which field each figure is read from.
+//
+// Ported from digiops-finance `arrDashboard/hooks/useCustomerAccounts.js`
+// (`transformApiData`) and `arrDashboard/utils/tableConstants.js`
+// (`generateCloudBusinessUnitColumns`).
+//
+// ---- this table is the Subscription Build turned on its side ---------------
+//
+// The Subscription Build is 34 rows whatever the backend returns: every row is
+// a named metric line and the figures arrive as COLUMNS. Here the rows ARE the
+// data — one per account in the customer book, hundreds per business unit — and
+// the metric breakdown is what arrives as columns. So this is the table ADR
+// 0004's row windowing was actually written for, and the first one where the
+// row count is a question about the data rather than about the code.
+//
+// ---- the port does NOT keep the source's flattened field names -------------
+//
+// The source flattens everything onto one wide object per account, keyed by a
+// string built from the period label: `2025_01_01___2025_12_31_cloud_total`.
+// That is how ag-grid wants its rows, and it means a renamed column header
+// silently renames a data key. Here the column identity is a `key` on the
+// sub-column and the figure is looked up by it, so the header text and the data
+// path are separate things and a relabelled column cannot lose its figures.
+//
+// One dead field is deliberately not ported: `transformApiData` writes an
+// `open_banking` value from `openBankingSoftwareTotal`, and no column
+// definition anywhere reads it. Porting it would carry a column the source has
+// not shown for as long as its own header list has existed.
+
+import type { BuildRow } from "./buildTableModel";
+
+/** One account as `POST /accounts` returns it — the fields this table reads. */
+export interface AccountsResponse {
+  id: string;
+  name: string;
+  apimSoftwareTotal?: number;
+  iamSoftwareTotal?: number;
+  integrationSoftwareTotal?: number;
+  arrSoftwareTotal?: number;
+  apimCloudTotal?: number;
+  iamCloudTotal?: number;
+  integrationCloudTotal?: number;
+  choreoCloudTotal?: number;
+  agentPlatformCloudTotal?: number;
+  moesifBuTotal?: number;
+  arrCloudTotal?: number;
+  arrGrandTotal?: number;
+}
+
+/** One figure a customer's revenue is broken down into, within one Period. */
+export interface CustomerSubColumn {
+  /** Stable identity, and what the figure is looked up by. Not the label. */
+  key: string;
+  /** The header text. Self-describing — see the note on grouping below. */
+  label: string;
+  /** The response field the figure is read from. */
+  field: keyof AccountsResponse;
+}
+
+/**
+ * The twelve figures, in the source's reading order.
+ *
+ * Software's three products then its total, Cloud's five then Moesif then its
+ * total, and the overall total that is both.
+ *
+ * ---- the grouping lives in these labels, because there is no row for it -----
+ *
+ * The source renders THREE header rows: the Period, then a Software/Cloud
+ * grouping spanning 4 and 7 columns, then the product. `BuildTable` renders
+ * two, and ADR 0004 records the measured two-row header as the mechanism with
+ * no MUI precedent — a third row generalises that measurement and was taken as
+ * its own decision rather than folded in here.
+ *
+ * So the grouping has to survive in the labels or not at all. The source can
+ * afford to label three separate columns plainly "Total" because the row above
+ * says which total each one is; here they are "Software Total", "Cloud Total"
+ * and "Total". Everything else keeps the source's wording, which already
+ * carries its own half of the book ("API Platform Private Cloud + Bjira" is
+ * unmistakably the cloud one). Recorded as a deviation in mis.md §7.
+ *
+ * The wire names and the headers disagree almost everywhere — `apimCloudTotal`
+ * is headed "API Platform Private Cloud + Bjira" — so this is the one place a
+ * figure can land under the wrong product silently and plausibly, which is why
+ * the mapping is data here and pinned field by field in the tests.
+ */
+export const CUSTOMER_SUB_COLUMNS: readonly CustomerSubColumn[] = [
+  { key: "software-apim", label: "API Platform", field: "apimSoftwareTotal" },
+  { key: "software-iam", label: "IAM", field: "iamSoftwareTotal" },
+  { key: "software-integration", label: "Integration", field: "integrationSoftwareTotal" },
+  { key: "software-total", label: "Software Total", field: "arrSoftwareTotal" },
+  { key: "cloud-apim", label: "API Platform Private Cloud + Bjira", field: "apimCloudTotal" },
+  { key: "cloud-iam", label: "IAM Private Cloud + Asgardeo", field: "iamCloudTotal" },
+  {
+    key: "cloud-integration",
+    label: "Integration Private Cloud + Devant",
+    field: "integrationCloudTotal",
+  },
+  { key: "cloud-choreo", label: "Choreo", field: "choreoCloudTotal" },
+  { key: "cloud-agent-platform", label: "Agent Platform", field: "agentPlatformCloudTotal" },
+  // Moesif is appended to the Cloud group rather than being one of the five
+  // CLOUD_BUSINESS_UNITS, exactly as the source appends it. Its figure is a
+  // `BuTotal` and not a `CloudTotal`, which is the wire being inconsistent
+  // rather than this column meaning something different.
+  { key: "cloud-moesif", label: "Moesif", field: "moesifBuTotal" },
+  { key: "cloud-total", label: "Cloud Total", field: "arrCloudTotal" },
+  { key: "grand-total", label: "Total", field: "arrGrandTotal" },
+];
+
+/**
+ * One row per customer, unioned across every column, in first-appearance order.
+ *
+ * The union is the point. Each column is its own `POST /accounts` read at that
+ * column's closing date, so a customer won in the second year is missing from
+ * the first response and a churned one is missing from the last. Taking any
+ * single column's list would drop precisely the customers a Build is read to
+ * find.
+ *
+ * Order is first appearance, oldest column first — the source's `Map` keyed by
+ * id, which is insertion-ordered, filled by iterating the periods in order. It
+ * matters more here than it looks: an unstable order reshuffles hundreds of
+ * rows under the reader every time a filter changes.
+ */
+export function customerAccountRows(columns: readonly (readonly AccountsResponse[])[]): BuildRow[] {
+  const byId = new Map<string, BuildRow>();
+  for (const accounts of columns) {
+    for (const account of accounts) {
+      // First name wins. The alternative — the newest column's name — would
+      // rewrite history every time a customer is renamed, so a Build read
+      // beside last quarter's would not agree with it about who was in it.
+      if (!byId.has(account.id)) byId.set(account.id, { id: account.id, label: account.name });
+    }
+  }
+  return [...byId.values()];
+}
+
+/**
+ * The figure for one customer in one column, or `undefined` when they are not
+ * in that column's book at all.
+ *
+ * The undefined matters and is not tidiness. A customer absent from a column
+ * has NO figure; a customer present with nothing owing has zero. Rendering the
+ * first as `0` invents a data point, and on this table it reads as a customer
+ * who churned to nothing rather than one who had not been won yet.
+ */
+export function customerFigure(
+  account: AccountsResponse | undefined,
+  subColumn: CustomerSubColumn,
+): number | undefined {
+  if (!account) return undefined;
+  // The overall total alone is read the source's way:
+  // `arrGrandTotal || arrSoftwareTotal + arrCloudTotal || 0`. That `||` means a
+  // grand total of ZERO falls through to the two halves rather than being
+  // reported as zero — which is the behaviour worth having, because the case it
+  // fires on is a backend that sent the breakdown and no total. Kept under
+  // ADR 0003: it is the source's arithmetic, and a customer with revenue whose
+  // Total column reads 0 is the failure this avoids. The cost is that a
+  // genuine zero total beside non-zero halves cannot be told apart from an
+  // absent one — a state that would mean the backend disagreed with itself.
+  if (subColumn.field === "arrGrandTotal") {
+    return account.arrGrandTotal || (account.arrSoftwareTotal ?? 0) + (account.arrCloudTotal ?? 0);
+  }
+  const value = account[subColumn.field];
+  return typeof value === "number" ? value : undefined;
+}
