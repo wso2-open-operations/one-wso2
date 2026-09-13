@@ -86,7 +86,15 @@ export function ExpenseHistoryFilters({
     setMoreAnchor(anchor);
   };
 
-  const rangeReady = Boolean(draftStart) && Boolean(draftEnd) && draftStart <= draftEnd;
+  // `max` on the inputs only marks a typed future date invalid; it does not
+  // stop the value reaching state, so Apply has to refuse it too — otherwise a
+  // typed tomorrow would go out in the search payload. ISO strings compare
+  // correctly as text, which keeps this a pure ordering check.
+  const rangeReady =
+    Boolean(draftStart) &&
+    Boolean(draftEnd) &&
+    draftStart <= draftEnd &&
+    draftEnd <= todayIso();
   const hasCustomRange = Boolean(filters.startDate) && Boolean(filters.endDate);
   const extraCount = (filters.claimId ? 1 : 0) + (filters.submissionScope !== "ALL_CLAIMS" ? 1 : 0);
 

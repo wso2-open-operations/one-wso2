@@ -432,7 +432,7 @@ describe("every status the backend can return", () => {
   it.each(cases)("$status marks $stage $mark in the trail", async ({ status, stage, mark }) => {
     state.claims = [claim({ statusDetails: { ...claim().statusDetails, status } })];
     show();
-    fireEvent.click(await screen.findByRole("button", { name: "Claim activity for EXP-me-001" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Claim activity for EXP-me-001/ }));
     await screen.findByText("Claim Activity");
     // The marked stage carries the parenthetical; the stage itself is always
     // drawn, so both have to line up on the same one.
@@ -444,7 +444,7 @@ describe("every status the backend can return", () => {
 describe("the claim activity trail", () => {
   async function openActivity() {
     show();
-    fireEvent.click(await screen.findByRole("button", { name: "Claim activity for EXP-me-001" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Claim activity for EXP-me-001/ }));
     return screen.findByText("Claim Activity");
   }
 

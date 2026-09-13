@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -128,6 +128,22 @@ export function ExpenseHistoryClaimDetails({
   const cur = claim.currencyCode ?? "LKR";
   const total = lines.reduce((sum, l) => sum + l.reimbursementAmount, 0);
   const meta = expenseStatusMeta(claim.statusDetails.status);
+
+  // The in-app exits are confirmed by `leaveDetails`, but a reload, a closed
+  // tab or the browser's own Back leave without asking — React never gets to
+  // run anything that could stop them. This is the one hook the platform gives
+  // for that, and it costs nothing while there is nothing to lose.
+  //
+  // A route-level blocker would cover in-app navigation away from the page too,
+  // but `useBlocker` needs a data router; this app mounts a plain
+  // `<BrowserRouter>` (`AppWithConfig.tsx:88`), so that is a router change
+  // rather than a change to this screen.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const leaveDetails = () => {
     // :127-142 — walking away from edits is confirmed, not silent.

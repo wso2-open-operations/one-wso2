@@ -105,8 +105,15 @@ function HistoryBody() {
       ) : appData.isError || claims.isError ? (
         <ErrorNotice
           error={appData.error ?? claims.error}
-          onRetry={() => void claims.refetch()}
-          retrying={claims.isFetching}
+          // Retry whichever query actually failed. Retrying only the claims
+          // search left an app-data failure permanently on screen: that search
+          // is disabled without an email, so it had nothing to re-run and the
+          // button could never clear the error it was offered for.
+          onRetry={() => {
+            if (appData.isError) void appData.refetch();
+            if (claims.isError) void claims.refetch();
+          }}
+          retrying={appData.isFetching || claims.isFetching}
         >
           Couldn&apos;t load your claims.
         </ErrorNotice>

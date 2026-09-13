@@ -106,7 +106,11 @@ export function ExpenseHistoryTable({
                       source behaviour. */}
                   <ButtonBase
                     onClick={() => onShowActivity(claim)}
-                    aria-label={`Claim activity for ${claim.id}`}
+                    // The label carries the status as well as the id: an
+                    // aria-label REPLACES the name computed from the contents,
+                    // so without it the chip's own text is never announced and
+                    // a screen reader gets no status for the row at all.
+                    aria-label={`Claim activity for ${claim.id} — ${meta.label}`}
                     sx={{ borderRadius: 5, display: "flex", alignItems: "center", gap: 0.25, p: 0.25 }}
                   >
                     <StatusChip label={meta.label} color={meta.color} />
