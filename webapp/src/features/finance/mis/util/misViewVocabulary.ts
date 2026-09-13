@@ -47,6 +47,29 @@ export const MIS_TABLES = {
 export type MisTable = (typeof MIS_TABLES)[keyof typeof MIS_TABLES];
 
 /**
+ * What each Table is called on screen, verbatim from the source's
+ * `TABLE_LABELS`.
+ *
+ * Shorter than the names this repo uses in prose — "Customers" on the tab,
+ * "Software/Cloud Customers" in the docs — because the tabs sit in a row and
+ * the reader already knows they are looking at a Build.
+ */
+export const MIS_TABLE_LABELS: Readonly<Record<MisTable, string>> = {
+  [MIS_TABLES.SUBSCRIPTION]: "Subscription",
+  [MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS]: "Customers",
+  [MIS_TABLES.EXIT_ARR_BY_REGION]: "Region Summary",
+  [MIS_TABLES.EXIT_ARR_BY_BU]: "BU Summary",
+};
+
+/** The Tables in the order the source's tabs offer them. */
+export const MIS_TABLE_ORDER: readonly MisTable[] = [
+  MIS_TABLES.SUBSCRIPTION,
+  MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS,
+  MIS_TABLES.EXIT_ARR_BY_REGION,
+  MIS_TABLES.EXIT_ARR_BY_BU,
+];
+
+/**
  * How an Annually column is cut: calendar years, or trailing-twelve-month
  * windows. Not a Period and not an Applied filter.
  *

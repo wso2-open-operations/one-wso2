@@ -370,6 +370,24 @@ The grouping therefore lives in the labels: the three columns the source can aff
 `Total` are **Software Total**, **Cloud Total** and **Total** here. Everything else keeps the source's
 wording, which already names its own half of the book. No figure changes; only the header does.
 
+**The customers table does not fetch the year it never shows.** The source is inconsistent with
+itself here: `useCustomerAccounts.js` fetches `generateFullYearRanges(-yearsBack, 0)` while the same
+table's column definition (`tableUtils.js:1091`) is `-(yearsBack - 1)`, identical to Subscription's. So
+it asks the backend for one year more than it renders and throws the answer away. The port renders
+what the source renders — the last `yearsBack` columns, via `buildColumnRanges` — and does not make
+the wasted call. Figures on screen are unchanged; one request per view is saved.
+
+**Delayed Day Count appears only on a Delayed type**, matching `tableUtils.js:753`, so the customers
+table is seventeen identity columns by default and eighteen on Delayed ARR/QRR/MRR.
+
+**A confidence level is decided per Period key, not off the collapsed type.** For `/accounts` the
+source reads `filters?.forecastType || filters?.confidenceLevel` against a `unifiedArrType` collapsed
+with `arrType || qrrType || mrrType`. The port asks each Period's own key independently
+(`carriesConfidence`), the same rule `/arr-summary` already follows. It matters only on the summary
+tables, which mirror a Quarterly or Monthly type into `arrType` — collapsing there reads the mirror and
+silently drops the confidence off a Forecasted QRR. Both endpoints now answer the question the same
+way, which they did not in the source.
+
 **The customers table does not blank itself while refetching.** `useCustomerAccounts.js` calls
 `setData([])` at the top of every run — "Clear previous data immediately to show loading state" — which
 on a table of hundreds of customer rows empties and re-paints the whole grid on every filter change.

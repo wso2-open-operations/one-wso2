@@ -15,17 +15,12 @@
 // under the License.
 
 import { useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
-import { useAsgardeo } from "@asgardeo/react";
-import { authedPost, humanizeHttpError } from "@api/http";
-import { httpRetry } from "@api/errors";
-import { useAccessToken } from "@hooks/useAccessToken";
-import { useAsgardeoSub } from "@hooks/useAsgardeoSub";
-import { isMisArrConfigured, misArrServiceUrls } from "@config/apiConfig";
+import { misArrServiceUrls } from "@config/apiConfig";
 import { annualColumnLabel } from "../util/misPeriods";
 import type { MisAppliedFilters, MisDateRange } from "../util/misViewVocabulary";
 import type { AccountsResponse } from "../components/customerAccountRows";
 import { accountsRequests } from "./misAccountsRequest";
+import { useColumnQueries } from "./useColumnQueries";
 
 // `POST /accounts` — the customer book behind the Software/Cloud Customers
 // table, one call per column.
@@ -37,9 +32,11 @@ import { accountsRequests } from "./misAccountsRequest";
 // generators are two places for the customers table and the Build beside it to
 // disagree about when a year ended.
 //
-// Deliberately the same shape as `useArrSummary`, because it is the same
-// problem: one read per column, keyed by its body, each column able to fail on
-// its own. See that hook for why the columns are split rather than looped.
+// The one-request-per-column machinery is `useColumnQueries`, shared with
+// `useArrSummary`: same problem, same shape, and a review of this ticket found
+// the two hooks were 55 identical lines apart. What is left here is what is
+// actually this endpoint's — its bodies, its coercion, and the word `accounts`
+// for what a column holds.
 //
 // ---- one source behaviour is NOT ported ------------------------------------
 //
@@ -62,21 +59,11 @@ export interface CustomerAccountsColumn {
 
 export interface CustomerAccountsState {
   columns: CustomerAccountsColumn[];
-  /** No column has answered yet, one way or the other. */
   isLoading: boolean;
-  /** EVERY column failed. One failure among several is the column's problem. */
   isError: boolean;
   errorMessage: string;
   retry: () => void;
 }
-
-const EMPTY: CustomerAccountsState = {
-  columns: [],
-  isLoading: false,
-  isError: false,
-  errorMessage: "",
-  retry: () => {},
-};
 
 /**
  * The accounts in one response, whatever shape it arrived in.
@@ -97,62 +84,23 @@ export function useCustomerAccounts(
   filters: MisAppliedFilters,
   enabled = true,
 ): CustomerAccountsState {
-  const { isSignedIn } = useAsgardeo();
-  const getAccessToken = useAccessToken();
-  const { state: subState, retry: retryIdentity } = useAsgardeoSub();
-  const userSub = subState.status === "ready" ? subState.sub : undefined;
-  const ready = enabled && isSignedIn && isMisArrConfigured() && Boolean(userSub);
-
-  // Requests and columns are built together and stay index-aligned: a request
-  // is what a column is fetched with, and pairing them anywhere else would be
-  // two lists that could fall out of step.
-  const requests = useMemo(() => accountsRequests(ranges, filters), [ranges, filters]);
+  // Bodies and labels are built together and stay index-aligned: a body is what
+  // a column is fetched with, and pairing them anywhere else would be two lists
+  // that could fall out of step.
+  const bodies = useMemo(() => accountsRequests(ranges, filters), [ranges, filters]);
   const labels = useMemo(() => ranges.map(annualColumnLabel), [ranges]);
 
-  const results = useQueries({
-    queries: requests.map((body) => ({
-      // The body IS the key. A POST that is a read has no URL to key on, and
-      // the URL is the same for every column — see spec §6.
-      queryKey: ["mis", "accounts", userSub, body] as const,
-      enabled: ready,
-      queryFn: async () =>
-        accountsIn(await authedPost<unknown>(misArrServiceUrls.accounts, await getAccessToken(), body)),
-      staleTime: 5 * 60 * 1000,
-      retry: httpRetry,
-    })),
+  const state = useColumnQueries({
+    name: "accounts",
+    url: misArrServiceUrls.accounts,
+    bodies,
+    labels,
+    parse: accountsIn,
+    enabled,
   });
 
-  // The same fold every sub-keyed query in this app performs — see
-  // `useArrSummary` for why it is by hand here rather than `foldIdentityError`.
-  // Without it an identity error leaves every query disabled and quietly
-  // reports a customer book with nobody in it.
-  if (subState.status === "error") {
-    return { ...EMPTY, isError: true, errorMessage: subState.message, retry: retryIdentity };
-  }
-
-  if (!requests.length) return EMPTY;
-
-  const columns = requests.map((_body, index) => ({
-    label: labels[index],
-    accounts: results[index]?.data,
-    isError: Boolean(results[index]?.isError),
-  }));
-
-  const firstError = results.find((result) => result.isError)?.error;
   return {
-    columns,
-    // `!ready` counts as loading. Until the subject resolves every query is
-    // disabled, which React Query reports as pending-but-idle, so a "something
-    // is fetching" test is false while `columns` is already built — and the
-    // table would paint with no customers in it.
-    isLoading:
-      !ready || results.some((result) => result.isPending && result.fetchStatus !== "idle"),
-    // Only when nothing at all came back. A table missing one year is still
-    // worth reading.
-    isError: results.length > 0 && results.every((result) => result.isError),
-    errorMessage: firstError ? humanizeHttpError(firstError) : "",
-    retry: () => {
-      for (const result of results) if (result.isError) void result.refetch();
-    },
+    ...state,
+    columns: state.columns.map(({ label, data, isError }) => ({ label, accounts: data, isError })),
   };
 }

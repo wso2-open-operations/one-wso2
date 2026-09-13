@@ -850,6 +850,21 @@ describe("a table whose rows need more than a name to identify them", () => {
     expect(getComputedStyle(cells[1]).left).toBe("200px");
   });
 
+  it("freezes the identity HEADERS at the same offsets as their cells", () => {
+    // The header and the body have to agree to the pixel or the pane shears
+    // when the reader scrolls right. Worth its own test because the two are not
+    // the same expression: an UNFROZEN header must stay `position: sticky` to
+    // keep `top: 0` under the vertical scroll, while an unfrozen body cell goes
+    // back into the flow.
+    renderWithLead();
+    const headers = cellsOf(headerRows()[0]);
+    expect(getComputedStyle(headers[0]).left).toBe("0px");
+    expect(getComputedStyle(headers[1]).left).toBe("200px");
+    // Still pinned to the top, frozen horizontally or not.
+    expect(getComputedStyle(headers[2]).position).toBe("sticky");
+    expect(getComputedStyle(headers[2]).top).toBe("0px");
+  });
+
   it("lets the columns that did not ask to be frozen scroll away", () => {
     renderWithLead();
     const owner = cellsOf(rowLabelled("Northwind Bank"))[2];

@@ -16,8 +16,8 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  CUSTOMER_LEAD_COLUMNS,
   CUSTOMER_SUB_COLUMNS,
+  customerLeadColumns,
   customerAccountRows,
   customerFigure,
   type AccountsResponse,
@@ -285,14 +285,13 @@ describe("the identity columns, left of the first figure", () => {
   // pinned label — ADR 0004's frozen pane, widened.
 
   it("names them the way the source's header does", () => {
-    expect(CUSTOMER_LEAD_COLUMNS.map((column) => column.label)).toEqual([
+    expect(customerLeadColumns("Total ARR").map((column) => column.label)).toEqual([
       "Account Name",
       "Account ID",
       "Account Owner",
       "Source",
       "Primary Partner Name",
       "Partner Role",
-      "Delayed Day Count (From Current Date)",
       "Billing Country",
       "Shipping Country",
       "Industry",
@@ -312,7 +311,7 @@ describe("the identity columns, left of the first figure", () => {
     // figures need, and `leadColumnOffsets` only honours a contiguous run from
     // the left anyway — so pinning a later one without this first would be a
     // layout that cannot be drawn.
-    expect(CUSTOMER_LEAD_COLUMNS.filter((column) => column.pinned).map((c) => c.key)).toEqual([
+    expect(customerLeadColumns("Total ARR").filter((c) => c.pinned).map((c) => c.key)).toEqual([
       "name",
     ]);
   });
@@ -333,7 +332,8 @@ describe("the identity columns, left of the first figure", () => {
       churnDate: "2026-01-31",
       employeeCount: 4200,
     });
-    const read = (key: string) => CUSTOMER_LEAD_COLUMNS.find((c) => c.key === key)!.value(full);
+    const read = (key: string) =>
+      customerLeadColumns("Delayed ARR").find((c) => c.key === key)!.value(full);
     expect(read("owner")).toBe("John Doe");
     expect(read("source")).toBe("Direct");
     expect(read("industry")).toBe("Technology");
@@ -346,7 +346,7 @@ describe("the identity columns, left of the first figure", () => {
 
   it("shows an empty cell for a fact the backend did not send, not the word undefined", () => {
     const bare = account("a1", "Northwind Bank");
-    for (const column of CUSTOMER_LEAD_COLUMNS) {
+    for (const column of customerLeadColumns("Delayed ARR")) {
       expect(column.value(bare)).not.toMatch(/undefined|null|NaN/);
     }
   });
@@ -355,8 +355,39 @@ describe("the identity columns, left of the first figure", () => {
     // Delayed Day Count and Employee Count are counts: zero is a fact, and a
     // blank there would read as "not known" for a customer who is not delayed.
     const zeroed = account("a1", "Northwind Bank", { delayedDateCount: 0, employeeCount: 0 });
-    const read = (key: string) => CUSTOMER_LEAD_COLUMNS.find((c) => c.key === key)!.value(zeroed);
+    const read = (key: string) =>
+      customerLeadColumns("Delayed ARR").find((c) => c.key === key)!.value(zeroed);
     expect(read("delayed-days")).toBe("0");
     expect(read("employees")).toBe("0");
+  });
+});
+
+describe("Delayed Day Count, which only a Delayed type has", () => {
+  // `tableUtils.js:753` spreads that column in only when the type is Delayed
+  // ARR/QRR/MRR. So the table is SEVENTEEN identity columns by default and
+  // eighteen on a Delayed type — not a flat eighteen, which is what a first
+  // read of the column list suggests and what this port shipped until the
+  // review of ticket 10 caught it.
+  const keys = (type: string) => customerLeadColumns(type).map((column) => column.key);
+
+  it("is absent on every type that is not Delayed", () => {
+    for (const type of ["Total ARR", "Closed Won ARR", "Forecasted ARR", "Renewal ARR"]) {
+      expect(keys(type)).not.toContain("delayed-days");
+      expect(keys(type)).toHaveLength(17);
+    }
+  });
+
+  it("appears on a Delayed type, right after Partner Role", () => {
+    const delayed = keys("Delayed ARR");
+    expect(delayed).toHaveLength(18);
+    expect(delayed.indexOf("delayed-days")).toBe(delayed.indexOf("partner-role") + 1);
+  });
+
+  it("appears for a Delayed QRR and a Delayed MRR too", () => {
+    // The source tests all three Period keys independently, and the summary
+    // tables mirror a Quarterly type into `arrType`, so asking only about ARR
+    // would drop the column on a Quarterly Build.
+    expect(keys("Delayed QRR")).toContain("delayed-days");
+    expect(keys("Delayed MRR")).toContain("delayed-days");
   });
 });

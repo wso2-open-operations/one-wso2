@@ -48,6 +48,7 @@ import {
   ROW_LABEL_WIDTH,
   Z,
   leadCellSx,
+  leadHeadCellSx,
 } from "./buildTableSx";
 
 // The table every Build screen and the Flash P&L render through.
@@ -91,7 +92,7 @@ export type BuildCellFor = (
   subColumn: BuildSubColumn,
 ) => BuildCell;
 
-export interface BuildTableProps {
+export interface BuildTableProps<L extends BuildLeadColumn = BuildLeadColumn> {
   /** The table's accessible name. */
   label: string;
   /**
@@ -106,9 +107,16 @@ export interface BuildTableProps {
    * Omitted, the table has exactly one, built from `rowLabelHeader` and
    * `rowLabelWidth`, which is the Subscription Build.
    */
-  leadColumns?: readonly BuildLeadColumn[];
-  /** The text in an identity column after the first. */
-  leadCell?: (row: BuildRow, column: BuildLeadColumn) => string;
+  leadColumns?: readonly L[];
+  /**
+   * The text in an identity column after the first.
+   *
+   * The column handed back is the caller's OWN object, not a copy — the type
+   * parameter exists for exactly that, so a caller whose columns know how to
+   * read themselves can just ask, instead of looking the column up again by key
+   * on every cell of a table built for thousands of rows.
+   */
+  leadCell?: (row: BuildRow, column: L) => string;
   /** One per Period, in display order. */
   columnGroups: readonly BuildColumnGroup[];
   /** Repeated under every Period — Amount, % of Opening. */
@@ -125,7 +133,7 @@ export interface BuildTableProps {
   maxBodyHeight?: number;
 }
 
-export default function BuildTable({
+export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>({
   label,
   rowLabelHeader,
   leadColumns,
@@ -137,7 +145,7 @@ export default function BuildTable({
   defaultExpandedIds,
   rowLabelWidth = ROW_LABEL_WIDTH,
   maxBodyHeight = MAX_BODY_HEIGHT,
-}: BuildTableProps) {
+}: BuildTableProps<L>) {
   const theme = useTheme();
   const ids = buildTableIds(useId());
   const [periodRowRef, periodRowHeight] = useHeaderRowHeight();
@@ -145,11 +153,12 @@ export default function BuildTable({
   // One identity column unless the caller named more. The Subscription Build
   // takes this path and is therefore the same code as the eighteen-column
   // customers table rather than a branch beside it.
-  const lead: readonly BuildLeadColumn[] = useMemo(
+  const lead: readonly L[] = useMemo(
     () =>
       leadColumns?.length
         ? leadColumns
-        : [{ key: "__label", label: rowLabelHeader, width: rowLabelWidth, pinned: true }],
+        : ([{ key: "__label", label: rowLabelHeader, width: rowLabelWidth, pinned: true }] as
+            unknown as readonly L[]),
     [leadColumns, rowLabelHeader, rowLabelWidth],
   );
   const leadOffsets = useMemo(() => leadColumnOffsets(lead), [lead]);
@@ -227,23 +236,7 @@ export default function BuildTable({
                   rowSpan={2}
                   scope="col"
                   style={{ width: column.width, minWidth: column.width }}
-                  sx={{
-                    ...HEAD_CELL_SX,
-                    top: 0,
-                    ...(leadOffsets[index] === undefined
-                      ? {}
-                      : {
-                          position: "sticky",
-                          left: leadOffsets[index],
-                          // Sticky on BOTH axes, so it has to outrank the Period
-                          // headers it scrolls under AND the identity cells it
-                          // scrolls over.
-                          zIndex: Z.headerCorner,
-                        }),
-                    textAlign: "left",
-                    color: "text.primary",
-                    borderRight: 1,
-                  }}
+                  sx={leadHeadCellSx(leadOffsets[index])}
                 >
                   {column.label}
                 </TableCell>

@@ -240,7 +240,7 @@ export const pacificAnnualRanges: AnnualRangesFor = (viewWindow: MisWindow, filt
  * list as the Applied set's `annuallyDateRanges`, on a Calendar Window.
  *
  * The source computes Annually bounds with two generators that disagree by one,
- * and the Subscription table is the only one that reads the shorter:
+ * and the tables on the ARR Build screen read the SHORTER of the two:
  *
  *   annuallyDateRanges   getAnnualPeriods({yearsBack})              6 at Years Back 5
  *                        (viewState.js:267) — and nine other Annually
@@ -248,14 +248,23 @@ export const pacificAnnualRanges: AnnualRangesFor = (viewWindow: MisWindow, filt
  *   Subscription         generateFullYearRanges(-(yearsBack - 1), 0)  5 at Years Back 5
  *                        (tableUtils.js, `case 'subscription'`)
  *
- * So on a Calendar Window this table draws the LAST `yearsBack` of the ranges
+ * So on a Calendar Window these tables draw the LAST `yearsBack` of the ranges
  * and the oldest is never shown — see spec §9. Kept as a slice of the Applied
  * set rather than a second computation, so the columns are literally drawn from
  * the ranges the filters carry and the two cannot drift.
  *
+ * **Software/Cloud Customers reads this too, which is not obvious from the
+ * source.** That table FETCHES `generateFullYearRanges(-yearsBack, 0)` — one
+ * year more than Subscription — while its column definition
+ * (`tableUtils.js:1091`) is `-(yearsBack - 1)`, identical to Subscription's. So
+ * the source asks the backend for a year it then never renders. This port
+ * renders what the source renders and does not make the wasted call; recorded
+ * in `docs/ported-apps/mis.md` §7. Ticket 10 shipped the fetch list by mistake
+ * and showed six Periods where the source shows five.
+ *
  * A TTM Window has no such split: there the columns ARE `annuallyDateRanges`.
  */
-export function subscriptionColumnRanges(
+export function buildColumnRanges(
   viewWindow: MisWindow,
   filters: Pick<MisAppliedFilters, "annuallyDateRanges" | "yearsBack">,
 ): readonly MisDateRange[] {

@@ -97,7 +97,7 @@ const text = (value: string | number | undefined): string =>
   value === undefined || value === null || value === "" ? "" : String(value);
 
 /**
- * The eighteen columns before the first figure, in the source's order.
+ * The identity columns before the first figure, in the source's order.
  *
  * This is the table that made `BuildTable` take a LIST of identity columns
  * rather than one pinned label: the Subscription Build says which movement a
@@ -113,7 +113,7 @@ const text = (value: string | number | undefined): string =>
  * `salesRegions`, "Delayed Day Count" is `delayedDateCount` — so, as with the
  * figure columns, the mapping is data here and pinned field by field in tests.
  */
-export const CUSTOMER_LEAD_COLUMNS: readonly CustomerLeadColumn[] = [
+const IDENTITY_COLUMNS: readonly CustomerLeadColumn[] = [
   // `value` is unread for this one: `BuildTable` renders the row's own label in
   // the first identity column, because that is the cell carrying the tree
   // toggle and naming the row for a screen reader. Stated so the list reads as
@@ -129,12 +129,6 @@ export const CUSTOMER_LEAD_COLUMNS: readonly CustomerLeadColumn[] = [
     value: (a) => text(a.primaryPartnerName),
   },
   { key: "partner-role", label: "Partner Role", width: 160, value: (a) => text(a.primaryPartnerRole) },
-  {
-    key: "delayed-days",
-    label: "Delayed Day Count (From Current Date)",
-    width: 200,
-    value: (a) => text(a.delayedDateCount),
-  },
   { key: "billing-country", label: "Billing Country", width: 160, value: (a) => text(a.billingCountry) },
   {
     key: "shipping-country",
@@ -157,6 +151,39 @@ export const CUSTOMER_LEAD_COLUMNS: readonly CustomerLeadColumn[] = [
   { key: "rating", label: "Account Rating", width: 150, value: (a) => text(a.accountRating) },
   { key: "employees", label: "Employee Count", width: 150, value: (a) => text(a.employeeCount) },
 ];
+
+/** Shown only on a Delayed type — `tableUtils.js:753` spreads it in there alone. */
+const DELAYED_DAY_COUNT: CustomerLeadColumn = {
+  key: "delayed-days",
+  label: "Delayed Day Count (From Current Date)",
+  width: 200,
+  value: (a) => text(a.delayedDateCount),
+};
+
+/**
+ * The identity columns for one type value: seventeen, or eighteen on a Delayed
+ * type.
+ *
+ * Not a constant, because the source's list is not one. `tableUtils.js:753`
+ * spreads Delayed Day Count in only when the type is Delayed ARR, Delayed QRR
+ * or Delayed MRR, and it sits directly after Partner Role. Showing it always
+ * would put a column of zeroes in front of every reader who is not looking at
+ * delayed revenue; showing it never would drop the one figure a Delayed view
+ * exists to show.
+ *
+ * The type is passed rather than the whole filter set because that is all this
+ * decision turns on, and `typeValueOf` has already collapsed the three Period
+ * keys into it by the time a caller has one.
+ */
+export function customerLeadColumns(typeValue: string): readonly CustomerLeadColumn[] {
+  if (!typeValue.startsWith("Delayed ")) return IDENTITY_COLUMNS;
+  const afterPartnerRole = IDENTITY_COLUMNS.findIndex((one) => one.key === "partner-role") + 1;
+  return [
+    ...IDENTITY_COLUMNS.slice(0, afterPartnerRole),
+    DELAYED_DAY_COUNT,
+    ...IDENTITY_COLUMNS.slice(afterPartnerRole),
+  ];
+}
 
 /** One figure a customer's revenue is broken down into, within one Period. */
 export interface CustomerSubColumn {
@@ -216,6 +243,11 @@ export const CUSTOMER_SUB_COLUMNS: readonly CustomerSubColumn[] = [
   { key: "cloud-total", label: "Cloud Total", field: "arrCloudTotal" },
   { key: "grand-total", label: "Total", field: "arrGrandTotal" },
 ];
+
+/** By key, so a cell looks its column up once rather than scanning twelve. */
+export const CUSTOMER_SUB_COLUMN_BY_KEY: ReadonlyMap<string, CustomerSubColumn> = new Map(
+  CUSTOMER_SUB_COLUMNS.map((column) => [column.key, column]),
+);
 
 /**
  * One row per customer, unioned across every column, in first-appearance order.

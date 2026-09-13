@@ -16,6 +16,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { inZone } from "@/test/timeZone";
 import { misPaths } from "@constants/misApps";
@@ -316,5 +317,58 @@ describe("the figures", () => {
     renderPage();
     const table = screen.getByRole("table");
     expect(within(table).queryByText("NaN")).not.toBeInTheDocument();
+  });
+});
+
+describe("choosing which of the Build's tables to read", () => {
+  // Ticket 10. Until now `?table=` could only be reached by editing the address
+  // bar, which is not a feature. In the source these tabs live in
+  // `TableNavigation.js` and they COMMIT ON CLICK — a different table is a
+  // different report, not a narrowing of this one — which is the same rule the
+  // unit tabs already follow.
+
+  it("offers the four tables the source offers", () => {
+    renderPage();
+    const tabs = screen.getByRole("group", { name: /table/i });
+    for (const name of ["Subscription", "Customers", "Region Summary", "BU Summary"]) {
+      expect(within(tabs).getByRole("button", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("marks the table being read", () => {
+    renderPage("?table=customers");
+    const tabs = screen.getByRole("group", { name: /table/i });
+    expect(within(tabs).getByRole("button", { name: "Customers" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("shows Subscription as the one being read when the link names no Table", () => {
+    renderPage();
+    const tabs = screen.getByRole("group", { name: /table/i });
+    expect(within(tabs).getByRole("button", { name: "Subscription" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("puts the chosen table in the address, so the view can be shared", async () => {
+    renderPage();
+    const tabs = screen.getByRole("group", { name: /table/i });
+    await userEvent.click(within(tabs).getByRole("button", { name: "Customers" }));
+    expect(screen.getByRole("table", { name: /Customers/ })).toBeInTheDocument();
+  });
+
+  it("says a table is not built yet rather than quietly showing the Build instead", () => {
+    // `region-summary` is a RECOGNISED Table — 02 parses it and the filter rules
+    // key off it — it is just not built. Falling through to the Subscription
+    // Build would show the reader a different report than the one they asked
+    // for, under a heading that says Subscription and an address that says
+    // Region Summary. An unrecognised value is the other case and still
+    // degrades to the Build, which 02 pinned.
+    renderPage("?table=region-summary");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText(/not been ported yet/i)).toBeInTheDocument();
   });
 });

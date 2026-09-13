@@ -100,17 +100,20 @@ threshold exists, and it is worth revisiting if the per-customer Builds turn out
 
 This ADR listed a sticky row-label column among the four mechanisms the hand-rolled table makes ours
 to maintain, and it described **one** column, because the Subscription Build needs one: a row is a
-movement and the movement's name says which. The Software/Cloud Customers table needs **eighteen**
-before the first figure — Account Name, Account ID, Owner, Source, Primary Partner Name and Role,
-Delayed Day Count, both countries, Industry, Sub Industry, Sales Region, Sub Region, Activation Date,
-Churn Date, Lost Reason Category, Account Rating, Employee Count.
+movement and the movement's name says which. The Software/Cloud Customers table needs **seventeen**
+before the first figure — Account Name, Account ID, Owner, Source, Primary Partner Name and Role, both
+countries, Industry, Sub Industry, Sales Region, Sub Region, Activation Date, Churn Date, Lost Reason
+Category, Account Rating, Employee Count — and an eighteenth, Delayed Day Count, on a Delayed type
+only (`tableUtils.js:753` spreads it in there alone).
 
 **The decision stands and the mechanism generalises.** `BuildTable` now takes a LIST of identity
-columns and the Subscription Build passes a list of one, so the two are the same code path rather
-than a special case beside a general one. What that cost is `leadColumnOffsets`: `position: sticky`
+columns. The Subscription Build passes none and the component synthesises the single column from
+`rowLabelHeader` and `rowLabelWidth`, so one column is the degenerate case of the same code path
+rather than a branch beside it — its 37 tests went through the change unaltered. What that cost is `leadColumnOffsets`: `position: sticky`
 needs each frozen column's own `left`, which is the sum of the widths frozen before it, and there is
 no way to say "after the previous sticky one" in a stylesheet. Nine lines, pinned by unit tests on the
-arithmetic and by a rendered test reading `getComputedStyle` off the second frozen cell.
+arithmetic and by rendered tests reading `getComputedStyle` off the second frozen cell in the BODY and
+in the HEADER — they have to agree to the pixel, or the pane shears when the reader scrolls right.
 
 **Freezing is honoured only as a contiguous run from the left.** A frozen column with a scrolling one
 to its left has nowhere honest to sit — its offset describes a gap that the scrolling column slides

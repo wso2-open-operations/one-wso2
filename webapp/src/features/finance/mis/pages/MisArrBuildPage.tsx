@@ -27,23 +27,26 @@ import {
   type ArrSummaryResponse,
 } from "../components/arrBuildRows";
 import { useArrSummary, type ArrSummaryColumn } from "../api/useArrSummary";
-import { pacificAnnualRanges, subscriptionColumnRanges } from "../util/misPeriods";
+import { pacificAnnualRanges, buildColumnRanges } from "../util/misPeriods";
 import { amountUnitCaption, formatMisValue, misValueTypeForRow } from "../util/misMoney";
 import type { MisViewState } from "../util/useMisViewState";
 import type { MisScale } from "../util/misViewVocabulary";
 import { useMisViewState } from "../util/useMisViewState";
 import { useMisScale } from "../util/useMisScale";
-import { MIS_PERIODS, MIS_TABLES } from "../util/misViewVocabulary";
+import { MIS_PERIODS, MIS_TABLES, MIS_TABLE_LABELS, typeValueOf } from "../util/misViewVocabulary";
 import { useCustomerAccounts } from "../api/useCustomerAccounts";
 import {
-  CUSTOMER_LEAD_COLUMNS,
   CUSTOMER_SUB_COLUMNS,
+  CUSTOMER_SUB_COLUMN_BY_KEY,
   customerAccountRows,
   customerFigure,
+  customerLeadColumns,
   type AccountsResponse,
+  type CustomerLeadColumn,
 } from "../components/customerAccountRows";
 import { useMisAppConfigs } from "../api/useMisAppConfigs";
 import MisFilterBar from "../components/MisFilterBar";
+import MisTableTabs from "../components/MisTableTabs";
 
 // ARR Build — the annual recurring-revenue Build, on live figures.
 //
@@ -100,13 +103,36 @@ function ArrBuild() {
         optionsErrorMessage={configs.isError ? configs.errorMessage : ""}
         onRetryOptions={configs.retry}
       />
-      {view.table === MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS ? (
-        <CustomersGrid view={view} scale={scale.scale} />
-      ) : (
-        <ArrBuildGrid view={view} scale={scale.scale} />
-      )}
+      <MisTableTabs table={view.table} onChange={(table) => view.setView({ table })} />
+      <BuildForTable view={view} scale={scale.scale} />
     </Box>
   );
+}
+
+/**
+ * Whichever of the four tables the address names.
+ *
+ * Two of them are not ported yet, and they say so rather than falling through
+ * to the Build. The distinction matters and is not pedantry: `region-summary`
+ * is a RECOGNISED Table — ticket 02 parses it, and the filter rules already key
+ * off it — so showing the Subscription Build instead would hand the reader a
+ * different report than the one they asked for, under a heading saying
+ * Subscription and an address saying Region Summary. An UNRECOGNISED value is
+ * the other case, and that still degrades to the Build, which is 02's contract
+ * and its test.
+ */
+function BuildForTable({ view, scale }: { view: MisViewState; scale: MisScale }) {
+  if (view.table === MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS) {
+    return <CustomersGrid view={view} scale={scale} />;
+  }
+  if (view.table !== MIS_TABLES.SUBSCRIPTION) {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
+        {MIS_TABLE_LABELS[view.table]} has not been ported yet. Choose Subscription or Customers.
+      </Typography>
+    );
+  }
+  return <ArrBuildGrid view={view} scale={scale} />;
 }
 
 /**
@@ -122,9 +148,9 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
   // Drawn from the ranges the URL contract already hydrated into the Applied
   // set, so the columns and the filters cannot disagree about which Periods are
   // on screen. Sliced, because on a Calendar Window this particular table shows
-  // one fewer than the Applied set carries — see subscriptionColumnRanges.
+  // one fewer than the Applied set carries — see buildColumnRanges.
   const ranges = useMemo(
-    () => subscriptionColumnRanges(view.viewWindow, view.filters),
+    () => buildColumnRanges(view.viewWindow, view.filters),
     [view.viewWindow, view.filters],
   );
   const summary = useArrSummary(ranges, view.filters);
@@ -203,16 +229,23 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
  * customer and there are hundreds of them, which is why this is the first
  * screen where `BuildTable`'s row windowing (07) actually runs.
  *
- * Its columns are the Applied set's `annuallyDateRanges` in full, NOT the
- * `subscriptionColumnRanges` slice the Build takes. The source's own generators
- * disagree by one year and only the Subscription table reads the shorter — see
- * `misPeriods` — and this table's fetch uses the longer (`useCustomerAccounts.js`
- * asks `generateFullYearRanges(-yearsBack, 0)` where Subscription asks
- * `-(yearsBack - 1)`).
+ * Its columns are `buildColumnRanges`, the same slice the Subscription Build
+ * takes. The source is confusing here and ticket 10 got it wrong first time
+ * round: this table FETCHES `generateFullYearRanges(-yearsBack, 0)` — a year
+ * more than Subscription — while its COLUMN definition (`tableUtils.js:1091`)
+ * is `-(yearsBack - 1)`, identical to Subscription's. So the source asks for a
+ * year it never renders, and reading the fetch as if it were the column list
+ * put six Periods on screen where the source shows five.
  */
 function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
-  const ranges = view.filters.annuallyDateRanges ?? [];
+  const ranges = useMemo(
+    () => buildColumnRanges(view.viewWindow, view.filters),
+    [view.viewWindow, view.filters],
+  );
   const book = useCustomerAccounts(ranges, view.filters);
+  // Seventeen identity columns, or eighteen on a Delayed type — the source
+  // spreads Delayed Day Count in only there.
+  const leadColumns = customerLeadColumns(typeValueOf(view.filters));
 
   // Not memoised, for the same reason the Build's `byColumn` is not:
   // `book.columns` is rebuilt every render, so a useMemo over it never hits.
@@ -226,14 +259,20 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
     ]),
   );
 
-  const leadCell = (row: { id: string }, column: { key: string }) => {
+  // The column hands back its own reader — `BuildTable` is generic over the
+  // caller's column type, so this is the very object `leadColumns` holds and
+  // not a key to look one up by. On a windowed 3,000-row table that is the
+  // difference between one call and seventeen comparisons per identity cell.
+  const leadCell = (row: { id: string }, column: CustomerLeadColumn) => {
     const account = accountById.get(row.id);
-    const definition = CUSTOMER_LEAD_COLUMNS.find((one) => one.key === column.key);
-    return account && definition ? definition.value(account) : "";
+    return account ? column.value(account) : "";
   };
 
   const cell: BuildCellFor = (row, group, subColumn) => {
-    const definition = CUSTOMER_SUB_COLUMNS.find((one) => one.key === subColumn.key)!;
+    // A Map, not a scan: `BuildTable` takes plain `BuildSubColumn`s, so the
+    // figure's own definition has to be found by key, and this table renders
+    // twelve of them under every Period.
+    const definition = CUSTOMER_SUB_COLUMN_BY_KEY.get(subColumn.key)!;
     const raw = customerFigure(byColumn.get(group.key)?.get(row.id), definition);
     return {
       // Every figure here is currency, so the Scale applies to all of them —
@@ -274,7 +313,7 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
       <BuildTable
         label="ARR Build — Software/Cloud Customers"
         rowLabelHeader="Account Name"
-        leadColumns={CUSTOMER_LEAD_COLUMNS}
+        leadColumns={leadColumns}
         leadCell={leadCell}
         columnGroups={book.columns.map(({ label }) => ({ key: label, label }))}
         subColumns={CUSTOMER_SUB_COLUMNS.map(({ key, label }) => ({ key, label, width: 150 }))}

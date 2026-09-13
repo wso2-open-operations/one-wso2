@@ -194,22 +194,49 @@ export const ROW_LABEL_CELL_SX = {
 } as const;
 
 /**
- * One identity cell, frozen at `offset` or left to scroll.
+ * Where one identity cell sits horizontally.
  *
- * The same pane ADR 0004 already owns, widened from one column to a run of
- * them: the Subscription Build names a row with a movement, and the
- * Software/Cloud Customers table needs eighteen columns to say which account a
- * row is. A frozen cell must also be OPAQUE — a translucent one lets the
- * figures moving behind it show through, and the pane reads as a smear rather
- * than as a pane — which `cellBase` already supplies.
+ * The pane ADR 0004 already owns, widened from one column to a run of them: the
+ * Subscription Build names a row with a movement, and the Software/Cloud
+ * Customers table needs seventeen columns to say which account a row is. A
+ * frozen cell must also be OPAQUE — a translucent one lets the figures moving
+ * behind it show through, and the pane reads as a smear rather than as a pane —
+ * which `cellBase` and `HEAD_CELL_SX` already supply.
  *
- * `undefined` leaves the cell in the flow. It is not `left: 0`, which would
- * freeze it on top of the column that belongs at the left edge.
+ * `undefined` means the column scrolls, and the two callers disagree about what
+ * that implies, which is why the fallback is passed in rather than assumed: a
+ * BODY cell goes back into the flow, while a HEADER cell must STAY
+ * `position: sticky` or it loses the `top: 0` holding it under the vertical
+ * scroll. Neither is `left: 0`, which would freeze the column on top of the one
+ * that belongs at the left edge.
  */
-export const leadCellSx = (offset: number | undefined) =>
-  offset === undefined
-    ? { ...ROW_LABEL_CELL_SX, position: "static" as const, left: "auto" as const, zIndex: "auto" as const }
-    : { ...ROW_LABEL_CELL_SX, left: offset };
+const frozenAt = (offset: number | undefined, zIndex: number, whenScrolling: object) =>
+  offset === undefined ? whenScrolling : { position: "sticky" as const, left: offset, zIndex };
+
+/** One identity cell in the body. */
+export const leadCellSx = (offset: number | undefined) => ({
+  ...ROW_LABEL_CELL_SX,
+  ...frozenAt(offset, Z.rowLabel, {
+    position: "static" as const,
+    left: "auto" as const,
+    zIndex: "auto" as const,
+  }),
+});
+
+/**
+ * One identity cell's header.
+ *
+ * A frozen one is sticky on BOTH axes, so it has to outrank the Period headers
+ * it scrolls under AND the identity cells it scrolls over.
+ */
+export const leadHeadCellSx = (offset: number | undefined) => ({
+  ...HEAD_CELL_SX,
+  top: 0,
+  textAlign: "left" as const,
+  color: "text.primary",
+  borderRight: 1,
+  ...frozenAt(offset, Z.headerCorner, { left: "auto" as const, zIndex: Z.header }),
+});
 
 /**
  * The hairline between two Periods, on the first sub-column of each.

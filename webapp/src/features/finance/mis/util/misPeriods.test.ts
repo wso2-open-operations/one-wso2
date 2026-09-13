@@ -28,7 +28,7 @@ import {
   getAnnualPeriods,
   getTtmPeriods,
   pacificAnnualRanges,
-  subscriptionColumnRanges,
+  buildColumnRanges,
 } from "./misPeriods";
 
 // The Annually column ranges, in Pacific Time. Spec §3 and §10.8.
@@ -314,15 +314,15 @@ describe("how many columns the Subscription Build draws", () => {
   };
 
   it("draws exactly Years Back columns on a Calendar Window", () => {
-    expect(subscriptionColumnRanges(MIS_WINDOWS.CALENDAR, filtersAt(5))).toHaveLength(5);
-    expect(subscriptionColumnRanges(MIS_WINDOWS.CALENDAR, filtersAt(1))).toHaveLength(1);
+    expect(buildColumnRanges(MIS_WINDOWS.CALENDAR, filtersAt(5))).toHaveLength(5);
+    expect(buildColumnRanges(MIS_WINDOWS.CALENDAR, filtersAt(1))).toHaveLength(1);
   });
 
   it("drops the OLDEST range, keeping the years nearest today", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-12T18:00:00Z"));
     const filters = inZone("UTC", () => filtersAt(5));
-    const columns = subscriptionColumnRanges(MIS_WINDOWS.CALENDAR, filters);
+    const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, filters);
     expect(columns[0].start).toBe("2022/01/01");
     expect(columns.at(-1)?.end).toBe("2026/09/12");
     // The one it dropped is the one the source computes and never draws.
@@ -331,15 +331,15 @@ describe("how many columns the Subscription Build draws", () => {
 
   it("draws every range on a TTM Window, where the two agree", () => {
     const filters = filtersAt(5, MIS_WINDOWS.TTM);
-    expect(subscriptionColumnRanges(MIS_WINDOWS.TTM, filters)).toEqual(
+    expect(buildColumnRanges(MIS_WINDOWS.TTM, filters)).toEqual(
       filters.annuallyDateRanges,
     );
-    expect(subscriptionColumnRanges(MIS_WINDOWS.TTM, filters)).toHaveLength(5);
+    expect(buildColumnRanges(MIS_WINDOWS.TTM, filters)).toHaveLength(5);
   });
 
   it("draws nothing when the Applied set carries no ranges at all", () => {
     expect(
-      subscriptionColumnRanges(MIS_WINDOWS.CALENDAR, { yearsBack: 5 } as MisAppliedFilters),
+      buildColumnRanges(MIS_WINDOWS.CALENDAR, { yearsBack: 5 } as MisAppliedFilters),
     ).toEqual([]);
   });
 });
