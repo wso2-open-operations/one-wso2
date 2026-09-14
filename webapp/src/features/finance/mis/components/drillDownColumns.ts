@@ -86,10 +86,17 @@ const blank =
  * would be wrong rather than merely scaled — and this dialog is opened from a
  * Build that may well be showing thousands at the time.
  */
-const amount = (customer: DrillDownCustomer) =>
-  customer.amount === undefined || customer.amount === null
-    ? DRILL_DOWN_NOT_AVAILABLE
-    : formatMisValue(customer.amount, MIS_VALUE_TYPES.CURRENCY, { scale: MIS_SCALES.UNITS });
+const amount = (customer: DrillDownCustomer) => {
+  // The source guards TWICE — `== null || === ""` before formatting, and the
+  // formatted result again afterwards. `amount` is a non-nullable decimal on
+  // the wire, so both are defensive; but this is the money column, and
+  // `formatMisValue` passes a string straight through, so an empty one would
+  // render a blank cell under a header reading "Amount (USD)".
+  const raw = customer.amount;
+  if (raw === undefined || raw === null || (raw as unknown) === "") return DRILL_DOWN_NOT_AVAILABLE;
+  const formatted = formatMisValue(raw, MIS_VALUE_TYPES.CURRENCY, { scale: MIS_SCALES.UNITS });
+  return formatted === "" ? DRILL_DOWN_NOT_AVAILABLE : formatted;
+};
 
 /**
  * Account ID, Account Name, Amount.
@@ -112,8 +119,14 @@ const LOST: readonly DrillDownColumn[] = [
     width: 220,
     value: withPlaceholder((c) => c.lostReasonCategory),
   },
-  // The one column in the dialog allowed to wrap to several lines; every other
-  // cell is single-line, which is why it is by far the widest.
+  // The source lets this ONE column wrap and grows the row to fit it
+  // (`wrapText`/`autoHeight` plus a per-row height estimate). This port cannot:
+  // `BuildTable`'s row windowing measures one row and assumes every other
+  // matches it, so a variable-height row would break the scroll extent. So the
+  // column keeps the source's generous width and the full text is carried on
+  // the cell's `title` instead of being silently clipped to a fragment — a free
+  // -text lost reason is the whole point of the two Lost columns. Deviation in
+  // mis.md §7.
   { key: "lostReason", label: "Lost Reason", width: 320, value: withPlaceholder((c) => c.lostReason) },
 ];
 
@@ -176,6 +189,22 @@ export const drillDownColumns = (rowId: string): readonly DrillDownColumn[] =>
  *
  * Deliberately NOT sorted. The order is the order the figure was summed in, and
  * re-sorting would quietly assert an order the backend did not send.
+ *
+ * The id is the account id, SUFFIXED on a repeat. The backend aggregates per
+ * account, so a repeat should not happen — but `BuildRow.id` is not merely a
+ * React key here: `buildTableIds` stamps it into a DOM `id` that every cell in
+ * the row points at through `headers`. A duplicate would therefore give two
+ * rows the same DOM id and break the wiring a screen reader follows for both,
+ * which is a worse failure than the rows being indistinguishable.
  */
-export const drillDownRows = (customers: readonly DrillDownCustomer[]): BuildRow[] =>
-  customers.map((customer) => ({ id: customer.accountId, label: customer.accountId }));
+export function drillDownRows(customers: readonly DrillDownCustomer[]): BuildRow[] {
+  const seen = new Map<string, number>();
+  return customers.map((customer) => {
+    const repeat = seen.get(customer.accountId) ?? 0;
+    seen.set(customer.accountId, repeat + 1);
+    return {
+      id: repeat === 0 ? customer.accountId : `${customer.accountId}#${repeat}`,
+      label: customer.accountId,
+    };
+  });
+}

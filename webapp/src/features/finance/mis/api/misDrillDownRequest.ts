@@ -28,7 +28,8 @@
 //   + `customerArrType` — the question being asked, and the only field naming
 //     the row that was clicked.
 //   − no `prevColDateRange`. A Build column reports y/y movement and needs a
-//     comparison window; a list of customers has nothing to compare against.
+//     previous column to measure against; a list of customers has nothing to
+//     compare against.
 //   ~ `startDate` is OMITTED on an opening balance rather than sent. An opening
 //     balance is a moment, not a period.
 //   ~ `isFirstColumn` is narrower — see `flagsFirstColumn` below.

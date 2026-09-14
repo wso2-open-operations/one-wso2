@@ -45,7 +45,7 @@ import {
  * entry has to fall back rather than send a code the backend will not know.
  * Verbatim from `useArrTableSummary.js`.
  */
-export const BACKEND_UNIT_CODES: Readonly<Record<string, string>> = {
+const BACKEND_UNIT_CODES: Readonly<Record<string, string>> = {
   BU_ALL: "ALL_BU",
   BU_APIM: "APIM_BU",
   BU_IAM: "IAM_BU",

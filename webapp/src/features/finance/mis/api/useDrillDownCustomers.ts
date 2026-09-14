@@ -30,8 +30,11 @@ import { useColumnQueries } from "./useColumnQueries";
 // body as the cache key, the sub-scoping, `httpRetry`, `humanizeHttpError`, the
 // identity-error fold, and the clean idle state when there is nothing to ask.
 //
-// `null` request means the dialog is shut. No body, no query, no fetch — and
-// the same idle state as a dialog that has never been opened.
+// `null` request means the dialog is shut: no body, no query, no fetch. That
+// yields the engine's idle state — except when the SUBJECT itself has failed,
+// which is reported ahead of it. Harmless here because the page unmounts the
+// dialog when nothing is open, but worth knowing before reading this state
+// anywhere else.
 //
 // ---- the source's error handling is BROKEN, and this does not copy it -------
 //
@@ -59,10 +62,8 @@ export function useDrillDownCustomers(request: DrillDownRequest | null): DrillDo
     name: "arr-summary-customers",
     url: misArrServiceUrls.drillDownCustomers,
     bodies,
-    // One "column", and it is never shown — the dialog heads its columns by
-    // field, not by Period. Present because the engine keeps bodies and labels
-    // index-aligned.
-    labels: ["customers"],
+    // No labels: this has one "column" and it is never shown — the dialog heads
+    // its columns by field, not by Period.
     parse: arrayIn<DrillDownCustomer>,
   });
 

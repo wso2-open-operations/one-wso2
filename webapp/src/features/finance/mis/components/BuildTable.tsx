@@ -68,10 +68,13 @@ import {
 // See `useHeaderRowHeight` below.
 //
 // What this component does NOT do, deliberately: no formatting (injected, so
-// the Scale rule stays in one place — ticket 05), no fetching, no drill-down
-// (ticket 10).
+// the Scale rule stays in one place — ticket 05) and no fetching.
 //
-// It DOES window its rows above `ROW_WINDOW_THRESHOLD` — see `useRowWindow`.
+// It DOES window its rows above `ROW_WINDOW_THRESHOLD` (see `useRowWindow`), and
+// it DOES render a figure as an activatable control when the caller's `cell`
+// returns an `onActivate` — which is how ticket 10's drill-down opens. What
+// stays out is any knowledge of WHICH figures have something behind them; that
+// is per-row and the caller's alone.
 
 /** One figure, as the caller wants it read. */
 export interface BuildCell {
@@ -248,7 +251,7 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                   // drill-down dialog is all identity columns and no Periods,
                   // and a rowSpan over a row that does not exist is a lie the
                   // table algorithm has to resolve on its own.
-                  rowSpan={subColumns.length ? 2 : 1}
+                  rowSpan={columnGroups.length && subColumns.length ? 2 : 1}
                   scope="col"
                   style={{ width: column.width, minWidth: column.width }}
                   sx={leadHeadCellSx(leadOffsets[index])}
@@ -277,10 +280,12 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
             </TableRow>
 
             {/* ROW 2 — held below row 1 by the measured offset, not by MUI.
-                Absent entirely on a table with no Periods: the drill-down
-                dialog is a flat list, and an empty header row is a row a
-                screen reader still counts. */}
-            {subColumns.length > 0 && (
+                Absent entirely when there are no figure cells to head, which is
+                the drill-down dialog's flat list of identity columns: an empty
+                header row is a row a screen reader still counts. Both lists are
+                tested, not just `subColumns` — row 2's cells are the product of
+                the two, so either being empty leaves it blank. */}
+            {columnGroups.length > 0 && subColumns.length > 0 && (
             <TableRow>
               {columnGroups.map((group, groupIndex) =>
                 subColumns.map((subColumn, subIndex) => (
@@ -375,8 +380,14 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                       style={{ width: column.width, minWidth: column.width, maxWidth: column.width }}
                       sx={leadCellSx(leadOffsets[index])}
                     >
+                      {/* The full value on the cell itself. Identity columns
+                          truncate — every row is one line, because the row
+                          window measures one and assumes the rest match — so a
+                          long value would otherwise be readable only as the
+                          fragment that happens to fit. */}
                       <Typography
                         component="span"
+                        title={leadCell?.(row, column) ?? ""}
                         sx={{
                           fontSize: 12.5,
                           lineHeight: 1.6,

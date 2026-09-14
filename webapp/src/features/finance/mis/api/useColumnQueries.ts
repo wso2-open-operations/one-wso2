@@ -77,8 +77,14 @@ export interface ColumnQueriesInput<TBody, TData> {
   url: string;
   /** One body per column, oldest first. The body IS the cache key. */
   bodies: readonly TBody[];
-  /** One header per column, index-aligned with `bodies`. */
-  labels: readonly string[];
+  /**
+   * One header per column, index-aligned with `bodies`.
+   *
+   * Optional, because not every caller HAS columns: the drill-down asks this
+   * one question and shows the answer under its own field headings, so
+   * requiring a label would only make it invent a string nothing renders.
+   */
+  labels?: readonly string[];
   /** What the endpoint's payload means to the caller. */
   parse: (payload: unknown) => TData;
   enabled?: boolean;
@@ -134,7 +140,7 @@ export function useColumnQueries<TBody, TData>({
   }
 
   const columns = bodies.map((_body, index) => ({
-    label: labels[index],
+    label: labels?.[index] ?? "",
     data: results[index]?.data,
     isError: Boolean(results[index]?.isError),
   }));

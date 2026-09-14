@@ -82,9 +82,13 @@ export default function MisCustomerDrillDown({
 }: MisCustomerDrillDownProps) {
   const columns = useMemo(() => drillDownColumns(rowId), [rowId]);
   const rows = useMemo(() => drillDownRows(state.customers), [state.customers]);
-  const byId = useMemo(
-    () => new Map(state.customers.map((customer) => [customer.accountId, customer])),
-    [state.customers],
+  // Zipped by POSITION rather than keyed by account id. `drillDownRows`
+  // suffixes a repeated id so two customers cannot share a DOM id, which means
+  // the row id is no longer always the account id — and looking the customer up
+  // by it would hand the same one to both rows.
+  const byRowId = useMemo(
+    () => new Map(rows.map((row, index) => [row.id, state.customers[index]])),
+    [rows, state.customers],
   );
 
   // The source's title exactly: the row, a middle dot, the column. It is the
@@ -113,7 +117,7 @@ export default function MisCustomerDrillDown({
             Build's filters, and changing one from in here would leave the list
             describing a different figure from the one it was opened from. */}
         <MisAppliedFilterChips chips={chips} />
-        <DrillDownBody state={state} rows={rows} columns={columns} byId={byId} />
+        <DrillDownBody state={state} rows={rows} columns={columns} byRowId={byRowId} />
       </DialogContent>
     </Dialog>
   );
@@ -123,12 +127,12 @@ function DrillDownBody({
   state,
   rows,
   columns,
-  byId,
+  byRowId,
 }: {
   state: DrillDownState;
   rows: ReturnType<typeof drillDownRows>;
   columns: readonly DrillDownColumn[];
-  byId: ReadonlyMap<string, Parameters<DrillDownColumn["value"]>[0]>;
+  byRowId: ReadonlyMap<string, Parameters<DrillDownColumn["value"]>[0] | undefined>;
 }) {
   if (state.isLoading) {
     // A fixed height in every branch, so the dialog does not jump when the
@@ -166,7 +170,7 @@ function DrillDownBody({
       rowLabelHeader={columns[0].label}
       leadColumns={columns}
       leadCell={(row, column) => {
-        const customer = byId.get(row.id);
+        const customer = byRowId.get(row.id);
         return customer ? column.value(customer) : "";
       }}
       columnGroups={[]}

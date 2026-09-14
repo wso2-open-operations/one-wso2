@@ -184,6 +184,16 @@ describe("the amount, which is the figure the reader clicked broken down", () =>
     expect(read("new-arr", "amount", customer({ amount: 1234567.5 }))).toBe("1,234,567.50");
   });
 
+  it("says N/A for an empty string, which is the money column's own guard", () => {
+    // The source guards `amount` twice — before formatting and after — while
+    // every other column it guards is guarded once. This is the money column:
+    // an empty string reaching the formatter passes straight through it, so the
+    // cell would render blank under a header reading "Amount (USD)".
+    expect(read("new-arr", "amount", customer({ amount: "" as unknown as number }))).toBe(
+      DRILL_DOWN_NOT_AVAILABLE,
+    );
+  });
+
   it("shows a genuine zero rather than N/A", () => {
     expect(read("new-arr", "amount", customer({ amount: 0 }))).toBe("0.00");
   });
@@ -220,5 +230,26 @@ describe("the rows the dialog renders", () => {
 
   it("has nothing to show for an empty book", () => {
     expect(drillDownRows([])).toEqual([]);
+  });
+
+  it("keeps two rows apart when the backend repeats an account id", () => {
+    // The id is not merely a React key: `buildTableIds` stamps it into a DOM id
+    // that every cell in the row points at through `headers`. Two rows sharing
+    // one would break that wiring for BOTH of them, which is worse than the
+    // rows merely looking alike. The backend aggregates per account so this
+    // should not arise — but the cost of being wrong is silent.
+    const rows = drillDownRows([customer(), customer(), customer({ accountId: "b2" })]);
+    expect(new Set(rows.map((row) => row.id)).size).toBe(3);
+    // Still LABELLED with the real account id, both times.
+    expect(rows[0].label).toBe(rows[1].label);
+  });
+
+  it("labels the row with what the first column would have read", () => {
+    // `BuildTable` renders the first identity column from `row.label` and never
+    // calls that column's own `value`. Two sources of truth for one cell, so
+    // this ties them together — a divergence would otherwise ship green.
+    const one = customer();
+    const first = drillDownColumns("new-arr")[0];
+    expect(drillDownRows([one])[0].label).toBe(first.value(one));
   });
 });

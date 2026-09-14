@@ -389,12 +389,46 @@ silently drops the confidence off a Forecasted QRR. Both endpoints now answer th
 way, which they did not in the source.
 
 **A failed drill-down says so.** The source cannot: its error is discarded three times over —
-`http.js:65` hands the failure callback a STRING, `useArrSummaryCustomers.js:52` reads `err?.message`
+`http.js:64` hands the failure callback a STRING, `useArrSummaryCustomers.js:52` reads `err?.message`
 off it and always falls through to the literal `'Failed'`, and `DataGrid.js:911` never destructures
 `error` at all, so the dialog has no error prop and no error state. A failed drill-down there renders
 an EMPTY GRID, indistinguishable from "no customers matched" — on a screen whose whole purpose is to
 explain a figure, that reads as "this number is made of nobody". The backend does send a usable
 message (`service.bal:187`). The port surfaces it, with a retry.
+
+**The drill-down dialog's columns do not sort, filter or resize.** The source's grid sets
+`defaultColDef={{ resizable: true, sortable: true, filter: true, ... }}`
+(`ArrSummaryCustomersDialog.js:314-324`), so every one of its eleven or thirteen columns is sortable
+and filterable. `BuildTable` offers none of that. It matters most where this dialog is largest:
+`/arr-summary/customers` takes no limit and no offset, so a Closing drill-down across every business
+unit returns the whole customer book — and a list that long with no sort-by-Amount is a materially
+weaker tool than the source's. The biggest single gap in the drill-down port; not a blocker for the
+parallel period, but the first thing to fix if Finance notices.
+
+**A drillable figure is visibly drillable, and reachable from the keyboard.** The source hangs the
+whole drill-down off `onCellClicked` (`DataGrid.js:604`) — an invisible, mouse-only cell handler with
+no styling and no focusable element, so a figure that opens a dialog looks exactly like one that does
+nothing. The port renders an openable figure as a real button with a dotted underline. A deliberate
+addition: a drill-down only a mouse can reach is one half the readers of a finance report cannot use,
+and an affordance nobody can see is one most readers never find.
+
+**Account ID is frozen in the port and is not in the source.** `salesforceIdColumn`
+(`drillDownTitle.js:27-37`) pins only the column's WIDTH — 188px, sized for an 18-character
+Salesforce id on one line — and the source's grid pins no column at all, scrolling all thirteen
+together. The port freezes it, because at thirteen columns the identity of the row scrolls away first.
+
+**Lost Reason does not wrap.** The source lets that one column wrap and grows the row to fit it
+(`wrapText`/`autoHeight` plus a per-row height estimate, `ArrSummaryCustomersDialog.js:117-133` and
+:161-189). This port cannot: `BuildTable`'s row windowing measures one row and assumes every other
+matches, so a variable-height row would break the scroll extent it reports. The column keeps the
+source's generous 320px and carries its full text on the cell's `title`, so a long reason is reachable
+rather than clipped to a fragment. The honest fix is per-row heights in the window, which is a ticket
+of its own.
+
+**The empty state is worded rather than inherited.** The source's dialog sets no
+`overlayNoRowsTemplate` and does not spread `AG_GRID_CONFIG`, so an empty drill-down falls through to
+ag-grid's default "No Rows To Show". The port says "No customers behind this figure." — which, with
+the error notice above, is what makes "failed" and "empty" tell each other apart at all.
 
 **The drill-down dialog has no CSV button.** The source has one. This port's export story is ticket 11
 — one set of shared ExcelJS builders, written once and consumed by the Build and by Flash — and a

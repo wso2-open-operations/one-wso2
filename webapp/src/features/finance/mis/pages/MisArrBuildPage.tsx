@@ -30,7 +30,7 @@ import { useArrSummary, type ArrSummaryColumn } from "../api/useArrSummary";
 import { annualColumnLabel, pacificAnnualRanges, buildColumnRanges } from "../util/misPeriods";
 import { amountUnitCaption, formatMisValue, misValueTypeForRow } from "../util/misMoney";
 import type { MisViewState } from "../util/useMisViewState";
-import type { MisScale } from "../util/misViewVocabulary";
+import type { MisDateRange, MisScale } from "../util/misViewVocabulary";
 import { useMisViewState } from "../util/useMisViewState";
 import { useMisScale } from "../util/useMisScale";
 import { MIS_PERIODS, MIS_TABLES, MIS_TABLE_LABELS, typeValueOf } from "../util/misViewVocabulary";
@@ -69,8 +69,10 @@ import { describeAppliedFilters } from "../util/misAppliedFilterChips";
 //                 SAME `useMisViewState` instance, so there is one view and not
 //                 a bar's copy of it beside the grid's
 //
-// Windowing is `BuildTable`'s (07). The drill-down dialog is still ticket 10's
-// and is not here yet.
+//   the drill-down `useDrillDownCustomers` fetches the customers behind one
+//                 figure and `MisCustomerDrillDown` shows them (10)
+//
+// Windowing is `BuildTable`'s (07).
 
 export default function MisArrBuildPage() {
   useDocumentTitle("ARR Build");
@@ -164,15 +166,20 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
     [view.filters.channelDirect],
   );
 
-  // Which figure the reader opened, if any. Held as the row and the COLUMN
-  // INDEX rather than as a built request, so the request is recomputed when the
-  // filters move under an open dialog instead of going stale.
-  const [opened, setOpened] = useState<{ rowId: string; rowLabel: string; column: number } | null>(
-    null,
-  );
+  // Which figure the reader opened, if any. It holds the RANGE, not an index
+  // into `ranges` — the Applied set can shrink under an open dialog (a smaller
+  // Years Back arriving from a history back/forward), and a stored index would
+  // then point past the end and throw on `range.end` during render. Holding the
+  // range removes the class rather than clamping the index.
+  const [opened, setOpened] = useState<{
+    rowId: string;
+    rowLabel: string;
+    range: MisDateRange;
+    isFirstColumn: boolean;
+  } | null>(null);
   const request = opened
-    ? drillDownRequest(opened.rowId, ranges[opened.column], view.filters, {
-        isFirstColumn: opened.column === 0,
+    ? drillDownRequest(opened.rowId, opened.range, view.filters, {
+        isFirstColumn: opened.isFirstColumn,
       })
     : null;
   const drillDown = useDrillDownCustomers(request);
@@ -180,19 +187,18 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
   // so a useMemo over it would never hit — and babel-plugin-react-compiler
   // already handles what genuinely can be.
   const byColumn = responsesByColumn(summary.columns);
-  const columnIndexByLabel = useMemo(
-    () => new Map(ranges.map((range, index) => [annualColumnLabel(range), index])),
+  const rangeByLabel = useMemo(
+    () => new Map(ranges.map((range) => [annualColumnLabel(range), range])),
     [ranges],
   );
   const cell: BuildCellFor = (row, group) => {
     const field = arrBuildFieldFor(row.id);
     const raw = field ? byColumn.get(group.key)?.[field] : undefined;
-    // Looked up against the RANGES, not against `summary.columns`. The two are
-    // index-aligned in practice — the hook builds its columns from these very
-    // ranges — but the dates the drill-down sends come from the range, so
-    // reading the index off the other list would make a stale or partial
-    // response able to shift a date by a year.
-    const column = columnIndexByLabel.get(group.key) ?? -1;
+    // The RANGE behind this column, by its label. `useArrSummary` builds its
+    // columns from these very ranges, so the lookup always resolves — but the
+    // dates the drill-down sends come from the range itself, so it is taken
+    // from there rather than from the response.
+    const range = rangeByLabel.get(group.key);
     return {
       text: formatMisValue(raw, misValueTypeForRow(row.label), { scale }),
       negative: typeof raw === "number" && raw < 0,
@@ -201,8 +207,14 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
       // is nothing to open and the cell stays plain text — which is two thirds
       // of the Build.
       onActivate:
-        DRILLABLE_ROW_IDS.has(row.id) && column >= 0
-          ? () => setOpened({ rowId: row.id, rowLabel: row.label, column })
+        DRILLABLE_ROW_IDS.has(row.id) && range
+          ? () =>
+              setOpened({
+                rowId: row.id,
+                rowLabel: row.label,
+                range,
+                isFirstColumn: ranges[0] === range,
+              })
           : undefined,
     };
   };
@@ -249,7 +261,7 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
         onClose={() => setOpened(null)}
         rowId={opened.rowId}
         rowLabel={opened.rowLabel}
-        periodColumn={annualColumnLabel(ranges[opened.column])}
+        periodColumn={annualColumnLabel(opened.range)}
         // The Build's own Applied filters, shown but not editable — the list
         // describes a figure computed under exactly these.
         chips={describeAppliedFilters(view.filters, { period: view.period, table: view.table })}
