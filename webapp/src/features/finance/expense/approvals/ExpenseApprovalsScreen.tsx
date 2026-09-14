@@ -167,6 +167,11 @@ function ApprovalsQueue({ stage, viewerEmail }: { stage: ApproverView; viewerEma
           onChange={(_e, v) => {
             // Approvals.tsx:35 — a new tab starts from a clean filter set.
             setFilters(EMPTY_APPROVAL_FILTERS);
+            // And from no decided claim. The claim just approved reappears on
+            // the Approved tab under the same id, so a `decidedId` left behind
+            // would fade that row to nothing — invisible, but with its button
+            // still in the tab order.
+            setDecidedId(null);
             setTabKey(v as ApprovalTabKey);
           }}
           sx={{

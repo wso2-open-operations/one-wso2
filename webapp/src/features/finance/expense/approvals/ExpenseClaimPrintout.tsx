@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { createPortal } from "react-dom";
 import { Box, GlobalStyles } from "@wso2/oxygen-ui";
 import { money } from "../../util/financeFormat";
 import type { ReceiptSource } from "../../util/financeReceipts";
@@ -72,12 +73,17 @@ export function ExpenseClaimPrintout({
   receipts: (ReceiptSource | null)[] | null;
 }) {
   const currency = claim.currencyCode ?? "LKR";
+  // Portalled to `document.body`, and it has to be: the stylesheet hides every
+  // `body > *` to clear the app off the page, and `display: none` on an
+  // ancestor cannot be undone by a rule on a descendant — rendered in place
+  // inside the app root, this subtree would be hidden with it and the printout
+  // would come out blank. As a direct child of body it is hidden by that same
+  // rule, then shown again by `#expense-claim-printout`, which outranks it.
   return (
     <>
       {PRINT_STYLES}
-      {/* Mounted at the end of the body by the browser's normal flow; the
-          stylesheet above is what makes it the only visible thing on paper. */}
-      <Box id="expense-claim-printout" sx={{ fontSize: 12 }}>
+      {createPortal(
+        <Box id="expense-claim-printout" sx={{ fontSize: 12 }}>
         <Box sx={{ border: "1px solid #999", borderRadius: "6px", p: 1.5, mb: 2 }}>
           <PrintRow label="Netsuite Ref" value={claim.id} />
           <PrintRow
@@ -129,7 +135,9 @@ export function ExpenseClaimPrintout({
             </Box>
           ) : null,
         )}
-      </Box>
+        </Box>,
+        document.body,
+      )}
     </>
   );
 }

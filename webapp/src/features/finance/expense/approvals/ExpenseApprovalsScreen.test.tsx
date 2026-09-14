@@ -370,6 +370,24 @@ describe("deciding on a claim", () => {
     expect(statusMutate.mock.calls[0][0].body).toEqual({ status: "FINANCE_REJECTED", reason: undefined });
   });
 
+  // The decided row is faded out while the refetch lands. The claim comes back
+  // on the Approved tab under the same id, so the fade has to be forgotten when
+  // the tab changes — otherwise that row renders invisible with its button
+  // still focusable.
+  it("does not carry the fade onto the tab the claim reappears in", async () => {
+    await review();
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(statusMutate).toHaveBeenCalled());
+    // The mutation is mocked, so drive the success path the component would
+    // have taken and come back to the queue.
+    statusMutate.mock.calls[0][1].onSuccess();
+
+    await openTab("Approved Claims");
+    const row = (await screen.findByText("EXP-001")).closest("tr")!;
+    expect(getComputedStyle(row).opacity).not.toBe("0");
+  });
+
   it("offers no decision on a claim that already has one", async () => {
     show();
     await openTab("Rejected Claims");
@@ -396,6 +414,20 @@ describe("printing", () => {
   it("is offered to finance", async () => {
     await reviewAs("finance");
     expect(await screen.findByRole("button", { name: "Print claim" })).toBeEnabled();
+  });
+
+  // The stylesheet clears the page with `body > * { display: none }`, and an
+  // ancestor's `display: none` cannot be undone by a rule on a descendant — so
+  // a printout rendered inside the app root prints blank. It has to be a child
+  // of body in its own right.
+  it("renders the printout as a direct child of body", async () => {
+    await reviewAs("finance");
+    const printout = await waitFor(() => {
+      const el = document.getElementById("expense-claim-printout");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(printout.parentElement).toBe(document.body);
   });
 
   it("is withheld from a lead", async () => {
