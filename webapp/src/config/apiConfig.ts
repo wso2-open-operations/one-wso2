@@ -1453,6 +1453,12 @@ export const misArrServiceUrls = {
   // The customers behind ONE figure in a Build — the drill-down dialog. Takes
   // the clicked row and column in its body, so one call per opened figure.
   drillDownCustomers: `${misArrBackendUrl}/arr-summary/customers`,
+  // Exit ARR as at one date, split by business unit within each region. One
+  // call per column, like the two above. Its body carries the Sales Region /
+  // Sub Region cut, so the two cuts are two cache entries.
+  regionExit: `${misArrBackendUrl}/arr-summary/region-exit`,
+  // The same balance without the regional split — one `BuType` per column.
+  buExit: `${misArrBackendUrl}/arr-summary/bu-exit`,
 };
 
 export const misFlashBackendUrl: string = stripTrailingSlashes(

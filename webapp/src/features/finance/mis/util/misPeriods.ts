@@ -215,6 +215,22 @@ export const annualColumnLabel = (range: MisDateRange): string =>
   range.header ?? `${annualOpeningDate(range)} - ${range.end}`;
 
 /**
+ * The header an Exit ARR summary shows above a column: `As of {end}`.
+ *
+ * A summary reports a BALANCE and a Build reports a MOVEMENT, which is why the
+ * two do not share `annualColumnLabel`. Exit ARR by Region and by Business Unit
+ * say what was on the books at one moment, so naming the span they were
+ * computed over would claim a roll-forward that is not on screen.
+ *
+ * A TTM range keeps its own header, so only a Calendar column says "As of" —
+ * that asymmetry is the source's, between `toAsOfAnnualLabel` and
+ * `ttmColumnPeriods` (`tableUtils.js:34` and `:170`), and both are reached from
+ * the same `getColumnDefinitions` branch.
+ */
+export const asOfColumnLabel = (range: MisDateRange): string =>
+  range.header ?? `As of ${range.end}`;
+
+/**
  * The Annually column ranges, ready to hand to `useMisViewState` — which is the
  * `annualRangesFor` seam spec §7 leaves open, filled in Pacific Time.
  *

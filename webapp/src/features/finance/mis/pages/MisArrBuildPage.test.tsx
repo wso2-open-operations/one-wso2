@@ -28,11 +28,17 @@ import {
 } from "@features/finance/mis/util/misViewVocabulary";
 import {
   annualColumnLabel,
+  asOfColumnLabel,
   buildColumnRanges,
   pacificAnnualRanges,
 } from "@features/finance/mis/util/misPeriods";
 import type { ArrSummaryState } from "@features/finance/mis/api/useArrSummary";
 import type { CustomerAccountsState } from "@features/finance/mis/api/useCustomerAccounts";
+import type { ExitArrState } from "@features/finance/mis/api/useExitArr";
+import type {
+  BuFigures,
+  RegionExitResponse,
+} from "@features/finance/mis/components/exitArrRows";
 import type { DrillDownState } from "@features/finance/mis/api/useDrillDownCustomers";
 
 // The first real figures on screen. Everything below the shell: the Build's
@@ -78,6 +84,23 @@ vi.mock("@features/finance/mis/api/useDrillDownCustomers", () => ({
 const customers = { value: {} as CustomerAccountsState };
 vi.mock("@features/finance/mis/api/useCustomerAccounts", () => ({
   useCustomerAccounts: () => customers.value,
+}));
+
+const regionExit = {
+  value: {} as ExitArrState<RegionExitResponse>,
+  askedBySalesRegion: [] as boolean[],
+};
+const buExit = { value: {} as ExitArrState<BuFigures> };
+vi.mock("@features/finance/mis/api/useExitArr", () => ({
+  useExitArrByRegion: (
+    _ranges: unknown,
+    _filters: unknown,
+    isSalesRegionSummary: boolean,
+  ) => {
+    regionExit.askedBySalesRegion.push(isSalesRegionSummary);
+    return regionExit.value;
+  },
+  useExitArrByBU: () => buExit.value,
 }));
 
 // The filter bar's menus, stubbed at the same seam as the figures and for the
@@ -170,10 +193,48 @@ const customerBook = (accounts: Record<string, unknown>[]): CustomerAccountsStat
   retry: () => {},
 });
 
+/** The five business units, Moesif and a total, as `BuType` sends them. */
+const SPLIT = {
+  apim: 4_000_000,
+  iam: 3_000_000,
+  integration: 2_000_000,
+  choreo: 1_000_000,
+  agentPlatform: 500_000,
+  moesif: 250_000,
+  all: 10_500_000,
+};
+
+/** The column header both summaries show — the closing date alone. */
+const THIS_YEAR_AS_OF = inZone("Asia/Colombo", () => {
+  const filters = defaultAppliedFilters(MIS_PERIODS.ANNUALLY, MIS_TABLES.EXIT_ARR_BY_REGION);
+  const annuallyDateRanges = pacificAnnualRanges(MIS_WINDOWS.CALENDAR, filters);
+  const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, { ...filters, annuallyDateRanges });
+  return asOfColumnLabel(columns[columns.length - 1]);
+});
+
+const regionsLoaded = (response: RegionExitResponse): ExitArrState<RegionExitResponse> => ({
+  columns: [{ label: THIS_YEAR_AS_OF, response, isError: false }],
+  isLoading: false,
+  isError: false,
+  errorMessage: "",
+  retry: () => {},
+});
+
+const unitsLoaded = (response: BuFigures): ExitArrState<BuFigures> => ({
+  columns: [{ label: THIS_YEAR_AS_OF, response, isError: false }],
+  isLoading: false,
+  isError: false,
+  errorMessage: "",
+  retry: () => {},
+});
+
 beforeEach(() => {
   localStorage.clear();
   summary.value = loaded({ openingArr: 1_234_567.5 });
   customers.value = customerBook([NORTHWIND]);
+  regionExit.askedBySalesRegion = [];
+  regionExit.value = regionsLoaded({ NA: SPLIT, "Middle East": { apim: 1_000, all: 1_000 } });
+  buExit.value = unitsLoaded(SPLIT);
   drillDown.asked = [];
   drillDown.value = {
     customers: [
@@ -473,15 +534,154 @@ describe("choosing which of the Build's tables to read", () => {
     expect(screen.getByRole("table", { name: /Customers/ })).toBeInTheDocument();
   });
 
-  it("says a table is not built yet rather than quietly showing the Build instead", () => {
-    // `region-summary` is a RECOGNISED Table — 02 parses it and the filter rules
-    // key off it — it is just not built. Falling through to the Subscription
-    // Build would show the reader a different report than the one they asked
-    // for, under a heading that says Subscription and an address that says
-    // Region Summary. An unrecognised value is the other case and still
-    // degrades to the Build, which 02 pinned.
+  it("shows the table the address names, and not the Build under its heading", () => {
+    // `region-summary` is a RECOGNISED Table — 02 parses it and the filter
+    // rules key off it — so falling through to the Subscription Build would
+    // show the reader a different report than the one they asked for. An
+    // unrecognised value is the other case and still degrades to the Build,
+    // which 02 pinned and the test above covers.
+    renderPage("?table=region-summary");
+    expect(screen.getByRole("table", { name: /Region Summary/ })).toBeInTheDocument();
+  });
+
+  it("has a table for every one of the four, none of them an apology", () => {
+    for (const search of ["", "?table=customers", "?table=region-summary", "?table=bu-summary"]) {
+      const view = renderPage(search);
+      expect(screen.getByRole("table")).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+});
+
+describe("Exit ARR by Region", () => {
+  // Ticket 10. A summary, not a Build: it reports what was on the books at one
+  // moment rather than the movement between two, so its columns are headed with
+  // that moment alone and its rows are regions rather than metric lines.
+
+  it("gives each region a row, under the regions the backend named", () => {
+    renderPage("?table=region-summary");
+    const table = screen.getByRole("table", { name: /Region Summary/ });
+    expect(within(table).getByText("NA")).toBeInTheDocument();
+    expect(within(table).getByText("Middle East")).toBeInTheDocument();
+  });
+
+  it("totals the regions in a row of its own, last", () => {
+    renderPage("?table=region-summary");
+    const rows = within(screen.getByRole("table", { name: /Region Summary/ })).getAllByRole("row");
+    expect(rows.at(-1)).toHaveTextContent("Total Exit ARR");
+  });
+
+  it("heads each column with the date the balance was read at", () => {
+    renderPage("?table=region-summary");
+    expect(screen.getByText(THIS_YEAR_AS_OF)).toBeInTheDocument();
+  });
+
+  it("breaks each region down by business unit, Moesif last before the total", () => {
+    renderPage("?table=region-summary");
+    const table = screen.getByRole("table", { name: /Region Summary/ });
+    expect(within(table).getByText("API Platform BU")).toBeInTheDocument();
+    expect(
+      within(table).getByText("Moesif (Already included in API Platform BU)"),
+    ).toBeInTheDocument();
+  });
+
+  it("puts each unit's figure under its own header", () => {
+    // The wire names and the headers disagree — `apim` is headed "API Platform
+    // BU", `all` is "Total" — so a figure landing one column over is the
+    // failure this table can have silently and plausibly.
+    renderPage("?table=region-summary");
+    const table = screen.getByRole("table", { name: /Region Summary/ });
+    const na = within(table).getByText("NA").closest("tr")!;
+    expect(within(na).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+      "4,000,000.00",
+      "3,000,000.00",
+      "2,000,000.00",
+      "1,000,000.00",
+      "500,000.00",
+      "250,000.00",
+      "10,500,000.00",
+    ]);
+  });
+
+  it("writes the figures as money, at the Scale the link asked for", () => {
+    renderPage("?table=region-summary&scale=k");
+    expect(screen.getByText("4,000.00")).toBeInTheDocument();
+    expect(screen.getByText("All amounts in USD '000")).toBeInTheDocument();
+  });
+
+  it("reads the balance by Sales Region until the reader says otherwise", () => {
+    renderPage("?table=region-summary");
+    expect(regionExit.askedBySalesRegion.at(-1)).toBe(true);
+  });
+
+  it("re-reads it by Sub Region when the reader switches", async () => {
+    renderPage("?table=region-summary");
+    const cut = screen.getByRole("group", { name: /region type/i });
+    await userEvent.click(within(cut).getByRole("button", { name: "Sub Region" }));
+    expect(regionExit.askedBySalesRegion.at(-1)).toBe(false);
+  });
+
+  it("keeps the Region Type control on screen when every column failed", () => {
+    // The control is the reader's way out of a failed read, so it survives the
+    // error the way the filter bar does.
+    regionExit.value = {
+      columns: [],
+      isLoading: false,
+      isError: true,
+      errorMessage: "Gateway timed out.",
+      retry: () => {},
+    };
+    renderPage("?table=region-summary");
+    expect(screen.getByText(/couldn't load the region summary/i)).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /region type/i })).toBeInTheDocument();
+  });
+
+  it("holds the space rather than showing an empty summary while it loads", () => {
+    regionExit.value = { ...regionsLoaded({}), isLoading: true, columns: [] };
     renderPage("?table=region-summary");
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.getByText(/not been ported yet/i)).toBeInTheDocument();
+  });
+});
+
+describe("Exit ARR by Business Unit", () => {
+  it("gives each business unit a row, in the source's order", () => {
+    // Seven, whatever the backend returned: this table's rows ARE the `BuType`
+    // record, so they come from the code where the Region Summary's come from
+    // the response.
+    renderPage("?table=bu-summary");
+    const body = within(screen.getByRole("table", { name: /BU Summary/ })).getAllByRole(
+      "rowgroup",
+    )[1];
+    const rows = within(body).getAllByRole("row");
+    expect(rows).toHaveLength(7);
+    expect(rows[0]).toHaveTextContent("API Platform");
+    expect(rows.at(-1)).toHaveTextContent("Total");
+  });
+
+  it("shows one figure per period, because a summary has nothing to pair it with", () => {
+    renderPage("?table=bu-summary");
+    const table = screen.getByRole("table", { name: /BU Summary/ });
+    const apiPlatform = within(table).getByText("API Platform").closest("tr")!;
+    // One figure cell beside the row label, where the Region Summary has seven.
+    expect(within(apiPlatform).getAllByRole("cell")).toHaveLength(1);
+    expect(apiPlatform).toHaveTextContent("4,000,000.00");
+  });
+
+  it("offers no Region Type control, having no regions to cut by", () => {
+    renderPage("?table=bu-summary");
+    expect(screen.queryByRole("group", { name: /region type/i })).not.toBeInTheDocument();
+  });
+
+  it("says so when every column failed, and offers a retry", () => {
+    buExit.value = {
+      columns: [],
+      isLoading: false,
+      isError: true,
+      errorMessage: "Gateway timed out.",
+      retry: () => {},
+    };
+    renderPage("?table=bu-summary");
+    expect(screen.getByText(/couldn't load the bu summary/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 });

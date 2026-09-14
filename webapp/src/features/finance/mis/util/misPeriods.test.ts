@@ -25,6 +25,7 @@ import {
 import {
   annualColumnLabel,
   annualOpeningDate,
+  asOfColumnLabel,
   getAnnualPeriods,
   getTtmPeriods,
   pacificAnnualRanges,
@@ -277,6 +278,25 @@ describe("the header above an Annually column", () => {
   it("uses the TTM range's own header, which already says the same thing", () => {
     const [ttm] = getTtmPeriods({ yearsBack: 1, asOf: ASOF });
     expect(annualColumnLabel(ttm)).toBe("2025/09/12 - 2026/09/12");
+  });
+});
+
+describe("the header above an Exit ARR summary column", () => {
+  // A summary is a BALANCE, not a movement: Exit ARR by Region and by Business
+  // Unit report what was on the books at one moment, so their columns are
+  // headed with that moment alone rather than with the span a Build rolls
+  // forward over. `toAsOfAnnualLabel`, `tableUtils.js:34`.
+  it("names only the date the column closes on", () => {
+    expect(asOfColumnLabel({ start: "2026/01/01", end: "2026/09/12" })).toBe("As of 2026/09/12");
+  });
+
+  it("keeps a TTM range's own header, which the source heads these columns with too", () => {
+    // `getColumnDefinitions` takes `ttmColumnPeriods` on a TTM Window, whose
+    // label is the range's `header` — so a TTM summary column reads
+    // `{opening} - {end}` exactly as a Build's does, and only a Calendar column
+    // says "As of".
+    const [ttm] = getTtmPeriods({ yearsBack: 1, asOf: ASOF });
+    expect(asOfColumnLabel(ttm)).toBe("2025/09/12 - 2026/09/12");
   });
 });
 

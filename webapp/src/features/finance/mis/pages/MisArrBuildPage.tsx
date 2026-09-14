@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Box, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { useDocumentTitle } from "@hooks/useDocumentTitle";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
@@ -33,7 +33,7 @@ import type { MisViewState } from "../util/useMisViewState";
 import type { MisDateRange, MisScale } from "../util/misViewVocabulary";
 import { useMisViewState } from "../util/useMisViewState";
 import { useMisScale } from "../util/useMisScale";
-import { MIS_PERIODS, MIS_TABLES, MIS_TABLE_LABELS, typeValueOf } from "../util/misViewVocabulary";
+import { MIS_PERIODS, MIS_TABLES, typeValueOf } from "../util/misViewVocabulary";
 import { useCustomerAccounts } from "../api/useCustomerAccounts";
 import {
   CUSTOMER_SUB_COLUMNS,
@@ -48,6 +48,15 @@ import { useMisAppConfigs } from "../api/useMisAppConfigs";
 import MisFilterBar from "../components/MisFilterBar";
 import MisTableTabs from "../components/MisTableTabs";
 import MisCustomerDrillDown from "../components/MisCustomerDrillDown";
+import MisRegionTypeTabs from "../components/MisRegionTypeTabs";
+import { useExitArrByBU, useExitArrByRegion } from "../api/useExitArr";
+import {
+  BU_EXIT_ROWS,
+  REGION_EXIT_SUB_COLUMNS,
+  REGION_EXIT_SUB_COLUMN_BY_KEY,
+  buExitFigure,
+  regionExitTable,
+} from "../components/exitArrRows";
 import { drillDownRequest, DRILLABLE_ROW_IDS } from "../api/misDrillDownRequest";
 import { useDrillDownCustomers } from "../api/useDrillDownCustomers";
 import { describeAppliedFilters } from "../util/misAppliedFilterChips";
@@ -71,6 +80,8 @@ import { describeAppliedFilters } from "../util/misAppliedFilterChips";
 //
 //   the drill-down `useDrillDownCustomers` fetches the customers behind one
 //                 figure and `MisCustomerDrillDown` shows them (10)
+//   the summaries `useExitArrByRegion` and `useExitArrByBU` read Exit ARR as at
+//                 one date, and `exitArrRows` says what their rows are (10)
 //
 // Windowing is `BuildTable`'s (07).
 
@@ -118,25 +129,26 @@ function ArrBuild() {
 /**
  * Whichever of the four tables the address names.
  *
- * Two of them are not ported yet, and they say so rather than falling through
- * to the Build. The distinction matters and is not pedantry: `region-summary`
- * is a RECOGNISED Table — ticket 02 parses it, and the filter rules already key
- * off it — so showing the Subscription Build instead would hand the reader a
- * different report than the one they asked for, under a heading saying
- * Subscription and an address saying Region Summary. An UNRECOGNISED value is
- * the other case, and that still degrades to the Build, which is 02's contract
- * and its test.
+ * Subscription is the fall-through and has to be: an UNRECOGNISED `?table=`
+ * degrades to it, which is 02's contract and its test. That works because
+ * `parseViewState` has already validated the parameter by the time it is read
+ * here, so nothing unrecognised survives as anything but Subscription.
+ *
+ * All four are built, so there is no longer a branch saying otherwise. The one
+ * that used to be here mattered while two were missing: `region-summary` is a
+ * RECOGNISED Table, so showing the Subscription Build instead would have handed
+ * the reader a different report than the one they asked for, under a heading
+ * saying Subscription and an address saying Region Summary.
  */
 function BuildForTable({ view, scale }: { view: MisViewState; scale: MisScale }) {
   if (view.table === MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS) {
     return <CustomersGrid view={view} scale={scale} />;
   }
-  if (view.table !== MIS_TABLES.SUBSCRIPTION) {
-    return (
-      <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
-        {MIS_TABLE_LABELS[view.table]} has not been ported yet. Choose Subscription or Customers.
-      </Typography>
-    );
+  if (view.table === MIS_TABLES.EXIT_ARR_BY_REGION) {
+    return <RegionSummaryGrid view={view} scale={scale} />;
+  }
+  if (view.table === MIS_TABLES.EXIT_ARR_BY_BU) {
+    return <BuSummaryGrid view={view} scale={scale} />;
   }
   return <ArrBuildGrid view={view} scale={scale} />;
 }
@@ -387,6 +399,199 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
     </Box>
   );
 }
+
+/**
+ * Exit ARR by Region — what the company was worth in each region, as at each
+ * column's date, split by business unit.
+ *
+ * ---- a summary is not a Build, and the difference shows in three places ----
+ *
+ * 1. The column header is `As of {end}` rather than `{opening} - {end}`: this
+ *    reports a BALANCE at a moment, not a MOVEMENT over a span.
+ * 2. The rows come from the RESPONSE. The Build's rows are named metric lines
+ *    and the Customers table's are accounts; these are whatever regions the
+ *    backend cut by, which depends on the Region Type below.
+ * 3. There are seven sub-columns under each Period rather than one, because the
+ *    per-unit split is what this table is for.
+ *
+ * The Region Type control is rendered above every state this can be in —
+ * loading, failed, empty — for the same reason the filter bar is: a reader
+ * whose Sub Region read failed has to be able to get back to Sales Region.
+ */
+function RegionSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
+  // Component state, and not in the URL — see `MisRegionTypeTabs` for why, and
+  // `docs/ported-apps/mis.md` §11 for the decision it is waiting on.
+  const [bySalesRegion, setBySalesRegion] = useState(true);
+  const ranges = useMemo(
+    () => buildColumnRanges(view.viewWindow, view.filters),
+    [view.viewWindow, view.filters],
+  );
+  const summary = useExitArrByRegion(ranges, view.filters, bySalesRegion);
+
+  // Not memoised, for the same reason the Build's `byColumn` is not:
+  // `summary.columns` is rebuilt every render, so a useMemo over it never hits.
+  const { rows, figures } = regionExitTable(summary.columns);
+
+  const cell: BuildCellFor = (row, group, subColumn) => {
+    // A Map, not a scan: `BuildTable` takes plain `BuildSubColumn`s, so the
+    // figure's own definition has to be found by key.
+    const definition = REGION_EXIT_SUB_COLUMN_BY_KEY.get(subColumn.key)!;
+    const raw = figures.get(group.key)?.get(row.id)?.[definition.field];
+    return {
+      // Every figure here is currency, so Scale applies to all of them.
+      text: formatMisValue(raw, "currency", { scale }),
+      negative: typeof raw === "number" && raw < 0,
+      muted: raw === undefined,
+    };
+  };
+
+  return (
+    <Box>
+      <MisRegionTypeTabs bySalesRegion={bySalesRegion} onChange={setBySalesRegion} />
+      <SummaryBody
+        state={summary}
+        // Only the computed total is left once every region has been stripped
+        // out, so one row means no regions came back rather than an empty table.
+        isEmpty={rows.length <= 1}
+        emptyMessage="No regions to show. Widen Years Back, or loosen the filters."
+        errorMessage={`Couldn't load the Region Summary. ${summary.errorMessage}`}
+        scale={scale}
+      >
+        <BuildTable
+          label="ARR Build — Region Summary"
+          rowLabelHeader="Region"
+          rowLabelWidth={REGION_LABEL_WIDTH}
+          columnGroups={summary.columns.map(({ label }) => ({ key: label, label }))}
+          subColumns={REGION_EXIT_SUB_COLUMNS}
+          rows={rows}
+          cell={cell}
+        />
+      </SummaryBody>
+    </Box>
+  );
+}
+
+/**
+ * Exit ARR by Business Unit — the same balance without the regional split.
+ *
+ * The mirror image of the Region Summary above: its rows are a constant,
+ * because they ARE the `BuType` record the backend answers with, and there is
+ * one figure per Period rather than seven, because the per-unit split has
+ * become the rows.
+ */
+function BuSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
+  const ranges = useMemo(
+    () => buildColumnRanges(view.viewWindow, view.filters),
+    [view.viewWindow, view.filters],
+  );
+  const summary = useExitArrByBU(ranges, view.filters);
+  const byColumn = new Map(summary.columns.map((column) => [column.label, column.response]));
+
+  const cell: BuildCellFor = (row, group) => {
+    const raw = buExitFigure(byColumn.get(group.key), row.id);
+    return {
+      text: formatMisValue(raw, "currency", { scale }),
+      negative: typeof raw === "number" && raw < 0,
+      muted: raw === undefined,
+    };
+  };
+
+  return (
+    <SummaryBody
+      state={summary}
+      // Never empty for want of rows: they are a constant. Only a summary with
+      // no COLUMNS has nothing to show, which `SummaryBody` asks on its own.
+      isEmpty={false}
+      emptyMessage="No periods to show. Widen Years Back."
+      errorMessage={`Couldn't load the BU Summary. ${summary.errorMessage}`}
+      scale={scale}
+    >
+      <BuildTable
+        label="ARR Build — BU Summary"
+        rowLabelHeader="Business Unit"
+        rowLabelWidth={BU_LABEL_WIDTH}
+        columnGroups={summary.columns.map(({ label }) => ({ key: label, label }))}
+        subColumns={EXIT_ARR_SUB_COLUMNS}
+        rows={BU_EXIT_ROWS}
+        cell={cell}
+      />
+    </SummaryBody>
+  );
+}
+
+/**
+ * The four states a summary can be in, around whichever table is inside it.
+ *
+ * Shared by the two summaries rather than written twice, because the only thing
+ * that differs between them is the sentence each failure says. The Build and
+ * the Customers table above keep their own copies: those two also differ in
+ * what "empty" means and in the caption, and folding four callers into one
+ * component with four props would be the abstraction costing more than the
+ * repetition.
+ */
+function SummaryBody({
+  state,
+  isEmpty,
+  emptyMessage,
+  errorMessage,
+  scale,
+  children,
+}: {
+  state: { isLoading: boolean; isError: boolean; columns: readonly unknown[]; retry: () => void };
+  isEmpty: boolean;
+  emptyMessage: string;
+  errorMessage: string;
+  scale: MisScale;
+  children: ReactNode;
+}) {
+  if (state.isLoading) {
+    return <Skeleton variant="rectangular" height={320} sx={{ borderRadius: 1.5, mt: 1.5 }} />;
+  }
+
+  // Only when EVERY column failed. One bad column blanks itself and the rest of
+  // the summary still reads — see `useColumnQueries`.
+  if (state.isError) {
+    return (
+      <ErrorNotice onRetry={state.retry} sx={{ mt: 1.5 }}>
+        {errorMessage}
+      </ErrorNotice>
+    );
+  }
+
+  if (!state.columns.length || isEmpty) {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
+        {emptyMessage}
+      </Typography>
+    );
+  }
+
+  return (
+    <Box>
+      {/* Above the grid rather than beside the control, because Finance's
+          workflow is to crop a table into a slide deck. */}
+      <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 0.75 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+          {amountUnitCaption(scale)}
+        </Typography>
+      </Stack>
+      {children}
+    </Box>
+  );
+}
+
+/**
+ * One figure per Period on the BU Summary, under a header naming what it is.
+ *
+ * The Period above only says which date the balance was read at, so without
+ * this the figure column would have no name at all. The Region Summary needs no
+ * such row: its seven sub-columns name themselves.
+ */
+const EXIT_ARR_SUB_COLUMNS = [{ key: "amount", label: "Exit ARR", width: 180 }] as const;
+
+/** The source's fixed widths for the two summaries' row-label columns. */
+const REGION_LABEL_WIDTH = 170;
+const BU_LABEL_WIDTH = 200;
 
 /**
  * One figure per Period, not a pair.

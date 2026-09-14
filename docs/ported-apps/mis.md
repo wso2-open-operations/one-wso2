@@ -309,7 +309,7 @@ boundary, and the Period label itself, is computed in `America/Los_Angeles`, not
 not UTC" — and §10.8 states it as a test rather than a preference. The source's behaviour here is not
 a business rule anyone agreed to; it is a bug that makes one saved link report different revenue to
 two people. Reproducing it would mean shipping a port that fails its own spec's test suite.
-**§10.31's parity check must expect this difference** and reconcile against Pacific-dated ranges
+**§10.34's parity check must expect this difference** and reconcile against Pacific-dated ranges
 rather than against whatever the old frontend happens to render in Colombo.
 
 The same correction reaches one more date, and it is worth naming because it is not a Period boundary.
@@ -317,7 +317,7 @@ The leftmost Build column has no column to its left, so its y/y rows are compare
 range a year earlier**, which the source computes with `new Date(startDate)` — a UTC instant — and
 then `setFullYear`, which operates in LOCAL time (`useArrTableSummary.js`). East of California that
 lands a day early, so in Colombo the source compares the first column against a range one day short.
-The port shifts the civil date instead. Same reasoning, same exception, same note for §10.31.
+The port shifts the civil date instead. Same reasoning, same exception, same note for §10.34.
 
 One further case differs, and only on one day in four years: **a 29 February as-of is clamped into a
 common year rather than rolled forward.** `new Date(2025, 1, 29)` is 1 March, so the source's
@@ -447,6 +447,51 @@ on a table of hundreds of customer rows empties and re-paints the whole grid on 
 React Query holds the previous answer until the next lands, so the figures go stale for a moment
 instead of going away.
 
+**The two Exit ARR summaries are ported against a source that currently THROWS.** This is the one
+deviation where there is nothing on the other side to reconcile against. Both
+`useExitArrByRegion.js` and `useExitArrByBU.js` build every column's payload through
+`ttmOpeningSql(endDate, filters.annuallyDateRanges)`, which matches a range by its end date and then
+reads `match.opening`. A TTM range carries an `opening`; a **Calendar** range — `getAnnualPeriods`,
+`{start, end}` — does not. So on a Calendar window, which is the default, the first column's payload
+raises `TypeError: Cannot read properties of undefined (reading 'replace')`, the `for` loop over the
+columns aborts inside the hook's outer `try`, and the table renders that message instead of figures.
+Verified by running `ttmOpeningSql` verbatim against the two range shapes.
+
+The port does not reproduce it. `openingDateFor` gives a Calendar column the previous 31 December —
+which is exactly what the source's own `${endDate year - 1}-12-31` fallback was written to produce,
+and never reaches. **The consequence for the parallel period: these two screens cannot be reconciled
+against the live app on a Calendar window, because the live app shows no figures there.** Reconcile
+them on TTM, where the source works, or against the backend directly.
+
+**The Region Summary's Total Exit ARR row is drawn last, whatever order the regions arrive in.** The
+source appends that row while mapping the FIRST column and pushes regions found only in later columns
+in after it, so a region can render BELOW the total that counts it. The arithmetic is unaffected — the
+total is recomputed across every region row on every column — so this is ordering alone.
+
+**Region names are not re-cased word by word.** `formatRegionLabel` uppercases every word of two to
+four letters so that unmapped acronyms come out as acronyms; applied per word it also shouts ordinary
+ones, and the function's own comment names "Middle East", which it renders **"Middle EAST"**. The
+port applies that rule only when the whole key IS one short word — which is when it is an acronym —
+and title-cases a multi-word key instead, leaving capitals the wire already sent alone. Labels only;
+no figure moves.
+
+**The summaries do not carry the source's five-shape response reader.** `pickBuNumbers` tries four key
+spellings (`apim`, `apimBuTotal`, `APIM`, then nested under `bu` or `businessUnit`) and accepts the
+body as an array or under `data`, `result` or `payload`. The service returns `map<BuType>` and
+`BuType`. A reader that accepts five shapes cannot tell a changed contract from an empty answer —
+every wrong guess lands on the same silent zeroes — so the port reads the contract, and a body that is
+not it renders nothing rather than nothing-shaped-like-figures.
+
+**No Annually table draws forecast columns yet — Subscription, Customers, and now both summaries.**
+Found reviewing the Exit ARR slice, and it is NOT new to it. Under a Forecasted or Renewal type the
+source changes the column list itself: the Subscription Build takes `generateTwoForecastRanges`, and
+the two summaries take `generateFullYearRanges(0, 2, true, …)` — the current year plus two future
+ones. `pacificAnnualRanges` branches on the Window and never on forecast, so the port draws the same
+calendar columns it draws for Total. The Type control still offers Forecasted, the request still
+carries `forecastType`, and the figures still come back — they are just read at calendar dates rather
+than forecast ones, which is wrong without looking wrong. **Needs its own ticket**, covering all three
+tables at once, since the fix is one branch in `pacificAnnualRanges`.
+
 ## 8. Source behaviour reproduced deliberately, though it looks wrong
 
 Kept because the two apps run side by side during the parallel period and must agree.
@@ -480,6 +525,20 @@ decision about the whole feature rather than about this dialog.
 drill-down send the same `customerArrType`, and only the DATE differs — the opening one is read at the
 opening snapshot and sends no `startDate` at all. It looks like a bug on first reading and is not: the
 question "who was in the book" is the same at either end of a Period.
+
+**The Region Summary's total does not foot against its own rows.** A region's Total column is
+whatever the backend sent as `all`; the Total Exit ARR row's Total is the five business units added
+down the regions **without Moesif** — `useExitArrByRegion.js`'s own arithmetic, under a comment
+reading "Total for region table intentionally excludes Moesif". If `all` includes Moesif, the bottom
+line reads lower than the rows above it add to. Reproduced: a port whose total differs from the live
+app's is the one disagreement that would stop the figures being trusted. **Worth raising with
+Finance** alongside §8.5.
+
+**The summaries ignore the reader's Unit selection.** Both payloads hard-code
+`businessUnits: ["ALL_BU"]`, so choosing Choreo above the table changes nothing in it. That is the
+right answer rather than an oversight — the per-unit split IS these tables' columns and rows — but the
+control stays enabled and says otherwise, which is what makes it worth writing down. The greying-out
+belongs with ticket 09's deferred placeholder controls.
 
 ## 9. Dead code in the source — do not port
 
@@ -607,26 +666,34 @@ ported.
     frame rate: jsdom has no layout and no frames. That needs a browser and real per-customer volume,
     which arrives with **ticket 10**.
 
+### The Exit ARR summaries
+23. The Region Summary's rows match the regions the live tenant reports, under both Sales Region and
+    Sub Region, and switching between the two actually re-reads rather than regrouping.
+24. Its Total Exit ARR row is compared against the source's **on a TTM window**. It cannot be compared
+    on a Calendar one: the source throws there (§7), so there is no figure on the other side.
+25. Region names arriving from the live tenant render the way Finance writes them. The label rules
+    here are exercised against invented keys; only a live tenant says what the keys actually are.
+
 ### The filter bar
-23. A control changed but not applied leaves the address alone, enables Apply, and says so in a live
+26. A control changed but not applied leaves the address alone, enables Apply, and says so in a live
     region; Apply then puts the whole view in the address and the bar reads clean again.
-24. Choosing a value back at its default takes the parameter out of the address rather than pinning
+27. Choosing a value back at its default takes the parameter out of the address rather than pinning
     the default into it.
-25. A control whose value would mean nothing is absent: the region list outside its own View, Forecast
+28. A control whose value would mean nothing is absent: the region list outside its own View, Forecast
     Type outside a Forecasted type, Years Back under a forecast, YTD on a trailing window.
-26. Every filter with a control has a chip and vice versa — the two are driven by one rule, and the
+29. Every filter with a control has a chip and vice versa — the two are driven by one rule, and the
     Delayed Build in §7 is the case that catches them drifting.
-27. Dismissing a chip applies that one filter's default at once and leaves any other unapplied edit
+30. Dismissing a chip applies that one filter's default at once and leaves any other unapplied edit
     still pending.
-28. The unit tabs, the Period control and the Scale toggle each take effect without an Apply; Clear All
+31. The unit tabs, the Period control and the Scale toggle each take effect without an Apply; Clear All
     clears the filters and leaves the unit selection alone.
-29. A TTM Build offers Delayed, carries it in the address, and survives a reload — the §7 deviation,
+32. A TTM Build offers Delayed, carries it in the address, and survives a reload — the §7 deviation,
     stated as the test that would have caught the source's version.
-30. With `GET /app-configs` failing, the written-down controls (Type, View, Years Back, YTD, Channel,
+33. With `GET /app-configs` failing, the written-down controls (Type, View, Years Back, YTD, Channel,
     Scale) all still work and the bar says which menus are missing.
 
 ### Parity
-31. For one closed month, every figure on each ported screen matches the running MIS app, at both
+34. For one closed month, every figure on each ported screen matches the running MIS app, at both
     Scale settings, with filters at defaults and with a non-trivial applied filter set.
 
 ## 11. Unverified — questions for a live tenant
@@ -708,3 +775,13 @@ or a live session at `https://one.wso2.com`.
     numbers are already spoken for in this app. Recorded in `CONTEXT.md` under **Privilege**. It
     changes nothing in the design — the gate was always going to read MIS's own `/user-info` — but it
     removes the temptation to treat 987 as the single special case.
+11. **Does the Region Type cut belong in the address bar?** Exit ARR by Region is cut by Sales Region
+    or Sub Region, the backend computes it (`isSalesRegionSummary`), and the source keeps the toggle
+    in the Region Summary's own component state — so it dies with the table, is not in the Applied
+    set, and is in no link anyone holds. The port reproduces that, which means **a reader who shares
+    a Sub Region view sends a Sales Region one**. Putting it in the query string is a one-parameter
+    change here but an extension of the URL contract ticket 02 pinned — what an unrecognised value
+    degrades to, whether it is suppressed on the other three Tables, what a stale link means — so it
+    is a decision to take rather than a side effect of building the table. The same question will
+    arrive again with the Region Summary's `All ARR Metrics` view and its BU pills, which are
+    component state in the source too.
