@@ -75,11 +75,19 @@ export function ExpenseHistoryDateRange({
   // selections, which is what makes the next click start a fresh range.
   const [anchor, setAnchor] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
-  // The month on screen is the one holding the current start, until the
-  // arrows say otherwise — derived rather than mirrored into an effect, so
-  // typing a date into From still moves the grid to it.
-  const [paged, setPaged] = useState<Month | null>(null);
-  const cursor = paged ?? monthOf(start || todayIso());
+  // The month on screen is the one holding the current start, until the arrows
+  // say otherwise.
+  //
+  // `paged` remembers which start it was paging away FROM, so a start that
+  // changes afterwards — typed into the From field, or picked in the grid —
+  // takes the view back. Holding the month alone was a trap: page back to
+  // August, then type a March date, and the grid sat in August with the
+  // selection off screen.
+  //
+  // Derived rather than mirrored into an effect. `react-hooks/set-state-in-effect`
+  // is an error in this repo, and the cascading render it causes is the reason.
+  const [paged, setPaged] = useState<{ month: Month; from: string } | null>(null);
+  const cursor = paged && paged.from === start ? paged.month : monthOf(start || todayIso());
 
   const today = todayIso();
   const atCurrentMonth = cursor.year === monthOf(today).year && cursor.month === monthOf(today).month;
@@ -109,7 +117,7 @@ export function ExpenseHistoryDateRange({
         <IconButton
           size="small"
           aria-label="Previous month"
-          onClick={() => setPaged(shiftMonth(cursor, -1))}
+          onClick={() => setPaged({ month: shiftMonth(cursor, -1), from: start })}
         >
           <ChevronLeftIcon size={16} />
         </IconButton>
@@ -122,7 +130,7 @@ export function ExpenseHistoryDateRange({
           // maxDate is today (`FilterHolder.tsx:150`), so there is nothing to
           // page forward into once the grid reaches this month.
           disabled={atCurrentMonth}
-          onClick={() => setPaged(shiftMonth(cursor, 1))}
+          onClick={() => setPaged({ month: shiftMonth(cursor, 1), from: start })}
         >
           <ChevronRightIcon size={16} />
         </IconButton>

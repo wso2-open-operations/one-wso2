@@ -293,6 +293,25 @@ describe("the custom date range", () => {
     expect(screen.getByLabelText("To")).toHaveValue(today);
   });
 
+  // Paging the grid must not outrank a date typed afterwards. Holding only the
+  // month meant the view stayed where the arrows left it while the selection
+  // sat off screen.
+  it("follows a typed From date even after paging the grid", async () => {
+    await openRange();
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+
+    // Two months before the month the grid just moved to, so the typed date is
+    // nowhere near where paging left it.
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth() - 3, 15);
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: iso(target) } });
+
+    const monthName = target.toLocaleDateString("en-US", { month: "long" });
+    expect(
+      await screen.findByText(`${monthName} ${target.getFullYear()}`),
+    ).toBeInTheDocument();
+  });
+
   it("offers no day past today", async () => {
     await openRange();
     const tomorrow = new Date();
