@@ -121,6 +121,36 @@ describe("the expense tab", () => {
   });
 });
 
+// Under Finance → Expense Claims, one entry per review stage — the source
+// app's own two sidebar entries, each on its own backend flag.
+describe("the expense approval entries", () => {
+  it("shows a lead only the lead entry", () => {
+    roles.expenseLead = true;
+    expect(gate().canSee("expense-lead-approvals")).toBe(true);
+    expect(gate().canSee("expense-finance-approvals")).toBe(false);
+  });
+
+  it("shows finance only the finance entry", () => {
+    roles.expenseFinance = true;
+    expect(gate().canSee("expense-finance-approvals")).toBe(true);
+    expect(gate().canSee("expense-lead-approvals")).toBe(false);
+  });
+
+  it("shows both to somebody holding both", () => {
+    roles.expenseLead = true;
+    roles.expenseFinance = true;
+    expect(gate().canSee("expense-lead-approvals")).toBe(true);
+    expect(gate().canSee("expense-finance-approvals")).toBe(true);
+  });
+
+  // Both items declare `requires`, so an unmapped id would fall through to the
+  // default and fail closed — withheld from everyone, silently.
+  it("withholds both from somebody who approves nothing", () => {
+    expect(gate().canSee("expense-lead-approvals")).toBe(false);
+    expect(gate().canSee("expense-finance-approvals")).toBe(false);
+  });
+});
+
 // The entries that stayed under Me keep the rules they had.
 describe("what stayed behind", () => {
   it("still gates credit card approval on its own privileges", () => {

@@ -19,9 +19,13 @@ export const EXPENSE_FINANCE_PATH = "/finance/expense-claims";
 export const expenseFinancePaths = {
   new: `${EXPENSE_FINANCE_PATH}/new`,
   history: `${EXPENSE_FINANCE_PATH}/history`,
-  // Finance Approvals, beside filing — the source app's own sidebar entry and
-  // its own URL (`routes.tsx:18-20`). Its Lead Approvals entry is not ported
-  // here; the screen takes the stage as a parameter, so adding it later is a
-  // path, a nav entry and a gate, with no change to the screen itself.
+  // The two approval entries, beside filing, on the source app's own two URLs
+  // (`routes.tsx:15-21`). One screen serves both: it takes the stage as a
+  // parameter, exactly as the source mounts one component twice.
+  //
+  // Two entries rather than one screen with a switch, because the backend flags
+  // are independent — somebody holding both sees both, as they do in the app
+  // this is ported from, and somebody holding one sees only that one.
+  leadApprovals: `${EXPENSE_FINANCE_PATH}/lead-approvals`,
   financeApprovals: `${EXPENSE_FINANCE_PATH}/finance-approvals`,
 } as const;

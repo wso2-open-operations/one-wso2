@@ -83,15 +83,24 @@ describe("where each finance app lives", () => {
     expect(itemIds(FINANCE_PERSPECTIVE_APPS)).not.toContain("expense-new");
   });
 
-  // Both shipped entries stand on their own. The source's Lead Approvals entry
-  // is not ported.
-  it("keeps Claim History and Finance Approvals whatever the flag says", async () => {
+  // The shipped entries stand on their own; only New Claim waits on the flag.
+  it("keeps history and both approval entries whatever the flag says", async () => {
     for (const preview of [{}, { expenseSubmitter: true }]) {
       const { FINANCE_PERSPECTIVE_APPS } = await load(preview);
       expect(itemIds(FINANCE_PERSPECTIVE_APPS)).toContain("expense-history");
+      expect(itemIds(FINANCE_PERSPECTIVE_APPS)).toContain("expense-lead-approvals");
       expect(itemIds(FINANCE_PERSPECTIVE_APPS)).toContain("expense-finance-approvals");
-      expect(itemIds(FINANCE_PERSPECTIVE_APPS)).not.toContain("expense-lead-approvals");
     }
+  });
+
+  // The order a claim travels, and the order the source app's sidebar lists
+  // them in: file it, look it up, then the two review stages in sequence.
+  it("lists the approval entries lead-before-finance", async () => {
+    const { FINANCE_PERSPECTIVE_APPS } = await load();
+    const ids = itemIds(FINANCE_PERSPECTIVE_APPS);
+    expect(ids.indexOf("expense-lead-approvals")).toBeLessThan(
+      ids.indexOf("expense-finance-approvals"),
+    );
   });
 
   it("puts every app KEY in exactly one of the two", async () => {

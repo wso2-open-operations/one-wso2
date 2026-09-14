@@ -234,6 +234,16 @@ describe("the two entries", () => {
     show("FINANCE");
     expect(await screen.findByText(/Finance approvals aren't available/)).toBeInTheDocument();
   });
+
+  // The mirror of it. Each entry is hidden from somebody without its flag, but a
+  // hidden entry is not access control — the URL can be typed or bookmarked from
+  // when the role was held, so the screen refuses on its own account.
+  it("turns away somebody who is finance but not a lead", async () => {
+    flags.lead = false;
+    show("LEAD");
+    expect(await screen.findByText(/Lead approvals aren't available/)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Pending Claims/ })).not.toBeInTheDocument();
+  });
 });
 
 describe("the queue", () => {

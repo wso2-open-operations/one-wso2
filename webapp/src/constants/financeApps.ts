@@ -94,9 +94,16 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
         : []),
       { id: "expense-history", label: "Claim History", desc: "Claims you have submitted, and where each one has got to.", path: expenseFinancePaths.history },
       // Approving sits beside filing, where the source app's own sidebar keeps
-      // it. Only the finance stage is here: the source's Lead Approvals entry
-      // is not ported yet, and the entry is absent entirely for the many people
-      // who hold no finance flag.
+      // it — and in its order, lead before finance, which is the order a claim
+      // travels. Each entry stands on its own backend flag, so somebody holding
+      // both sees both and somebody holding neither sees neither.
+      {
+        id: "expense-lead-approvals",
+        label: "Lead Approvals",
+        desc: "Expense claims from the people you lead, waiting on your decision.",
+        requires: ["lead", "admin"],
+        path: expenseFinancePaths.leadApprovals,
+      },
       {
         id: "expense-finance-approvals",
         label: "Finance Approvals",

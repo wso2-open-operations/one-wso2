@@ -115,6 +115,7 @@ import DueDiligencePreferencesPage from "@features/due-diligence/preferences/pag
 import ViewPdfPage from "@features/due-diligence/shared/pages/ViewPdfPage";
 import ViewImagePage from "@features/due-diligence/shared/pages/ViewImagePage";
 import ExpenseApprovalsScreen from "@features/finance/expense/approvals/ExpenseApprovalsScreen";
+import ExpenseLeadApprovalsScreen from "@features/finance/expense/approvals/ExpenseLeadApprovalsScreen";
 
 export default function App() {
   return (
@@ -245,8 +246,13 @@ export default function App() {
               have already filed has no such duplicate to reconcile. */}
           <Route path="finance/expense-claims/history" element={<ExpenseClaimHistoryPage />} />
           {/* Approving sits beside filing, where the source app's sidebar keeps
-              it. The screen gates itself on the finance flag, so a typed URL is
-              no more revealing than the menu entry it belongs to. */}
+              it — one entry per stage, on the source's own two URLs. Each screen
+              gates itself on its own flag, so a typed URL is no more revealing
+              than the menu entry it belongs to. */}
+          <Route
+            path="finance/expense-claims/lead-approvals"
+            element={<ExpenseLeadApprovalsScreen />}
+          />
           <Route
             path="finance/expense-claims/finance-approvals"
             element={<ExpenseApprovalsScreen stage="FINANCE" />}
