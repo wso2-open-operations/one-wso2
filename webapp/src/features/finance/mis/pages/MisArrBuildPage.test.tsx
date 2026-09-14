@@ -15,8 +15,10 @@
 // under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import ExcelJS from "exceljs";
+import { bytesOf, captureDownloads } from "@/test/downloads";
 import { MemoryRouter } from "react-router";
 import { inZone } from "@/test/timeZone";
 import { misPaths } from "@constants/misApps";
@@ -683,5 +685,115 @@ describe("Exit ARR by Business Unit", () => {
     renderPage("?table=bu-summary");
     expect(screen.getByText(/couldn't load the bu summary/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+});
+
+/** The workbook the page wrote, loaded back the way Excel would. */
+async function loadWorkbook(blob: Blob): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await bytesOf(blob));
+  return workbook;
+}
+
+/** Click Export and hand back the sheet that came out. */
+async function exportedSheet(name: string): Promise<ExcelJS.Worksheet> {
+  const { blobs } = captureDownloads();
+  await userEvent.click(screen.getByRole("button", { name: /export/i }));
+  await waitFor(() => expect(blobs).toHaveLength(1));
+  return (await loadWorkbook(blobs[0])).getWorksheet(name)!;
+}
+
+/**
+ * One figure, found by the words around it rather than by counting.
+ *
+ * The four tables have one, seven, twelve and eighteen columns and differ in
+ * how many rows precede the first figure, so a literal row and column here
+ * would be four different pieces of arithmetic to keep right — and each would
+ * silently start reading the wrong cell the moment a column moved.
+ */
+function figureAt(sheet: ExcelJS.Worksheet, rowLabel: string, columnLabel: string): unknown {
+  const headerRow = sheet.getRow(sheet.getRow(3).values ? 4 : 3);
+  const headers = (headerRow.values as unknown[]) ?? [];
+  const column = headers.indexOf(columnLabel);
+  expect(column, `no column "${columnLabel}"`).toBeGreaterThan(0);
+
+  let found: ExcelJS.Row | undefined;
+  sheet.eachRow((row) => {
+    if (String(row.getCell(1).value ?? "").trim() === rowLabel) found ??= row;
+  });
+  expect(found, `no row "${rowLabel}"`).toBeDefined();
+  return found!.getCell(column).value;
+}
+
+describe("taking the Build out of the browser", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("writes the table on screen into a workbook, at units and as numbers", async () => {
+    const { blobs, filenames } = captureDownloads();
+    renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await waitFor(() => expect(blobs).toHaveLength(1));
+
+    const sheet = (await loadWorkbook(blobs[0])).getWorksheet("Subscription")!;
+    expect(sheet).toBeDefined();
+    // 1,234,567.50 is what the screen shows. The file gets the figure.
+    const openingArr = sheet.getRow(6);
+    expect(openingArr.getCell(1).value).toBe("  Opening ARR");
+    expect(openingArr.getCell(2).value).toBe(1_234_567.5);
+    // And it names itself after the table it came from, dated in Pacific Time.
+    expect(filenames[0]).toMatch(/^arr_build_subscription_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  });
+
+  it("exports the same figure at units while the screen is showing thousands", async () => {
+    // Spec §10.18, the whole reason this ticket has a test checklist entry of
+    // its own: the prototype found a DataGrid CSV that silently inherited the
+    // display formatter. The reader sets thousands, exports, and the file is
+    // 1000x off with nothing in it saying so.
+    renderPage("?scale=k");
+    expect(screen.getByText("All amounts in USD '000")).toBeInTheDocument();
+
+    const sheet = await exportedSheet("Subscription");
+    expect(sheet.getRow(6).getCell(2).value).toBe(1_234_567.5);
+    // Not 1,234.57 — and the file says which of the two it is.
+    expect(sheet.getRow(1).getCell(1).value).toBe("All amounts in USD");
+  });
+
+  // Each of the other three tables builds its OWN raw-figure reader, so §10.18
+  // has to be asked of each of them rather than of the Build alone. The sheet
+  // layer cannot scale — `misBuildSheet` has no Scale parameter — but nothing
+  // stops a call site handing it an already-scaled figure, and these are the
+  // tests that say it does not.
+  it("exports the Customers table at units while the screen shows thousands", async () => {
+    renderPage("?table=customers&scale=k");
+    const sheet = await exportedSheet("Customers");
+    expect(figureAt(sheet, "Northwind Bank", "Total")).toBe(750_000);
+    expect(sheet.getRow(1).getCell(1).value).toBe("All amounts in USD");
+  });
+
+  it("exports the Region Summary at units while the screen shows thousands", async () => {
+    renderPage("?table=region-summary&scale=k");
+    const sheet = await exportedSheet("Region Summary");
+    expect(figureAt(sheet, "NA", "API Platform BU")).toBe(4_000_000);
+    expect(sheet.getRow(1).getCell(1).value).toBe("All amounts in USD");
+  });
+
+  it("exports the BU Summary at units while the screen shows thousands", async () => {
+    renderPage("?table=bu-summary&scale=k");
+    const sheet = await exportedSheet("BU Summary");
+    expect(figureAt(sheet, "API Platform", "Exit ARR")).toBe(4_000_000);
+    expect(sheet.getRow(1).getCell(1).value).toBe("All amounts in USD");
+  });
+
+  it("names the file after whichever table is on screen", async () => {
+    const { filenames, blobs } = captureDownloads();
+    renderPage("?table=bu-summary");
+
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await waitFor(() => expect(blobs).toHaveLength(1));
+
+    expect(filenames[0]).toMatch(/^arr_build_bu_summary_\d{4}-\d{2}-\d{2}\.xlsx$/);
   });
 });

@@ -25,6 +25,7 @@ import { HttpError } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { peopleBackendUrl, peopleServiceUrls } from "@config/apiConfig";
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
+import { saveBlob } from "@utils/saveFile";
 import type {
   EmployeeReportPayload,
   EmployeeSearchPayload,
@@ -125,16 +126,8 @@ export function useEmployeeReportDownload() {
 
 // Hand a generated CSV to the browser as a download.
 //
-// The object URL is revoked on a timer rather than immediately: Safari
-// aborts the download if the blob is freed in the same tick as the click.
+// The plumbing moved to `@utils/saveFile` when MIS's Excel export needed the
+// same thing (ticket 11); only the media type is this module's own.
 export function saveCsv(csvText: string, filename: string): void {
-  const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  saveBlob(new Blob([csvText], { type: "text/csv;charset=utf-8" }), filename);
 }

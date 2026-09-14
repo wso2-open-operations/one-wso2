@@ -14,9 +14,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import ExcelJS from "exceljs";
+import { bytesOf, captureDownloads } from "@/test/downloads";
 import MisCustomerDrillDown from "./MisCustomerDrillDown";
 import type { DrillDownCustomer } from "./drillDownColumns";
 import type { DrillDownState } from "../api/useDrillDownCustomers";
@@ -155,5 +157,50 @@ describe("closing it", () => {
   it("renders nothing at all while shut", () => {
     renderDialog({ open: false });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+// The source's dialog has an Export CSV button (`ArrSummaryCustomersDialog.js`
+// :191-216). Ticket 10 deliberately did not port it — a bespoke CSV here would
+// have been the second export path ticket 11 exists to prevent — and carried it
+// to ticket 11 instead. This is it, on the shared builders.
+describe("taking the customers out of the browser", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("writes the customer list, with the amount as a number", async () => {
+    const { blobs, filenames } = captureDownloads();
+    renderDialog({ state: loaded([{ ...NORTHWIND, amount: 1_234_567.5 }]) });
+
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await waitFor(() => expect(blobs).toHaveLength(1));
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await bytesOf(blobs[0]));
+    const sheet = workbook.getWorksheet("Customers")!;
+
+    // The dialog shows "1,234,567.50". The file gets the figure — a customer
+    // list is exported to be summed against the Build figure it was opened
+    // from, and a column of strings cannot be.
+    //
+    // This is also all §10.18 has to say here: the dialog takes no Scale at
+    // all. `drillDownColumns`' amount hard-codes MIS_SCALES.UNITS, and the
+    // source's own test asserts the thousands rendering never appears — so
+    // there is no setting under which this figure could arrive scaled, and the
+    // assertion that it is the raw one is the whole guarantee.
+    expect(sheet.getRow(4).getCell(3).value).toBe(1_234_567.5);
+
+    // The source's own name, with its two different clean-up rules: the row
+    // label loses its punctuation, the Period column keeps its hyphen. The date
+    // is Pacific rather than the source's UTC.
+    expect(filenames[0]).toMatch(
+      /^customer_details_new_20241231_-_20251231_\d{4}-\d{2}-\d{2}\.xlsx$/,
+    );
+  });
+
+  it("offers nothing to export before there is a list", async () => {
+    renderDialog({ state: { ...loaded([]), isLoading: true } });
+    expect(screen.queryByRole("button", { name: /export/i })).not.toBeInTheDocument();
   });
 });

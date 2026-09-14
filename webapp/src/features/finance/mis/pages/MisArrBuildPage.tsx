@@ -28,12 +28,24 @@ import {
 } from "../components/arrBuildRows";
 import { useArrSummary, type ArrSummaryColumn } from "../api/useArrSummary";
 import { annualColumnLabel, pacificAnnualRanges, buildColumnRanges } from "../util/misPeriods";
-import { amountUnitCaption, formatMisValue, misValueTypeForRow } from "../util/misMoney";
+import {
+  MIS_VALUE_TYPES,
+  amountUnitCaption,
+  formatMisValue,
+  misValueTypeForRow,
+} from "../util/misMoney";
 import type { MisViewState } from "../util/useMisViewState";
 import type { MisDateRange, MisScale } from "../util/misViewVocabulary";
+import type { BuildColumnGroup, BuildRow } from "../components/buildTableModel";
 import { useMisViewState } from "../util/useMisViewState";
 import { useMisScale } from "../util/useMisScale";
-import { MIS_PERIODS, MIS_TABLES, typeValueOf } from "../util/misViewVocabulary";
+import {
+  MIS_PERIODS,
+  MIS_TABLES,
+  MIS_TABLE_LABELS,
+  typeValueOf,
+  type MisTable,
+} from "../util/misViewVocabulary";
 import { useCustomerAccounts } from "../api/useCustomerAccounts";
 import {
   CUSTOMER_SUB_COLUMNS,
@@ -60,6 +72,14 @@ import {
 import { drillDownRequest, DRILLABLE_ROW_IDS } from "../api/misDrillDownRequest";
 import { useDrillDownCustomers } from "../api/useDrillDownCustomers";
 import { describeAppliedFilters } from "../util/misAppliedFilterChips";
+import MisExportButton from "../components/MisExportButton";
+import {
+  misBuildSheet,
+  type MisBuildSheetInput,
+  type MisLeadColumn,
+} from "../export/misBuildWorkbook";
+import type { MisWorkbookSpec } from "../export/misWorkbook";
+import { misExportFilename, misFilenameWord } from "../export/misExportFilename";
 
 // ARR Build — the annual recurring-revenue Build, on live figures.
 //
@@ -203,9 +223,17 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
     () => new Map(ranges.map((range) => [annualColumnLabel(range), range])),
     [ranges],
   );
-  const cell: BuildCellFor = (row, group) => {
+  const columnGroups = summary.columns.map(({ label }) => ({ key: label, label }));
+  // The figure ITSELF, before the formatter. Shared by the cell below and by
+  // the export, so the sheet cannot read a different number from the screen —
+  // and so that the export never reaches for `BuildCell.text`, which is already
+  // scaled. See `misBuildWorkbook.ts`.
+  const rawFigure = (row: BuildRow, group: BuildColumnGroup) => {
     const field = arrBuildFieldFor(row.id);
-    const raw = field ? byColumn.get(group.key)?.[field] : undefined;
+    return field ? byColumn.get(group.key)?.[field] : undefined;
+  };
+  const cell: BuildCellFor = (row, group) => {
+    const raw = rawFigure(row, group);
     // The RANGE behind this column, by its label. `useArrSummary` builds its
     // columns from these very ranges, so the lookup always resolves — but the
     // dates the drill-down sends come from the range itself, so it is taken
@@ -258,11 +286,27 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
       {/* Above the grid rather than beside the control, because Finance's
           workflow is to crop a table into a slide deck: a figure that has left
           the screen it was set on has to carry its own units. */}
-      <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 0.75 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-          {amountUnitCaption(scale)}
-        </Typography>
-      </Stack>
+      <GridCaptionBar
+        scale={scale}
+        exportButton={
+          <MisExportButton
+            workbook={() =>
+              oneSheet({
+                name: MIS_TABLE_LABELS[MIS_TABLES.SUBSCRIPTION],
+                rowLabelHeader: "Summary",
+              // The SAME variables the table below is given, so the sheet and
+              // the screen cannot disagree about which rows or which Periods
+              // were exported.
+                columnGroups,
+                subColumns: SUB_COLUMNS,
+                rows,
+                value: rawFigure,
+              })
+            }
+            filename={() => exportFilenameFor(MIS_TABLES.SUBSCRIPTION)}
+          />
+        }
+      />
       {/* Mounted only while open. MUI would otherwise keep it in the document
           through its exit transition with the row and Period already cleared,
           so the title reads as a bare separator on the way out — a flicker the
@@ -283,7 +327,7 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
       <BuildTable
         label="ARR Build — Subscription"
         rowLabelHeader="Summary"
-        columnGroups={summary.columns.map(({ label }) => ({ key: label, label }))}
+        columnGroups={columnGroups}
         subColumns={SUB_COLUMNS}
         rows={rows}
         cell={cell}
@@ -344,12 +388,18 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
     return account ? column.value(account) : "";
   };
 
-  const cell: BuildCellFor = (row, group, subColumn) => {
+  const columnGroups = book.columns.map(({ label }) => ({ key: label, label }));
+  const subColumns = CUSTOMER_SUB_COLUMNS.map(({ key, label }) => ({ key, label, width: 150 }));
+  /** The figure itself, shared by the cell below and by the export. */
+  const rawFigure = (row: BuildRow, group: BuildColumnGroup, subColumnKey: string) => {
     // A Map, not a scan: `BuildTable` takes plain `BuildSubColumn`s, so the
     // figure's own definition has to be found by key, and this table renders
     // twelve of them under every Period.
-    const definition = CUSTOMER_SUB_COLUMN_BY_KEY.get(subColumn.key)!;
-    const raw = customerFigure(byColumn.get(group.key)?.get(row.id), definition);
+    const definition = CUSTOMER_SUB_COLUMN_BY_KEY.get(subColumnKey)!;
+    return customerFigure(byColumn.get(group.key)?.get(row.id), definition);
+  };
+  const cell: BuildCellFor = (row, group, subColumn) => {
+    const raw = rawFigure(row, group, subColumn.key);
     return {
       // Every figure here is currency, so the Scale applies to all of them —
       // unlike the Build, where counts and percentages share the column.
@@ -381,18 +431,39 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
 
   return (
     <Box>
-      <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 0.75 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-          {amountUnitCaption(scale)}
-        </Typography>
-      </Stack>
+      <GridCaptionBar
+        scale={scale}
+        exportButton={
+          <MisExportButton
+            workbook={() =>
+              oneSheet({
+                name: MIS_TABLE_LABELS[MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS],
+                leadColumns,
+                // The identity columns go in as the words on screen. They ARE
+                // text — a name, an owner, a country — and the two that look
+                // numeric, Employee Count and Delayed Day Count, reach the
+                // screen through the same formatter. The figures are in the
+                // Periods. The very same reader the table uses, handed the
+                // column itself rather than its key.
+                leadCell,
+                columnGroups,
+                subColumns,
+                rows,
+                value: rawFigure,
+                valueType: ALL_CURRENCY,
+              })
+            }
+            filename={() => exportFilenameFor(MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS)}
+          />
+        }
+      />
       <BuildTable
         label="ARR Build — Software/Cloud Customers"
         rowLabelHeader="Account Name"
         leadColumns={leadColumns}
         leadCell={leadCell}
-        columnGroups={book.columns.map(({ label }) => ({ key: label, label }))}
-        subColumns={CUSTOMER_SUB_COLUMNS.map(({ key, label }) => ({ key, label, width: 150 }))}
+        columnGroups={columnGroups}
+        subColumns={subColumns}
         rows={rows}
         cell={cell}
       />
@@ -432,11 +503,16 @@ function RegionSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScal
   // `summary.columns` is rebuilt every render, so a useMemo over it never hits.
   const { rows, figures } = regionExitTable(summary.columns);
 
-  const cell: BuildCellFor = (row, group, subColumn) => {
+  const columnGroups = summary.columns.map(({ label }) => ({ key: label, label }));
+  /** The figure itself, shared by the cell below and by the export. */
+  const rawFigure = (row: BuildRow, group: BuildColumnGroup, subColumnKey: string) => {
     // A Map, not a scan: `BuildTable` takes plain `BuildSubColumn`s, so the
     // figure's own definition has to be found by key.
-    const definition = REGION_EXIT_SUB_COLUMN_BY_KEY.get(subColumn.key)!;
-    const raw = figures.get(group.key)?.get(row.id)?.[definition.field];
+    const definition = REGION_EXIT_SUB_COLUMN_BY_KEY.get(subColumnKey)!;
+    return figures.get(group.key)?.get(row.id)?.[definition.field];
+  };
+  const cell: BuildCellFor = (row, group, subColumn) => {
+    const raw = rawFigure(row, group, subColumn.key);
     return {
       // Every figure here is currency, so Scale applies to all of them.
       text: formatMisValue(raw, "currency", { scale }),
@@ -456,12 +532,29 @@ function RegionSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScal
         emptyMessage="No regions to show. Widen Years Back, or loosen the filters."
         errorMessage={`Couldn't load the Region Summary. ${summary.errorMessage}`}
         scale={scale}
+        exportButton={
+          <MisExportButton
+            workbook={() =>
+              oneSheet({
+                name: MIS_TABLE_LABELS[MIS_TABLES.EXIT_ARR_BY_REGION],
+                rowLabelHeader: "Region",
+                rowLabelWidth: REGION_LABEL_WIDTH,
+                columnGroups,
+                subColumns: REGION_EXIT_SUB_COLUMNS,
+                rows,
+                value: rawFigure,
+                valueType: ALL_CURRENCY,
+              })
+            }
+            filename={() => exportFilenameFor(MIS_TABLES.EXIT_ARR_BY_REGION)}
+          />
+        }
       >
         <BuildTable
           label="ARR Build — Region Summary"
           rowLabelHeader="Region"
           rowLabelWidth={REGION_LABEL_WIDTH}
-          columnGroups={summary.columns.map(({ label }) => ({ key: label, label }))}
+          columnGroups={columnGroups}
           subColumns={REGION_EXIT_SUB_COLUMNS}
           rows={rows}
           cell={cell}
@@ -487,8 +580,12 @@ function BuSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScale })
   const summary = useExitArrByBU(ranges, view.filters);
   const byColumn = new Map(summary.columns.map((column) => [column.label, column.response]));
 
+  const columnGroups = summary.columns.map(({ label }) => ({ key: label, label }));
+  /** The figure itself, shared by the cell below and by the export. */
+  const rawFigure = (row: BuildRow, group: BuildColumnGroup) =>
+    buExitFigure(byColumn.get(group.key), row.id);
   const cell: BuildCellFor = (row, group) => {
-    const raw = buExitFigure(byColumn.get(group.key), row.id);
+    const raw = rawFigure(row, group);
     return {
       text: formatMisValue(raw, "currency", { scale }),
       negative: typeof raw === "number" && raw < 0,
@@ -505,12 +602,29 @@ function BuSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScale })
       emptyMessage="No periods to show. Widen Years Back."
       errorMessage={`Couldn't load the BU Summary. ${summary.errorMessage}`}
       scale={scale}
+      exportButton={
+        <MisExportButton
+          workbook={() =>
+            oneSheet({
+              name: MIS_TABLE_LABELS[MIS_TABLES.EXIT_ARR_BY_BU],
+              rowLabelHeader: "Business Unit",
+              rowLabelWidth: BU_LABEL_WIDTH,
+              columnGroups,
+              subColumns: EXIT_ARR_SUB_COLUMNS,
+              rows: BU_EXIT_ROWS,
+              value: rawFigure,
+              valueType: ALL_CURRENCY,
+            })
+          }
+          filename={() => exportFilenameFor(MIS_TABLES.EXIT_ARR_BY_BU)}
+        />
+      }
     >
       <BuildTable
         label="ARR Build — BU Summary"
         rowLabelHeader="Business Unit"
         rowLabelWidth={BU_LABEL_WIDTH}
-        columnGroups={summary.columns.map(({ label }) => ({ key: label, label }))}
+        columnGroups={columnGroups}
         subColumns={EXIT_ARR_SUB_COLUMNS}
         rows={BU_EXIT_ROWS}
         cell={cell}
@@ -535,6 +649,7 @@ function SummaryBody({
   emptyMessage,
   errorMessage,
   scale,
+  exportButton,
   children,
 }: {
   state: { isLoading: boolean; isError: boolean; columns: readonly unknown[]; retry: () => void };
@@ -542,6 +657,8 @@ function SummaryBody({
   emptyMessage: string;
   errorMessage: string;
   scale: MisScale;
+  /** Rendered beside the caption, and only once there is a table to export. */
+  exportButton?: ReactNode;
   children: ReactNode;
 }) {
   if (state.isLoading) {
@@ -570,11 +687,7 @@ function SummaryBody({
     <Box>
       {/* Above the grid rather than beside the control, because Finance's
           workflow is to crop a table into a slide deck. */}
-      <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 0.75 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-          {amountUnitCaption(scale)}
-        </Typography>
-      </Stack>
+      <GridCaptionBar scale={scale} exportButton={exportButton} />
       {children}
     </Box>
   );
@@ -588,6 +701,64 @@ function SummaryBody({
  * such row: its seven sub-columns name themselves.
  */
 const EXIT_ARR_SUB_COLUMNS = [{ key: "amount", label: "Exit ARR", width: 180 }] as const;
+
+/**
+ * The caption over a grid, and the control that takes the grid away.
+ *
+ * Above the grid rather than beside the Scale control, because Finance's
+ * workflow is to crop a table into a slide deck: a figure that has left the
+ * screen it was set on has to carry its own units.
+ *
+ * One component rather than the four copies the four tables would otherwise
+ * each keep — the export button arrived as the second thing in this row, and
+ * two things in a row is a layout rather than a caption.
+ */
+function GridCaptionBar({ scale, exportButton }: { scale: MisScale; exportButton?: ReactNode }) {
+  return (
+    <Stack
+      direction="row"
+      sx={{ justifyContent: "flex-end", alignItems: "center", gap: 1.5, mb: 0.75 }}
+    >
+      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+        {amountUnitCaption(scale)}
+      </Typography>
+      {exportButton}
+    </Stack>
+  );
+}
+
+/**
+ * `arr_build_bu_summary_2026-09-14.xlsx` — which table, and the day it was taken.
+ *
+ * Dated in Pacific Time rather than UTC, which is `misExportFilename`'s own
+ * departure from the source; the table's own label rather than a second set of
+ * words for the four tables, so the file is named what the tab the reader
+ * clicked is named.
+ */
+const exportFilenameFor = (table: MisTable): string =>
+  misExportFilename(["arr_build", misFilenameWord(MIS_TABLE_LABELS[table])]);
+
+/**
+ * One table, as a one-sheet workbook.
+ *
+ * `MisExportButton` takes a whole spec because Flash is multi-sheet; every
+ * table on this page is one sheet, and this is where that difference is said
+ * once instead of at each of the four call sites.
+ */
+const oneSheet = <L extends MisLeadColumn>(sheet: MisBuildSheetInput<L>): MisWorkbookSpec => ({
+  sheets: [misBuildSheet(sheet)],
+});
+
+/**
+ * Every figure on this table is money.
+ *
+ * The three tables that are not the Subscription Build say this rather than
+ * letting the sheet infer it, because they say the same thing on screen by
+ * handing `formatMisValue` a literal `"currency"`. Inferring instead would let
+ * the file and the screen disagree about an account or a region whose name
+ * happened to collide with one of the Build's metric labels.
+ */
+const ALL_CURRENCY = () => MIS_VALUE_TYPES.CURRENCY;
 
 /** The source's fixed widths for the two summaries' row-label columns. */
 const REGION_LABEL_WIDTH = 170;

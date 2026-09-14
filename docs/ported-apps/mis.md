@@ -274,7 +274,50 @@ deferrable.
 
 **Excel.** The bespoke ExcelJS workbook is kept, but restructured into pure builder functions with the
 blob download isolated, so it can finally be tested. `exceljs` is dynamically imported at the call
-site, as everywhere else in this repo.
+site, as everywhere else in this repo. Built in ticket 11; three things about it are decisions rather
+than transcription:
+
+- **A figure in the file is a NUMBER, where the source writes a string.** `generateAnnualSheet.js`
+  puts `formatNumber(item.iam)` into every figure cell — `Intl.NumberFormat` output, so `"1,234.50"`
+  — which means no column in the workbook Finance opens today can be summed, averaged or charted
+  without being retyped. The port writes the figure and puts the presentation in the cell's number
+  format, where Excel applies it to a live number.
+- **An export is always at units, and says so.** Spec §10.18 allowed either that or carrying the
+  reader's Scale in the file; units is chosen, and the caption says `All amounts in USD` as well, so
+  the answer is taken both ways. It matches the decision already made one screen down: the
+  drill-down's Amount column hard-codes `MIS_SCALES.UNITS`, and the source's own test asserts the
+  thousands rendering does not appear there.
+
+  **That is enforced at the sheet layer and only there.** `misBuildSheet` has no Scale parameter, so
+  nothing inside it can scale anything. What it cannot enforce is its `value` callback: a call site that handed it an already-divided figure would
+  compile. The reason none does is that each table's raw reader is the SAME function its on-screen
+  `cell` calls, and the division happens after that, inside `formatMisValue`. So the guarantee rests
+  on four call sites, and §10.18 is therefore asked of each of the four tables separately rather than
+  of the Build alone.
+- **The filename is dated in Pacific Time, where the source uses UTC.**
+  `ArrSummaryCustomersDialog.js:191-216` stamps `new Date().toISOString()`, so an export taken on a
+  Pacific evening is filed under tomorrow. Its two clean-up rules ARE kept, including the fact that
+  there are two of them: a row label loses its hyphens and a Period column keeps them, so a range
+  survives as `20250903_-_20260903` rather than collapsing into one unreadable number.
+
+The customer drill-down is a consumer of these same builders. The source's dialog has its own Export
+CSV button; porting that as a second, bespoke CSV path is what ticket 11 exists to prevent, so the
+dialog writes a workbook through `misDrillDownSheet` — a `misBuildSheet` with no Periods in it, the
+same degenerate case `BuildTable` already renders it in.
+
+Three of the decisions above change what the source does — **the filename's date, a figure's cell
+type, and the drill-down's CSV becoming an .xlsx** — and all three are **knowing exceptions to
+[ADR 0003](../adr/0003-bug-for-bug-parity-during-the-parallel-period.md), not cases the ADR fails to
+reach.** (The fourth, always exporting at units, deviates from nothing: the source has no Build
+export at all.)
+
+They are taken because none of them reaches what that ADR protects. ADR 0003 exists so that finance
+signing off figures from both apps never has to investigate a disagreement, and §10.34 compares the
+FIGURES ON EACH SCREEN. A filename, a cell's type and a file's extension are all outside that, and
+the figures inside the exported sheet are the same numbers the screen is showing — so the parallel
+period sees no disagreement it has to explain. Each is also a defect that would otherwise be
+preserved in a file outliving the parallel period: an export filed under tomorrow's date, and a
+column of figures that cannot be summed.
 
 **Routes.** `/finance-mis/*` becomes `/finance/mis/*`. Keeping the old prefix would break the shell:
 `findPerspectiveByPath` matches with a bare `pathname.startsWith`, so `/finance-mis` resolves to the
@@ -647,9 +690,20 @@ ported.
 ### Excel
 17. The generated workbook loads back via `wb.xlsx.load` with the expected sheet names, cell values and
     number formats. Nothing else in this repo asserts workbook formatting; this test is the only guard.
+    **Closed by ticket 11** (`misWorkbook.test.ts`), and deliberately asserted on the FILE rather than
+    on the spec that produced it: a spec is the builders' own vocabulary and a test over it would agree
+    with them by construction, where the bytes are what Finance opens.
 18. An export taken while Scale is "Values in '000" is either exported in units, or carries the scale in
     the file. The prototype found this exact foot-gun in the DataGrid's CSV, which silently inherits the
     display formatter — a finance export that is 1000x off with nothing in it saying so.
+    **Closed by ticket 11**, taken BOTH ways — see §7. Pinned once per table, not once per port: each
+    of the four tables builds its own raw-figure reader, so each is exported at `?scale=k` with the
+    screen reading `All amounts in USD '000` and the cell still holding the unscaled figure under a
+    caption reading `All amounts in USD`. The drill-down needs no such test and has none — its Amount
+    column takes no Scale at any setting — so what is asserted there is that the cell holds the figure
+    rather than the dialog's formatted string, which is the same guarantee arrived at differently.
+    Worth knowing that the source has the same defect in a second form: its Flash workbook writes every
+    figure as a formatted STRING, so the file cannot be computed on at all.
 
 ### The hand-rolled Build table
 19. The Build renders at 5, 8 and 12 Period groups without the layout collapsing, and the row-label

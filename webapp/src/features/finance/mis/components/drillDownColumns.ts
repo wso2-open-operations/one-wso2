@@ -63,6 +63,16 @@ export const DRILL_DOWN_NOT_AVAILABLE = "N/A";
 /** One column of the dialog, and how to read its value off a customer. */
 export interface DrillDownColumn extends BuildLeadColumn {
   value: (customer: DrillDownCustomer) => string;
+  /**
+   * The same value UNFORMATTED, for the export — the money column alone.
+   *
+   * `value` above is a display string ("145,200.75", or "N/A"), which is right
+   * on screen and wrong in a spreadsheet: a customer list is exported to be
+   * summed against the Build figure it was opened from, and a column of strings
+   * cannot be. A column that declares this is written as a currency figure;
+   * every other column goes in as the words the dialog shows.
+   */
+  rawValue?: (customer: DrillDownCustomer) => number | undefined;
 }
 
 /** Falls back to the placeholder — the seven columns the source guards. */
@@ -108,7 +118,7 @@ const amount = (customer: DrillDownCustomer) => {
 const BASE: readonly DrillDownColumn[] = [
   { key: "accountId", label: "Account ID", width: 188, pinned: true, value: blank((c) => c.accountId) },
   { key: "name", label: "Account Name", width: 220, value: blank((c) => c.name) },
-  { key: "amount", label: "Amount (USD)", width: 140, value: amount },
+  { key: "amount", label: "Amount (USD)", width: 140, value: amount, rawValue: (c) => c.amount },
 ];
 
 /** Shown only on a Lost row, between the amount and the churn date. */

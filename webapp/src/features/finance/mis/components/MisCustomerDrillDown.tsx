@@ -22,6 +22,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Stack,
   Typography,
 } from "@wso2/oxygen-ui";
 import { XIcon } from "@wso2/oxygen-ui-icons-react";
@@ -31,6 +32,9 @@ import MisAppliedFilterChips from "./MisAppliedFilterChips";
 import { drillDownColumns, drillDownRows, type DrillDownColumn } from "./drillDownColumns";
 import type { MisFilterChip } from "../util/misAppliedFilterChips";
 import type { DrillDownState } from "../api/useDrillDownCustomers";
+import MisExportButton from "./MisExportButton";
+import { misDrillDownSheet } from "../export/misDrillDownWorkbook";
+import { misExportFilename, misFilenameRange, misFilenameWord } from "../export/misExportFilename";
 
 // Who is inside this number.
 //
@@ -50,12 +54,13 @@ import type { DrillDownState } from "../api/useDrillDownCustomers";
 // at thirteen columns. It is handed no `columnGroups`, which is why that table
 // now renders a single header row when there are no figure columns.
 //
-// ---- the CSV button is NOT ported ------------------------------------------
+// ---- the export, on the shared builders ------------------------------------
 //
-// The source has one. This port's export story is ticket 11 — one set of
-// shared ExcelJS builders, written once and consumed by the Build and by
-// Flash — and a bespoke CSV here would be the second export path that ticket
-// exists to prevent. Noted on ticket 11 rather than dropped.
+// The source has an Export CSV button here. Ticket 10 did not port it: a
+// bespoke CSV in this dialog would have been exactly the second export path
+// ticket 11 exists to prevent. Ticket 11 built the shared builders, and this
+// dialog is a consumer of them alongside the Build — an .xlsx rather than a
+// CSV, from `misDrillDownSheet`, under the source's own filename.
 
 export interface MisCustomerDrillDownProps {
   open: boolean;
@@ -95,6 +100,17 @@ export default function MisCustomerDrillDown({
   // only thing tying the list back to the cell the reader clicked.
   const title = `${rowLabel} · ${periodColumn}`;
 
+  // The source's filename, rule for rule: a fixed prefix, the row with its
+  // punctuation stripped, the Period column with its hyphen KEPT so a range
+  // survives as one, and the date. Pacific rather than the source's UTC —
+  // `misExportFilename` says why.
+  const filename = () =>
+    misExportFilename([
+      "customer_details",
+      misFilenameWord(rowLabel),
+      misFilenameRange(periodColumn),
+    ]);
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
       <DialogTitle sx={{ fontSize: 17, fontWeight: 700, pr: 6 }}>
@@ -117,6 +133,19 @@ export default function MisCustomerDrillDown({
             Build's filters, and changing one from in here would leave the list
             describing a different figure from the one it was opened from. */}
         <MisAppliedFilterChips chips={chips} />
+        {/* Only once there is a list to take away. A button over a spinner, an
+            error or an empty result would export a workbook with nothing in
+            it. */}
+        {Boolean(state.customers.length) && !state.isLoading && !state.isError && (
+          <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 0.75 }}>
+            <MisExportButton
+              workbook={() => ({
+                sheets: [misDrillDownSheet({ rowId, customers: state.customers })],
+              })}
+              filename={filename}
+            />
+          </Stack>
+        )}
         <DrillDownBody state={state} rows={rows} columns={columns} byRowId={byRowId} />
       </DialogContent>
     </Dialog>
