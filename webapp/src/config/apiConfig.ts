@@ -1450,6 +1450,9 @@ export const misArrServiceUrls = {
   // endpoint as the drill-down dialog's `/arr-summary/customers`, despite both
   // returning customers — this one is the table's rows.
   accounts: `${misArrBackendUrl}/accounts`,
+  // The customers behind ONE figure in a Build — the drill-down dialog. Takes
+  // the clicked row and column in its body, so one call per opened figure.
+  drillDownCustomers: `${misArrBackendUrl}/arr-summary/customers`,
 };
 
 export const misFlashBackendUrl: string = stripTrailingSlashes(

@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Box, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { useDocumentTitle } from "@hooks/useDocumentTitle";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
@@ -27,7 +27,7 @@ import {
   type ArrSummaryResponse,
 } from "../components/arrBuildRows";
 import { useArrSummary, type ArrSummaryColumn } from "../api/useArrSummary";
-import { pacificAnnualRanges, buildColumnRanges } from "../util/misPeriods";
+import { annualColumnLabel, pacificAnnualRanges, buildColumnRanges } from "../util/misPeriods";
 import { amountUnitCaption, formatMisValue, misValueTypeForRow } from "../util/misMoney";
 import type { MisViewState } from "../util/useMisViewState";
 import type { MisScale } from "../util/misViewVocabulary";
@@ -47,6 +47,10 @@ import {
 import { useMisAppConfigs } from "../api/useMisAppConfigs";
 import MisFilterBar from "../components/MisFilterBar";
 import MisTableTabs from "../components/MisTableTabs";
+import MisCustomerDrillDown from "../components/MisCustomerDrillDown";
+import { drillDownRequest, DRILLABLE_ROW_IDS } from "../api/misDrillDownRequest";
+import { useDrillDownCustomers } from "../api/useDrillDownCustomers";
+import { describeAppliedFilters } from "../util/misAppliedFilterChips";
 
 // ARR Build — the annual recurring-revenue Build, on live figures.
 //
@@ -159,16 +163,47 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
     () => arrBuildRows(view.filters.channelDirect),
     [view.filters.channelDirect],
   );
+
+  // Which figure the reader opened, if any. Held as the row and the COLUMN
+  // INDEX rather than as a built request, so the request is recomputed when the
+  // filters move under an open dialog instead of going stale.
+  const [opened, setOpened] = useState<{ rowId: string; rowLabel: string; column: number } | null>(
+    null,
+  );
+  const request = opened
+    ? drillDownRequest(opened.rowId, ranges[opened.column], view.filters, {
+        isFirstColumn: opened.column === 0,
+      })
+    : null;
+  const drillDown = useDrillDownCustomers(request);
   // Not memoised, deliberately: `summary.columns` is rebuilt on every render,
   // so a useMemo over it would never hit — and babel-plugin-react-compiler
   // already handles what genuinely can be.
   const byColumn = responsesByColumn(summary.columns);
+  const columnIndexByLabel = useMemo(
+    () => new Map(ranges.map((range, index) => [annualColumnLabel(range), index])),
+    [ranges],
+  );
   const cell: BuildCellFor = (row, group) => {
     const field = arrBuildFieldFor(row.id);
     const raw = field ? byColumn.get(group.key)?.[field] : undefined;
+    // Looked up against the RANGES, not against `summary.columns`. The two are
+    // index-aligned in practice — the hook builds its columns from these very
+    // ranges — but the dates the drill-down sends come from the range, so
+    // reading the index off the other list would make a stale or partial
+    // response able to shift a date by a year.
+    const column = columnIndexByLabel.get(group.key) ?? -1;
     return {
       text: formatMisValue(raw, misValueTypeForRow(row.label), { scale }),
       negative: typeof raw === "number" && raw < 0,
+      // Only the fourteen rows that ARE a set of customers. A y/y growth, a
+      // retention ratio or a percentage is arithmetic over other rows, so there
+      // is nothing to open and the cell stays plain text — which is two thirds
+      // of the Build.
+      onActivate:
+        DRILLABLE_ROW_IDS.has(row.id) && column >= 0
+          ? () => setOpened({ rowId: row.id, rowLabel: row.label, column })
+          : undefined,
     };
   };
 
@@ -204,6 +239,23 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
           {amountUnitCaption(scale)}
         </Typography>
       </Stack>
+      {/* Mounted only while open. MUI would otherwise keep it in the document
+          through its exit transition with the row and Period already cleared,
+          so the title reads as a bare separator on the way out — a flicker the
+          source has too (`drillDownTitle` runs unguarded on every render). */}
+      {opened !== null && (
+      <MisCustomerDrillDown
+        open
+        onClose={() => setOpened(null)}
+        rowId={opened.rowId}
+        rowLabel={opened.rowLabel}
+        periodColumn={annualColumnLabel(ranges[opened.column])}
+        // The Build's own Applied filters, shown but not editable — the list
+        // describes a figure computed under exactly these.
+        chips={describeAppliedFilters(view.filters, { period: view.period, table: view.table })}
+        state={drillDown}
+      />
+      )}
       <BuildTable
         label="ARR Build — Subscription"
         rowLabelHeader="Summary"

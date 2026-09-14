@@ -388,6 +388,25 @@ tables, which mirror a Quarterly or Monthly type into `arrType` — collapsing t
 silently drops the confidence off a Forecasted QRR. Both endpoints now answer the question the same
 way, which they did not in the source.
 
+**A failed drill-down says so.** The source cannot: its error is discarded three times over —
+`http.js:65` hands the failure callback a STRING, `useArrSummaryCustomers.js:52` reads `err?.message`
+off it and always falls through to the literal `'Failed'`, and `DataGrid.js:911` never destructures
+`error` at all, so the dialog has no error prop and no error state. A failed drill-down there renders
+an EMPTY GRID, indistinguishable from "no customers matched" — on a screen whose whole purpose is to
+explain a figure, that reads as "this number is made of nobody". The backend does send a usable
+message (`service.bal:187`). The port surfaces it, with a retry.
+
+**The drill-down dialog has no CSV button.** The source has one. This port's export story is ticket 11
+— one set of shared ExcelJS builders, written once and consumed by the Build and by Flash — and a
+bespoke CSV here would be the second export path that ticket exists to prevent. Carried to ticket 11
+rather than dropped. (The source's own filename is also stamped in UTC while the rest of the app is
+Pacific, so an export taken on a Pacific evening carries tomorrow's date; worth not reproducing.)
+
+**The drill-down keys on row IDs where the source keys on row LABELS.** `DataGrid.js:646-647` tests
+the clicked row's header TEXT against a Set of fourteen strings. That works there only by luck: the
+Build carries FOUR rows labelled `y/y growth`, so a label is not an identity. The port's rows have
+stable ids, and both the drillable set and the Lost-columns rule key on those.
+
 **The customers table does not blank itself while refetching.** `useCustomerAccounts.js` calls
 `setData([])` at the top of every run — "Clear previous data immediately to show loading state" — which
 on a table of hundreds of customer rows empties and re-paints the whole grid on every filter change.
@@ -413,6 +432,20 @@ Kept because the two apps run side by side during the parallel period and must a
    shortcut or a real defect, and the two apps running side by side is the wrong time to find out.
 6. **`BFSI` is added to the industry list client-side.** The backend has never sent it
    (`ArrDashboard.js:54`). Kept, because Finance filters by it today.
+
+**The drill-down dialog renders a missing value two different ways, and the port keeps both.** Seven
+of its columns fall back to the literal `N/A`; four render an empty cell. The four are exactly the
+fields the backend declares non-nullable — except `amount`, which is also non-nullable and DOES get
+the placeholder. So an unexpected null shows as `N/A` in the Amount column and as a blank in Sales
+Region two columns along. Reproduced rather than unified: it is the source's inconsistency, the
+figures are unaffected, and the already-ported Software/Cloud Customers table renders blanks
+throughout — so unifying would mean choosing which of two shipped surfaces to change, which is a
+decision about the whole feature rather than about this dialog.
+
+**Both balances ask the backend for `Closing`.** An Opening ARR drill-down and an Ending ARR
+drill-down send the same `customerArrType`, and only the DATE differs — the opening one is read at the
+opening snapshot and sends no `startDate` at all. It looks like a bug on first reading and is not: the
+question "who was in the book" is the same at either end of a Period.
 
 ## 9. Dead code in the source — do not port
 
@@ -476,6 +509,13 @@ legal on TTM — and `isAllowedTtmEndingMonth` admits every month and Today, so 
 It stays because, unlike the mirror above, it is not unreachable by construction: it hangs off a rule
 that exists to be narrowed, and dropping it would move the cost of narrowing that rule from nowhere to
 there. §10.6's "restores the previous YTD **and Ending Month**" is therefore live on YTD only.
+
+`lastKeyRef` in `useArrSummaryCustomers.js:18,49` — written on every successful fetch and never read.
+The effect's dependency on `key` (:55) is what actually prevents refetching. Not ported.
+
+`lostDate` and `deactivationDate` on the drill-down's response record (`types.bal:335-338`) — returned
+by the backend, rendered by nothing in the entire source webapp. They sit beside `lostReason`, which
+IS rendered, so the record looks designed for a Lost view that was never finished. Not ported.
 
 `openBankingSoftwareTotal`, in the customers table. `transformApiData` writes an `open_banking` value
 onto every account row from it, and no column definition in `tableConstants.js` reads that key. Not

@@ -20,8 +20,20 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { inZone } from "@/test/timeZone";
 import { misPaths } from "@constants/misApps";
+import { defaultAppliedFilters } from "@features/finance/mis/util/misViewState";
+import {
+  MIS_PERIODS,
+  MIS_TABLES,
+  MIS_WINDOWS,
+} from "@features/finance/mis/util/misViewVocabulary";
+import {
+  annualColumnLabel,
+  buildColumnRanges,
+  pacificAnnualRanges,
+} from "@features/finance/mis/util/misPeriods";
 import type { ArrSummaryState } from "@features/finance/mis/api/useArrSummary";
 import type { CustomerAccountsState } from "@features/finance/mis/api/useCustomerAccounts";
+import type { DrillDownState } from "@features/finance/mis/api/useDrillDownCustomers";
 
 // The first real figures on screen. Everything below the shell: the Build's
 // rows, one column group per Annual Period, at default filters.
@@ -53,6 +65,14 @@ vi.mock("@features/finance/mis/api/useMisGate", () => ({
 const summary = { value: {} as ArrSummaryState };
 vi.mock("@features/finance/mis/api/useArrSummary", () => ({
   useArrSummary: () => summary.value,
+}));
+
+const drillDown = { value: {} as DrillDownState, asked: [] as unknown[] };
+vi.mock("@features/finance/mis/api/useDrillDownCustomers", () => ({
+  useDrillDownCustomers: (request: unknown) => {
+    drillDown.asked.push(request);
+    return drillDown.value;
+  },
 }));
 
 const customers = { value: {} as CustomerAccountsState };
@@ -96,8 +116,21 @@ const MisArrBuildPage = (await import("@features/finance/mis/pages/MisArrBuildPa
 // give each room under load").
 vi.setConfig({ testTimeout: 20_000 });
 
-/** Five columns at Years Back 5, and this is the newest of them. */
-const THIS_YEAR = "2025/12/31 - 2026/09/12";
+/**
+ * The newest of the five columns, computed rather than written down.
+ *
+ * It is derived from today's date in Pacific Time, so a literal here is correct
+ * only until the next Pacific midnight — and a stale one does not fail loudly:
+ * it silently stops matching the ranges the page computes, so figures vanish
+ * and a drill-down cannot find its column. Built with the same helpers the page
+ * uses, in the same zone the page is rendered in.
+ */
+const THIS_YEAR = inZone("Asia/Colombo", () => {
+  const filters = defaultAppliedFilters(MIS_PERIODS.ANNUALLY, MIS_TABLES.SUBSCRIPTION);
+  const annuallyDateRanges = pacificAnnualRanges(MIS_WINDOWS.CALENDAR, filters);
+  const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, { ...filters, annuallyDateRanges });
+  return annualColumnLabel(columns[columns.length - 1]);
+});
 
 const loaded = (response: Record<string, unknown>): ArrSummaryState => ({
   columns: [{ label: THIS_YEAR, response, isError: false }],
@@ -141,6 +174,86 @@ beforeEach(() => {
   localStorage.clear();
   summary.value = loaded({ openingArr: 1_234_567.5 });
   customers.value = customerBook([NORTHWIND]);
+  drillDown.asked = [];
+  drillDown.value = {
+    customers: [
+      {
+        accountId: "0018000001abcXYZ",
+        name: "Northwind Bank",
+        salesRegion: "EMEA",
+        subRegion: "Northern Europe",
+        amount: 750_000,
+      },
+    ],
+    isLoading: false,
+    isError: false,
+    errorMessage: "",
+    retry: () => {},
+  };
+});
+
+describe("opening the customers behind a figure", () => {
+  // Ticket 10's drill-down. Only fourteen rows of the Build have a customer
+  // list behind them; the rest are arithmetic over other rows.
+  //
+  // The Period label is read off the rendered header rather than hard-coded.
+  // It is derived from today's date in Pacific Time, so a constant here would
+  // be correct only until midnight — and the drill-down's dates come from that
+  // same range, which is exactly what these tests are checking.
+  const periodHeader = () =>
+    within(screen.getAllByRole("rowgroup")[0]).getAllByRole("columnheader")[1].textContent!;
+
+  const openNew = async () => {
+    const newRow = screen.getByText("New").closest("tr")!;
+    await userEvent.click(within(newRow).getAllByRole("button")[0]);
+    return screen.findByRole("dialog");
+  };
+
+  it("offers no way in on a row that is arithmetic over other rows", () => {
+    renderPage();
+    // `Net New` is Opening minus Closing — there is no set of customers that IS
+    // it, so the source leaves the cell inert and so does this.
+    const netNew = screen.getByText("Net New").closest("tr")!;
+    expect(within(netNew).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("opens the dialog on a figure that has customers behind it", async () => {
+    renderPage();
+    const dialog = await openNew();
+    expect(within(dialog).getByText("Northwind Bank")).toBeInTheDocument();
+  });
+
+  it("names the row and the Period it was opened from", async () => {
+    renderPage();
+    const period = periodHeader();
+    const dialog = await openNew();
+    expect(dialog).toHaveAccessibleName(`New · ${period}`);
+  });
+
+  it("asks the backend for that row's movement, at that column's dates", async () => {
+    renderPage();
+    // The column header is `{opening} - {end}` in slash form; the wire wants
+    // the closing half in dashes.
+    const endDate = periodHeader().split(" - ")[1].replace(/\//g, "-");
+    await openNew();
+    const request = drillDown.asked.at(-1) as Record<string, unknown>;
+    expect(request).toMatchObject({ customerArrType: "New", endDate });
+  });
+
+  it("asks for nothing at all while the dialog is shut", () => {
+    renderPage();
+    expect(drillDown.asked.every((one) => one === null)).toBe(true);
+  });
+
+  it("closes again, and stops asking", async () => {
+    renderPage();
+    const newRow = screen.getByText("New").closest("tr")!;
+    await userEvent.click(within(newRow).getAllByRole("button")[0]);
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: /close/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(drillDown.asked.at(-1)).toBeNull();
+  });
 });
 
 describe("the Software/Cloud Customers table", () => {

@@ -21,6 +21,7 @@ import type { MisAppliedFilters, MisDateRange } from "../util/misViewVocabulary"
 import type { AccountsResponse } from "../components/customerAccountRows";
 import { accountsRequests } from "./misAccountsRequest";
 import { useColumnQueries } from "./useColumnQueries";
+import { arrayIn } from "./misResponseArray";
 
 // `POST /accounts` — the customer book behind the Software/Cloud Customers
 // table, one call per column.
@@ -65,20 +66,6 @@ export interface CustomerAccountsState {
   retry: () => void;
 }
 
-/**
- * The accounts in one response, whatever shape it arrived in.
- *
- * The source coerces the same way — `Array.isArray(resp) ? resp : (resp?.data || [])`
- * — which is a note that this backend has answered both. A bare object would
- * otherwise reach the row builder and be spread into nothing, so the table
- * would show no customers and no error.
- */
-function accountsIn(payload: unknown): AccountsResponse[] {
-  if (Array.isArray(payload)) return payload as AccountsResponse[];
-  const wrapped = (payload as { data?: unknown } | null)?.data;
-  return Array.isArray(wrapped) ? (wrapped as AccountsResponse[]) : [];
-}
-
 export function useCustomerAccounts(
   ranges: readonly MisDateRange[],
   filters: MisAppliedFilters,
@@ -95,7 +82,7 @@ export function useCustomerAccounts(
     url: misArrServiceUrls.accounts,
     bodies,
     labels,
-    parse: accountsIn,
+    parse: arrayIn<AccountsResponse>,
     enabled,
   });
 

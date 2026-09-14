@@ -17,6 +17,7 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import {
   Box,
+  ButtonBase,
   IconButton,
   Table,
   TableBody,
@@ -84,6 +85,16 @@ export interface BuildCell {
   negative?: boolean;
   /** A subordinate figure, such as the percentage beside its amount. */
   muted?: boolean;
+  /**
+   * Opens whatever sits behind this figure — ticket 10's customer drill-down.
+   *
+   * Per CELL, and per cell deliberately. Most of a Build has nothing behind it:
+   * a y/y growth, a retention ratio and a percentage are arithmetic over other
+   * rows, not sets of customers, so only some figures may be opened and the
+   * caller is the only one who knows which. Omitted, the figure is plain text —
+   * which is what two thirds of the Build renders as.
+   */
+  onActivate?: () => void;
 }
 
 export type BuildCellFor = (
@@ -233,7 +244,11 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                 <TableCell
                   key={column.key}
                   id={leadHeaderId(index)}
-                  rowSpan={2}
+                  // Spans both header rows when there IS a second one. The
+                  // drill-down dialog is all identity columns and no Periods,
+                  // and a rowSpan over a row that does not exist is a lie the
+                  // table algorithm has to resolve on its own.
+                  rowSpan={subColumns.length ? 2 : 1}
                   scope="col"
                   style={{ width: column.width, minWidth: column.width }}
                   sx={leadHeadCellSx(leadOffsets[index])}
@@ -261,7 +276,11 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
               ))}
             </TableRow>
 
-            {/* ROW 2 — held below row 1 by the measured offset, not by MUI. */}
+            {/* ROW 2 — held below row 1 by the measured offset, not by MUI.
+                Absent entirely on a table with no Periods: the drill-down
+                dialog is a flat list, and an empty header row is a row a
+                screen reader still counts. */}
+            {subColumns.length > 0 && (
             <TableRow>
               {columnGroups.map((group, groupIndex) =>
                 subColumns.map((subColumn, subIndex) => (
@@ -287,6 +306,7 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                 )),
               )}
             </TableRow>
+            )}
           </TableHead>
 
           <TableBody>
@@ -390,7 +410,34 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                               : {}),
                         }}
                       >
-                        {figure.text}
+                        {figure.onActivate ? (
+                          // A real button inside the cell, not a click handler
+                          // on the cell. A `<td onClick>` is invisible to the
+                          // keyboard and announces nothing, and a drill-down
+                          // only a mouse can reach is one half the readers of a
+                          // finance report cannot use. Inside rather than
+                          // instead, so the cell keeps its `headers` wiring.
+                          <ButtonBase
+                            onClick={figure.onActivate}
+                            sx={{
+                              font: "inherit",
+                              color: "inherit",
+                              textDecoration: "underline",
+                              textDecorationStyle: "dotted",
+                              textUnderlineOffset: 3,
+                              borderRadius: 0.5,
+                              px: 0.25,
+                              // The figure stays where an unopenable one sits,
+                              // so a column of numbers still reads as a column.
+                              justifyContent: "flex-end",
+                              width: "100%",
+                            }}
+                          >
+                            {figure.text}
+                          </ButtonBase>
+                        ) : (
+                          figure.text
+                        )}
                       </TableCell>
                     );
                   }),

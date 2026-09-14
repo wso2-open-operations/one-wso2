@@ -15,7 +15,7 @@
 // under the License.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BuildTable, { type BuildCellFor } from "./BuildTable";
 import {
@@ -904,5 +904,167 @@ describe("a table whose rows need more than a name to identify them", () => {
     expect(cells[0].tagName).toBe("TH");
     expect(getComputedStyle(cells[0]).left).toBe("0px");
     expect(cells).toHaveLength(1 + 5 * SUB_COLUMNS.length);
+  });
+});
+
+describe("opening the figures that have something behind them", () => {
+  // Ticket 10's drill-down. Most of a Build is inert: a y/y growth, a retention
+  // ratio and a percentage have no customer list behind them, so only SOME
+  // figures may be opened. The decision is the caller's — it comes back on the
+  // cell, beside the text — because this component knows nothing about
+  // customers and should not learn.
+
+  const openable: BuildCellFor = (row, group, subColumn) => ({
+    text: `${row.id}/${group.key}/${subColumn.key}`,
+    // Only the balance rows, so a test can see the table treat two rows
+    // differently within one render.
+    onActivate: row.id === "opening" || row.id === "closing" ? () => opened.push(row.id) : undefined,
+  });
+  let opened: string[] = [];
+
+  const renderOpenable = (rows: BuildRow[] = ROWS) => {
+    opened = [];
+    return render(
+      <BuildTable
+        label="ARR Build"
+        rowLabelHeader="Movement"
+        columnGroups={periodsOf(2)}
+        subColumns={SUB_COLUMNS}
+        rows={rows}
+        cell={openable}
+      />,
+    );
+  };
+
+  it("gives an openable figure a control, and a plain one none", () => {
+    renderOpenable();
+    expect(screen.getByRole("button", { name: /opening\/fy2020\/amount/ })).toBeInTheDocument();
+    // `New` is not openable, so its figure is text and nothing else.
+    expect(screen.queryByRole("button", { name: /new\/fy2020\/amount/ })).not.toBeInTheDocument();
+    expect(screen.getByText("new/fy2020/amount")).toBeInTheDocument();
+  });
+
+  it("calls back with the figure the reader actually opened", () => {
+    renderOpenable();
+    fireEvent.click(screen.getByRole("button", { name: /closing\/fy2021\/pct/ }));
+    expect(opened).toEqual(["closing"]);
+  });
+
+  it("can be opened from the keyboard", async () => {
+    // A drill-down reachable only by mouse is a drill-down half the readers of
+    // a finance report cannot use.
+    renderOpenable();
+    const control = screen.getByRole("button", { name: /opening\/fy2020\/amount/ });
+    control.focus();
+    expect(control).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    expect(opened).toEqual(["opening"]);
+  });
+
+  it("never makes the row-label column openable", () => {
+    // The source's own guard: the label column has no date, so there is nothing
+    // to ask the backend about. Its only control stays the section toggle.
+    renderOpenable();
+    const label = cellsOf(rowLabelled("Opening ARR"))[0] as HTMLElement;
+    expect(within(label).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("keeps the figure pointed at its row, Period and sub-column", () => {
+    // The control sits INSIDE the cell rather than replacing it, so the
+    // `headers` wiring a screen reader follows is untouched.
+    renderOpenable();
+    const figure = cellsOf(rowLabelled("Opening ARR"))[1] as HTMLElement;
+    expect(figure.getAttribute("headers")!.split(" ")).toHaveLength(3);
+    expect(within(figure).getByRole("button")).toBeInTheDocument();
+  });
+
+  it("still windows, so a Build of thousands is still openable", () => {
+    const many: BuildRow[] = Array.from({ length: 3000 }, (_, i) => ({
+      id: i === 0 ? "opening" : `c${i}`,
+      label: `Customer ${i}`,
+    }));
+    renderOpenable(many);
+    expect(bodyRows().filter((r) => !r.hasAttribute("aria-hidden")).length).toBeLessThan(100);
+    expect(screen.getByRole("button", { name: /opening\/fy2020\/amount/ })).toBeInTheDocument();
+  });
+});
+
+describe("a table that is all identity and no Periods", () => {
+  // The drill-down dialog (ticket 10): a flat list of customers with eleven
+  // columns and no Period axis at all. It wants everything this table already
+  // owns — the frozen first column, the sticky header, horizontal scroll at a
+  // dozen columns, and above all the row windowing, because the endpoint behind
+  // it has no pagination and a Closing drill-down returns the whole book.
+  //
+  // So `columnGroups` may be empty. What must NOT happen is a second header row
+  // with nothing in it.
+
+  const LEAD = [
+    { key: "id", label: "Account ID", width: 188, pinned: true },
+    { key: "name", label: "Account Name", width: 220 },
+    { key: "amount", label: "Amount (USD)", width: 140 },
+  ];
+  const CUSTOMERS: BuildRow[] = [
+    { id: "a1", label: "Northwind Bank" },
+    { id: "a2", label: "Contoso" },
+  ];
+
+  const renderFlat = (rows: BuildRow[] = CUSTOMERS) =>
+    render(
+      <BuildTable
+        label="Customers"
+        rowLabelHeader="Account ID"
+        columnGroups={[]}
+        subColumns={[]}
+        rows={rows}
+        cell={cell}
+        leadColumns={LEAD}
+        leadCell={(row, column) => `${row.id}/${column.key}`}
+      />,
+    );
+
+  it("has ONE header row, not an empty second one", () => {
+    renderFlat();
+    expect(headerRows()).toHaveLength(1);
+    expect(cellsOf(headerRows()[0]).map((one) => one.textContent)).toEqual([
+      "Account ID",
+      "Account Name",
+      "Amount (USD)",
+    ]);
+  });
+
+  it("does not span its headers across a row that is not there", () => {
+    renderFlat();
+    for (const head of cellsOf(headerRows()[0])) {
+      expect(head).not.toHaveAttribute("rowspan", "2");
+    }
+  });
+
+  it("renders every row as its identity columns and nothing else", () => {
+    renderFlat();
+    const cells = cellsOf(rowLabelled("Northwind Bank"));
+    expect(cells).toHaveLength(3);
+    expect(cells.map((one) => one.textContent)).toEqual(["Northwind Bank", "a1/name", "a1/amount"]);
+  });
+
+  it("asks only for the width its own columns need", () => {
+    renderFlat();
+    const table = screen.getByRole("table", { name: "Customers" });
+    expect(table.style.minWidth).toBe(`${188 + 220 + 140}px`);
+  });
+
+  it("still freezes the column that asked to be", () => {
+    renderFlat();
+    expect(getComputedStyle(cellsOf(rowLabelled("Northwind Bank"))[0]).position).toBe("sticky");
+  });
+
+  it("still windows, which is the reason this table was chosen for the dialog", () => {
+    const many: BuildRow[] = Array.from({ length: 3000 }, (_, i) => ({
+      id: `a${i}`,
+      label: `Customer ${i}`,
+    }));
+    renderFlat(many);
+    expect(bodyRows().filter((r) => !r.hasAttribute("aria-hidden")).length).toBeLessThan(100);
+    expect(screen.queryByText("Customer 2999")).not.toBeInTheDocument();
   });
 });
