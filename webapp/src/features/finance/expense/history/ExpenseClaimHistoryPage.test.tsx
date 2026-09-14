@@ -66,6 +66,8 @@ function claim(over: Partial<HistoryClaim> = {}): HistoryClaim {
 const state = {
   claims: [claim()] as HistoryClaim[],
   onBehalfOfEmployees: [] as string[],
+  /** `/app-data`'s past-date rule; null for most tests, set where it matters. */
+  pastDateRestrictionDays: null as number | null,
 };
 
 /** Every payload that reached the search hook, in order. */
@@ -85,7 +87,9 @@ vi.mock("./useExpenseHistory", () => ({
       countryCode: "LK",
       travels: [],
       draft: null,
-      pastDateRestrictionDays: null,
+      get pastDateRestrictionDays() {
+        return state.pastDateRestrictionDays;
+      },
       onBehalfOfEmployees: state.onBehalfOfEmployees,
     },
     isLoading: false,
@@ -147,6 +151,7 @@ beforeEach(() => {
   resubmitMutate.mockClear();
   state.claims = [claim()];
   state.onBehalfOfEmployees = [];
+  state.pastDateRestrictionDays = null;
 });
 
 function show() {
@@ -606,6 +611,44 @@ describe("resubmitting a rejected claim", () => {
     expect(body.transactions[0]).not.toHaveProperty("reimbursementAmount");
     expect(body.transactions[0]).not.toHaveProperty("expenseType");
     expect(body.transactions[0].expenseTypeId).toBe(297);
+  });
+
+  // ExpenseForm.tsx:137-139 — the floor counts back from the day the claim was
+  // FILED. `createdDate` is UTC with no zone marker, so handed over raw the
+  // dialog's `new Date` reads it as LOCAL and the floor lands a day out.
+  //
+  // The two readings only disagree when the offset carries the instant across
+  // midnight, so the fixture is built to straddle it in whatever zone the suite
+  // runs in: late in the day east of UTC, early west of it. A fixed timestamp
+  // would pass everywhere the offset happens to be small and hide the bug.
+  it("counts the correction window from the claim's own UTC day", async () => {
+    const offsetMinutes = -new Date().getTimezoneOffset();
+    // Exactly at UTC there is no disagreement to catch; the assertion still
+    // holds, it just proves less.
+    const hourUtc = offsetMinutes > 0 ? 23 : 0;
+    const minuteUtc = offsetMinutes > 0 ? 0 : 30;
+    const filedUtc = new Date(Date.UTC(2026, 8, 9, hourUtc, minuteUtc, 0));
+    const stamp = `2026-09-09 ${String(hourUtc).padStart(2, "0")}:${String(minuteUtc).padStart(2, "0")}:00.0`;
+
+    state.pastDateRestrictionDays = 30;
+    state.claims = [
+      claim({
+        createdDate: stamp,
+        statusDetails: { ...claim().statusDetails, status: "LEAD_REJECTED" },
+      }),
+    ];
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "View / Resubmit" }));
+    await screen.findByText("EXPENSE ITEM 1");
+    fireEvent.click(screen.getByRole("button", { name: /Edit expense item 1/ }));
+
+    // 29 days back from the filing instant, read through local calendar fields
+    // — the arithmetic the dialog itself does.
+    const floor = new Date(filedUtc);
+    floor.setDate(floor.getDate() - 29);
+    const expected = `${floor.getFullYear()}-${String(floor.getMonth() + 1).padStart(2, "0")}-${String(floor.getDate()).padStart(2, "0")}`;
+
+    expect(await screen.findByLabelText("Bill date")).toHaveAttribute("min", expected);
   });
 
   it("says so when nothing was actually changed", async () => {

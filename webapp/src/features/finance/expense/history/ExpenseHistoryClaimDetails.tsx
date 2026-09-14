@@ -48,7 +48,7 @@ import { SubmitterLineDialog } from "../submitter/ExpenseSubmitterLineDialog";
 import { useOnBehalfOfTravels } from "../submitter/useExpenseSubmitter";
 import type { SubmitterDraftLine } from "../submitter/expenseSubmitterTypes";
 import type { ExpenseAppData, ExpenseTransactionPayload } from "../expenseTypes";
-import { historyDate } from "./expenseHistoryFormat";
+import { historyDate, parseUtcTimestamp } from "./expenseHistoryFormat";
 import { makeNameResolver, onBehalfOfParty, type HistoryClaim } from "./expenseHistoryTypes";
 import { isRejected } from "./ExpenseHistoryTable";
 
@@ -438,7 +438,16 @@ export function ExpenseHistoryClaimDetails({
           // ExpenseForm.tsx:137-139 — a correction is measured from the date
           // the claim was FILED, so an old claim's lines do not suddenly fail
           // a past-date rule they satisfied when first submitted.
-          restrictionFrom={claim.createdDate}
+          //
+          // Handed over as a zone-marked instant, not raw. `createdDate` is UTC
+          // with no marker ("2026-09-09 20:30:00.0"), and the dialog parses what
+          // it is given with `new Date` — which reads an unmarked date-time as
+          // LOCAL. For a claim filed inside the offset window that lands the
+          // restriction floor a day out, either refusing a correction that
+          // should pass or allowing a bill date that should not. This is the
+          // same discrepancy `historyDate` exists for, applied to the one field
+          // that leaves this screen.
+          restrictionFrom={parseUtcTimestamp(claim.createdDate)?.toISOString()}
           editing={lines[editingIndex]}
           uploading={upload.isPending}
           onUpload={(file) => upload.mutateAsync({ email: claim.employeeEmail, file })}
