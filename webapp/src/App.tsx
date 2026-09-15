@@ -123,6 +123,7 @@ import CcHistoryPage from "@features/finance/cc/pages/CcHistoryPage";
 import CcSettingsPage from "@features/finance/cc/pages/CcSettingsPage";
 import ExpenseNewClaimPage from "@features/finance/expense/pages/ExpenseNewClaimPage";
 import MisArrBuildPage from "@features/finance/mis/pages/MisArrBuildPage";
+import MisSession from "@features/finance/mis/components/MisSession";
 import MisFlashPage from "@features/finance/mis/pages/MisFlashPage";
 import ExpenseClaimsTab from "@features/finance/expense/pages/ExpenseHistoryPage";
 import ClaimApprovalPage, {
@@ -342,8 +343,16 @@ export default function App() {
               Access is NOT enforced here: MisShell asks useMisGate, so typing
               either URL gives a legible locked state rather than a redirect
               that leaves the reader guessing. */}
-          <Route path="finance/mis/arr-build" element={<MisArrBuildPage />} />
-          <Route path="finance/mis/flash" element={<MisFlashPage />} />
+          {/* A layout route for one reason: the session Years Back. A reader
+              who has set three years keeps three years across MIS screens, and
+              it is held in memory alone (it dies with the tab, like the Redux
+              slice it is ported from) — so its provider has to outlive any one
+              screen. Inside MisShell it would be remounted on every navigation
+              between these two. See YearsBackSessionContext. */}
+          <Route element={<MisSession />}>
+            <Route path="finance/mis/arr-build" element={<MisArrBuildPage />} />
+            <Route path="finance/mis/flash" element={<MisFlashPage />} />
+          </Route>
           <Route path="people-ops" element={<PerspectiveLanding />} />
           {/* People Ops → Org Chart: the company's reporting hierarchy, ported
               from the standalone org-chart app. Unlike every other People Ops

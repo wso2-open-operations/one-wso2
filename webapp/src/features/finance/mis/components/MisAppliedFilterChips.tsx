@@ -16,7 +16,7 @@
 
 import { Box, Chip } from "@wso2/oxygen-ui";
 import type { MisFilterChip } from "../util/misAppliedFilterChips";
-import type { MisFilterControl } from "../util/misFilterBarModel";
+import type { MisFilterControl } from "../util/misViewVocabulary";
 
 // The Applied filters as a strip of chips, under the controls that set them.
 //

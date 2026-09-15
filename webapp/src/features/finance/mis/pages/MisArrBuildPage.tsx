@@ -39,6 +39,8 @@ import type { MisDateRange, MisScale } from "../util/misViewVocabulary";
 import type { BuildColumnGroup, BuildRow } from "../components/buildTableModel";
 import { useMisViewState } from "../util/useMisViewState";
 import { useMisScale } from "../util/useMisScale";
+import { useYearsBackSession } from "../util/YearsBackSessionContext";
+import { filtersAfterSwitch } from "../util/misFilterBarModel";
 import {
   MIS_PERIODS,
   MIS_TABLES,
@@ -127,6 +129,18 @@ function ArrBuild() {
   // bar so the bar stays a function of its props, and so a screen that grows a
   // second filtered surface asks once.
   const configs = useMisAppConfigs();
+  const session = useYearsBackSession();
+
+  // A different Table is a different report, so the filters that narrowed the
+  // last one do not travel with the reader — `filtersAfterSwitch` says exactly
+  // what survives, and the bar says what was dropped. The tabs commit on click,
+  // so this is one navigation: the new Table and its filters together, which is
+  // also what lets the bar tell a switch from an Apply.
+  const changeTable = (table: MisTable) =>
+    view.setView({
+      table,
+      filters: filtersAfterSwitch(view.filters, { period: view.period, table }, session.yearsBack),
+    });
 
   return (
     <Box>
@@ -140,7 +154,7 @@ function ArrBuild() {
         optionsErrorMessage={configs.isError ? configs.errorMessage : ""}
         onRetryOptions={configs.retry}
       />
-      <MisTableTabs table={view.table} onChange={(table) => view.setView({ table })} />
+      <MisTableTabs table={view.table} onChange={changeTable} />
       <BuildForTable view={view} scale={scale.scale} />
     </Box>
   );

@@ -65,12 +65,14 @@ import {
   TYPE_VALUES_BY_PERIOD,
   UNIT_CODE_PATTERN,
   YEARS_BACK_RANGE,
+  dropRegionsOutsideTheirView,
   isAllowedTtmEndingMonth,
   isSummaryTable,
   mirrorsTypeToArrType,
   type MisAppliedFilters,
   type MisDateRange,
   type MisEndingMonth,
+  type MisFilterControl,
   type MisPeriod,
   type MisScale,
   type MisTable,
@@ -200,6 +202,73 @@ export function allowedTypeValues(
   }
   if (table === MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS) return all.filter((value) => !value.startsWith("Renewal"));
   return all.filter((value) => !value.startsWith("Delayed"));
+}
+
+/**
+ * The filters only the Build offers — every Table keeps them on screen, but
+ * three of the four will not let a reader use them.
+ *
+ * The source's `UNAVAILABLE_BUILD_FILTERS` (`FilterBar.js:238`), which is a list
+ * of LABELS there and so cannot be asked anything; these are the filters
+ * themselves. Sales Region and Sub Region are deliberately not among them: they
+ * appear only under their own View, and View is here, so they are already gone
+ * wherever this list applies.
+ */
+const BUILD_ONLY_FILTERS = [
+  "viewType",
+  "billingCountry",
+  "shippingCountry",
+  "industry",
+  "subIndustry",
+  "accountOwner",
+  "technicalOwner",
+  "channelManager",
+] as const satisfies readonly MisFilterControl[];
+
+/**
+ * The filters that can ever be unavailable — narrower than `MisFilterControl`,
+ * and narrower on purpose.
+ *
+ * Every one of these is also a key of the Applied set, which is what lets
+ * `hydrateAppliedFilters` restore it by its own name. `typeValue` is the one
+ * control that is not — on the wire it is `arrType` / `qrrType` / `mrrType` —
+ * and it is never unavailable, because every Table offers a type. Saying that in
+ * the type means the restore loop below does not have to say it in a branch that
+ * can never run.
+ */
+type MisUnavailableFilter = (typeof BUILD_ONLY_FILTERS)[number] | "channelDirect" | "cumulative";
+
+/**
+ * The filters a Table does not offer.
+ *
+ * Two readers, one answer — the same arrangement `allowedTypeValues` above has,
+ * and for the same reason. The BAR keeps these on screen greyed out, saying
+ * which Table took them away, so that nothing vanishes silently between Tables.
+ * `hydrateAppliedFilters` DROPS them, so a link cannot narrow a view by
+ * something no control on it can show: without that, `?table=customers&
+ * industry=SaaS` would send an Industry the reader can neither see nor clear.
+ *
+ * ---- what each Table takes away, and why -----------------------------------
+ *
+ *   Customers   is a list of accounts rather than a movement, and its backing
+ *               read is `POST /accounts`: no View to cut by, none of the
+ *               account or geography lists, and no Channel/Direct split.
+ *   the two     ARE the per-unit split, so a View or an account list would be
+ *   summaries   narrowing by the thing they are reporting. They do keep a
+ *               working Channel/Direct, which Customers does not.
+ *
+ * The cumulative flag is named only where the Period has one; on Annually there
+ * is no such control to grey out.
+ */
+export function unavailableFilters(
+  period: MisPeriod,
+  table: MisTable,
+): ReadonlySet<MisUnavailableFilter> {
+  if (table === MIS_TABLES.SUBSCRIPTION) return new Set();
+  const unavailable = new Set<MisUnavailableFilter>(BUILD_ONLY_FILTERS);
+  if (table === MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS) unavailable.add("channelDirect");
+  if (CUMULATIVE_KEY_BY_PERIOD[period]) unavailable.add("cumulative");
+  return unavailable;
 }
 
 /**
@@ -411,7 +480,28 @@ export function hydrateAppliedFilters(
   table: MisTable,
   { viewWindow = MIS_WINDOWS.CALENDAR, annualRangesFor }: HydrateOptions = {},
 ): MisAppliedFilters {
-  const applied: MisAppliedFilters = { ...defaultAppliedFilters(period, table), ...parsed };
+  const defaults = defaultAppliedFilters(period, table);
+  const applied: MisAppliedFilters = { ...defaults, ...parsed };
+  // A link cannot narrow a view by a filter the view has no control for. The
+  // bar shows these greyed out at their defaults, so a link that carried one
+  // would put the grid and the bar at odds — and leave the reader looking at a
+  // narrowed report with nothing on screen saying what narrowed it, or how to
+  // undo it. The same list the bar greys out; see `unavailableFilters`.
+  for (const control of unavailableFilters(period, table)) {
+    // The cumulative flag is the one whose Applied key is not its own name: it
+    // is `cumulativeQuarterly` or `cumulativeMonthly`, and neither on Annually.
+    if (control === "cumulative") {
+      const cumulativeKey = CUMULATIVE_KEY_BY_PERIOD[period];
+      if (cumulativeKey) Object.assign(applied, { [cumulativeKey]: defaults[cumulativeKey] });
+      continue;
+    }
+    applied[control] = defaults[control] as never;
+  }
+  // A region list outside its own View is the same hole by another route. Here
+  // rather than in the loop above because it applies on the Build too, where
+  // nothing is unavailable at all — and it is the filter bar's own rule, which
+  // is why both read one function.
+  dropRegionsOutsideTheirView(applied);
   const typeValue = applied[TYPE_KEY_BY_PERIOD[period]];
   if (mirrorsTypeToArrType(period, table)) applied.arrType = typeValue;
   // Spec §8.3, reproduced deliberately: on Customers, a Delayed type silently

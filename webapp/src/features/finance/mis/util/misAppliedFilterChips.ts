@@ -31,11 +31,10 @@ import {
   misFilterBarControls,
   pendingFromApplied,
   typeLabel,
-  type MisFilterControl,
   type MisFilterView,
 } from "./misFilterBarModel";
 import { defaultAppliedFilters } from "./misViewState";
-import type { MisAppliedFilters } from "./misViewVocabulary";
+import type { MisAppliedFilters, MisFilterControl } from "./misViewVocabulary";
 
 /**
  * The order chips appear in, which is NOT the order the controls appear in.

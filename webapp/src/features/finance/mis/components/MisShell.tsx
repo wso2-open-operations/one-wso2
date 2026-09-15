@@ -77,6 +77,13 @@ export default function MisShell({
     // by each screen — the same argument as the degraded states below. A screen
     // that forgot the provider would throw; one that carried its own would hold
     // a Scale the next MIS screen did not share.
+    //
+    // The session Years Back is NOT here, though it is the same kind of thing.
+    // Every MIS screen renders its own shell, so a provider here is remounted on
+    // every navigation between them — which Scale survives only because it reads
+    // its value back out of `localStorage`. A value held in memory alone would
+    // not, so `YearsBackSessionProvider` sits on the MIS routes themselves, in
+    // `App.tsx`, where it outlives the screen.
     <ScalePreferenceProvider>
       <Box>
         <Stack

@@ -173,6 +173,8 @@ Rules carried over from the source verbatim, because bookmarked links must keep 
 - **Defaults are omitted.** A default view serialises to an empty query string.
 - **Unrecognised or malformed values are ignored**, so a bad link degrades to defaults rather than
   erroring.
+- **A filter the Table does not offer is dropped**, so a link cannot narrow a view by something no
+  control on it can show or clear. A **deviation** — see §7.
 - Human-readable parameter names, not internal filter keys.
 
 | Param | Meaning | Notes |
@@ -312,7 +314,7 @@ reach.** (The fourth, always exporting at units, deviates from nothing: the sour
 export at all.)
 
 They are taken because none of them reaches what that ADR protects. ADR 0003 exists so that finance
-signing off figures from both apps never has to investigate a disagreement, and §10.34 compares the
+signing off figures from both apps never has to investigate a disagreement, and §10.37 compares the
 FIGURES ON EACH SCREEN. A filename, a cell's type and a file's extension are all outside that, and
 the figures inside the exported sheet are the same numbers the screen is showing — so the parallel
 period sees no disagreement it has to explain. Each is also a defect that would otherwise be
@@ -352,7 +354,7 @@ boundary, and the Period label itself, is computed in `America/Los_Angeles`, not
 not UTC" — and §10.8 states it as a test rather than a preference. The source's behaviour here is not
 a business rule anyone agreed to; it is a bug that makes one saved link report different revenue to
 two people. Reproducing it would mean shipping a port that fails its own spec's test suite.
-**§10.34's parity check must expect this difference** and reconcile against Pacific-dated ranges
+**§10.37's parity check must expect this difference** and reconcile against Pacific-dated ranges
 rather than against whatever the old frontend happens to render in Colombo.
 
 The same correction reaches one more date, and it is worth naming because it is not a Period boundary.
@@ -360,7 +362,7 @@ The leftmost Build column has no column to its left, so its y/y rows are compare
 range a year earlier**, which the source computes with `new Date(startDate)` — a UTC instant — and
 then `setFullYear`, which operates in LOCAL time (`useArrTableSummary.js`). East of California that
 lands a day early, so in Colombo the source compares the first column against a range one day short.
-The port shifts the civil date instead. Same reasoning, same exception, same note for §10.34.
+The port shifts the civil date instead. Same reasoning, same exception, same note for §10.37.
 
 One further case differs, and only on one day in four years: **a 29 February as-of is clamped into a
 common year rather than rolled forward.** `new Date(2025, 1, 29)` is 1 March, so the source's
@@ -535,6 +537,28 @@ carries `forecastType`, and the figures still come back — they are just read a
 than forecast ones, which is wrong without looking wrong. **Needs its own ticket**, covering all three
 tables at once, since the fix is one branch in `pacificAnnualRanges`.
 
+**A link cannot carry a filter the Table does not offer; the source's can.** The source greys these
+out in the BAR — `UNAVAILABLE_BUILD_FILTERS` keeps the View and the seven account and geography
+filters on screen, disabled, on Customers and the two summaries; Customers loses Channel/Direct too,
+and on Quarterly and Monthly all three lose the Cumulative flag — but its URL contract never learned
+the rule. So `?table=customers&industry=SaaS` opens the source on a customer book narrowed by an
+Industry the reader can neither see, change, nor clear, with no chip and no control saying so. The
+port asks one function, `unavailableFilters`, in both places: the bar greys the control out, and
+`hydrateAppliedFilters` drops the value. Same arrangement as `allowedTypeValues`, and for the same
+reason — a menu and a link that answer separately drift.
+
+**Why this one is taken despite ADR 0003.** It is the rare deviation that CHANGES a figure: the two
+apps show different numbers for such a link, which is exactly what §10.37's parity check is for. It is
+taken anyway because no such link can be produced by either app's own UI — the source's bar clears
+these filters on every Table switch, so only a hand-edited address reaches the state, and a
+hand-edited address is not what Finance is reconciling.
+
+**A region list outside its own View is dropped on hydration too.** The same hole reached by another
+route: the filter bar's `normalisePending` has always cleared a Sales Region list on a Sub Region view
+for a reader changing controls, but a hand-written `?view=Global&region=EMEA` went straight through to
+the wire. Now closed for links as well, on every Table including the Build, where nothing is greyed
+out at all.
+
 ## 8. Source behaviour reproduced deliberately, though it looks wrong
 
 Kept because the two apps run side by side during the parallel period and must agree.
@@ -580,8 +604,17 @@ Finance** alongside §8.5.
 **The summaries ignore the reader's Unit selection.** Both payloads hard-code
 `businessUnits: ["ALL_BU"]`, so choosing Choreo above the table changes nothing in it. That is the
 right answer rather than an oversight — the per-unit split IS these tables' columns and rows — but the
-control stays enabled and says otherwise, which is what makes it worth writing down. The greying-out
-belongs with ticket 09's deferred placeholder controls.
+control stays enabled and says otherwise, which is what makes it worth writing down. **Still open
+after the placeholder controls landed**: those grey out the FILTER BAR's controls, and the unit tabs
+are not one of them — they sit above the bar, commit on click, and the source leaves them enabled on
+the summaries too (`TableNavigation.js` has no such branch). Reproduced, and it is the one remaining
+control on those two screens that promises something it does not do.
+
+**Switching to Customers clears the unit selection; switching to any other Table does not.**
+`FilterBar.js:606` resets `businessUnit` to `['All']` in the Customers branch of the Table-switch
+reset and nowhere else. It reads like a leftover — every other Table carries the reader's units across
+— and it is reproduced anyway, because a custom book on that screen would put a different customer
+list on screen from the app Finance is reconciling against.
 
 ## 9. Dead code in the source — do not port
 
@@ -745,9 +778,18 @@ ported.
     stated as the test that would have caught the source's version.
 33. With `GET /app-configs` failing, the written-down controls (Type, View, Years Back, YTD, Channel,
     Scale) all still work and the bar says which menus are missing.
+34. A filter a Table does not offer stays on screen greyed out, names that Table on hover and on
+    focus, and is dropped from a link that carried it anyway.
+35. A Years Back the reader applied carries to the next Table and the next Period, and back to a
+    Build they return to mid-session; a link's own Years Back is adopted the same way; the Table's own
+    default applies until they set one; Clear All forgets it; and it dies with the tab AND with a
+    reload, unlike Scale.
+36. A Table or Period switch resets the filters to the new one's defaults and says which defaults in
+    the same live region the pending-changes message uses — silently when the bar was already at its
+    defaults, and cleared by the next Apply.
 
 ### Parity
-34. For one closed month, every figure on each ported screen matches the running MIS app, at both
+37. For one closed month, every figure on each ported screen matches the running MIS app, at both
     Scale settings, with filters at defaults and with a non-trivial applied filter set.
 
 ## 11. Unverified — questions for a live tenant

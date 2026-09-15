@@ -87,14 +87,17 @@ describe("arriving with no query string", () => {
 
 describe("arriving on a link", () => {
   it("restores the Table, the Scale and the Applied filters", () => {
-    const { result } = renderAt(ANNUALLY, "?table=bu-summary&scale=k&years=3&ytd=0&type=Closed+Won+ARR&region=EMEA,APAC");
+    // Filters this Table offers. A summary has no View to cut by and no region
+    // list, and a link carrying one is dropped — `misViewState.test.ts` pins it.
+    const link = "?table=bu-summary&scale=k&years=3&ytd=0&type=Closed+Won+ARR&channel=Channel";
+    const { result } = renderAt(ANNUALLY, link);
     expect(result.current.state.table).toBe(MIS_TABLES.EXIT_ARR_BY_BU);
     expect(result.current.state.scale).toBe(MIS_SCALES.THOUSANDS);
     expect(result.current.state.filters).toMatchObject({
       yearsBack: 3,
       isYtd: false,
       arrType: "Closed Won ARR",
-      salesRegion: ["EMEA", "APAC"],
+      channelDirect: "Channel",
     });
   });
 
@@ -188,11 +191,11 @@ describe("switching the Window", () => {
   });
 
   it("keeps the rest of the view across the switch", () => {
-    const { result } = renderAt(ANNUALLY, "?table=customers&years=3&region=EMEA&scale=k");
+    const { result } = renderAt(ANNUALLY, "?table=customers&years=3&endingMonth=June&scale=k");
     act(() => result.current.state.setWindow(MIS_WINDOWS.TTM));
     expect(result.current.state.table).toBe(MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS);
     expect(result.current.state.scale).toBe(MIS_SCALES.THOUSANDS);
-    expect(result.current.state.filters).toMatchObject({ yearsBack: 3, salesRegion: ["EMEA"] });
+    expect(result.current.state.filters).toMatchObject({ yearsBack: 3, endingMonth: "June" });
   });
 
   it("does nothing on a Period that has no Window", () => {

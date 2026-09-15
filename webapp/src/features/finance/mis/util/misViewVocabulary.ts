@@ -37,6 +37,20 @@ export const MIS_PERIODS = {
 } as const;
 export type MisPeriod = (typeof MIS_PERIODS)[keyof typeof MIS_PERIODS];
 
+/**
+ * What each Period is called on screen, verbatim from the source's
+ * `PERIOD_LABELS`.
+ *
+ * Only the reset notice reads these today — it names the Period when a Period
+ * switch, rather than a Table switch, dropped the reader's filters. The Period
+ * control words itself the same way.
+ */
+export const MIS_PERIOD_LABELS: Readonly<Record<MisPeriod, string>> = {
+  [MIS_PERIODS.ANNUALLY]: "Annually",
+  [MIS_PERIODS.QUARTERLY]: "Quarterly",
+  [MIS_PERIODS.MONTHLY]: "Monthly",
+};
+
 /** Which of the four grids a Build screen is showing. */
 export const MIS_TABLES = {
   SUBSCRIPTION: "subscription",
@@ -143,6 +157,28 @@ export type MisForecastState = (typeof FORECAST_STATES)[keyof typeof FORECAST_ST
 export const YEARS_BACK_RANGE = { min: 1, max: 10 } as const;
 
 /**
+ * A View keeps only the region list it cuts by.
+ *
+ * Sending a Sub Region filter on a Sales Region view asks the backend to narrow
+ * by something the reader cannot see they narrowed by — there is no control for
+ * it on that View and therefore no chip either.
+ *
+ * Here rather than in either caller because both need it and they are on
+ * opposite sides of the port: the filter bar applies it to a reader changing
+ * controls (`normalisePending`), and the URL contract applies it to a link
+ * (`hydrateAppliedFilters`). Two copies of one rule is how they would come to
+ * disagree. Mutates, because both callers have just made a copy to work on.
+ */
+export function dropRegionsOutsideTheirView(filters: {
+  viewType: MisViewType;
+  salesRegion: string[];
+  subRegion: string[];
+}): void {
+  if (filters.viewType !== "Sales Region") filters.salesRegion = [];
+  if (filters.viewType !== "Sub Region") filters.subRegion = [];
+}
+
+/**
  * A BU or product selection code, or the custom selection.
  *
  * `BU_` is a business unit, `SW_` and `CL_` the software and cloud product
@@ -243,6 +279,34 @@ export const FORECAST_TYPE_VALUES: ReadonlySet<string> = new Set([
 ]);
 
 /** Applied-filter key paired with the URL parameter it is written as. */
+/**
+ * Every filter a MIS bar can carry, named once.
+ *
+ * The seventeen the source's four Table layouts draw between them.
+ * `MisListFilterKey` below is the nine of these that hold lists; the rest are
+ * single values. Here rather than with the bar because the URL contract asks
+ * about them too — which filters a Table offers at all is a question a link has
+ * to answer as well as a control.
+ */
+export type MisFilterControl =
+  | "viewType"
+  | "salesRegion"
+  | "subRegion"
+  | "typeValue"
+  | "channelDirect"
+  | "confidenceLevel"
+  | "endingMonth"
+  | "billingCountry"
+  | "industry"
+  | "subIndustry"
+  | "accountOwner"
+  | "technicalOwner"
+  | "channelManager"
+  | "shippingCountry"
+  | "yearsBack"
+  | "isYtd"
+  | "cumulative";
+
 export type MisListFilterKey =
   | "salesRegion" | "subRegion" | "billingCountry" | "shippingCountry"
   | "industry" | "subIndustry" | "accountOwner" | "technicalOwner" | "channelManager";

@@ -34,6 +34,7 @@ import {
   hydrateAppliedFilters,
   parseViewState,
   serializeViewState,
+  unavailableFilters,
 } from "./misViewState";
 
 // The promise this file protects: a view of a Build screen is fully described
@@ -482,7 +483,6 @@ describe("a round trip", () => {
       confidenceLevel: "GM",
       channelDirect: "Direct",
       salesRegion: ["EMEA"],
-      subRegion: ["UK", "Nordics"],
       billingCountry: ["Sri Lanka", "United States"],
       shippingCountry: ["France"],
       industry: ["Utilities"],
@@ -491,19 +491,48 @@ describe("a round trip", () => {
       technicalOwner: ["A B", "C D"],
       channelManager: ["E F"],
     } satisfies Partial<MisAppliedFilters>;
-    const filters = { ...defaultAppliedFilters(ANNUALLY, EXIT_ARR_BY_BU), ...changed };
+    // On the Build, which is the one Table that offers every parameter — the
+    // other three take the View and the account and geography lists away, and a
+    // link carrying one to them is dropped rather than round-tripped. The Table
+    // parameter has its own tests above; this one is about the filters.
+    const filters = { ...defaultAppliedFilters(ANNUALLY, SUBSCRIPTION), ...changed };
 
     const search = serializeViewState({
       period: ANNUALLY,
-      table: EXIT_ARR_BY_BU,
+      table: SUBSCRIPTION,
       scale: MIS_SCALES.THOUSANDS,
       filters,
     });
     const view = parseViewState(`?${search}`, { period: ANNUALLY });
 
-    expect(view.table).toBe(EXIT_ARR_BY_BU);
     expect(view.scale).toBe(MIS_SCALES.THOUSANDS);
-    expect(hydrateAppliedFilters(view.filters, ANNUALLY, EXIT_ARR_BY_BU)).toEqual(filters);
+    expect(hydrateAppliedFilters(view.filters, ANNUALLY, SUBSCRIPTION)).toEqual(filters);
+
+    // The other region list is the mirror image, and the two cannot both be
+    // set: each View narrows by its own list, and hydration drops the one the
+    // View does not use — the same rule the filter bar applies to a reader
+    // changing the control.
+    const bySubRegion: MisAppliedFilters = {
+      ...defaultAppliedFilters(ANNUALLY, SUBSCRIPTION),
+      viewType: "Sub Region",
+      subRegion: ["UK", "Nordics"],
+    };
+    const subSearch = serializeViewState({ period: ANNUALLY, table: SUBSCRIPTION, filters: bySubRegion });
+    const subView = parseViewState(`?${subSearch}`, { period: ANNUALLY });
+    expect(hydrateAppliedFilters(subView.filters, ANNUALLY, SUBSCRIPTION)).toEqual(bySubRegion);
+  });
+
+  it("returns identical Applied filters for a Quarterly Build, cumulative and all", () => {
+    const filters = {
+      ...defaultAppliedFilters(QUARTERLY, SUBSCRIPTION),
+      qrrType: "Closed Won QRR",
+      cumulativeQuarterly: true,
+      yearsBack: 4,
+    };
+    const search = serializeViewState({ period: QUARTERLY, table: SUBSCRIPTION, filters });
+    const view = parseViewState(`?${search}`, { period: QUARTERLY });
+
+    expect(hydrateAppliedFilters(view.filters, QUARTERLY, SUBSCRIPTION)).toEqual(filters);
   });
 
   it("returns identical Applied filters for a Quarterly view, custom Unit and all", () => {
@@ -513,9 +542,10 @@ describe("a round trip", () => {
       customBusinessUnits: ["APIM_BU"],
       customProductUnits: ["APIM_SOFTWARE", "IAM_CLOUD"],
       qrrType: "Closed Won QRR",
-      cumulativeQuarterly: true,
       yearsBack: 4,
     };
+    // No cumulative flag here: the summaries do not offer one, so a link
+    // carrying it is dropped rather than carried — see the block below.
     const search = serializeViewState({ period: QUARTERLY, table: EXIT_ARR_BY_REGION, filters });
     const view = parseViewState(`?${search}`, { period: QUARTERLY });
 
@@ -622,6 +652,92 @@ describe("hydrating a parsed view", () => {
     hydrateAppliedFilters({}, QUARTERLY, SUBSCRIPTION, { annualRangesFor });
     hydrateAppliedFilters({}, MONTHLY, SUBSCRIPTION, { annualRangesFor });
     expect(annualRangesFor).not.toHaveBeenCalled();
+  });
+});
+
+describe("the filters a Table does not offer", () => {
+  // The source greys these out rather than dropping them, so that nothing
+  // disappears silently between Tables (`UNAVAILABLE_BUILD_FILTERS`). Here
+  // because a link has to answer the same question the bar does — see
+  // `unavailableFilters`.
+
+  it("takes nothing away on the Build, which offers every filter", () => {
+    expect(unavailableFilters(ANNUALLY, SUBSCRIPTION).size).toBe(0);
+  });
+
+  it("takes the account and geography filters off Customers, and Channel/Direct with them", () => {
+    expect([...unavailableFilters(ANNUALLY, SOFTWARE_CLOUD_CUSTOMERS)].sort()).toEqual([
+      "accountOwner",
+      "billingCountry",
+      "channelDirect",
+      "channelManager",
+      "industry",
+      "shippingCountry",
+      "subIndustry",
+      "technicalOwner",
+      "viewType",
+    ]);
+  });
+
+  it("takes the same filters off the two summaries, but not Channel/Direct", () => {
+    // The summaries render a working Channel/Direct; Customers does not.
+    for (const table of [EXIT_ARR_BY_REGION, EXIT_ARR_BY_BU]) {
+      const gone = unavailableFilters(ANNUALLY, table);
+      expect(gone.has("viewType")).toBe(true);
+      expect(gone.has("industry")).toBe(true);
+      expect(gone.has("channelDirect")).toBe(false);
+    }
+  });
+
+  it("names the cumulative flag only where the Period has one", () => {
+    expect(unavailableFilters(ANNUALLY, EXIT_ARR_BY_BU).has("cumulative")).toBe(false);
+    expect(unavailableFilters(QUARTERLY, EXIT_ARR_BY_BU).has("cumulative")).toBe(true);
+  });
+
+  it("drops one a link carried anyway, rather than narrowing by something invisible", () => {
+    // `?table=customers&view=Sales Region&industry=SaaS` describes a view no
+    // control on that Table can show or clear. Hydrating it as written would
+    // send both to the backend and leave the reader looking at a narrowed
+    // customer book with nothing on screen saying so.
+    const hydrated = hydrateAppliedFilters(
+      { viewType: "Sales Region", salesRegion: ["EMEA"], industry: ["SaaS"], channelDirect: "Channel" },
+      ANNUALLY,
+      SOFTWARE_CLOUD_CUSTOMERS,
+    );
+    expect(hydrated.viewType).toBe("Global");
+    expect(hydrated.industry).toEqual([]);
+    expect(hydrated.channelDirect).toBe("All");
+    // Sales Region is not on the list itself: it goes because the View it
+    // belongs to did.
+    expect(hydrated.salesRegion).toEqual([]);
+  });
+
+  it("keeps a Channel/Direct on the summaries, which do offer one", () => {
+    expect(
+      hydrateAppliedFilters({ channelDirect: "Channel" }, ANNUALLY, EXIT_ARR_BY_REGION).channelDirect,
+    ).toBe("Channel");
+  });
+
+  it("drops a cumulative flag the summaries do not offer", () => {
+    expect(
+      hydrateAppliedFilters({ cumulativeQuarterly: true }, QUARTERLY, EXIT_ARR_BY_BU)
+        .cumulativeQuarterly,
+    ).toBe(false);
+    expect(
+      hydrateAppliedFilters({ cumulativeQuarterly: true }, QUARTERLY, SUBSCRIPTION)
+        .cumulativeQuarterly,
+    ).toBe(true);
+  });
+
+  it("leaves the Build's own filters alone", () => {
+    const hydrated = hydrateAppliedFilters(
+      { viewType: "Sales Region", salesRegion: ["EMEA"], industry: ["SaaS"] },
+      ANNUALLY,
+      SUBSCRIPTION,
+    );
+    expect(hydrated.viewType).toBe("Sales Region");
+    expect(hydrated.salesRegion).toEqual(["EMEA"]);
+    expect(hydrated.industry).toEqual(["SaaS"]);
   });
 });
 

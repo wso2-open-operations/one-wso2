@@ -19,10 +19,11 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ExcelJS from "exceljs";
 import { bytesOf, captureDownloads } from "@/test/downloads";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { inZone } from "@/test/timeZone";
 import { misPaths } from "@constants/misApps";
 import { defaultAppliedFilters } from "@features/finance/mis/util/misViewState";
+import { YearsBackSessionProvider } from "@features/finance/mis/util/YearsBackSessionContext";
 import {
   MIS_PERIODS,
   MIS_TABLES,
@@ -165,15 +166,38 @@ const loaded = (response: Record<string, unknown>): ArrSummaryState => ({
   retry: () => {},
 });
 
+/**
+ * The address as it stands, so a test can assert what a reader would copy.
+ *
+ * A plain span: `<output>` carries an implicit `role="status"`, which would be
+ * a second live region beside the filter bar's own.
+ */
+function Address() {
+  const { search } = useLocation();
+  return <span data-testid="address">{search}</span>;
+}
+
 function renderPage(search = "") {
   return inZone("Asia/Colombo", () =>
     render(
       <MemoryRouter initialEntries={[`${misPaths.arrBuild}${search}`]}>
-        <MisArrBuildPage />
+        {/* Standing in for `MisSession`, the layout route this screen is mounted
+            under in `App.tsx`. The session Years Back has to outlive the screen,
+            so the page does not provide it and cannot render without it. */}
+        <YearsBackSessionProvider>
+          <MisArrBuildPage />
+        </YearsBackSessionProvider>
+        <Address />
       </MemoryRouter>,
     ),
   );
 }
+
+const address = () => screen.getByTestId("address").textContent;
+
+/** Click one of the Table tabs, which commit on click. */
+const switchTable = (name: string) =>
+  userEvent.click(within(screen.getByRole("group", { name: /table/i })).getByRole("button", { name }));
 
 const NORTHWIND = {
   id: "0018000001abcXYZ",
@@ -795,5 +819,86 @@ describe("taking the Build out of the browser", () => {
     await waitFor(() => expect(blobs).toHaveLength(1));
 
     expect(filenames[0]).toMatch(/^arr_build_bu_summary_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  });
+});
+
+describe("what a Table switch does to the filters", () => {
+  // Ticket 10. A different Table is a different report: the source resets the
+  // filters and applies the new Table's defaults at once, and a Region Summary
+  // still carrying the Build's EMEA filter would be narrowed by something its
+  // own bar cannot show or clear.
+
+  it("drops the filters the reader had chosen for the Table they left", async () => {
+    renderPage("?view=Sales+Region&region=EMEA&channel=Channel");
+    await switchTable("Region Summary");
+    expect(address()).toBe("?table=region-summary");
+  });
+
+  it("says which Table's defaults it landed on", async () => {
+    renderPage("?channel=Channel");
+    await switchTable("Region Summary");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Filters reset to the Region Summary defaults",
+    );
+  });
+
+  it("carries the Years Back the reader set, which is the one thing not lost", async () => {
+    renderPage("?years=3");
+    await switchTable("Region Summary");
+    expect(address()).toBe("?table=region-summary&years=3");
+  });
+
+  it("lets the new Table answer when the reader never chose one", async () => {
+    renderPage();
+    await switchTable("Region Summary");
+    // Region Summary's own default is 2, and a default is never written.
+    expect(address()).toBe("?table=region-summary");
+  });
+
+  it("clears the unit selection on the way into Customers, as the source does", async () => {
+    // `FilterBar.js:606` — the one Table whose switch also clears the units.
+    // Reproduced under ADR 0003.
+    renderPage("?unit=custom&customBu=APIM_BU");
+    await switchTable("Customers");
+    expect(address()).toBe("?table=customers");
+  });
+
+  it("leaves the unit selection alone on the way to a summary", async () => {
+    renderPage("?unit=custom&customBu=APIM_BU");
+    await switchTable("BU Summary");
+    expect(address()).toBe("?table=bu-summary&unit=custom&customBu=APIM_BU");
+  });
+});
+
+describe("a session Years Back that happens to equal the Table's own default", () => {
+  // The case both session rules turn on, and the only one where they are
+  // visible: the reader's five years and the Build's five years are the same
+  // number, so nothing on screen distinguishes "they chose this" from "this is
+  // what the Table starts at" — and what the NEXT Table shows depends on which
+  // it was. Region Summary starts at two, so it is where the answer shows up.
+
+  /** Set a Years Back on Region Summary, then go and stand on the Build. */
+  const withSessionOfFive = async () => {
+    renderPage("?table=region-summary&years=5");
+    await switchTable("Subscription");
+    expect(address()).toBe("");
+  };
+
+  it("survives applying something else, because the reader did not change it", async () => {
+    await withSessionOfFive();
+    await userEvent.click(screen.getByLabelText("Channel/Direct"));
+    await userEvent.click(await screen.findByRole("option", { name: "Channel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await switchTable("Region Summary");
+    expect(address()).toBe("?table=region-summary&years=5");
+  });
+
+  it("is forgotten by Clear All, which no change on screen would have shown", async () => {
+    await withSessionOfFive();
+    await userEvent.click(screen.getByRole("button", { name: "Clear All" }));
+    // Nothing visible moved — the Build was already at five — but the session
+    // is gone, so Region Summary answers with its own two.
+    await switchTable("Region Summary");
+    expect(address()).toBe("?table=region-summary");
   });
 });

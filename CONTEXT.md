@@ -107,6 +107,15 @@ A filter the user has committed, and which is therefore serialised into the quer
 from a filter being edited but not yet applied.
 _Avoid_: active filter, selected filter
 
+**Years Back**:
+How many Periods a view reaches back over. It has a per-Table default (5; Region Summary 2;
+Quarterly and Monthly 1), and it is the one filter of the BAR's that a Table or Period switch carries
+over — it is the shape of the question rather than a narrowing of one Table's answer. (The unit
+selection survives a switch too, but it belongs to the tabs above the bar, not to the filters.) Held for the tab by
+`YearsBackSessionContext`, provided by the `MisSession` route so that it outlives any one screen. In
+memory only, so it dies with a reload — unlike Scale.
+_Avoid_: history, lookback, number of years
+
 **Business Unit (BU)**:
 The product line a figure is attributed to.
 _Avoid_: product, segment, division

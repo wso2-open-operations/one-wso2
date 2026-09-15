@@ -48,19 +48,23 @@
 // controlled in TableNavigation; no UI here"), and it commits on click rather
 // than waiting for APPLY.
 
-import { allowedTypeValues } from "./misViewState";
+import { allowedTypeValues, defaultAppliedFilters, defaultYearsBack } from "./misViewState";
 import {
   CUMULATIVE_KEY_BY_PERIOD,
   LIST_FILTER_PARAMS,
   MIS_PERIODS,
+  MIS_PERIOD_LABELS,
   MIS_TABLES,
+  MIS_TABLE_LABELS,
   MIS_WINDOWS,
   TYPE_KEY_BY_PERIOD,
   TYPE_VALUES_BY_PERIOD,
+  dropRegionsOutsideTheirView,
   type MisAppliedFilters,
   type MisChannelDirect,
   type MisConfidenceLevel,
   type MisEndingMonth,
+  type MisFilterControl,
   type MisListFilterKey,
   type MisPeriod,
   type MisTable,
@@ -159,26 +163,6 @@ export function chipLabel(control: MisFilterControl, period: MisPeriod): string 
 /** Annually has no cumulative flag, so it never reaches either label function. */
 const cumulativePeriodWord = (period: MisPeriod): string =>
   period === MIS_PERIODS.MONTHLY ? "Monthly" : "Quarterly";
-
-/** Every control this module names, in the order the bar lays them out. */
-export type MisFilterControl =
-  | "viewType"
-  | "salesRegion"
-  | "subRegion"
-  | "typeValue"
-  | "channelDirect"
-  | "confidenceLevel"
-  | "endingMonth"
-  | "billingCountry"
-  | "industry"
-  | "subIndustry"
-  | "accountOwner"
-  | "technicalOwner"
-  | "channelManager"
-  | "shippingCountry"
-  | "yearsBack"
-  | "isYtd"
-  | "cumulative";
 
 /**
  * The order the source lays the Build's controls out in
@@ -370,34 +354,72 @@ export interface MisFilterView {
  * What a Pending set becomes once every control has had its say about the
  * others.
  *
- * Three rules, and they run in this order because the later ones read what the
+ * Four rules, and they run in this order because the later ones read what the
  * earlier ones decided:
  *
- *   1. A View keeps only the region list it uses. Sending a Sub Region filter
- *      on a Sales Region view asks the backend to narrow by something the
- *      reader cannot see they narrowed by.
+ *   1. A View keeps only the region list it uses — `dropRegionsOutsideTheirView`,
+ *      which the URL contract applies to a link for the same reason.
  *   2. A type the view does not offer becomes Total. This is where the Table
  *      rules and the TTM rule both land — `allowedTypeValues` is the one place
  *      that knows them, and it is the same function the URL validates against,
  *      so a control can never hold a type the address would drop.
  *   3. A Confidence that is no longer steering anything goes back to Commit.
  *      Reads the type rule 2 may have just changed.
+ *   4. On Customers, a type the reader has just CHANGED re-pins Years Back.
+ *      Only on a change: see `customersYearsBack`.
  */
 export function normalisePending(
   pending: MisPendingFilters,
   { period, table, viewWindow = MIS_WINDOWS.CALENDAR }: MisFilterView,
+  { typeChanged = false }: { typeChanged?: boolean } = {},
 ): MisPendingFilters {
   const next = { ...pending };
-  if (next.viewType !== "Sales Region" && next.salesRegion.length) next.salesRegion = [];
-  if (next.viewType !== "Sub Region" && next.subRegion.length) next.subRegion = [];
+  dropRegionsOutsideTheirView(next);
 
   const allowed = allowedTypeValues(period, table, viewWindow);
   if (!allowed.includes(next.typeValue)) {
     next.typeValue = allowed[0] ?? TYPE_VALUES_BY_PERIOD[period][0];
   }
   if (!usesConfidence(next.typeValue)) next.confidenceLevel = "Commit";
+  if (typeChanged && table === MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS) {
+    const pinned = customersYearsBack(next.typeValue, period);
+    if (pinned !== null) next.yearsBack = pinned;
+  }
   return next;
 }
+
+/**
+ * The Years Back a Customers type drags with it.
+ *
+ * Spec §8.3 from the other side. `hydrateAppliedFilters` already drops a
+ * Customers + Delayed view to one year when the link did not say otherwise; this
+ * is the same rule reached by changing the control instead of by opening a link,
+ * and without it the two disagree — the reader picks Delayed, Applies, and the
+ * address comes back saying one year while the controls still say five, so APPLY
+ * never goes quiet again.
+ *
+ * Three types and no others, which is the source's own list
+ * (`FilterBar.js:539-541`): every other type leaves Years Back where the reader
+ * had it. On Customers that means Forecasted alone, since `allowedTypeValues`
+ * offers no Renewal there. Annually only, like §8.3: the source writes it
+ * against the ARR values and the other two Periods start at one anyway.
+ */
+function customersYearsBack(typeValue: string, period: MisPeriod): number | null {
+  if (period !== MIS_PERIODS.ANNUALLY) return null;
+  if (typeValue === "Delayed ARR") return 1;
+  return typeValue === "Total ARR" || typeValue === "Closed Won ARR" ? 5 : null;
+}
+
+/**
+ * The controls as a Table opens them, which is what Clear All returns to and
+ * what a reset is measured against.
+ *
+ * One function because the bar and the notice have to agree on it: a Clear All
+ * that landed anywhere other than where `filterResetNotice` calls the defaults
+ * would announce a reset the reader had just performed themselves.
+ */
+export const defaultPending = ({ period, table }: MisFilterView): MisPendingFilters =>
+  pendingFromApplied(defaultAppliedFilters(period, table), period);
 
 /**
  * Whether two Pending sets say the same thing — which is how APPLY knows
@@ -457,4 +479,92 @@ export function misFilterBarControls(
   if (period !== MIS_PERIODS.ANNUALLY) shown.delete("endingMonth");
   if (!CUMULATIVE_KEY_BY_PERIOD[period]) shown.delete("cumulative");
   return shown;
+}
+
+/**
+ * The Years Back a session should carry forward, given the one just applied.
+ *
+ * `null` at the Table's own default, because a reader who never touched the
+ * control has not chosen anything for the next Table to inherit — and a session
+ * that recorded 5 merely because they opened a Build would then show five years
+ * on a Region Summary that starts at two.
+ */
+export function yearsBackToRemember(
+  yearsBack: number,
+  { period, table }: MisFilterView,
+): number | null {
+  return yearsBack === defaultYearsBack(period, table) ? null : yearsBack;
+}
+
+/**
+ * The Applied set a Table or Period switch lands on.
+ *
+ * A different Table is a different report, so the filters that narrowed the last
+ * one do not travel: the source resets them and applies the new Table's defaults
+ * at once (`FilterBar.js:556-624`), and a Region Summary still showing the
+ * Build's EMEA filter would be narrowed by something its own bar cannot show.
+ *
+ * Two things do survive:
+ *
+ *   Years Back      through the session (`startingYearsBack`). It is the shape
+ *                   of the question rather than a narrowing of one Table.
+ *   the unit tabs   which commit on their own and are not the bar's to reset —
+ *                   EXCEPT on the way into Customers, where the source clears
+ *                   them (`FilterBar.js:606`). Reproduced under ADR 0003: a
+ *                   custom book there would put figures on screen that the app
+ *                   Finance is reconciling against does not show.
+ */
+export function filtersAfterSwitch(
+  applied: MisAppliedFilters,
+  to: MisFilterView,
+  sessionYearsBack: number | null,
+): MisAppliedFilters {
+  const next = defaultAppliedFilters(to.period, to.table);
+  // The session's Years Back, or this Table's own where the reader has set none.
+  next.yearsBack = sessionYearsBack ?? defaultYearsBack(to.period, to.table);
+  if (to.table !== MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS) {
+    next.buProductSelection = applied.buProductSelection;
+    next.customBusinessUnits = [...applied.customBusinessUnits];
+    next.customProductUnits = [...applied.customProductUnits];
+  }
+  return next;
+}
+
+/**
+ * What the bar says about a switch that dropped the reader's filters.
+ *
+ * Takes the PENDING controls, not the Applied set: an edit the reader had not
+ * applied yet is lost by the switch too, and the source's own suite pins that —
+ * it picks a type without applying and still expects the notice
+ * (`FilterBar.test.js:222-233`). It is also the only set that is certainly
+ * current at the moment of a switch; the Applied one on screen has already been
+ * replaced by the navigation that caused it.
+ *
+ * Empty when there was nothing to lose — a bar still at its defaults resets
+ * silently, because announcing a reset of nothing teaches a reader to ignore the
+ * line. Years Back is not counted: it carries over, so it was not lost.
+ *
+ * The Table is named in preference to the Period when both moved, matching the
+ * source's own order (`FilterBar.js:566-569`). Both cannot move on a Build
+ * screen today — the Period is the route — but ticket 12 adds the Period
+ * control, and a reset that named the wrong one would be worse than silence.
+ */
+export function filterResetNotice(
+  before: MisPendingFilters,
+  from: MisFilterView,
+  to: MisFilterView,
+): string {
+  const switchedTo =
+    from.table !== to.table
+      ? MIS_TABLE_LABELS[to.table]
+      : from.period !== to.period
+        ? MIS_PERIOD_LABELS[to.period]
+        : "";
+  if (!switchedTo) return "";
+
+  // The defaults the reader was sitting on, at whatever Years Back they had, so
+  // that the one filter the switch carries over cannot count as one it dropped.
+  const untouched = defaultPending(from);
+  untouched.yearsBack = before.yearsBack;
+  return samePending(before, untouched) ? "" : `Filters reset to the ${switchedTo} defaults`;
 }

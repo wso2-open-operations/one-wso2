@@ -15,13 +15,15 @@
 // under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation } from "react-router";
+import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { misPaths } from "@constants/misApps";
 import { EMPTY_MIS_FILTER_OPTIONS } from "../api/misAppConfigs";
 import { ScalePreferenceProvider } from "../util/ScalePreferenceContext";
-import { MIS_PERIODS } from "../util/misViewVocabulary";
+import { YearsBackSessionProvider, useYearsBackSession } from "../util/YearsBackSessionContext";
+import { filtersAfterSwitch } from "../util/misFilterBarModel";
+import { MIS_PERIODS, MIS_TABLES, type MisTable } from "../util/misViewVocabulary";
 import { useMisScale } from "../util/useMisScale";
 import { useMisViewState } from "../util/useMisViewState";
 import MisFilterBar from "./MisFilterBar";
@@ -76,6 +78,15 @@ function Address() {
 function Harness({ optionsErrorMessage = "" }: { optionsErrorMessage?: string }) {
   const view = useMisViewState(MIS_PERIODS.ANNUALLY);
   const scale = useMisScale(view);
+  const session = useYearsBackSession();
+  // Standing in for the Table tabs the page renders above the bar, which is
+  // where a switch actually comes from. What it does is the page's own line
+  // verbatim; `MisArrBuildPage.test.tsx` pins that the page really does it.
+  const switchTo = (table: MisTable) =>
+    view.setView({
+      table,
+      filters: filtersAfterSwitch(view.filters, { period: view.period, table }, session.yearsBack),
+    });
   return (
     <>
       <MisFilterBar
@@ -84,6 +95,9 @@ function Harness({ optionsErrorMessage = "" }: { optionsErrorMessage?: string })
         options={OPTIONS}
         optionsErrorMessage={optionsErrorMessage}
       />
+      <button type="button" onClick={() => switchTo(MIS_TABLES.EXIT_ARR_BY_REGION)}>
+        to Region Summary
+      </button>
       <Address />
       <ForecastMode mode={view.filters.forecast} />
     </>
@@ -94,11 +108,16 @@ function renderBar(search = "", props: { optionsErrorMessage?: string } = {}) {
   return render(
     <MemoryRouter initialEntries={[`${misPaths.arrBuild}${search}`]}>
       <ScalePreferenceProvider>
-        <Harness {...props} />
+        <YearsBackSessionProvider>
+          <Harness {...props} />
+        </YearsBackSessionProvider>
       </ScalePreferenceProvider>
     </MemoryRouter>,
   );
 }
+
+/** The Table tabs' stand-in; see `Harness`. */
+const switchTable = () => userEvent.click(screen.getByRole("button", { name: "to Region Summary" }));
 
 const address = () => screen.getByTestId("address").textContent;
 const forecastMode = () => screen.getByTestId("forecast").textContent;
@@ -402,5 +421,257 @@ describe("when the option lists could not be fetched", () => {
     await pick("ARR Type", "Only Closed Won ARR");
     await userEvent.click(applyButton());
     expect(address()).toBe("?type=Closed+Won+ARR");
+  });
+});
+
+describe("a Table that does not offer every filter", () => {
+  // The source greys these out rather than dropping them, so that nothing
+  // disappears silently between Tables. The tooltip goes on a wrapping span,
+  // because a disabled input fires no pointer events and would show none.
+
+  /** The span the tooltip is attached to, which is what a reader hovers. */
+  const wrapper = (label: string) => screen.getByLabelText(label).closest("span");
+
+  it("greys out the filters Customers does not offer, and says which Table took them", () => {
+    renderBar("?table=customers");
+    expect(screen.getByLabelText("Industry")).toBeDisabled();
+    expect(wrapper("Industry")).toHaveAttribute("title", "Not available for Customers");
+    expect(screen.getByLabelText("View")).toBeDisabled();
+    // The filters it does offer are untouched.
+    expect(screen.getByLabelText("ARR Type")).toBeEnabled();
+  });
+
+  it("shows the reason on hover, which a disabled control alone could not", async () => {
+    renderBar("?table=customers");
+    await userEvent.hover(wrapper("Industry") as HTMLElement);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Not available for Customers");
+  });
+
+  it("puts the reason where a keyboard reaches it, which a disabled control does not", async () => {
+    // The other half of the same affordance: the span takes focus (`tabIndex`)
+    // so a reader who never hovers still gets the reason, as its description.
+    // The popper itself is not asserted here — MUI opens it only for a focus
+    // jsdom will call `:focus-visible`, which it stops doing for the rest of a
+    // file once anything has hovered, so the assertion would pass or fail on
+    // test order. What is pinned is what a screen reader reads out.
+    renderBar("?table=customers");
+    const industry = wrapper("Industry") as HTMLElement;
+    for (let i = 0; i < 40 && document.activeElement !== industry; i += 1) await userEvent.tab();
+    expect(document.activeElement).toBe(industry);
+    expect(industry).toHaveAccessibleDescription("Not available for Customers");
+  });
+
+  it("leaves the summaries the Channel/Direct that Customers does not have", () => {
+    renderBar("?table=region-summary");
+    expect(screen.getByLabelText("Channel/Direct")).toBeEnabled();
+    expect(screen.getByLabelText("Industry")).toBeDisabled();
+    expect(wrapper("Industry")).toHaveAttribute("title", "Not available for Region Summary");
+  });
+
+  it("greys nothing out on the Build, which offers every filter", async () => {
+    renderBar();
+    await expandMore();
+    for (const label of ["View", "Industry", "Channel/Direct", "Account Owner"]) {
+      expect(screen.getByLabelText(label)).toBeEnabled();
+    }
+  });
+});
+
+describe("the Years Back a session carries", () => {
+  it("carries a Years Back the reader applied on to the next Table", async () => {
+    renderBar();
+    await expandMore();
+    await pick("Years Back", "3");
+    await userEvent.click(applyButton());
+    await switchTable();
+    // Region Summary starts at 2 of its own accord — this is the reader's 3.
+    expect(address()).toBe("?table=region-summary&years=3");
+    // Still expanded: a switch resets the filters, not how much of the bar the
+    // reader has open.
+    expect(screen.getByLabelText("Years Back")).toHaveValue("3");
+  });
+
+  it("adopts a Years Back the link carried, so a shared view survives a switch", async () => {
+    renderBar("?years=7");
+    await switchTable();
+    expect(address()).toBe("?table=region-summary&years=7");
+  });
+
+  it("lets the new Table answer when the reader never chose", async () => {
+    renderBar("?type=Closed+Won+ARR");
+    await switchTable();
+    expect(address()).toBe("?table=region-summary");
+    await expandMore();
+    expect(screen.getByLabelText("Years Back")).toHaveValue("2");
+  });
+
+  it("forgets one that is only the Table's own default", async () => {
+    renderBar("?years=3");
+    await expandMore();
+    await pick("Years Back", "5");
+    await userEvent.click(applyButton());
+    await switchTable();
+    expect(address()).toBe("?table=region-summary");
+  });
+
+  it("forgets it on Clear All", async () => {
+    renderBar("?years=3");
+    await userEvent.click(screen.getByRole("button", { name: "Clear All" }));
+    await switchTable();
+    expect(address()).toBe("?table=region-summary");
+  });
+});
+
+describe("what the bar says about a switch that dropped filters", () => {
+  it("names the Table it reset to", async () => {
+    renderBar("?view=Sales+Region&region=EMEA");
+    await switchTable();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Filters reset to the Region Summary defaults",
+    );
+    expect(address()).toBe("?table=region-summary");
+  });
+
+  it("says so for a filter the reader applied on THIS screen, not only one the link carried", async () => {
+    // The bar cannot read the Applied set to answer this: the switch replaced it
+    // in the same navigation. It reads the controls, which are still the ones
+    // about to be thrown away.
+    renderBar();
+    await pick("Channel/Direct", "Channel");
+    await userEvent.click(applyButton());
+    await switchTable();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Filters reset to the Region Summary defaults",
+    );
+  });
+
+  it("says so for an edit the reader never applied, because that is lost too", async () => {
+    renderBar();
+    await pick("Channel/Direct", "Channel");
+    expect(applyButton()).toBeEnabled();
+    await switchTable();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Filters reset to the Region Summary defaults",
+    );
+  });
+
+  it("says nothing when the reader had chosen nothing to lose", async () => {
+    renderBar();
+    await switchTable();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("drops the notice once the reader applies filters again", async () => {
+    renderBar("?channel=Channel");
+    await switchTable();
+    expect(screen.getByRole("status")).toHaveTextContent(/reset/);
+    await pick("ARR Type", "Only Closed Won ARR");
+    // A pending change takes the line first — the bar has one line to say
+    // something in, and what the reader is about to do outranks what is done.
+    expect(screen.getByRole("status")).toHaveTextContent("Filters changed — apply to refresh");
+    await userEvent.click(applyButton());
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+});
+
+describe("a Customers type that drags Years Back with it", () => {
+  // Spec §8.3. The URL contract already drops a Customers + Delayed view to one
+  // year; the control has to reach the same value, or the bar and the address
+  // disagree about what is on screen.
+
+  it("goes quiet after Apply rather than staying dirty forever", async () => {
+    renderBar("?table=customers");
+    await pick("ARR Type", "Only Delayed ARR");
+    await userEvent.click(applyButton());
+    expect(address()).toBe("?table=customers&years=1&type=Delayed+ARR");
+    expect(applyButton()).toBeDisabled();
+  });
+
+  it("records the year it pinned as the session's, so the next Table starts there", async () => {
+    renderBar("?table=customers");
+    await pick("ARR Type", "Only Delayed ARR");
+    await userEvent.click(applyButton());
+    await switchTable();
+    expect(address()).toBe("?table=region-summary&years=1");
+  });
+
+  it("leaves alone a Years Back the link carried", async () => {
+    // A value the reader arrived with is theirs; only a type they CHANGE re-pins.
+    renderBar("?table=customers&type=Delayed+ARR&years=3");
+    expect(applyButton()).toBeDisabled();
+  });
+});
+
+describe("coming back to a Build mid-session", () => {
+  // The whole point of holding Years Back outside the screen. `MisSession` is
+  // the layout route that does it in the app; here the provider wraps the routes
+  // for the same reason — inside the screen it would be remade on every
+  // navigation and would remember nothing.
+
+  const renderMisRoutes = (search = "") =>
+    render(
+      <MemoryRouter initialEntries={[`${misPaths.arrBuild}${search}`]}>
+        <ScalePreferenceProvider>
+          <YearsBackSessionProvider>
+            <Routes>
+              <Route
+                path={misPaths.arrBuild}
+                element={
+                  <>
+                    <Harness />
+                    <Link to={misPaths.flash}>to Flash</Link>
+                  </>
+                }
+              />
+              <Route
+                path={misPaths.flash}
+                element={
+                  <>
+                    <Link to={misPaths.arrBuild}>back to the Build</Link>
+                    <Link to={`${misPaths.arrBuild}?table=customers`}>back to Customers</Link>
+                  </>
+                }
+              />
+            </Routes>
+          </YearsBackSessionProvider>
+        </ScalePreferenceProvider>
+      </MemoryRouter>,
+    );
+
+  const leaveAndReturn = async () => {
+    await userEvent.click(screen.getByRole("link", { name: "to Flash" }));
+    await userEvent.click(screen.getByRole("link", { name: "back to the Build" }));
+  };
+
+  it("opens on the Years Back the reader was working in, not the Table's default", async () => {
+    // The source applies the session value to the grid on mount when the link
+    // carried no view (`FilterBar.js:296-305`). Here that means putting it in
+    // the address, which is where this app keeps what is on screen.
+    renderMisRoutes("?years=3");
+    await leaveAndReturn();
+    await waitFor(() => expect(address()).toBe("?years=3"));
+    await expandMore();
+    expect(screen.getByLabelText("Years Back")).toHaveValue("3");
+  });
+
+  it("lets a link carrying any view answer for itself, session or no session", async () => {
+    // Not "no `years` in the address" but "no view in it at all": the source
+    // branches on `initialFilters`, which any Table, filter or TTM window sets
+    // (`useViewStateUrl.js:37`). So a bookmark to a Table opens on that Table's
+    // own Years Back even mid-session, and only the session keeps the reader's.
+    renderMisRoutes("?years=3");
+    await userEvent.click(screen.getByRole("link", { name: "to Flash" }));
+    await userEvent.click(screen.getByRole("link", { name: "back to Customers" }));
+    expect(address()).toBe("?table=customers");
+    await expandMore();
+    expect(screen.getByLabelText("Years Back")).toHaveValue("5");
+  });
+
+  it("lets the Table answer when the reader had set nothing", async () => {
+    renderMisRoutes();
+    await leaveAndReturn();
+    expect(address()).toBe("");
+    await expandMore();
+    expect(screen.getByLabelText("Years Back")).toHaveValue("5");
   });
 });

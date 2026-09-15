@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import {
   Alert,
   Autocomplete,
@@ -26,10 +26,12 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDownIcon, ChevronUpIcon, EraserIcon, ListFilterIcon } from "@wso2/oxygen-ui-icons-react";
 import { describeAppliedFilters } from "../util/misAppliedFilterChips";
+import { useYearsBackSession } from "../util/YearsBackSessionContext";
 import {
   MIS_COLLAPSED_CONTROL_COUNT,
   MIS_CONFIDENCE_OPTIONS,
@@ -37,23 +39,27 @@ import {
   appliedFromPending,
   confidenceLabel,
   controlLabel,
+  defaultPending,
+  filterResetNotice,
   misFilterBarControls,
   normalisePending,
   pendingFromApplied,
   samePending,
   typeLabel,
-  type MisFilterControl,
+  yearsBackToRemember,
   type MisFilterView,
   type MisPendingFilters,
 } from "../util/misFilterBarModel";
-import { allowedTypeValues, defaultAppliedFilters } from "../util/misViewState";
+import { allowedTypeValues, unavailableFilters } from "../util/misViewState";
 import {
   ENDING_MONTH_VALUES,
   MIS_CHANNEL_DIRECT,
   MIS_SCALES,
+  MIS_TABLE_LABELS,
   MIS_VIEW_TYPES,
   MIS_WINDOWS,
   YEARS_BACK_RANGE,
+  type MisFilterControl,
   type MisWindow,
 } from "../util/misViewVocabulary";
 import type { MisViewState } from "../util/useMisViewState";
@@ -134,15 +140,29 @@ export default function MisFilterBar({
   const filterView: MisFilterView = { period, table, viewWindow };
   const applied = pendingFromApplied(filters, period);
 
+  const session = useYearsBackSession();
+
   const [pending, setPending] = useState<MisPendingFilters>(applied);
+  // What the bar said about the last Table or Period switch, until the reader
+  // applies filters again. Held here rather than passed in because this is the
+  // component with a line to say it in, and because "cleared by the next Apply"
+  // then sits beside Apply.
+  const [resetNotice, setResetNotice] = useState("");
   // Reseed when the view itself changes underneath the controls — a Window
-  // switch coerces the type and resets YTD, and the bar has to show what the
-  // grid is now showing rather than what the reader had chosen for the old cut.
-  // The Table and Period are here for tickets 10 and 12, which add both.
-  const seed = `${table}|${viewWindow}|${period}`;
-  const [seededAt, setSeededAt] = useState(seed);
-  if (seededAt !== seed) {
-    setSeededAt(seed);
+  // switch coerces the type and resets YTD, and a Table switch resets the
+  // filters outright, so the bar has to show what the grid is now showing
+  // rather than what the reader had chosen for the view they have left.
+  const [seededFor, setSeededFor] = useState<MisFilterView>(filterView);
+  if (
+    seededFor.table !== table ||
+    seededFor.period !== period ||
+    seededFor.viewWindow !== viewWindow
+  ) {
+    // The controls as they stand are what the switch is about to throw away —
+    // including an edit the reader had not applied yet. `filters` is no use
+    // here: the switch already replaced it, in the same navigation.
+    setResetNotice(filterResetNotice(pending, seededFor, filterView));
+    setSeededFor(filterView);
     setPending(applied);
   }
 
@@ -150,13 +170,30 @@ export default function MisFilterBar({
 
   const shown = misFilterBarControls(pending, filterView);
   const visible = MIS_FILTER_CONTROL_ORDER.filter((control) => shown.has(control));
+  // On screen but not usable. Kept in `visible` deliberately: a filter a Table
+  // does not offer stays where the reader last saw it, greyed and saying which
+  // Table took it, rather than vanishing between one tab and the next.
+  const unavailable: ReadonlySet<MisFilterControl> = unavailableFilters(period, table);
   const hasPendingChanges = !samePending(pending, applied);
 
   const update = (patch: Partial<MisPendingFilters>) =>
-    setPending((current) => normalisePending({ ...current, ...patch }, filterView));
+    setPending((current) =>
+      // A Customers type drags Years Back with it, but only when the reader
+      // CHANGED it — a value they arrived with is theirs to keep.
+      normalisePending({ ...current, ...patch }, filterView, { typeChanged: "typeValue" in patch }),
+    );
 
-  const commit = (next: MisPendingFilters) =>
+  const commit = (next: MisPendingFilters) => {
+    // A Years Back the reader changed becomes the session's, so the next Table
+    // starts where they left off; back at this Table's own default it is
+    // forgotten, because opening a Build is not choosing five years.
+    if (next.yearsBack !== applied.yearsBack) {
+      session.setYearsBack(yearsBackToRemember(next.yearsBack, filterView));
+    }
+    // Any notice describes a view the reader has now moved on from.
+    setResetNotice("");
     view.setView({ filters: appliedFromPending(next, filters, period) });
+  };
 
   const apply = () => commit(pending);
 
@@ -164,7 +201,15 @@ export default function MisFilterBar({
     // Everything the BAR owns goes back to this Table's defaults. The unit
     // selection is not among them: it belongs to the tabs above, which commit
     // on their own, and clearing filters is not the same as changing report.
-    const defaults = pendingFromApplied(defaultAppliedFilters(period, table), period);
+    //
+    // The session Years Back goes too — Clear All is the reader saying they are
+    // done with the narrowing, and a Years Back that outlived it would follow
+    // them to the next Table as the one thing they could not clear.
+    const defaults = defaultPending(filterView);
+    // Unconditionally, and not only when the value on screen changes: a reader
+    // sitting on a Table whose default happens to equal their session value
+    // still means it when they press this.
+    session.setYearsBack(null);
     setPending(defaults);
     commit(defaults);
   };
@@ -174,13 +219,38 @@ export default function MisFilterBar({
   // and the pending set are each patched from themselves rather than from a
   // single merged one.
   const removeChip = (key: MisFilterControl) => {
-    const defaults = pendingFromApplied(defaultAppliedFilters(period, table), period);
+    const defaults = defaultPending(filterView);
     const one = { [key]: defaults[key] } as Partial<MisPendingFilters>;
-    setPending((current) => normalisePending({ ...current, ...one }, filterView));
-    commit(normalisePending({ ...applied, ...one }, filterView));
+    const changed = { typeChanged: key === "typeValue" };
+    setPending((current) => normalisePending({ ...current, ...one }, filterView, changed));
+    commit(normalisePending({ ...applied, ...one }, filterView, changed));
   };
 
   const changeUnits = (next: MisUnitSelection) => view.setView({ filters: { ...filters, ...next } });
+
+  // Once, on mount, and it goes one way or the other:
+  //
+  //   arrived on a LINK   adopt the Years Back its author chose, so it survives
+  //                       the reader's next switch the way one they set would.
+  //   arrived CLEAN       put the session's Years Back on the grid, so coming
+  //                       back to a Build mid-session shows the years they were
+  //                       working in rather than the Table's default.
+  //
+  // The source does both in the same effect and branches the same way, on
+  // whether the link carried a view at all (`FilterBar.js:296-305`).
+  useEffect(() => {
+    if (view.hasViewState) {
+      const adopted = yearsBackToRemember(filters.yearsBack, filterView);
+      if (adopted !== null) session.setYearsBack(adopted);
+    } else if (session.yearsBack !== null) {
+      // Both, as Clear All does: the grid is what the address says, and the
+      // controls have to agree with it or APPLY reads as having work to do.
+      const seeded = { ...applied, yearsBack: session.yearsBack };
+      setPending(seeded);
+      commit(seeded);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Box sx={{ mb: 1.5 }}>
@@ -282,15 +352,17 @@ export default function MisFilterBar({
 
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25 }}>
           {(expanded ? visible : visible.slice(0, MIS_COLLAPSED_CONTROL_COUNT)).map((control) => (
-            <Control
-              key={control}
-              control={control}
-              pending={pending}
-              view={filterView}
-              options={options}
-              optionsLoading={optionsLoading}
-              onChange={update}
-            />
+            <Unavailable key={control} on={unavailable.has(control) ? MIS_TABLE_LABELS[table] : ""}>
+              <Control
+                control={control}
+                pending={pending}
+                view={filterView}
+                options={options}
+                optionsLoading={optionsLoading}
+                disabled={unavailable.has(control)}
+                onChange={update}
+              />
+            </Unavailable>
           ))}
         </Box>
 
@@ -304,7 +376,7 @@ export default function MisFilterBar({
           color="text.secondary"
           sx={{ mt: 1, minHeight: 18 }}
         >
-          {hasPendingChanges ? CHANGE_MESSAGE : ""}
+          {hasPendingChanges ? CHANGE_MESSAGE : resetNotice}
         </Typography>
 
         <MisAppliedFilterChips
@@ -318,12 +390,37 @@ export default function MisFilterBar({
 
 const CONTROL_WIDTH = { minWidth: 190, flex: "0 1 190px" } as const;
 
+/**
+ * One control, greyed out and wearing its reason when this Table does not offer
+ * it.
+ *
+ * The tooltip goes on a WRAPPING SPAN rather than on the control, because a
+ * disabled input fires no pointer events — a tooltip attached to it would never
+ * open, and the reason for the greying would be unreachable. The span takes
+ * focus for the same reason: a reader who does not use a mouse needs it too.
+ */
+function Unavailable({ on, children }: { on: string; children: ReactElement }) {
+  if (!on) return children;
+  return (
+    <Tooltip title={`Not available for ${on}`} describeChild>
+      {/* A real box, not `display: contents`: a span with no box of its own
+          receives no pointer events either, which is the thing being worked
+          around. It becomes the flex item in the control row, so it carries the
+          control's width. */}
+      <Box component="span" tabIndex={0} sx={{ ...CONTROL_WIDTH, display: "inline-flex" }}>
+        {children}
+      </Box>
+    </Tooltip>
+  );
+}
+
 function Control({
   control,
   pending,
   view,
   options,
   optionsLoading,
+  disabled,
   onChange,
 }: {
   control: MisFilterControl;
@@ -331,12 +428,15 @@ function Control({
   view: MisFilterView;
   options: MisFilterOptions;
   optionsLoading: boolean;
+  /** True where this Table does not offer the filter; `Unavailable` says why. */
+  disabled: boolean;
   onChange: (patch: Partial<MisPendingFilters>) => void;
 }) {
   if (control === "isYtd" || control === "cumulative") {
     const label = controlLabel(control, view.period);
     return (
       <FormControlLabel
+        disabled={disabled}
         sx={{ ...CONTROL_WIDTH, m: 0 }}
         control={
           <Checkbox
@@ -356,6 +456,7 @@ function Control({
     return (
       <Autocomplete
         multiple
+        disabled={disabled}
         disableCloseOnSelect
         // One chip plus a count, rather than one chip per value: a reader who
         // has picked nine countries needs the control to stay the height of a
@@ -379,6 +480,7 @@ function Control({
     return (
       <Autocomplete
         disableClearable
+        disabled={disabled}
         size="small"
         sx={CONTROL_WIDTH}
         value={pending.yearsBack}
@@ -396,6 +498,7 @@ function Control({
   return (
     <Autocomplete
       disableClearable
+      disabled={disabled}
       size="small"
       sx={CONTROL_WIDTH}
       value={pending[control] as string}

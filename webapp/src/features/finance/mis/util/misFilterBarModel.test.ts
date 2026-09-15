@@ -26,6 +26,8 @@ import {
 import {
   appliedFromPending,
   confidenceLabel,
+  filterResetNotice,
+  filtersAfterSwitch,
   misFilterBarControls,
   normalisePending,
   pendingFromApplied,
@@ -33,6 +35,7 @@ import {
   typeLabel,
   usesConfidence,
   usesYearsBack,
+  yearsBackToRemember,
   type MisPendingFilters,
 } from "./misFilterBarModel";
 
@@ -253,5 +256,159 @@ describe("the words on the controls", () => {
     expect(confidenceLabel("GM")).toBe("GM's Commit");
     expect(confidenceLabel("Commit")).toBe("Commit");
     expect(confidenceLabel("Commit + Best Case")).toBe("Commit + Best Case");
+  });
+});
+
+describe("the Years Back a session carries", () => {
+  it("remembers a Years Back the reader chose", () => {
+    expect(yearsBackToRemember(3, { period: ANNUALLY, table: SUBSCRIPTION })).toBe(3);
+  });
+
+  it("forgets one that is only the Table's own default", () => {
+    // Otherwise the next Table would start from 5 because the reader looked at
+    // a Build, rather than because they asked for five years.
+    expect(yearsBackToRemember(5, { period: ANNUALLY, table: SUBSCRIPTION })).toBeNull();
+    expect(yearsBackToRemember(2, { period: ANNUALLY, table: EXIT_ARR_BY_REGION })).toBeNull();
+    expect(yearsBackToRemember(5, { period: ANNUALLY, table: EXIT_ARR_BY_REGION })).toBe(5);
+  });
+
+});
+
+describe("what a Table switch does to the filters", () => {
+  const subscription = { period: ANNUALLY, table: SUBSCRIPTION };
+  const region = { period: ANNUALLY, table: EXIT_ARR_BY_REGION };
+  const customers = { period: ANNUALLY, table: SOFTWARE_CLOUD_CUSTOMERS };
+
+  it("drops the filters the reader had chosen for the Table they have left", () => {
+    const before = appliedFor({ salesRegion: ["EMEA"], viewType: "Sales Region", channelDirect: "Channel" });
+    const after = filtersAfterSwitch(before, region, null);
+    expect(after.salesRegion).toEqual([]);
+    expect(after.viewType).toBe("Global");
+    expect(after.channelDirect).toBe("All");
+  });
+
+  it("arrives on the new Table's own Years Back when the reader never set one", () => {
+    expect(filtersAfterSwitch(appliedFor(), region, null).yearsBack).toBe(2);
+    expect(filtersAfterSwitch(appliedFor(), { period: QUARTERLY, table: SUBSCRIPTION }, null).yearsBack)
+      .toBe(1);
+  });
+
+  it("carries a Years Back the reader set across the switch", () => {
+    // The one filter a switch does not drop — it is the shape of the question,
+    // not a narrowing of one Table's answer.
+    expect(filtersAfterSwitch(appliedFor({ yearsBack: 3 }), region, 3).yearsBack).toBe(3);
+  });
+
+  it("leaves the unit selection to the tabs that own it", () => {
+    const before = appliedFor({ buProductSelection: "CUSTOM", customBusinessUnits: ["APIM_BU"] });
+    const after = filtersAfterSwitch(before, region, null);
+    expect(after.buProductSelection).toBe("CUSTOM");
+    expect(after.customBusinessUnits).toEqual(["APIM_BU"]);
+  });
+
+  it("resets the unit selection on the way into Customers, as the source does", () => {
+    // `FilterBar.js:606` — the one Table whose switch also clears the units.
+    // Reproduced under ADR 0003: a custom book here would put different figures
+    // on screen from the app Finance is reconciling against.
+    const before = appliedFor({ buProductSelection: "CUSTOM", customBusinessUnits: ["APIM_BU"] });
+    const after = filtersAfterSwitch(before, customers, null);
+    expect(after.buProductSelection).toBe("BU_ALL");
+    expect(after.customBusinessUnits).toEqual([]);
+  });
+
+  it("puts the new Table's own type on, not the one the old Table was showing", () => {
+    const before = appliedFor({ arrType: "Renewal ARR" });
+    expect(filtersAfterSwitch(before, region, null).arrType).toBe("Total ARR");
+  });
+
+  it("does not reach into the set it was given", () => {
+    const before = appliedFor({ customBusinessUnits: ["APIM_BU"] });
+    filtersAfterSwitch(before, subscription, null).customBusinessUnits.push("IAM_BU");
+    expect(before.customBusinessUnits).toEqual(["APIM_BU"]);
+  });
+});
+
+describe("what the bar says about a switch that dropped filters", () => {
+  const subscription = { period: ANNUALLY, table: SUBSCRIPTION };
+  const region = { period: ANNUALLY, table: EXIT_ARR_BY_REGION };
+
+  it("names the Table it reset to", () => {
+    const before = pendingFor({ salesRegion: ["EMEA"], viewType: "Sales Region" });
+    expect(filterResetNotice(before, subscription, region)).toBe(
+      "Filters reset to the Region Summary defaults",
+    );
+  });
+
+  it("counts an edit the reader had not applied yet, because that goes too", () => {
+    // It reads the CONTROLS, not the Applied set. The source's own suite pins
+    // this: it picks a type without applying and still expects the notice.
+    const before = { ...pendingFor(), typeValue: "Forecasted ARR" };
+    expect(filterResetNotice(before, subscription, region)).toBe(
+      "Filters reset to the Region Summary defaults",
+    );
+  });
+
+  it("says nothing when the reader had chosen nothing to lose", () => {
+    expect(filterResetNotice(pendingFor(), subscription, region)).toBe("");
+  });
+
+  it("counts a Years Back as nothing lost, because it carries over", () => {
+    expect(filterResetNotice(pendingFor({ yearsBack: 3 }), subscription, region)).toBe("");
+  });
+
+  it("names the Period instead when that is what changed", () => {
+    const before = pendingFor({ channelDirect: "Channel" });
+    expect(filterResetNotice(before, subscription, { period: QUARTERLY, table: SUBSCRIPTION })).toBe(
+      "Filters reset to the Quarterly defaults",
+    );
+  });
+
+  it("says nothing when neither the Table nor the Period moved", () => {
+    // A Window switch is not a reset: `applyWindow` carries the reader's
+    // filters across it deliberately.
+    const before = pendingFor({ channelDirect: "Channel" });
+    expect(filterResetNotice(before, subscription, subscription)).toBe("");
+  });
+});
+
+describe("a Customers type that drags Years Back with it", () => {
+  // Spec §8.3 from the control's side. `hydrateAppliedFilters` applies the same
+  // rule to a link; without this one the two disagree and APPLY never goes quiet.
+  const customers = { period: ANNUALLY, table: SOFTWARE_CLOUD_CUSTOMERS };
+
+  it("drops to one year on Delayed, and back to five on a plain type", () => {
+    const from = (typeValue: string) =>
+      normalisePending({ ...pendingFor({ yearsBack: 3 }), typeValue }, customers, {
+        typeChanged: true,
+      }).yearsBack;
+    expect(from("Delayed ARR")).toBe(1);
+    expect(from("Total ARR")).toBe(5);
+    expect(from("Closed Won ARR")).toBe(5);
+  });
+
+  it("leaves it alone on a type that hides the control", () => {
+    expect(
+      normalisePending({ ...pendingFor({ yearsBack: 3 }), typeValue: "Forecasted ARR" }, customers, {
+        typeChanged: true,
+      }).yearsBack,
+    ).toBe(3);
+  });
+
+  it("leaves alone a Years Back the reader arrived with", () => {
+    // Only on a CHANGE. A value restored from a link is theirs to keep, and
+    // snapping it to five would quietly widen a view they shared.
+    expect(
+      normalisePending({ ...pendingFor({ yearsBack: 3 }), typeValue: "Delayed ARR" }, customers)
+        .yearsBack,
+    ).toBe(3);
+  });
+
+  it("is the Build's business never", () => {
+    expect(
+      normalisePending({ ...pendingFor({ yearsBack: 3 }), typeValue: "Renewal ARR" }, {
+        period: ANNUALLY,
+        table: SUBSCRIPTION,
+      }, { typeChanged: true }).yearsBack,
+    ).toBe(3);
   });
 });
