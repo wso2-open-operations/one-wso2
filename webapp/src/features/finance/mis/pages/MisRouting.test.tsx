@@ -111,6 +111,7 @@ vi.mock("../api/useMisAppConfigs", () => ({
 const { default: MisArrBuildPage } = await import("./MisArrBuildPage");
 const { default: MisFlashPage } = await import("./MisFlashPage");
 const { default: MisSession } = await import("../components/MisSession");
+const { MIS_PERIODS } = await import("../util/misViewVocabulary");
 
 // The `MisSession` layout route wraps these exactly as `App.tsx` does. It is
 // not scaffolding: the session Years Back lives in it and has to OUTLIVE the
@@ -128,7 +129,18 @@ function show(initial: string) {
       <MemoryRouter initialEntries={[initial]}>
         <Routes>
           <Route element={<MisSession />}>
-            <Route path="/finance/mis/arr-build" element={<MisArrBuildPage />} />
+            <Route
+              path="/finance/mis/arr-build"
+              element={<MisArrBuildPage period={MIS_PERIODS.ANNUALLY} />}
+            />
+            <Route
+              path="/finance/mis/qrr-build"
+              element={<MisArrBuildPage period={MIS_PERIODS.QUARTERLY} />}
+            />
+            <Route
+              path="/finance/mis/mrr-build"
+              element={<MisArrBuildPage period={MIS_PERIODS.MONTHLY} />}
+            />
             <Route path="/finance/mis/flash" element={<MisFlashPage />} />
           </Route>
         </Routes>

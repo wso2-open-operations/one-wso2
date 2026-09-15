@@ -43,6 +43,7 @@
 
 import { ChartNoAxesCombinedIcon } from "@wso2/oxygen-ui-icons-react";
 import type { MenuApp } from "@constants/appMenu";
+import { MIS_PERIODS, type MisPeriod } from "@features/finance/mis/util/misViewVocabulary";
 
 /** Root of every MIS route. */
 export const MIS_PATH = "/finance/mis";
@@ -54,19 +55,37 @@ export const MIS_PATH = "/finance/mis";
 // screen. See docs/ported-apps/mis.md §7.
 export const misPaths = {
   arrBuild: `${MIS_PATH}/arr-build`,
+  qrrBuild: `${MIS_PATH}/qrr-build`,
+  mrrBuild: `${MIS_PATH}/mrr-build`,
   flash: `${MIS_PATH}/flash`,
 } as const;
 
-// Only the screens that HAVE a route are listed. QRR Build, MRR Build and ARR
-// Analysis are not here yet, and listing them early would not be harmless: the
-// rail renders every visible child of a group whether or not it carries a path,
-// and a pathless one falls through SideRail's onSelect to scrollToSection() —
-// a no-op anywhere but the perspective's own overview page. So an entry without
-// a route is a row that silently does nothing when clicked.
+/**
+ * Which Build route each Period is, which is the whole of "the Period lives in
+ * the path".
+ *
+ * Here rather than beside the view state because it is the one fact that joins
+ * the two halves: `misViewState.ts` knows what a Period MEANS and nothing about
+ * URLs, the registry above knows the URLs and nothing about Periods. The Period
+ * control navigates through this map, and so does every test that renders a
+ * Build at a Period.
+ */
+export const MIS_BUILD_PATH_BY_PERIOD: Readonly<Record<MisPeriod, string>> = {
+  [MIS_PERIODS.ANNUALLY]: misPaths.arrBuild,
+  [MIS_PERIODS.QUARTERLY]: misPaths.qrrBuild,
+  [MIS_PERIODS.MONTHLY]: misPaths.mrrBuild,
+};
+
+// Only the screens that HAVE a route are listed. ARR Analysis is not here yet,
+// and listing it early would not be harmless: the rail renders every visible
+// child of a group whether or not it carries a path, and a pathless one falls
+// through SideRail's onSelect to scrollToSection() — a no-op anywhere but the
+// perspective's own overview page. So an entry without a route is a row that
+// silently does nothing when clicked.
 //
-// Each of those screens joins this list in the ticket that ports it, together
-// with its route, its case in useMisGate, and its tests. misApps.test.ts and
-// misRail.test.ts both assert the registry and the routes stay in step.
+// It joins this list in the ticket that ports it, together with its route, its
+// case in useMisGate, and its tests. misApps.test.ts and misRail.test.ts both
+// assert the registry and the routes stay in step.
 export const MIS_APPS: readonly MenuApp[] = [
   {
     key: "mis",
@@ -87,6 +106,20 @@ export const MIS_APPS: readonly MenuApp[] = [
         desc: "The annual Build: recurring revenue from an Opening to a Closing balance, by period.",
         requires: ["admin"],
         path: misPaths.arrBuild,
+      },
+      {
+        id: "mis-qrr-build",
+        label: "QRR Build",
+        desc: "The same Build, quarterly, with a Cumulative toggle the annual one does not have.",
+        requires: ["admin"],
+        path: misPaths.qrrBuild,
+      },
+      {
+        id: "mis-mrr-build",
+        label: "MRR Build",
+        desc: "The same Build, monthly, with a Cumulative toggle the annual one does not have.",
+        requires: ["admin"],
+        path: misPaths.mrrBuild,
       },
       {
         id: "mis-flash",

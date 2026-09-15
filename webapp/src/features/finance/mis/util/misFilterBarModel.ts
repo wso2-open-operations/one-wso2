@@ -132,8 +132,14 @@ export const MIS_FILTER_LABELS: Readonly<Record<MisFilterControl, string>> = {
   cumulative: "Cumulative",
 };
 
-/** `ARR` on Annually, `QRR` on Quarterly, `MRR` on Monthly. */
-const periodInitials = (period: MisPeriod): string =>
+/**
+ * `ARR` on Annually, `QRR` on Quarterly, `MRR` on Monthly.
+ *
+ * Exported because the three Build SCREENS name themselves with it too — one
+ * spelling, so the rail entry, the heading, the browser tab and the type
+ * control cannot come to disagree about what the Quarterly Build is called.
+ */
+export const periodInitials = (period: MisPeriod): string =>
   period === MIS_PERIODS.ANNUALLY ? "ARR" : period === MIS_PERIODS.QUARTERLY ? "QRR" : "MRR";
 
 /**

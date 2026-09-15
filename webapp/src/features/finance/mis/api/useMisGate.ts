@@ -25,14 +25,17 @@ import { MIS_PRIVILEGE, misHasPrivilege } from "./misTypes";
 //
 // One privilege covers ALL the ARR screens, not one per screen: the source app
 // gates ARR Build, QRR, MRR and ARR Analysis on a single ARR_DASHBOARD number
-// (Config.js:56). So the three still being ported join this map with
-// ARR_DASHBOARD, in the ticket that adds each route.
+// (Config.js:56). QRR and MRR joined in ticket 12 and share that number, so the
+// ARR privilege opens all three Builds at once; ARR Analysis is the last one
+// still to come, and joins with ARR_DASHBOARD in the ticket that routes it.
 //
 // An id missing from this map is refused. That is stricter than the sibling
 // gates, which fall through to an open default for their unrestricted items —
 // MIS has no unrestricted screen, so there is nothing for a default to open.
 const ITEM_PRIVILEGE: Record<string, number> = {
   "mis-arr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
+  "mis-qrr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
+  "mis-mrr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
   "mis-flash": MIS_PRIVILEGE.FLASH_DASHBOARD,
 };
 

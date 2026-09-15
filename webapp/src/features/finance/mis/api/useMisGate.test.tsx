@@ -130,9 +130,12 @@ describe("someone holding neither privilege", () => {
 describe("an id this gate has no mapping for", () => {
   it("is hidden even from someone holding both privileges", () => {
     state.privileges = [ARR, FLASH];
-    // QRR Build is a real screen that is not ported yet, so it is the honest
+    // ARR Analysis is a real screen that is not ported yet, so it is the honest
     // example: in the registry's future, absent from ITEM_PRIVILEGE today.
-    expect(gate().canSee("mis-qrr-build")).toBe(false);
+    // (QRR and MRR Build stood here until ticket 12 routed them, which is the
+    // point — this test is about the ABSENCE of a mapping, so its example has
+    // to be a screen that genuinely has none.)
+    expect(gate().canSee("mis-analysis")).toBe(false);
     expect(gate().canSee("mis-something-added-later")).toBe(false);
   });
 

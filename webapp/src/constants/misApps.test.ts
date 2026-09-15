@@ -38,9 +38,17 @@ describe("the Finance MIS registry", () => {
   // A rail entry that navigates nowhere is worse than one that isn't there. The
   // screens still being ported carry no `path` until their own ticket adds the
   // route in the same change — so this asserts the two are never out of step.
+  // ARR Analysis is the one still to come, and it is absent from the registry
+  // rather than present without a path, which is the stronger version of the
+  // same rule.
   it("gives a path only to screens that have a route", () => {
     const routed = items.filter((item) => item.path !== undefined).map((item) => item.id);
-    expect(routed.sort()).toEqual(["mis-arr-build", "mis-flash"]);
+    expect(routed.sort()).toEqual([
+      "mis-arr-build",
+      "mis-flash",
+      "mis-mrr-build",
+      "mis-qrr-build",
+    ]);
   });
 
   // The load-bearing one. SideRail dispatches by id-set: an id in no set falls

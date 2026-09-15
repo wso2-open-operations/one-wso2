@@ -133,9 +133,14 @@ describe("the Finance rail", () => {
     showRail();
     // The group is open — its live rows are present, so an absent row is
     // genuinely absent rather than merely un-rendered.
-    expect(screen.getByText("ARR Build")).toBeInTheDocument();
-    expect(screen.getByText("Flash Dashboard")).toBeInTheDocument();
-    for (const dead of ["QRR Build", "MRR Build", "ARR Analysis"]) {
+    for (const live of ["ARR Build", "QRR Build", "MRR Build", "Flash Dashboard"]) {
+      expect(screen.getByText(live), `${live} is routed but not in the rail`).toBeInTheDocument();
+    }
+    // ARR Analysis is the one screen left to port, and the only one this rule
+    // still has to hold back. QRR and MRR stood here until ticket 12 gave them
+    // routes, and they moved up rather than being deleted — which is what the
+    // rule is for.
+    for (const dead of ["ARR Analysis"]) {
       expect(screen.queryByText(dead), `${dead} is in the rail but has no route`).not.toBeInTheDocument();
     }
   });

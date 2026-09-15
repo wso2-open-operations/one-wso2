@@ -40,9 +40,10 @@ import type { BuildColumnGroup, BuildRow } from "../components/buildTableModel";
 import { useMisViewState } from "../util/useMisViewState";
 import { useMisScale } from "../util/useMisScale";
 import { useYearsBackSession } from "../util/YearsBackSessionContext";
-import { filtersAfterSwitch } from "../util/misFilterBarModel";
+import { filtersAfterSwitch, periodInitials } from "../util/misFilterBarModel";
 import {
   MIS_PERIODS,
+  type MisPeriod,
   MIS_TABLES,
   MIS_TABLE_LABELS,
   typeValueOf,
@@ -123,23 +124,46 @@ import { misExportFilename, misFilenameWord } from "../export/misExportFilename"
 //
 // Windowing is `BuildTable`'s (07).
 
-export default function MisArrBuildPage() {
-  useDocumentTitle("ARR Build");
+/**
+ * What each Build screen calls itself, and which rail entry gates it.
+ *
+ * One `MisArrBuildPage` serves all three routes because they ARE one screen —
+ * ticket 12 is the Period variations, not a second Build. What differs is the
+ * name and the gate id, so that is what this map holds; everything else reads
+ * the Period out of `view`.
+ */
+const BUILD_SCREENS: Readonly<
+  Record<MisPeriod, { gateId: string; sentence: string }>
+> = {
+  [MIS_PERIODS.ANNUALLY]: {
+    gateId: "mis-arr-build",
+    sentence: "Annual recurring revenue from an opening balance to a closing balance, one column per period.",
+  },
+  [MIS_PERIODS.QUARTERLY]: {
+    gateId: "mis-qrr-build",
+    sentence: "Quarterly recurring revenue from an opening balance to a closing balance, one column per quarter.",
+  },
+  [MIS_PERIODS.MONTHLY]: {
+    gateId: "mis-mrr-build",
+    sentence: "Monthly recurring revenue from an opening balance to a closing balance, one column per month.",
+  },
+};
+
+export default function MisArrBuildPage({ period }: { period: MisPeriod }) {
+  const { gateId, sentence } = BUILD_SCREENS[period];
+  const title = `${periodInitials(period)} Build`;
+  useDocumentTitle(title);
 
   return (
-    <MisShell
-      gateId="mis-arr-build"
-      title="ARR Build"
-      subtitle="Annual recurring revenue from an opening balance to a closing balance, one column per period."
-    >
-      <ArrBuild />
+    <MisShell gateId={gateId} title={title} subtitle={sentence}>
+      <ArrBuild period={period} />
     </MisShell>
   );
 }
 
 /** Inside the shell, so it is only mounted once the gate has said yes. */
-function ArrBuild() {
-  const view = useMisViewState(MIS_PERIODS.ANNUALLY, { annualRangesFor: pacificAnnualRanges });
+function ArrBuild({ period }: { period: MisPeriod }) {
+  const view = useMisViewState(period, { annualRangesFor: pacificAnnualRanges });
   const scale = useMisScale(view);
   // The menus for the nine list filters. Fetched here rather than inside the
   // bar so the bar stays a function of its props, and so a screen that grows a

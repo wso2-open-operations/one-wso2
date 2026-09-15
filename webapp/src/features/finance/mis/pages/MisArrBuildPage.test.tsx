@@ -15,17 +15,18 @@
 // under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ExcelJS from "exceljs";
 import { bytesOf, captureDownloads } from "@/test/downloads";
 import { MemoryRouter, useLocation } from "react-router";
 import { inZone } from "@/test/timeZone";
-import { misPaths } from "@constants/misApps";
+import { MIS_BUILD_PATH_BY_PERIOD } from "@constants/misApps";
 import { defaultAppliedFilters } from "@features/finance/mis/util/misViewState";
 import { YearsBackSessionProvider } from "@features/finance/mis/util/YearsBackSessionContext";
 import {
   MIS_PERIODS,
+  type MisPeriod,
   MIS_TABLES,
   MIS_WINDOWS,
   type MisAppliedFilters,
@@ -193,15 +194,16 @@ function Address() {
   return <span data-testid="address">{search}</span>;
 }
 
-function renderPage(search = "") {
+function renderPage(search = "", period: MisPeriod = MIS_PERIODS.ANNUALLY) {
+  const path = MIS_BUILD_PATH_BY_PERIOD[period];
   return inZone("Asia/Colombo", () =>
     render(
-      <MemoryRouter initialEntries={[`${misPaths.arrBuild}${search}`]}>
+      <MemoryRouter initialEntries={[`${path}${search}`]}>
         {/* Standing in for `MisSession`, the layout route this screen is mounted
             under in `App.tsx`. The session Years Back has to outlive the screen,
             so the page does not provide it and cannot render without it. */}
         <YearsBackSessionProvider>
-          <MisArrBuildPage />
+          <MisArrBuildPage period={period} />
         </YearsBackSessionProvider>
         <Address />
       </MemoryRouter>,
@@ -1089,6 +1091,43 @@ describe("a session Years Back that happens to equal the Table's own default", (
     // is gone, so Region Summary answers with its own two.
     await switchTable("Region Summary");
     expect(address()).toBe("?table=region-summary");
+  });
+});
+
+describe("the QRR and MRR Builds", () => {
+  // Ticket 12. The whole model layer is Period-generic already — the Applied
+  // set holds one type and one cumulative flag whatever the Period, and
+  // `TYPE_KEY_BY_PERIOD` decides which key each becomes — so what these pin is
+  // that the SCREEN is wired to the Period its route carries, rather than
+  // being an Annually screen three times over.
+
+  it("labels the type control for the Period it is on", () => {
+    renderPage("", MIS_PERIODS.QUARTERLY);
+    expect(screen.getByLabelText(/QRR Type/i)).toBeInTheDocument();
+  });
+
+  it("takes its own Period's type from a link and degrades another Period's", () => {
+    renderPage("?type=Closed+Won+MRR", MIS_PERIODS.MONTHLY);
+    expect(screen.getByLabelText("MRR Type")).toHaveValue("Only Closed Won MRR");
+    cleanup();
+    // `Closed Won ARR` is a real type value, and it is not a MONTHLY one — so
+    // on this route it is unrecognised like any other, and degrades to the
+    // default rather than being honoured. The same query string means
+    // different things on the three screens, which is the whole reason the
+    // Period is in the path and not the query.
+    renderPage("?type=Closed+Won+ARR", MIS_PERIODS.MONTHLY);
+    expect(screen.getByLabelText("MRR Type")).toHaveValue("MRR");
+  });
+
+  it("serialises a default view to an empty query string on each of the three Periods", () => {
+    // Test §10.1, which ticket 02 pinned on Annually alone. Years Back defaults
+    // to 1 off Annually and 5 on it, so this is also where a Period that kept
+    // the annual default would show itself — as a `years=` nobody asked for.
+    for (const period of [MIS_PERIODS.ANNUALLY, MIS_PERIODS.QUARTERLY, MIS_PERIODS.MONTHLY]) {
+      cleanup();
+      renderPage("", period);
+      expect(address(), `${period} does not open clean`).toBe("");
+    }
   });
 });
 
