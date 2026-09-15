@@ -19,6 +19,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Test checklist §10.10, §10.11 and §10.12 — what a person actually SEES at a
 // MIS URL they are and are not entitled to.
@@ -39,6 +40,19 @@ const state = {
 
 vi.mock("@config/apiConfig", () => ({
   isMisArrConfigured: () => true,
+  // The screens under test render their grids, and every grid reads a URL off
+  // this. Nothing here is fetched — the hooks are mocked below — so the values
+  // only have to exist and be distinct.
+  misArrServiceUrls: {
+    userInfo: "https://mis.example/user-info",
+    appConfigs: "https://mis.example/app-configs",
+    arrSummary: "https://mis.example/arr-summary",
+    accounts: "https://mis.example/accounts",
+    drillDownCustomers: "https://mis.example/arr-summary/customers",
+    regionExit: "https://mis.example/arr-summary/region-exit",
+    buExit: "https://mis.example/arr-summary/bu-exit",
+    regionMetrics: "https://mis.example/arr-summary/region-metrics",
+  },
 }));
 
 vi.mock("../api/useMisGate", () => ({
@@ -96,15 +110,30 @@ vi.mock("../api/useMisAppConfigs", () => ({
 
 const { default: MisArrBuildPage } = await import("./MisArrBuildPage");
 const { default: MisFlashPage } = await import("./MisFlashPage");
+const { default: MisSession } = await import("../components/MisSession");
 
+// The `MisSession` layout route wraps these exactly as `App.tsx` does. It is
+// not scaffolding: the session Years Back lives in it and has to OUTLIVE the
+// screen reading it, so a route tree here that skipped it would pass while the
+// real one threw. Every MIS route belongs inside it for that reason.
 function show(initial: string) {
+  // The screens reach for React Query whatever the gate decides, so the
+  // provider wraps every case here — including the locked ones, where the
+  // point is that no query is ever ISSUED, not that none could be.
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
   return render(
-    <MemoryRouter initialEntries={[initial]}>
-      <Routes>
-        <Route path="/finance/mis/arr-build" element={<MisArrBuildPage />} />
-        <Route path="/finance/mis/flash" element={<MisFlashPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[initial]}>
+        <Routes>
+          <Route element={<MisSession />}>
+            <Route path="/finance/mis/arr-build" element={<MisArrBuildPage />} />
+            <Route path="/finance/mis/flash" element={<MisFlashPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
