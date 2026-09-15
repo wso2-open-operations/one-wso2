@@ -15,6 +15,7 @@
 // under the License.
 
 import { useEffect, useState, type ReactElement } from "react";
+import { useNavigate } from "react-router";
 import {
   Alert,
   Autocomplete,
@@ -30,10 +31,13 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDownIcon, ChevronUpIcon, EraserIcon, ListFilterIcon } from "@wso2/oxygen-ui-icons-react";
+import { MIS_BUILD_PATH_BY_PERIOD } from "@constants/misApps";
 import { describeAppliedFilters } from "../util/misAppliedFilterChips";
 import { useYearsBackSession } from "../util/YearsBackSessionContext";
 import {
   MIS_COLLAPSED_CONTROL_COUNT,
+  MIS_PERIOD_CHOICE_LABELS,
+  MIS_PERIOD_CHOICE_ORDER,
   MIS_CONFIDENCE_OPTIONS,
   MIS_FILTER_CONTROL_ORDER,
   appliedFromPending,
@@ -44,11 +48,14 @@ import {
   misFilterBarControls,
   normalisePending,
   pendingFromApplied,
+  periodChoiceOf,
+  periodChoiceTarget,
   samePending,
   typeLabel,
   yearsBackToRemember,
   type MisFilterView,
   type MisPendingFilters,
+  type MisPeriodChoice,
 } from "../util/misFilterBarModel";
 import { allowedTypeValues, unavailableFilters } from "../util/misViewState";
 import {
@@ -60,7 +67,6 @@ import {
   MIS_WINDOWS,
   YEARS_BACK_RANGE,
   type MisFilterControl,
-  type MisWindow,
 } from "../util/misViewVocabulary";
 import type { MisViewState } from "../util/useMisViewState";
 import type { MisScaleState } from "../util/useMisScale";
@@ -113,10 +119,8 @@ const YEARS_BACK_OPTIONS = Array.from(
 const CHANGE_MESSAGE = "Filters changed — apply to refresh";
 
 /** The two ways an Annually Build cuts its columns. Ticket 12 adds the other Periods. */
-const WINDOW_OPTIONS: readonly { value: MisWindow; label: string }[] = [
-  { value: MIS_WINDOWS.CALENDAR, label: "Annually" },
-  { value: MIS_WINDOWS.TTM, label: "TTM" },
-];
+// The Period control's four buttons. Three navigate, TTM sets a window — see
+// `periodChoiceTarget`, which is where that difference is written down.
 
 export default function MisFilterBar({
   view,
@@ -138,6 +142,32 @@ export default function MisFilterBar({
   const { period, table, viewWindow, filters } = view;
   // The three that every rule in `misFilterBarModel` is a question about.
   const filterView: MisFilterView = { period, table, viewWindow };
+  const navigate = useNavigate();
+
+  /**
+   * The Period control, which is the one control here that can leave the
+   * screen.
+   *
+   * A Period is a ROUTE, so picking one navigates — and to the BARE path, with
+   * no query string carried over. That is not laziness about preserving the
+   * view: the three Builds do not agree about what their filters mean (a
+   * `Total QRR` is not a type Annually has, and Years Back defaults to 1 off
+   * Annually and 5 on it), so carrying the old query across would hand the
+   * arriving screen values it has to discard anyway. It hydrates from its own
+   * defaults instead, and the bar's mount effect seeds Years Back back out of
+   * the session — which is the whole reason that session exists.
+   *
+   * TTM is the exception, and stays: it is Annually cut differently rather than
+   * a fourth Period, so it sets a Window on the route already showing.
+   */
+  const choosePeriod = (choice: MisPeriodChoice) => {
+    const target = periodChoiceTarget(choice);
+    if (target.period === period) {
+      view.setWindow(target.viewWindow ?? MIS_WINDOWS.CALENDAR);
+      return;
+    }
+    navigate(MIS_BUILD_PATH_BY_PERIOD[target.period]);
+  };
   const applied = pendingFromApplied(filters, period);
 
   const session = useYearsBackSession();
@@ -261,13 +291,13 @@ export default function MisFilterBar({
         <ToggleButtonGroup
           exclusive
           size="small"
-          value={viewWindow}
+          value={periodChoiceOf(period, viewWindow)}
           aria-label="Period"
-          onChange={(_, next: MisWindow | null) => next && view.setWindow(next)}
+          onChange={(_, next: MisPeriodChoice | null) => next && choosePeriod(next)}
         >
-          {WINDOW_OPTIONS.map((option) => (
-            <ToggleButton key={option.value} value={option.value} sx={{ textTransform: "none" }}>
-              {option.label}
+          {MIS_PERIOD_CHOICE_ORDER.map((choice) => (
+            <ToggleButton key={choice} value={choice} sx={{ textTransform: "none" }}>
+              {MIS_PERIOD_CHOICE_LABELS[choice]}
             </ToggleButton>
           ))}
         </ToggleButtonGroup>

@@ -190,8 +190,15 @@ const loaded = (response: Record<string, unknown>): ArrSummaryState => ({
  * a second live region beside the filter bar's own.
  */
 function Address() {
-  const { search } = useLocation();
-  return <span data-testid="address">{search}</span>;
+  const { pathname, search } = useLocation();
+  return (
+    <>
+      <span data-testid="address">{search}</span>
+      {/* The Period is the ROUTE, so the Period control is the one thing on
+          this bar whose effect is not visible in the query string. */}
+      <span data-testid="path">{pathname}</span>
+    </>
+  );
 }
 
 function renderPage(search = "", period: MisPeriod = MIS_PERIODS.ANNUALLY) {
@@ -212,6 +219,7 @@ function renderPage(search = "", period: MisPeriod = MIS_PERIODS.ANNUALLY) {
 }
 
 const address = () => screen.getByTestId("address").textContent;
+const path = () => screen.getByTestId("path").textContent;
 
 /** Click one of the Table tabs, which commit on click. */
 const switchTable = (name: string) =>
@@ -1117,6 +1125,73 @@ describe("the QRR and MRR Builds", () => {
     // Period is in the path and not the query.
     renderPage("?type=Closed+Won+ARR", MIS_PERIODS.MONTHLY);
     expect(screen.getByLabelText("MRR Type")).toHaveValue("MRR");
+  });
+
+  it("navigates to the other Period's route when the Period control is used", async () => {
+    renderPage();
+    expect(path()).toBe(MIS_BUILD_PATH_BY_PERIOD[MIS_PERIODS.ANNUALLY]);
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Period" })).getByRole("button", { name: "Quarterly" }),
+    );
+    expect(path()).toBe(MIS_BUILD_PATH_BY_PERIOD[MIS_PERIODS.QUARTERLY]);
+  });
+
+  it("keeps TTM on the annual route, because it is a Window and not a Period", async () => {
+    renderPage();
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Period" })).getByRole("button", { name: "TTM" }),
+    );
+    expect(path()).toBe(MIS_BUILD_PATH_BY_PERIOD[MIS_PERIODS.ANNUALLY]);
+    expect(address()).toBe("?window=ttm");
+  });
+
+  it("offers all four options, which the annual Build alone used to", () => {
+    renderPage("", MIS_PERIODS.QUARTERLY);
+    const control = within(screen.getByRole("group", { name: "Period" }));
+    for (const name of ["Annually", "Quarterly", "Monthly", "TTM"]) {
+      expect(control.getByRole("button", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("carries a Cumulative control the annual Build does not have", async () => {
+    // Ticket 12 predicted this needs no new code: the Pending set holds one
+    // `cumulative` flag whatever the Period and `CUMULATIVE_KEY_BY_PERIOD`
+    // decides which Applied key it becomes. Confirmed rather than assumed.
+    renderPage("", MIS_PERIODS.QUARTERLY);
+    // Last of seventeen controls, and the bar shows seven collapsed, so it is
+    // behind More like the other ten.
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByLabelText("Cumulative Quarterly"));
+    await userEvent.click(screen.getByRole("button", { name: /apply/i }));
+    expect(address()).toBe("?cumulative=1");
+  });
+
+  it("has no Cumulative control on Annually, which has no such flag", async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.queryByLabelText(/^Cumulative/)).not.toBeInTheDocument();
+  });
+
+  it("ignores a TTM window on a Period that has none", () => {
+    // Test §10.5. `window=ttm` is not an error off Annually, it is a parameter
+    // that means nothing there — so the view is not TTM and the control does
+    // not light a TTM button the screen has no Window for.
+    renderPage("?window=ttm", MIS_PERIODS.MONTHLY);
+    const control = within(screen.getByRole("group", { name: "Period" }));
+    expect(control.getByRole("button", { name: "Monthly" })).toHaveAttribute("aria-pressed", "true");
+    expect(control.getByRole("button", { name: "TTM" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("drops an ignored window from the address the moment it writes a view", async () => {
+    // The other half of §10.5, and the one worth being precise about: arriving
+    // on a stale link does NOT scrub the address — nothing has written a view
+    // yet, so the parameter sits there being ignored. It goes the first time
+    // the app writes, because the serialiser only ever emits `window` on
+    // Annually (`misViewState.ts`).
+    renderPage("?window=ttm", MIS_PERIODS.MONTHLY);
+    expect(address()).toBe("?window=ttm");
+    await switchTable("Customers");
+    expect(address()).toBe("?table=customers");
   });
 
   it("serialises a default view to an empty query string on each of the three Periods", () => {

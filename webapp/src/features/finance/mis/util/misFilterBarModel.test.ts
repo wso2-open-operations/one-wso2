@@ -30,6 +30,8 @@ import {
   filtersAfterSwitch,
   misFilterBarControls,
   normalisePending,
+  periodChoiceOf,
+  periodChoiceTarget,
   pendingFromApplied,
   samePending,
   typeLabel,
@@ -410,5 +412,40 @@ describe("a Customers type that drags Years Back with it", () => {
         table: SUBSCRIPTION,
       }, { typeChanged: true }).yearsBack,
     ).toBe(3);
+  });
+});
+
+// Ticket 12. The bar's leftmost control is one control over TWO dimensions: the
+// Period, which is the route, and the Window, which is a query parameter that
+// only Annually has. Four buttons, and picking one either navigates or sets a
+// window — so the mapping is worth having as a function rather than a ternary
+// inside the JSX.
+describe("the Period control's four options", () => {
+  it("reads Annually and TTM as two choices on the one route they share", () => {
+    expect(periodChoiceOf(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR)).toBe("annually");
+    expect(periodChoiceOf(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.TTM)).toBe("ttm");
+  });
+
+  it("reads the other two Periods off the route whatever the window says", () => {
+    // Only Annually has a Window, so a `window=ttm` that survived a link onto
+    // a Quarterly route is a parameter already being ignored (`allowedTypeValues`
+    // says so too). It must not light the TTM button on a screen that has no TTM.
+    expect(periodChoiceOf(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.TTM)).toBe("quarterly");
+    expect(periodChoiceOf(MIS_PERIODS.MONTHLY, MIS_WINDOWS.TTM)).toBe("monthly");
+  });
+
+  it("sends the three Periods to their own route and TTM to a window", () => {
+    // TTM is the one option that is not a Period: it is Annually, cut
+    // differently, so it stays put and changes a parameter instead.
+    expect(periodChoiceTarget("quarterly")).toEqual({ period: MIS_PERIODS.QUARTERLY });
+    expect(periodChoiceTarget("monthly")).toEqual({ period: MIS_PERIODS.MONTHLY });
+    expect(periodChoiceTarget("annually")).toEqual({
+      period: MIS_PERIODS.ANNUALLY,
+      viewWindow: MIS_WINDOWS.CALENDAR,
+    });
+    expect(periodChoiceTarget("ttm")).toEqual({
+      period: MIS_PERIODS.ANNUALLY,
+      viewWindow: MIS_WINDOWS.TTM,
+    });
   });
 });

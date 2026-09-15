@@ -143,6 +143,77 @@ export const periodInitials = (period: MisPeriod): string =>
   period === MIS_PERIODS.ANNUALLY ? "ARR" : period === MIS_PERIODS.QUARTERLY ? "QRR" : "MRR";
 
 /**
+ * The four buttons of the bar's leftmost control, which is ONE control over two
+ * dimensions.
+ *
+ * Three of them are Periods and live in the route; the fourth, TTM, is a Window
+ * and lives in the query string. The source's control is the same four and
+ * navigates between screens (`FilterBar.js`'s timeframe toggle), so this is not
+ * a port invention — what is new here is saying the two dimensions out loud
+ * instead of leaving a reader to infer why one button behaves differently.
+ *
+ * Values are the Period's own, plus the Window's, so nothing has to be mapped
+ * on the wire or in a link.
+ */
+export const MIS_PERIOD_CHOICES = {
+  ANNUALLY: MIS_PERIODS.ANNUALLY,
+  QUARTERLY: MIS_PERIODS.QUARTERLY,
+  MONTHLY: MIS_PERIODS.MONTHLY,
+  TTM: MIS_WINDOWS.TTM,
+} as const;
+export type MisPeriodChoice = (typeof MIS_PERIOD_CHOICES)[keyof typeof MIS_PERIOD_CHOICES];
+
+/** The four, in the order the source's control offers them. TTM last. */
+export const MIS_PERIOD_CHOICE_ORDER: readonly MisPeriodChoice[] = [
+  MIS_PERIOD_CHOICES.ANNUALLY,
+  MIS_PERIOD_CHOICES.QUARTERLY,
+  MIS_PERIOD_CHOICES.MONTHLY,
+  MIS_PERIOD_CHOICES.TTM,
+];
+
+/** What each button reads. TTM is an acronym Finance uses; the rest are words. */
+export const MIS_PERIOD_CHOICE_LABELS: Readonly<Record<MisPeriodChoice, string>> = {
+  [MIS_PERIOD_CHOICES.ANNUALLY]: MIS_PERIOD_LABELS[MIS_PERIODS.ANNUALLY],
+  [MIS_PERIOD_CHOICES.QUARTERLY]: MIS_PERIOD_LABELS[MIS_PERIODS.QUARTERLY],
+  [MIS_PERIOD_CHOICES.MONTHLY]: MIS_PERIOD_LABELS[MIS_PERIODS.MONTHLY],
+  [MIS_PERIOD_CHOICES.TTM]: "TTM",
+};
+
+/**
+ * Which button is lit, given where the reader is.
+ *
+ * The Window is only consulted on Annually, because only Annually HAS one. A
+ * `window=ttm` that rode a link onto a Quarterly route is a parameter already
+ * being ignored — `allowedTypeValues` ignores it there too — and lighting TTM
+ * on a screen with no TTM would be the control lying about the view.
+ */
+export const periodChoiceOf = (period: MisPeriod, viewWindow: MisWindow): MisPeriodChoice =>
+  period === MIS_PERIODS.ANNUALLY && viewWindow === MIS_WINDOWS.TTM
+    ? MIS_PERIOD_CHOICES.TTM
+    : (period as MisPeriodChoice);
+
+/**
+ * Where a button goes.
+ *
+ * A Period is a NAVIGATION and carries no Window, so the arriving screen reads
+ * its own default rather than inheriting a cut that does not apply there.
+ * Annually and TTM are the same route and differ only by the Window, which is
+ * why those two name one and the three name none.
+ */
+export function periodChoiceTarget(choice: MisPeriodChoice): {
+  period: MisPeriod;
+  viewWindow?: MisWindow;
+} {
+  if (choice === MIS_PERIOD_CHOICES.TTM) {
+    return { period: MIS_PERIODS.ANNUALLY, viewWindow: MIS_WINDOWS.TTM };
+  }
+  if (choice === MIS_PERIOD_CHOICES.ANNUALLY) {
+    return { period: MIS_PERIODS.ANNUALLY, viewWindow: MIS_WINDOWS.CALENDAR };
+  }
+  return { period: choice };
+}
+
+/**
  * What a filter is called ON THE BAR.
  *
  * Two are said with the Period in them, because the control sits among sixteen
