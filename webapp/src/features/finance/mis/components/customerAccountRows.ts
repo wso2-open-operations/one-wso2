@@ -319,6 +319,12 @@ export const CUSTOMER_BU_SUB_COLUMN_BY_KEY: ReadonlyMap<string, CustomerSubColum
   CUSTOMER_BU_SUB_COLUMNS.map((column) => [column.key, column]),
 );
 
+/** The source's own id for the Total row (`useCustomerAccounts.js:449`). */
+export const CUSTOMER_TOTAL_ROW_ID = "TOTAL_ROW";
+const CUSTOMER_TOTAL_ROW_LABEL = "Total";
+/** What every identity column reads on it. The source's `'-'`. */
+const CUSTOMER_TOTAL_IDENTITY = "-";
+
 /**
  * One row per customer, unioned across every column, in first-appearance order.
  *
@@ -363,21 +369,76 @@ export function customerAccountRows(
       rows.push({ id: account.id, label: account.name });
     }
   }
+  // Pinned above the book it adds up, and emphasised — `getCustomerCellClass`
+  // gives it `total-row-bold`. No `ruleAbove`: the stroke an accountant draws
+  // goes UNDER the figures being added, and this total sits over them.
+  //
+  // Omitted over an empty book, where the source shows a lone Total row of
+  // zeroes (`shouldAddTotalRow` is the literal `true`). A row of zeroes reads as
+  // a company that earned nothing; the screen's own empty state says the book is
+  // empty, which is what happened. Recorded in `docs/ported-apps/mis.md` §7.
+  if (rows.length) {
+    rows.unshift({ id: CUSTOMER_TOTAL_ROW_ID, label: CUSTOMER_TOTAL_ROW_LABEL, emphasis: true });
+  }
   return { rows, accountById };
 }
 
 /**
+ * One column's Total row figure: the column added down the customer book.
+ *
+ * ---- it adds what the table SHOWS, not what the wire sent -------------------
+ *
+ * Every figure goes through `customerFigure` on the way in, so a fallback the
+ * cells applied is already inside the sum and the column foots against the cells
+ * above it. That is the source's arrangement: its total row sums
+ * `${periodKey}_total`, a field it had already applied the same `||` to, and its
+ * overall-Total renderer is a pass-through of that sum.
+ *
+ * ---- except the BU-only Total, whose rule is the ROW'S and not the cell's ---
+ *
+ * That column's fallback lives in a `valueGetter`, so ag-Grid applies it to the
+ * TOTAL ROW as a row in its own right — over a `_bu_total` the source had
+ * already summed RAW down the book. Sum each customer's own answer instead and
+ * one customer missing a grand total drags their six units into a figure the
+ * rest of the book reported properly: with `{grand: 0, units: 100}` and
+ * `{grand: 50}` the source reads 50 and a per-customer sum reads 150.
+ *
+ * `undefined` for a column that never answered, which reaches the cell as blank
+ * — a total of a book nobody could fetch is not zero. A column that answered
+ * with nobody in it totals zero, because that is a real answer.
+ */
+export function customerTotal(
+  accounts: readonly AccountsResponse[] | undefined,
+  subColumn: CustomerSubColumn,
+): number | undefined {
+  if (!accounts) return undefined;
+  if (subColumn.key === BU_TOTAL_KEY) {
+    const sent = sumOf(accounts, (account) => account.arrGrandTotal ?? 0);
+    return sent > 0 ? sent : sumOf(accounts, buFieldsTotal);
+  }
+  return sumOf(accounts, (account) => customerFigure(account, subColumn) ?? 0);
+}
+
+const sumOf = (
+  accounts: readonly AccountsResponse[],
+  figure: (account: AccountsResponse) => number,
+): number => accounts.reduce((total, account) => total + figure(account), 0);
+
+/**
  * What an identity column reads for one row.
  *
- * Blank for a customer who is not in this column's book at all, which is what
- * an absent account means — `BuildTable` renders the row's own label in the
- * first column, so this is only ever asked about the sixteen after Account
- * Name, or seventeen on a Delayed type.
+ * The Total row is not an account, so every identity column reads `-` rather
+ * than the blank an absent account would otherwise give — the source writes the
+ * same dash into every one of them. That is the sixteen after Account Name, or
+ * seventeen on a Delayed type: `BuildTable` renders the row's own label in the
+ * first column, which here is the word "Total", so this is never asked about it.
  */
 export function customerIdentityText(
+  rowId: string,
   account: AccountsResponse | undefined,
   column: CustomerLeadColumn,
 ): string {
+  if (rowId === CUSTOMER_TOTAL_ROW_ID) return CUSTOMER_TOTAL_IDENTITY;
   return account ? column.value(account) : "";
 }
 

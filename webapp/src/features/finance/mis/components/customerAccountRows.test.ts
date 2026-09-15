@@ -18,7 +18,9 @@ import { describe, expect, it } from "vitest";
 import {
   CUSTOMER_BU_SUB_COLUMNS,
   CUSTOMER_SUB_COLUMN_BY_KEY,
+  CUSTOMER_TOTAL_ROW_ID,
   customerIdentityText,
+  customerTotal,
   CUSTOMER_BU_SUB_COLUMN_BY_KEY,
   CUSTOMER_SUB_COLUMNS,
   customerLeadColumns,
@@ -62,10 +64,11 @@ const account = (id: string, name: string, over: Partial<AccountsResponse> = {})
 /**
  * The customer rows alone, with the Total row above them dropped.
  *
- * These tests are about which CUSTOMERS the book yields and in what order.
+ * These tests are about which CUSTOMERS the book yields and in what order; the
+ * Total row pinned over them is its own describe block below.
  */
 const customerRowsOf = (columns: readonly (readonly AccountsResponse[])[]) =>
-  customerAccountRows(columns).rows;
+  customerAccountRows(columns).rows.filter((row) => row.id !== CUSTOMER_TOTAL_ROW_ID);
 
 describe("which customers the table has rows for", () => {
   it("gives one row per account, labelled with the account name", () => {
@@ -373,12 +376,12 @@ describe("the identity columns, left of the first figure", () => {
   it("reads the account's own answer through customerIdentityText", () => {
     const owner = customerLeadColumns("Total ARR").find((c) => c.label === "Account Owner")!;
     const one = account("a1", "Northwind Bank", { accountOwnerName: "R. Perera" });
-    expect(customerIdentityText(one, owner)).toBe("R. Perera");
+    expect(customerIdentityText("a1", one, owner)).toBe("R. Perera");
   });
 
   it("reads blank for a customer this column's book does not have", () => {
     const owner = customerLeadColumns("Total ARR").find((c) => c.label === "Account Owner")!;
-    expect(customerIdentityText(undefined, owner)).toBe("");
+    expect(customerIdentityText("a1", undefined, owner)).toBe("");
   });
 });
 
@@ -490,6 +493,70 @@ describe("the BU-only columns", () => {
 // named metric rows) and the two Exit ARR summaries compute theirs across
 // REGIONS. This one runs down the customer book.
 
+describe("the Total row", () => {
+  const twoCustomers = [
+    account("a1", "Northwind Bank", { apimSoftwareTotal: 100, arrGrandTotal: 400 }),
+    account("a2", "Contoso", { apimSoftwareTotal: 25, arrGrandTotal: 75 }),
+  ];
+
+  it("sits at the top, above the customers it counts", () => {
+    const { rows } = customerAccountRows([twoCustomers]);
+    expect(rows.map((row) => row.label)).toEqual(["Total", "Northwind Bank", "Contoso"]);
+    expect(rows[0].id).toBe(CUSTOMER_TOTAL_ROW_ID);
+  });
+
+  it("is emphasised, because it is a balance and not a customer", () => {
+    const { rows } = customerAccountRows([twoCustomers]);
+    expect(rows[0].emphasis).toBe(true);
+    // No rule above it: a stroke is what an accountant draws UNDER the figures
+    // being added, and this total is above them.
+    expect(rows[0].ruleAbove).toBeFalsy();
+  });
+
+  it("adds a column's figures down the customer book", () => {
+    const apim = CUSTOMER_SUB_COLUMN_BY_KEY.get("software-apim")!;
+    expect(customerTotal(twoCustomers, apim)).toBe(125);
+  });
+
+  it("counts a customer's figure as the table shows it, fallback and all", () => {
+    // `customerFigure`'s grand-total rule: a zero total falls through to the two
+    // halves. The source's total row sums the field it has ALREADY applied that
+    // rule to (`${periodKey}_total`), so the column foots against what is on
+    // screen rather than against the raw wire.
+    const book = [
+      account("a1", "Northwind Bank", { arrGrandTotal: 0, arrSoftwareTotal: 60, arrCloudTotal: 40 }),
+      account("a2", "Contoso", { arrGrandTotal: 10 }),
+    ];
+    expect(customerTotal(book, CUSTOMER_SUB_COLUMN_BY_KEY.get("grand-total")!)).toBe(110);
+  });
+
+  it("counts nothing for a customer absent from that column", () => {
+    const grandTotal = CUSTOMER_SUB_COLUMN_BY_KEY.get("grand-total")!;
+    expect(customerTotal([twoCustomers[1]], grandTotal)).toBe(75);
+  });
+
+  it("is blank, not zero, for a column that never answered", () => {
+    expect(customerTotal(undefined, CUSTOMER_SUB_COLUMN_BY_KEY.get("grand-total")!)).toBeUndefined();
+  });
+
+  it("is zero for a column that answered with an empty book", () => {
+    expect(customerTotal([], CUSTOMER_SUB_COLUMN_BY_KEY.get("grand-total")!)).toBe(0);
+  });
+
+  it("reads a dash in every identity column, because it is not an account", () => {
+    const columns = customerLeadColumns("Total ARR");
+    const identityTexts = columns
+      .slice(1)
+      .map((column) => customerIdentityText(CUSTOMER_TOTAL_ROW_ID, undefined, column));
+    expect(new Set(identityTexts)).toEqual(new Set(["-"]));
+  });
+
+  it("does not appear over an empty book, where the source shows a row of zeroes", () => {
+    expect(customerAccountRows([]).rows).toEqual([]);
+    expect(customerAccountRows([[], []]).rows).toEqual([]);
+  });
+});
+
 // The two views disagree about the Total column, and the source is where the
 // disagreement comes from. BOTH fall back when the backend sends no grand total,
 // and they fall back to DIFFERENT SUMS under DIFFERENT conditions:
@@ -540,3 +607,38 @@ describe("the grand-total fallback, which both views have and neither shares", (
   });
 });
 
+// The Total ROW asks the same question of the whole book rather than of each
+// customer, and for the BU-only Total those are different numbers. The source
+// sums the raw `_bu_total` down the book FIRST and applies the column's rule to
+// the sum — so one customer whose grand total is missing does not drag the
+// whole column onto the fallback.
+describe("the Total row's own reading of the BU-only Total", () => {
+  const buTotal = CUSTOMER_BU_SUB_COLUMN_BY_KEY.get("bu-total")!;
+
+  it("adds the grand totals when the book has any", () => {
+    const book = [
+      account("a1", "Northwind Bank", { arrGrandTotal: 0, apimBuTotal: 100 }),
+      account("a2", "Contoso", { arrGrandTotal: 50, apimBuTotal: 50 }),
+    ];
+    // 50, not 150: the rule is applied to the SUM of the raw totals, which is
+    // positive, so the fallback is never reached. Summing each customer's own
+    // answer would have counted a1's units and a2's total together.
+    expect(customerTotal(book, buTotal)).toBe(50);
+  });
+
+  it("falls back to the six units only when the whole book sent no total", () => {
+    const book = [
+      account("a1", "Northwind Bank", { arrGrandTotal: 0, apimBuTotal: 100, iamBuTotal: 5 }),
+      account("a2", "Contoso", { arrGrandTotal: 0, apimBuTotal: 20 }),
+    ];
+    expect(customerTotal(book, buTotal)).toBe(125);
+  });
+
+  it("still totals the other columns by adding what each customer shows", () => {
+    const book = [
+      account("a1", "Northwind Bank", { arrGrandTotal: 0, arrSoftwareTotal: 60, arrCloudTotal: 40 }),
+      account("a2", "Contoso", { arrGrandTotal: 10 }),
+    ];
+    expect(customerTotal(book, CUSTOMER_SUB_COLUMN_BY_KEY.get("grand-total")!)).toBe(110);
+  });
+});

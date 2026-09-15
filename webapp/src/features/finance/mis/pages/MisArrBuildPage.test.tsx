@@ -534,6 +534,46 @@ describe("how the customer table breaks a customer's revenue down", () => {
   });
 });
 
+describe("the customer table's Total row", () => {
+  // `useCustomerAccounts.js:443-508`. The only client-computed total in the ARR
+  // Build that runs down the CUSTOMERS rather than across named metric rows.
+
+  it("sits above the customers, so the column total is read first", () => {
+    renderPage("?table=customers");
+    const rows = within(screen.getByRole("table", { name: /Customers/ })).getAllByRole("row");
+    // Two header rows, then the total, then the book.
+    expect(rows[2]).toHaveTextContent("Total");
+    expect(rows[3]).toHaveTextContent("Northwind Bank");
+  });
+
+  it("adds the column down the book", () => {
+    customers.value = customerBook([
+      NORTHWIND,
+      { ...NORTHWIND, id: "a2", name: "Contoso", apimBuTotal: 100_000 },
+    ]);
+    renderPage("?table=customers");
+    const total = within(screen.getByRole("table", { name: /Customers/ })).getAllByRole("row")[2];
+    expect(within(total).getByText("500,000.00")).toBeInTheDocument();
+  });
+
+  it("reads a dash in the identity columns, because it is not an account", () => {
+    renderPage("?table=customers");
+    const total = within(screen.getByRole("table", { name: /Customers/ })).getAllByRole("row")[2];
+    const cells = within(total).getAllByRole("cell");
+    // Account ID, Owner, Source — where a customer row carries its facts.
+    expect(cells[0]).toHaveTextContent("-");
+    expect(cells[1]).toHaveTextContent("-");
+    expect(cells[2]).toHaveTextContent("-");
+  });
+
+  it("totals the Software/Cloud breakdown too, not only the units", async () => {
+    renderPage("?table=customers");
+    await userEvent.click(screen.getByRole("button", { name: "Software / Cloud" }));
+    const total = within(screen.getByRole("table", { name: /Customers/ })).getAllByRole("row")[2];
+    expect(within(total).getByText("600,000.00")).toBeInTheDocument();
+  });
+});
+
 describe("while the figures are loading", () => {
   it("holds the space rather than showing an empty Build", () => {
     summary.value = { ...loaded({}), isLoading: true, columns: [] };

@@ -593,6 +593,12 @@ the view on a narrowed unit shows the live app's All BU figures beside the port'
 follow from having one unit control instead of two; both are worth knowing before a figure is called
 a discrepancy.
 
+**The Software/Cloud Customers Total row is omitted over an empty book.** `useCustomerAccounts.js`
+sets `shouldAddTotalRow` to the literal `true`, so a book with nobody in it still renders a Total row
+of zeroes. The port shows its empty state instead: a row of zeroes reads as a company that earned
+nothing, where "no customers to show" says what actually happened. Every other case — including a
+column that failed, which totals blank rather than zero — is the source's.
+
 **A link cannot carry a filter the Table does not offer; the source's can.** The source greys these
 out in the BAR — `UNAVAILABLE_BUILD_FILTERS` keeps the View and the seven account and geography
 filters on screen, disabled, on Customers and the two summaries; Customers loses Channel/Direct too,
@@ -854,6 +860,8 @@ ported.
     (§7). Its Total row foots against the rows above it, unlike Exit ARR's (§8). Check at a unit other
     than All, since that is the whole point of the view — and expect the source to be showing All BU
     there whatever its tabs say, which is the §7 deviation rather than a discrepancy.
+25b. The **Software/Cloud Customers Total row** matches the source's, in BOTH breakdowns. The Total
+    column differs between them by design (§8), so a check in one says nothing about the other.
 
 ### The filter bar
 26. A control changed but not applied leaves the address alone, enables Apply, and says so in a live

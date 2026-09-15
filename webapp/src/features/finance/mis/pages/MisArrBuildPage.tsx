@@ -54,10 +54,12 @@ import {
   CUSTOMER_BU_SUB_COLUMN_BY_KEY,
   CUSTOMER_SUB_COLUMNS,
   CUSTOMER_SUB_COLUMN_BY_KEY,
+  CUSTOMER_TOTAL_ROW_ID,
   customerAccountRows,
   customerFigure,
   customerIdentityText,
   customerLeadColumns,
+  customerTotal,
   type AccountsResponse,
   type CustomerLeadColumn,
 } from "../components/customerAccountRows";
@@ -410,12 +412,19 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
       new Map((column.accounts ?? []).map((account) => [account.id, account])),
     ]),
   );
+  // The Total row adds a column down the whole book, so it needs the LIST and
+  // not the by-id map above. Absent for a column that never answered, which is
+  // what keeps its cells blank rather than zero.
+  const accountsByColumn = new Map<string, readonly AccountsResponse[] | undefined>(
+    book.columns.map((column) => [column.label, column.accounts]),
+  );
+
   // The column hands back its own reader — `BuildTable` is generic over the
   // caller's column type, so this is the very object `leadColumns` holds and
   // not a key to look one up by. On a windowed 3,000-row table that is the
   // difference between one call and seventeen comparisons per identity cell.
   const leadCell = (row: { id: string }, column: CustomerLeadColumn) =>
-    customerIdentityText(accountById.get(row.id), column);
+    customerIdentityText(row.id, accountById.get(row.id), column);
 
   const columnGroups = book.columns.map(({ label }) => ({ key: label, label }));
   const breakdown = buOnly ? CUSTOMER_BU_SUB_COLUMNS : CUSTOMER_SUB_COLUMNS;
@@ -427,6 +436,9 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
     // figure's own definition has to be found by key, and this table renders
     // seven or twelve of them under every Period.
     const definition = breakdownByKey.get(subColumnKey)!;
+    if (row.id === CUSTOMER_TOTAL_ROW_ID) {
+      return customerTotal(accountsByColumn.get(group.key), definition);
+    }
     return customerFigure(byColumn.get(group.key)?.get(row.id), definition);
   };
   const cell: BuildCellFor = (row, group, subColumn) => {
