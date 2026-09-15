@@ -16,11 +16,16 @@
  * under the License.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { appMark } from "./appMarkRegistry";
 import { APP_MARK_TONES } from "./appMarkTones";
-import { PERSPECTIVES } from "@constants/perspectives";
+
+const originalConfig = window.config;
+afterEach(() => {
+  window.config = originalConfig;
+  vi.resetModules();
+});
 
 /** Renders one mark and hands back its root <svg> for inspection. */
 function draw(key: string) {
@@ -40,9 +45,20 @@ describe("app marks", () => {
    * Authoring one is a design task, not a code change, so gating an unrelated
    * perspective's PR on it would be the wrong coupling — the launcher falls back
    * to that perspective's line glyph until someone draws it a mark.
+   *
+   * Checked with every preview flag on: this is a completeness check on what
+   * has been BUILT, not on what is currently released, so a perspective held
+   * back by a preview flag (see perspectives.ts's `umt` entry) must not read as
+   * a dead tone here the way an unauthored mark would.
    */
-  it("pairs every mark with its tones, both ways", () => {
-    const marked = PERSPECTIVES.filter((p) => appMark(p.key)).map((p) => p.key);
+  it("pairs every mark with its tones, both ways", async () => {
+    vi.resetModules();
+    window.config = {
+      ...(window.config ?? {}),
+      ONE_WSO2_PREVIEW_FEATURES: { expenseSubmitter: true, umt: true },
+    } as Window["config"];
+    const { PERSPECTIVES: allPerspectives } = await import("@constants/perspectives");
+    const marked = allPerspectives.filter((p) => appMark(p.key)).map((p) => p.key);
     expect(new Set(marked)).toEqual(new Set(Object.keys(APP_MARK_TONES)));
   });
 

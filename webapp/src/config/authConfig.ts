@@ -78,6 +78,10 @@ declare global {
       // perspectives. Same optional/"not connected" contract as the three
       // above.
       ONE_WSO2_DUE_DILIGENCE_BACKEND_URL?: string;
+      // Base URL for the standalone Updates Manager service. Optional — when
+      // absent, UmtShell shows a not-connected state and makes no UMT requests.
+      // Its /update/user-info roles are local to UMT, not People capabilities.
+      ONE_WSO2_UMT_BACKEND_URL?: string;
       // Base URL of the leave-app frontend itself (not its backend) —
       // used to deep-link into flows this webapp doesn't replicate, like
       // sabbatical requests. Optional — when absent, that link is hidden.

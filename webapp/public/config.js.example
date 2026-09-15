@@ -66,6 +66,11 @@ window.config = {
   // ONE_WSO2_CC_EXPENSES_BACKEND_URL: "<your-cc-expenses-backend-url>",
   // ONE_WSO2_EXPENSE_CLAIMS_BACKEND_URL: "<your-expense-claims-backend-url>",
 
+  // Updates Manager backend base URL. Optional — when absent, UMT shows a
+  // not-connected state and makes no requests. The value is the service root;
+  // the access check is GET <base-url>/update/user-info.
+  // ONE_WSO2_UMT_BACKEND_URL: "<your-updates-manager-backend-url>",
+
   // leave-app frontend base URL (not its backend) — used to deep-link into
   // flows this webapp doesn't replicate (e.g. sabbatical requests).
   // Optional — when absent, that link is hidden.
@@ -125,5 +130,5 @@ window.config = {
   // Each entry is deleted when its feature ships — a list that only grows
   // stops describing anything.
   //
-  // ONE_WSO2_PREVIEW_FEATURES: { expenseSubmitter: false },
+  // ONE_WSO2_PREVIEW_FEATURES: { expenseSubmitter: false, umt: false },
 };

@@ -362,6 +362,38 @@ export const expenseServiceUrls = {
     `${expenseBackendUrl}/claims/transactions/receipts/file/${encodeURIComponent(fileName)}`,
 };
 
+// ---- Updates Manager backend ---------------------------------------------
+//
+// Reuses the standalone Updates Manager service without changing its route
+// layout. Identity and dashboard statistics live below `/update`, while the
+// shared metadata endpoint remains at the service root. Keep that split when
+// adding endpoints; prefixing `/meta` with `/update` returns the wrong route.
+//
+// `/update/user-info` returns UMT's own numeric roles (444/555/666). They are
+// interpreted by useUmtGate and must not be mixed with the People backend's
+// app-wide capabilities.
+//
+// Empty string = not configured; UmtShell renders the connection state and
+// prevents its feature children from mounting. Trailing slashes are stripped
+// because every endpoint below adds its own leading slash.
+export const umtBackendUrl: string = (
+  window.config?.ONE_WSO2_UMT_BACKEND_URL ?? ""
+).replace(/\/+$/, "");
+
+export function isUmtBackendConfigured(): boolean {
+  return Boolean(umtBackendUrl);
+}
+
+export const umtServiceUrls = {
+  // GET — caller identity and UMT-local roles; this is the perspective gate.
+  userInfo: `${umtBackendUrl}/update/user-info`,
+  // GET — products, versions, issue types, lifecycles and user emails shared
+  // by the update workflows. This endpoint deliberately sits outside /update.
+  meta: `${umtBackendUrl}/meta`,
+  // GET — aggregate update lifecycle and release-chunk build counts.
+  updatesStats: `${umtBackendUrl}/update/stats`,
+};
+
 // ---- marketing-ops backend -------------------------------------------------
 //
 // The Marketing Ops backend (digiops-marketing/agents/marketing-ops) is a

@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -171,5 +171,50 @@ describe("launcher app marks", () => {
         expect(glyph, `${p.label} should fall back to its line glyph`).not.toBeNull();
       }
     }
+  });
+});
+
+describe("the UMT preview tile", () => {
+  const originalConfig = window.config;
+  afterEach(() => {
+    window.config = originalConfig;
+    vi.resetModules();
+  });
+
+  // UMT is behind a preview flag applied to the perspective REGISTRY itself
+  // (see perspectives.ts), not just `access` — so with the flag off there must
+  // be no tile at all, not a disabled "not available yet" one like a
+  // perspective that is merely unbuilt (see the "offers no star" test above).
+  // Loaded fresh per state, same as financeApps.test.ts, since the registry is
+  // a module-level constant derived from `window.config`.
+  async function renderWithFlag(umt?: boolean) {
+    vi.resetModules();
+    window.config = {
+      ...(window.config ?? {}),
+      ONE_WSO2_PREVIEW_FEATURES: { umt },
+    } as Window["config"];
+    const { default: FreshWaffleOverlay } = await import("@components/waffle/WaffleOverlay");
+    const anchor = document.createElement("button");
+    document.body.appendChild(anchor);
+    render(
+      <MemoryRouter>
+        <FreshWaffleOverlay anchorEl={anchor} onClose={() => {}} />
+      </MemoryRouter>,
+    );
+  }
+
+  it("shows no UMT tile when the flag is off", async () => {
+    await renderWithFlag(false);
+    expect(screen.queryByRole("button", { name: /UMT/ })).toBeNull();
+  });
+
+  it("shows no UMT tile on an absent flag either", async () => {
+    await renderWithFlag(undefined);
+    expect(screen.queryByRole("button", { name: /UMT/ })).toBeNull();
+  });
+
+  it("shows a UMT tile when the flag is on", async () => {
+    await renderWithFlag(true);
+    expect(screen.getByRole("button", { name: "Switch to UMT" })).toBeInTheDocument();
   });
 });

@@ -62,6 +62,7 @@ export const APP_MARK_TONES: Record<string, AppMarkTones> = {
   marketing: { field: "#F0A8C9", lead: "#E04A8F", detail: "#B83D75" },
   csm: { field: "#CFB1F0", lead: "#9B5DE0", detail: "#7F4CB8" },
   legal: { field: "#B8C6F0", lead: "#6C89E0", detail: "#5970B8" },
+  umt: { field: "#F0B65A", lead: "#B87300", detail: "#A45C00" },
 };
 
 /**

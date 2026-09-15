@@ -27,7 +27,7 @@
  * the launcher is the one surface with nothing else doing that job.
  *
  * SIZING, and the constraint that will eventually break this: the registry holds
- * six perspectives and every one of them has a hue, so the set is at six of the
+ * seven perspectives and every one of them has a hue, so the set is at seven of the
  * eight it can carry. Hue discrimination collapses somewhere past that, and each
  * new perspective wants one — at which point the answer is a different encoding
  * (hue per domain family, or back to monochrome), not a longer list.
@@ -49,7 +49,7 @@
  * reviewed, and asserted — see perspectiveHues.test.ts, which fails if any pair
  * drops below the 3:1 floor.
  *
- * OPEN: five of these six are not brand colours. The WSO2 brand system defines one
+ * OPEN: six of these seven are not brand colours. The WSO2 brand system defines one
  * accent, so a palette this wide needs a brand-owner ruling — the same conversation
  * as the 180x72px logo minimum and the contained-button contrast. Until then this is
  * launcher-local and easy to withdraw.
@@ -116,6 +116,15 @@ export const PERSPECTIVE_HUES: Record<string, PerspectiveHue> = {
     hue: "#6C89E0",
     light: { bg: "#CFD8F3", fg: "#3854A8" },
     dark: { bg: "#262A34", fg: "#6C89E0" },
+  },
+
+  // Burnished amber separates UMT from Me's brand orange without introducing
+  // another blue/green neighbour. The wash/foreground pairs retain the same
+  // contrast headroom asserted for every launcher tile below.
+  umt: {
+    hue: "#B87300",
+    light: { bg: "#FFF3D6", fg: "#8A5600" },
+    dark: { bg: "#30281A", fg: "#F5B800" },
   },
 };
 

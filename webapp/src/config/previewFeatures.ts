@@ -65,7 +65,17 @@ export type PreviewFeature =
    * the Lead Portal, Admin Portal, Report Chain and F2F follow it over — see
    * docs/ported-apps/par-app.md §7.
    */
-  | "par";
+  | "par"
+  /**
+   * The whole UMT perspective — rail entry, launcher tile, landing-page
+   * option, favourites eligibility, and the `/umt` route. UMT is still being
+   * ported: only its dashboard exists so far (see perspectives.ts), and that
+   * is gated as a whole rather than screen-by-screen because the thing that
+   * needs to stay preview-only is the perspective's presence itself, not one
+   * route inside it. `useUmtGate`'s own role check against the UMT backend is
+   * unrelated and keeps working the same regardless of this flag.
+   */
+  | "umt";
 
 /**
  * Whether a preview feature should be shown.
