@@ -47,6 +47,7 @@
 // that is not it shows nothing rather than nothing-shaped-like-figures.
 
 import type { BuildRow, BuildSubColumn } from "./buildTableModel";
+import { REGION_LABELS, regionId, regionLabel } from "../util/misRegions";
 
 /**
  * One business-unit split, as both endpoints send it.
@@ -151,7 +152,7 @@ export function regionExitTable(columns: readonly RegionExitColumn[]): RegionExi
       // First appearance wins the spelling, oldest column first — so a region
       // does not rename itself under the reader when a later column spells it
       // differently.
-      if (!labelById.has(id)) labelById.set(id, regionLabel(key));
+      if (!labelById.has(id)) labelById.set(id, exitArrRegionLabel(key));
       byRow.set(id, regionFigures(split));
     }
     byRow.set(TOTAL_ROW_ID, totalOf(byRow.values()));
@@ -242,65 +243,21 @@ function totalOf(regions: Iterable<BuFigures>): BuFigures {
 const numberOf = (value: number | undefined): number =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
 
-/** The row a region key belongs to: its name, case- and spacing-insensitive. */
-const regionId = (key: string): string =>
-  key.trim().replace(/_/g, " ").replace(/\s+/g, " ").toLowerCase();
-
 /**
- * How finance writes each region, for the keys where the wire and the report
- * disagree. Verbatim from `formatRegionLabel`'s own map.
+ * The shared region labels plus this table's own total aliases.
+ *
+ * `TOTAL_KEYS` filters `total exit arr` and `total` out before anything is
+ * labelled, so what these actually catch is a backend that spells the total
+ * row a third way. Kept as the source keeps them.
  */
-const REGION_LABELS: Readonly<Record<string, string>> = {
-  apac: "APAC",
-  eu: "EU",
-  na: "NA",
-  me: "ME",
-  latam: "LatAm",
-  anz: "ANZ",
-  roe: "ROE",
-  roa: "ROA",
+const EXIT_ARR_REGION_LABELS: Readonly<Record<string, string>> = {
+  ...REGION_LABELS,
   [TOTAL_ROW_ID]: TOTAL_ROW_LABEL,
   "total exit": TOTAL_ROW_LABEL,
-  total: "Total",
 };
 
-/**
- * A region key as a row header.
- *
- * ---- one rule of the source's is deliberately narrowed -------------------
- *
- * `formatRegionLabel` uppercases EVERY word of two to four letters, so that
- * unmapped acronyms come out as acronyms. Applied per word it also shouts short
- * ordinary ones: "Middle East" — a region named in that function's own comment
- * — renders "Middle EAST". Here the rule applies only when the whole key IS one
- * short word, which is when it is an acronym; a multi-word key is prose and is
- * title-cased instead. Recorded in `docs/ported-apps/mis.md` §7.
- *
- * Capitals the wire already sent are kept, so a backend that sends display
- * names gets them back unchanged rather than re-cased on a guess.
- */
-function regionLabel(key: string): string {
-  const name = key.trim().replace(/_/g, " ").replace(/\s+/g, " ");
-  const mapped = REGION_LABELS[name.toLowerCase()];
-  if (mapped) return mapped;
-  // Split on + and -, keeping them, so a combined region reads "EU + ROE"
-  // rather than "Eu+roe". The separators come back spaced either way.
-  return name
-    .split(/\s*([-+])\s*/)
-    .map((part) => (part === "-" || part === "+" ? ` ${part} ` : namePart(part)))
-    .join("");
-}
-
-function namePart(part: string): string {
-  const mapped = REGION_LABELS[part.toLowerCase()];
-  if (mapped) return mapped;
-  if (/^[A-Za-z]{2,4}$/.test(part)) return part.toUpperCase();
-  // Only a word with no capitals of its own is re-capitalised. "Middle East"
-  // survives; "middle east" is fixed.
-  return part.replace(/\S+/g, (word) =>
-    /[A-Z]/.test(word) ? word : word.charAt(0).toUpperCase() + word.slice(1),
-  );
-}
+/** A region key as this table's row header. See `regionLabel` in `misRegions`. */
+const exitArrRegionLabel = (key: string): string => regionLabel(key, EXIT_ARR_REGION_LABELS);
 
 /** One figure column of a Region Summary, repeated under every Period. */
 export interface RegionExitSubColumn extends BuildSubColumn {

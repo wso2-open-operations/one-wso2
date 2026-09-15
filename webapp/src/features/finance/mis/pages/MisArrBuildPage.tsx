@@ -50,10 +50,13 @@ import {
 } from "../util/misViewVocabulary";
 import { useCustomerAccounts } from "../api/useCustomerAccounts";
 import {
+  CUSTOMER_BU_SUB_COLUMNS,
+  CUSTOMER_BU_SUB_COLUMN_BY_KEY,
   CUSTOMER_SUB_COLUMNS,
   CUSTOMER_SUB_COLUMN_BY_KEY,
   customerAccountRows,
   customerFigure,
+  customerIdentityText,
   customerLeadColumns,
   type AccountsResponse,
   type CustomerLeadColumn,
@@ -62,8 +65,19 @@ import { useMisAppConfigs } from "../api/useMisAppConfigs";
 import MisFilterBar from "../components/MisFilterBar";
 import MisTableTabs from "../components/MisTableTabs";
 import MisCustomerDrillDown from "../components/MisCustomerDrillDown";
+import MisCustomerBreakdownTabs from "../components/MisCustomerBreakdownTabs";
 import MisRegionTypeTabs from "../components/MisRegionTypeTabs";
-import { useExitArrByBU, useExitArrByRegion } from "../api/useExitArr";
+import MisRegionSummaryTabs, {
+  MIS_REGION_SUMMARY_VIEWS,
+  MIS_REGION_SUMMARY_VIEW_LABELS,
+  type MisRegionSummaryView,
+} from "../components/MisRegionSummaryTabs";
+import { useExitArrByBU, useExitArrByRegion, useRegionMetrics } from "../api/useExitArr";
+import {
+  REGION_METRICS_SUB_COLUMNS,
+  REGION_METRICS_SUB_COLUMN_BY_KEY,
+  regionMetricsTable,
+} from "../components/regionMetricsRows";
 import {
   BU_EXIT_ROWS,
   REGION_EXIT_SUB_COLUMNS,
@@ -372,6 +386,10 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
  * put six Periods on screen where the source shows five.
  */
 function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
+  // BU only is the source's default — `DataGrid.js:365` is `useState(true)` —
+  // so it is the default here. Both breakdowns read the same response, so this
+  // switches columns and fires no request.
+  const [buOnly, setBuOnly] = useState(true);
   const ranges = useMemo(
     () => buildColumnRanges(view.viewWindow, view.filters),
     [view.viewWindow, view.filters],
@@ -392,24 +410,23 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
       new Map((column.accounts ?? []).map((account) => [account.id, account])),
     ]),
   );
-
   // The column hands back its own reader — `BuildTable` is generic over the
   // caller's column type, so this is the very object `leadColumns` holds and
   // not a key to look one up by. On a windowed 3,000-row table that is the
   // difference between one call and seventeen comparisons per identity cell.
-  const leadCell = (row: { id: string }, column: CustomerLeadColumn) => {
-    const account = accountById.get(row.id);
-    return account ? column.value(account) : "";
-  };
+  const leadCell = (row: { id: string }, column: CustomerLeadColumn) =>
+    customerIdentityText(accountById.get(row.id), column);
 
   const columnGroups = book.columns.map(({ label }) => ({ key: label, label }));
-  const subColumns = CUSTOMER_SUB_COLUMNS.map(({ key, label }) => ({ key, label, width: 150 }));
+  const breakdown = buOnly ? CUSTOMER_BU_SUB_COLUMNS : CUSTOMER_SUB_COLUMNS;
+  const breakdownByKey = buOnly ? CUSTOMER_BU_SUB_COLUMN_BY_KEY : CUSTOMER_SUB_COLUMN_BY_KEY;
+  const subColumns = breakdown.map(({ key, label }) => ({ key, label, width: 150 }));
   /** The figure itself, shared by the cell below and by the export. */
   const rawFigure = (row: BuildRow, group: BuildColumnGroup, subColumnKey: string) => {
     // A Map, not a scan: `BuildTable` takes plain `BuildSubColumn`s, so the
     // figure's own definition has to be found by key, and this table renders
-    // twelve of them under every Period.
-    const definition = CUSTOMER_SUB_COLUMN_BY_KEY.get(subColumnKey)!;
+    // seven or twelve of them under every Period.
+    const definition = breakdownByKey.get(subColumnKey)!;
     return customerFigure(byColumn.get(group.key)?.get(row.id), definition);
   };
   const cell: BuildCellFor = (row, group, subColumn) => {
@@ -427,24 +444,39 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
     return <Skeleton variant="rectangular" height={320} sx={{ borderRadius: 1.5, mt: 1.5 }} />;
   }
 
+  // Above every state but loading, which is where the source puts its own
+  // (`DataGrid.js:1063-1105` gates the control on `!loading` alone) and where
+  // the Region Summary's two controls sit beside this one. It matters most on
+  // the states that are not the happy one: a reader who lands on an error or
+  // an empty book keeps the control, rather than losing the switch at the
+  // moment they most want to try the other side of it.
+  const breakdownTabs = <MisCustomerBreakdownTabs buOnly={buOnly} onChange={setBuOnly} />;
+
   if (book.isError) {
     return (
-      <ErrorNotice onRetry={book.retry} sx={{ mt: 1.5 }}>
-        Couldn't load the customers. {book.errorMessage}
-      </ErrorNotice>
+      <Box>
+        {breakdownTabs}
+        <ErrorNotice onRetry={book.retry} sx={{ mt: 1.5 }}>
+          Couldn't load the customers. {book.errorMessage}
+        </ErrorNotice>
+      </Box>
     );
   }
 
   if (!book.columns.length || !rows.length) {
     return (
-      <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
-        No customers to show. Widen Years Back, or loosen the filters.
-      </Typography>
+      <Box>
+        {breakdownTabs}
+        <Typography variant="body2" color="text.secondary" sx={{ py: 3 }}>
+          No customers to show. Widen Years Back, or loosen the filters.
+        </Typography>
+      </Box>
     );
   }
 
   return (
     <Box>
+      {breakdownTabs}
       <GridCaptionBar
         scale={scale}
         exportButton={
@@ -486,27 +518,75 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
 }
 
 /**
+ * The Region Summary, which is one Table asked two ways.
+ *
+ * Exit ARR is each region's BALANCE at the column's date, split seven ways by
+ * business unit; All ARR Metrics is each region's MOVEMENT over the column,
+ * narrowed to one business unit. Two endpoints, two row builders and two cache
+ * entries — not two arrangements of one answer.
+ *
+ * This component owns only what they share: which view is on screen, which
+ * geography the rows are cut by, and the two controls that choose them. Both
+ * controls are rendered above every state a grid can be in — loading, failed,
+ * empty — for the same reason the filter bar is: a reader whose Sub Region read
+ * failed has to be able to get back to Sales Region.
+ */
+function RegionSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
+  // Component state, and not in the URL — see `MisRegionSummaryTabs` and
+  // `MisRegionTypeTabs` for why, and `docs/ported-apps/mis.md` §11 for the
+  // decision both are waiting on.
+  const [summaryView, setSummaryView] = useState<MisRegionSummaryView>(
+    MIS_REGION_SUMMARY_VIEWS.EXIT_ARR,
+  );
+  const [bySalesRegion, setBySalesRegion] = useState(true);
+
+  // Switching view returns the cut to Sales Region, which is the source's own
+  // `handleTabChange`. The two views ask the backend for different things, so
+  // carrying a Sub Region cut across would silently re-read the other table by
+  // a geography the reader chose for this one.
+  const changeView = (next: MisRegionSummaryView) => {
+    setSummaryView(next);
+    setBySalesRegion(true);
+  };
+
+  return (
+    <Box>
+      <MisRegionSummaryTabs view={summaryView} onChange={changeView} />
+      <MisRegionTypeTabs bySalesRegion={bySalesRegion} onChange={setBySalesRegion} />
+      {summaryView === MIS_REGION_SUMMARY_VIEWS.ALL_ARR_METRICS ? (
+        <RegionMetricsGrid view={view} scale={scale} bySalesRegion={bySalesRegion} />
+      ) : (
+        <RegionExitGrid view={view} scale={scale} bySalesRegion={bySalesRegion} />
+      )}
+    </Box>
+  );
+}
+
+/**
  * Exit ARR by Region — what the company was worth in each region, as at each
  * column's date, split by business unit.
  *
  * ---- a summary is not a Build, and the difference shows in three places ----
  *
  * 1. The column header is `As of {end}` rather than `{opening} - {end}`: this
- *    reports a BALANCE at a moment, not a MOVEMENT over a span.
+ *    reports a BALANCE at a moment, not a MOVEMENT over a span. All ARR Metrics
+ *    below is the other half of that sentence, and takes the Build's header.
  * 2. The rows come from the RESPONSE. The Build's rows are named metric lines
  *    and the Customers table's are accounts; these are whatever regions the
- *    backend cut by, which depends on the Region Type below.
+ *    backend cut by, which depends on the Region Type above.
  * 3. There are seven sub-columns under each Period rather than one, because the
- *    per-unit split is what this table is for.
- *
- * The Region Type control is rendered above every state this can be in —
- * loading, failed, empty — for the same reason the filter bar is: a reader
- * whose Sub Region read failed has to be able to get back to Sales Region.
+ *    per-unit split is what this table is for — which is also why the unit tabs
+ *    above the grid are ignored here and honoured by the other view.
  */
-function RegionSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
-  // Component state, and not in the URL — see `MisRegionTypeTabs` for why, and
-  // `docs/ported-apps/mis.md` §11 for the decision it is waiting on.
-  const [bySalesRegion, setBySalesRegion] = useState(true);
+function RegionExitGrid({
+  view,
+  scale,
+  bySalesRegion,
+}: {
+  view: MisViewState;
+  scale: MisScale;
+  bySalesRegion: boolean;
+}) {
   const ranges = useMemo(
     () => buildColumnRanges(view.viewWindow, view.filters),
     [view.viewWindow, view.filters],
@@ -536,45 +616,142 @@ function RegionSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScal
   };
 
   return (
-    <Box>
-      <MisRegionTypeTabs bySalesRegion={bySalesRegion} onChange={setBySalesRegion} />
-      <SummaryBody
-        state={summary}
-        // Only the computed total is left once every region has been stripped
-        // out, so one row means no regions came back rather than an empty table.
-        isEmpty={rows.length <= 1}
-        emptyMessage="No regions to show. Widen Years Back, or loosen the filters."
-        errorMessage={`Couldn't load the Region Summary. ${summary.errorMessage}`}
-        scale={scale}
-        exportButton={
-          <MisExportButton
-            workbook={() =>
-              oneSheet({
-                name: MIS_TABLE_LABELS[MIS_TABLES.EXIT_ARR_BY_REGION],
-                rowLabelHeader: "Region",
-                rowLabelWidth: REGION_LABEL_WIDTH,
-                columnGroups,
-                subColumns: REGION_EXIT_SUB_COLUMNS,
-                rows,
-                value: rawFigure,
-                valueType: ALL_CURRENCY,
-              })
-            }
-            filename={() => exportFilenameFor(MIS_TABLES.EXIT_ARR_BY_REGION)}
-          />
-        }
-      >
-        <BuildTable
-          label="ARR Build — Region Summary"
-          rowLabelHeader="Region"
-          rowLabelWidth={REGION_LABEL_WIDTH}
-          columnGroups={columnGroups}
-          subColumns={REGION_EXIT_SUB_COLUMNS}
-          rows={rows}
-          cell={cell}
+    <SummaryBody
+      state={summary}
+      // Only the computed total is left once every region has been stripped
+      // out, so one row means no regions came back rather than an empty table.
+      isEmpty={rows.length <= 1}
+      emptyMessage="No regions to show. Widen Years Back, or loosen the filters."
+      errorMessage={`Couldn't load the Region Summary. ${summary.errorMessage}`}
+      scale={scale}
+      exportButton={
+        <MisExportButton
+          workbook={() =>
+            oneSheet({
+              name: MIS_TABLE_LABELS[MIS_TABLES.EXIT_ARR_BY_REGION],
+              rowLabelHeader: "Region",
+              rowLabelWidth: REGION_LABEL_WIDTH,
+              columnGroups,
+              subColumns: REGION_EXIT_SUB_COLUMNS,
+              rows,
+              value: rawFigure,
+              valueType: ALL_CURRENCY,
+            })
+          }
+          filename={() => exportFilenameFor(MIS_TABLES.EXIT_ARR_BY_REGION)}
         />
-      </SummaryBody>
-    </Box>
+      }
+    >
+      <BuildTable
+        label="ARR Build — Region Summary"
+        rowLabelHeader="Region"
+        rowLabelWidth={REGION_LABEL_WIDTH}
+        columnGroups={columnGroups}
+        subColumns={REGION_EXIT_SUB_COLUMNS}
+        rows={rows}
+        cell={cell}
+      />
+    </SummaryBody>
+  );
+}
+
+/**
+ * All ARR Metrics — each region's MOVEMENT over the column, narrowed to the
+ * reader's business unit.
+ *
+ * ---- what it does NOT share with the Exit ARR view beside it ---------------
+ *
+ * Only the rows, and only in shape: both take their regions from the response,
+ * through `util/misRegions.ts`, so the two views spell a region the same way.
+ * Everything else differs, because a movement is not a balance — the columns
+ * span a period instead of closing one, the seven sub-columns are movements
+ * instead of business units, and the unit selection narrows the question here
+ * where it is ignored there.
+ *
+ * ---- the unit selection is the deviation, and it is deliberate -------------
+ *
+ * The source gives this view a pill row of its own — eight pills plus a custom
+ * chip panel — held in the table's component state, beside the unit tabs the
+ * screen already carries. Two unit controls on one screen that can disagree,
+ * and only one of them in the link a reader shares. Here it binds to the tabs
+ * above, so there is one unit selection, it is in the address, and the tabs
+ * stop being enabled-but-ignored on this Table. Recorded in
+ * `docs/ported-apps/mis.md` §7, and it retires the §8 note about the tabs.
+ */
+function RegionMetricsGrid({
+  view,
+  scale,
+  bySalesRegion,
+}: {
+  view: MisViewState;
+  scale: MisScale;
+  bySalesRegion: boolean;
+}) {
+  const ranges = useMemo(
+    () => buildColumnRanges(view.viewWindow, view.filters),
+    [view.viewWindow, view.filters],
+  );
+  const metrics = useRegionMetrics(ranges, view.filters, bySalesRegion);
+
+  // Not memoised, for the same reason the Build's `byColumn` is not:
+  // `metrics.columns` is rebuilt every render, so a useMemo over it never hits.
+  const { rows, figures } = regionMetricsTable(metrics.columns);
+
+  const columnGroups = metrics.columns.map(({ label }) => ({ key: label, label }));
+  /** The figure itself, shared by the cell below and by the export. */
+  const rawFigure = (row: BuildRow, group: BuildColumnGroup, subColumnKey: string) => {
+    const definition = REGION_METRICS_SUB_COLUMN_BY_KEY.get(subColumnKey)!;
+    return figures.get(group.key)?.get(row.id)?.[definition.field];
+  };
+  const cell: BuildCellFor = (row, group, subColumn) => {
+    const raw = rawFigure(row, group, subColumn.key);
+    return {
+      // Every one of the seven is currency, so Scale applies to all of them.
+      text: formatMisValue(raw, "currency", { scale }),
+      negative: typeof raw === "number" && raw < 0,
+      muted: raw === undefined,
+    };
+  };
+
+  return (
+    <SummaryBody
+      state={metrics}
+      // One row is the computed total with no regions under it — the same
+      // reading the Exit ARR view takes.
+      isEmpty={rows.length <= 1}
+      // The source's own words for the state a custom selection with nothing
+      // ticked lands in, which is also where no columns lands.
+      emptyMessage="Choose units to generate region metrics, or widen Years Back."
+      errorMessage={`Couldn't load the ARR metrics. ${metrics.errorMessage}`}
+      scale={scale}
+      exportButton={
+        <MisExportButton
+          workbook={() =>
+            oneSheet({
+              name: ALL_ARR_METRICS_LABEL,
+              rowLabelHeader: "Region",
+              rowLabelWidth: REGION_LABEL_WIDTH,
+              columnGroups,
+              subColumns: REGION_METRICS_SUB_COLUMNS,
+              rows,
+              value: rawFigure,
+              valueType: ALL_CURRENCY,
+            })
+          }
+          filename={() => misExportFilename(["arr_build", misFilenameWord(ALL_ARR_METRICS_LABEL)])}
+        />
+      }
+    >
+      <BuildTable
+        label={`ARR Build — ${ALL_ARR_METRICS_LABEL}`}
+        rowLabelHeader="Region"
+        rowLabelWidth={REGION_LABEL_WIDTH}
+        columnGroups={columnGroups}
+        subColumns={REGION_METRICS_SUB_COLUMNS}
+        rows={rows}
+        cell={cell}
+      />
+    </SummaryBody>
   );
 }
 
@@ -751,6 +928,15 @@ function GridCaptionBar({ scale, exportButton }: { scale: MisScale; exportButton
  */
 const exportFilenameFor = (table: MisTable): string =>
   misExportFilename(["arr_build", misFilenameWord(MIS_TABLE_LABELS[table])]);
+
+/**
+ * The Region Summary's second view has no `MisTable` of its own — it is a view
+ * OF `exit-arr-by-region` rather than a fifth Table, which is why `?table=` has
+ * nothing to say about it and why its name comes from the control that chooses
+ * it rather than from `MIS_TABLE_LABELS`.
+ */
+const ALL_ARR_METRICS_LABEL =
+  MIS_REGION_SUMMARY_VIEW_LABELS[MIS_REGION_SUMMARY_VIEWS.ALL_ARR_METRICS];
 
 /**
  * One table, as a one-sheet workbook.

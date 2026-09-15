@@ -16,14 +16,16 @@
 
 import { useMemo } from "react";
 import { misArrServiceUrls } from "@config/apiConfig";
-import { asOfColumnLabel } from "../util/misPeriods";
+import { annualColumnLabel, asOfColumnLabel } from "../util/misPeriods";
 import type { MisAppliedFilters, MisDateRange } from "../util/misViewVocabulary";
 import type { BuFigures, RegionExitResponse } from "../components/exitArrRows";
-import { buExitRequests, regionExitRequests } from "./misExitArrRequest";
+import type { RegionMetricsResponse } from "../components/regionMetricsRows";
+import { buExitRequests, regionExitRequests, regionMetricsRequests } from "./misExitArrRequest";
 import { useColumnQueries } from "./useColumnQueries";
 
-// `POST /arr-summary/region-exit` and `POST /arr-summary/bu-exit` — the figures
-// behind the two Exit ARR summaries, one call per column.
+// `POST /arr-summary/region-exit`, `/bu-exit` and `/region-metrics` — the
+// figures behind the two Exit ARR summaries and the Region Summary's All ARR
+// Metrics view, one call per column.
 //
 // Ported from `useExitArrByRegion.js` and `useExitArrByBU.js`, which are 404
 // and 268 lines. Almost all of what is missing is machinery the port already
@@ -34,14 +36,22 @@ import { useColumnQueries } from "./useColumnQueries";
 // `useColumnQueries` owns the caching and the races for every MIS table at
 // once.
 //
-// The two hooks live in one module because they are one question asked at two
-// grains — Exit ARR by region, Exit ARR in total — and their bodies differ by a
-// single field. Splitting them across two files would put that one difference
-// where nobody can see it.
+// Two of the three are one question asked at two grains — Exit ARR by region,
+// Exit ARR in total — and their bodies differ by a single field. Splitting them
+// across two files would put that one difference where nobody can see it. The
+// third, All ARR Metrics, is a different question over the same regions, and it
+// lives here because it shares the column engine and the response coercion and
+// because a reader comparing a balance against a movement should not have to
+// open two files to do it.
 
 /** One summary column, and whatever is known about it so far. */
 export interface ExitArrColumn<TResponse> {
-  /** The column header, `As of {end}` — and its identity. */
+  /**
+   * The column header, and its identity. `As of {end}` on the two Exit ARR
+   * summaries; `{opening} - {end}` on All ARR Metrics, which reports a movement
+   * over the column rather than a balance at the end of it. Which one it is, is
+   * the `label` each hook passes to `useSummaryColumns`.
+   */
   label: string;
   /** Absent while loading, and absent for good if this column failed. */
   response?: TResponse;
@@ -75,10 +85,11 @@ export function useExitArrByRegion(
     () => regionExitRequests(ranges, filters, isSalesRegionSummary),
     [ranges, filters, isSalesRegionSummary],
   );
-  return useAsOfColumns<RegionExitResponse>({
+  return useSummaryColumns<RegionExitResponse>({
     name: "region-exit",
     url: misArrServiceUrls.regionExit,
     bodies,
+    label: asOfColumnLabel,
     ranges,
     enabled,
   });
@@ -91,32 +102,71 @@ export function useExitArrByBU(
   enabled = true,
 ): ExitArrState<BuFigures> {
   const bodies = useMemo(() => buExitRequests(ranges, filters), [ranges, filters]);
-  return useAsOfColumns<BuFigures>({
+  return useSummaryColumns<BuFigures>({
     name: "bu-exit",
     url: misArrServiceUrls.buExit,
     bodies,
+    label: asOfColumnLabel,
     ranges,
     enabled,
   });
 }
 
-function useAsOfColumns<TResponse>({
+/**
+ * All ARR Metrics — the Region Summary's other view.
+ *
+ * `isSalesRegionSummary` travels the same way it does above, and for the same
+ * reason. What differs is the two things that make this a MOVEMENT table: its
+ * body carries the reader's unit selection, and its columns are headed with the
+ * span they cover rather than the date they close on.
+ *
+ * No columns at all while a custom unit selection names nothing —
+ * `regionMetricsRequests` returns no bodies, which reaches the screen as an
+ * empty table rather than as the whole company's movement.
+ */
+export function useRegionMetrics(
+  ranges: readonly MisDateRange[],
+  filters: MisAppliedFilters,
+  isSalesRegionSummary: boolean,
+  enabled = true,
+): ExitArrState<RegionMetricsResponse> {
+  const bodies = useMemo(
+    () => regionMetricsRequests(ranges, filters, isSalesRegionSummary),
+    [ranges, filters, isSalesRegionSummary],
+  );
+  return useSummaryColumns<RegionMetricsResponse>({
+    name: "region-metrics",
+    url: misArrServiceUrls.regionMetrics,
+    bodies,
+    // A movement is read over a span, so the header names both ends — the same
+    // label the Build's own columns carry. The two Exit ARR summaries name one
+    // date because a balance happens at a moment.
+    label: annualColumnLabel,
+    ranges,
+    enabled,
+  });
+}
+
+function useSummaryColumns<TResponse>({
   name,
   url,
   bodies,
+  label,
   ranges,
   enabled,
 }: {
   name: string;
   url: string;
   bodies: readonly object[];
+  /** How a column's range is headed. Its identity, so it has to be unique. */
+  label: (range: MisDateRange) => string;
   ranges: readonly MisDateRange[];
   enabled: boolean;
 }): ExitArrState<TResponse> {
   // Bodies and labels stay index-aligned: a body is what a column is fetched
   // with, and pairing them anywhere else would be two lists that could fall out
   // of step.
-  const labels = useMemo(() => ranges.map(asOfColumnLabel), [ranges]);
+  const labels = useMemo(() => ranges.map(label), [ranges, label]);
 
   const state = useColumnQueries({
     name,
@@ -136,8 +186,9 @@ function useAsOfColumns<TResponse>({
 /**
  * The record in a response, whatever shape it arrived in.
  *
- * Both endpoints answer with an object — a `BuType`, or a map of them keyed by
- * region — so an ARRAY is the shape worth naming: reaching the row builder, its
+ * All three endpoints answer with an object — a `BuType`, a map of them keyed by
+ * region, or a map of `RegionMetrics` keyed the same way — so an ARRAY is the
+ * shape worth naming: reaching the row builder, its
  * indices would become regions and the table would grow rows called "0" and
  * "1". An empty object instead, which reads everywhere as a column that
  * answered with nothing.

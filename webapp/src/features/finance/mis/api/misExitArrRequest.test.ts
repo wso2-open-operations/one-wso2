@@ -22,7 +22,7 @@ import {
   MIS_TABLES,
   type MisAppliedFilters,
 } from "../util/misViewVocabulary";
-import { buExitRequests, regionExitRequests } from "./misExitArrRequest";
+import { buExitRequests, regionExitRequests, regionMetricsRequests } from "./misExitArrRequest";
 
 // One POST per Exit ARR summary column. Ported from the two hand-rolled hooks
 // in digiops-finance, `arrDashboard/hooks/useExitArrByRegion.js` and
@@ -177,5 +177,84 @@ describe("which geography a Region Summary is cut by", () => {
     // `ArrFilter` defaults it to `true`. Sending it there would be asking a BU
     // table to cut itself by a geography it does not report.
     expect(buExitRequests(RANGES, BU)[0]).not.toHaveProperty("isSalesRegionSummary");
+  });
+});
+
+// ---- All ARR Metrics -------------------------------------------------------
+//
+// The third `/arr-summary/*` summary, and the one that breaks the rule the two
+// above are built on. Exit ARR hard-codes `ALL_BU` because the per-unit split
+// IS its columns; All ARR Metrics splits by MOVEMENT instead, so the business
+// unit is free to narrow the question — and in the source it does, through a
+// pill row of its own.
+//
+// Here it narrows through the unit tabs already above the grid, so the body
+// carries whatever the reader selected in the address bar. See
+// `docs/ported-apps/mis.md` §7.
+
+describe("All ARR Metrics, which is the one summary a unit selection reaches", () => {
+  it("sends every unit while the reader is looking at every unit", () => {
+    expect(regionMetricsRequests(RANGES, REGION, true)[0]).toMatchObject({
+      businessUnits: ["ALL_BU"],
+    });
+  });
+
+  it("sends the unit the reader picked, translated to the backend's code", () => {
+    const apim: MisAppliedFilters = { ...REGION, buProductSelection: "BU_APIM" };
+    expect(regionMetricsRequests(RANGES, apim, true)[0]).toMatchObject({
+      businessUnits: ["APIM_BU"],
+    });
+  });
+
+  it("sends a custom selection as the list itself", () => {
+    const custom: MisAppliedFilters = {
+      ...REGION,
+      buProductSelection: CUSTOM_UNIT,
+      customBusinessUnits: ["APIM_BU", "IAM_BU"],
+    };
+    expect(regionMetricsRequests(RANGES, custom, true)[0]).toMatchObject({
+      businessUnits: ["APIM_BU", "IAM_BU"],
+    });
+  });
+
+  it("asks for nothing at all when a custom selection names no units", () => {
+    // The source guards on `hasBusinessUnitSelection` and shows "Choose units
+    // to generate region metrics". Falling back to every unit would put the
+    // whole company's movement on screen under a chip saying otherwise.
+    const empty: MisAppliedFilters = { ...REGION, buProductSelection: CUSTOM_UNIT };
+    expect(regionMetricsRequests(RANGES, empty, true)).toEqual([]);
+  });
+
+  it("says which geography to cut by, like the Exit ARR summary beside it", () => {
+    expect(regionMetricsRequests(RANGES, REGION, false)[0]).toMatchObject({
+      isSalesRegionSummary: false,
+    });
+  });
+
+  it("spans the column rather than closing it, which is the same pair of dates", () => {
+    const [first, second] = regionMetricsRequests(RANGES, REGION, true);
+    expect(first).toMatchObject({ startDate: "2024-12-31", endDate: "2025-12-31" });
+    expect(second).toMatchObject({ startDate: "2025-12-31", endDate: "2026-09-12" });
+  });
+
+  it("carries the Period's type, the partner book and the confidence, as the others do", () => {
+    const narrowed: MisAppliedFilters = {
+      ...REGION,
+      arrType: "Forecasted ARR",
+      channelDirect: "Channel",
+      confidenceLevel: "Commit",
+    };
+    expect(regionMetricsRequests(RANGES, narrowed, true)[0]).toMatchObject({
+      arrType: "Forecasted ARR",
+      partnerType: "Channel",
+      forecastType: "Commit",
+    });
+  });
+
+  it("forwards none of the nine account and geography lists, as the others do not", () => {
+    const narrowed: MisAppliedFilters = { ...REGION, industry: ["SaaS"], salesRegion: ["EMEA"] };
+    const [body] = regionMetricsRequests(RANGES, narrowed, true);
+    expect(body).not.toHaveProperty("industries");
+    expect(body).not.toHaveProperty("salesRegions");
   });
 });

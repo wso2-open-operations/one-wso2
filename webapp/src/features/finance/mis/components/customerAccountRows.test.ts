@@ -16,6 +16,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  CUSTOMER_BU_SUB_COLUMNS,
+  CUSTOMER_SUB_COLUMN_BY_KEY,
+  customerIdentityText,
+  CUSTOMER_BU_SUB_COLUMN_BY_KEY,
   CUSTOMER_SUB_COLUMNS,
   customerLeadColumns,
   customerAccountRows,
@@ -55,14 +59,22 @@ const account = (id: string, name: string, over: Partial<AccountsResponse> = {})
   ...over,
 });
 
+/**
+ * The customer rows alone, with the Total row above them dropped.
+ *
+ * These tests are about which CUSTOMERS the book yields and in what order.
+ */
+const customerRowsOf = (columns: readonly (readonly AccountsResponse[])[]) =>
+  customerAccountRows(columns).rows;
+
 describe("which customers the table has rows for", () => {
   it("gives one row per account, labelled with the account name", () => {
-    const { rows } = customerAccountRows([[account("a1", "Northwind Bank"), account("a2", "Contoso")]]);
+    const rows = customerRowsOf([[account("a1", "Northwind Bank"), account("a2", "Contoso")]]);
     expect(rows.map((row) => row.label)).toEqual(["Northwind Bank", "Contoso"]);
   });
 
   it("carries the account id, which is what a drill-down will be opened by", () => {
-    const [row] = customerAccountRows([[account("a1", "Northwind Bank")]]).rows;
+    const [row] = customerRowsOf([[account("a1", "Northwind Bank")]]);
     expect(row.id).toBe("a1");
   });
 
@@ -84,15 +96,12 @@ describe("a customer book that changes between columns", () => {
   // they churn — which is exactly the figure the reader is looking for.
 
   it("unions the accounts across every column", () => {
-    const { rows } = customerAccountRows([
-      [account("a1", "Northwind Bank")],
-      [account("a2", "Contoso")],
-    ]);
+    const rows = customerRowsOf([[account("a1", "Northwind Bank")], [account("a2", "Contoso")]]);
     expect(rows.map((row) => row.id)).toEqual(["a1", "a2"]);
   });
 
   it("keeps one row for a customer present in several columns", () => {
-    const { rows } = customerAccountRows([
+    const rows = customerRowsOf([
       [account("a1", "Northwind Bank"), account("a2", "Contoso")],
       [account("a1", "Northwind Bank")],
     ]);
@@ -103,7 +112,7 @@ describe("a customer book that changes between columns", () => {
     // The source builds its union with a Map keyed by id, which is
     // insertion-ordered, and iterates the periods oldest first. Pinned because
     // an unstable order makes the table reshuffle whenever a filter changes.
-    const { rows } = customerAccountRows([
+    const rows = customerRowsOf([
       [account("a2", "Contoso")],
       [account("a1", "Northwind Bank"), account("a3", "Fabrikam")],
     ]);
@@ -111,7 +120,7 @@ describe("a customer book that changes between columns", () => {
   });
 
   it("takes the name from the first column that names them", () => {
-    const { rows } = customerAccountRows([
+    const rows = customerRowsOf([
       [account("a1", "Northwind Bank")],
       [account("a1", "Northwind Bank PLC")],
     ]);
@@ -119,8 +128,8 @@ describe("a customer book that changes between columns", () => {
   });
 
   it("has no rows at all when no column answered", () => {
-    expect(customerAccountRows([]).rows).toEqual([]);
-    expect(customerAccountRows([[], []]).rows).toEqual([]);
+    expect(customerRowsOf([])).toEqual([]);
+    expect(customerRowsOf([[], []])).toEqual([]);
   });
 });
 
@@ -360,6 +369,17 @@ describe("the identity columns, left of the first figure", () => {
     expect(read("delayed-days")).toBe("0");
     expect(read("employees")).toBe("0");
   });
+
+  it("reads the account's own answer through customerIdentityText", () => {
+    const owner = customerLeadColumns("Total ARR").find((c) => c.label === "Account Owner")!;
+    const one = account("a1", "Northwind Bank", { accountOwnerName: "R. Perera" });
+    expect(customerIdentityText(one, owner)).toBe("R. Perera");
+  });
+
+  it("reads blank for a customer this column's book does not have", () => {
+    const owner = customerLeadColumns("Total ARR").find((c) => c.label === "Account Owner")!;
+    expect(customerIdentityText(undefined, owner)).toBe("");
+  });
 });
 
 describe("Delayed Day Count, which only a Delayed type has", () => {
@@ -391,3 +411,132 @@ describe("Delayed Day Count, which only a Delayed type has", () => {
     expect(keys("Delayed MRR")).toContain("delayed-days");
   });
 });
+
+// ---- BU only ---------------------------------------------------------------
+//
+// The source's DEFAULT view of this table, and the port's second one.
+// `DataGrid.js:365` is `useState(true)`, so the live app opens the Software/
+// Cloud Customers table on seven business-unit columns and the twelve-column
+// Software/Cloud breakdown above is what unticking "BU only" gets you.
+//
+// Both views read the SAME `POST /accounts` response — there is no second
+// request and no second hook. What differs is which six fields each figure is
+// read from: `apimBuTotal` rather than `apimSoftwareTotal` plus `apimCloudTotal`.
+
+describe("the BU-only columns", () => {
+  it("reads the six business units, then the total", () => {
+    expect(CUSTOMER_BU_SUB_COLUMNS.map((column) => column.key)).toEqual([
+      "bu-apim",
+      "bu-iam",
+      "bu-integration",
+      "bu-choreo",
+      "bu-agent-platform",
+      "bu-moesif",
+      "bu-total",
+    ]);
+  });
+
+  it("reads each unit off the field the backend sends it under", () => {
+    const fieldByKey = Object.fromEntries(
+      CUSTOMER_BU_SUB_COLUMNS.map((column) => [column.key, column.field]),
+    );
+    expect(fieldByKey).toEqual({
+      "bu-apim": "apimBuTotal",
+      "bu-iam": "iamBuTotal",
+      "bu-integration": "integrationBuTotal",
+      "bu-choreo": "choreoBuTotal",
+      "bu-agent-platform": "agentPlatformBuTotal",
+      "bu-moesif": "moesifBuTotal",
+      "bu-total": "arrGrandTotal",
+    });
+  });
+
+  it("carries Moesif's caveat in its own header, because the figure is inside API Platform BU beside it", () => {
+    const moesif = CUSTOMER_BU_SUB_COLUMNS.find((column) => column.key === "bu-moesif");
+    expect(moesif?.label).toBe("Moesif (Already included in API Platform BU)");
+  });
+
+  it("names the units the way the source's headers do", () => {
+    expect(CUSTOMER_BU_SUB_COLUMNS.map((column) => column.label)).toEqual([
+      "API Platform BU",
+      "IAM BU",
+      "Integration BU",
+      "Choreo BU",
+      "Agent Platform BU",
+      "Moesif (Already included in API Platform BU)",
+      "Total",
+    ]);
+  });
+
+  it("reads a unit's figure off the account, like every other column", () => {
+    const only = account("a1", "Northwind Bank", { apimBuTotal: 4_200, iamBuTotal: 900 });
+    const figureFor = (key: string) =>
+      customerFigure(only, CUSTOMER_BU_SUB_COLUMN_BY_KEY.get(key)!);
+    expect(figureFor("bu-apim")).toBe(4_200);
+    expect(figureFor("bu-iam")).toBe(900);
+  });
+
+  it("is undefined for a customer absent from that column, as the Software/Cloud view is", () => {
+    expect(customerFigure(undefined, CUSTOMER_BU_SUB_COLUMN_BY_KEY.get("bu-apim")!)).toBeUndefined();
+  });
+});
+
+// ---- the Total row ---------------------------------------------------------
+//
+// `useCustomerAccounts.js:443-508` unshifts a `TOTAL_ROW` at the top of this
+// table, in BOTH views, with every figure added down the accounts and a `-` in
+// all seventeen identity columns. It is the only client-computed total in the
+// ARR Build: the Subscription Build has none (its totals are the backend's
+// named metric rows) and the two Exit ARR summaries compute theirs across
+// REGIONS. This one runs down the customer book.
+
+// The two views disagree about the Total column, and the source is where the
+// disagreement comes from. BOTH fall back when the backend sends no grand total,
+// and they fall back to DIFFERENT SUMS under DIFFERENT conditions:
+//
+//   Software/Cloud  `${periodKey}_total` = `arrGrandTotal || soft + cloud || 0`
+//                   — a data field, JS-falsy, so 0/undefined/NaN fall through.
+//   BU only         the column's own `valueGetter` (`tableConstants.js:474-489`)
+//                   — `_bu_total > 0 ? _bu_total : the six BU fields summed`,
+//                   where `_bu_total` is itself `arrGrandTotal || 0`. Strictly
+//                   POSITIVE, so a negative grand total falls through too.
+//
+// Same field on the same customer, two rules and two answers — which is why the
+// rule belongs to the COLUMN and not to the field it reads.
+describe("the grand-total fallback, which both views have and neither shares", () => {
+  const noTotalSent = account("a1", "Northwind Bank", {
+    arrGrandTotal: 0,
+    arrSoftwareTotal: 60,
+    arrCloudTotal: 40,
+    apimBuTotal: 30,
+    iamBuTotal: 20,
+  });
+
+  it("falls back to Software plus Cloud in the Software/Cloud view", () => {
+    expect(customerFigure(noTotalSent, CUSTOMER_SUB_COLUMN_BY_KEY.get("grand-total")!)).toBe(100);
+  });
+
+  it("falls back to the six business units in the BU-only view", () => {
+    // Not 100: the BU view adds the units it shows, not the two books.
+    expect(customerFigure(noTotalSent, CUSTOMER_BU_SUB_COLUMN_BY_KEY.get("bu-total")!)).toBe(50);
+  });
+
+  it("uses the backend's grand total when it sent a positive one", () => {
+    const sent = account("a1", "Northwind Bank", { arrGrandTotal: 75, apimBuTotal: 30 });
+    expect(customerFigure(sent, CUSTOMER_BU_SUB_COLUMN_BY_KEY.get("bu-total")!)).toBe(75);
+  });
+
+  it("falls back on a NEGATIVE grand total too, where the other view would not", () => {
+    // `directTotal > 0`, not a truthiness check. A negative total is a real
+    // figure the source declines to show here and shows in the other view.
+    const negative = account("a1", "Northwind Bank", {
+      arrGrandTotal: -10,
+      arrSoftwareTotal: -10,
+      arrCloudTotal: 0,
+      apimBuTotal: 30,
+    });
+    expect(customerFigure(negative, CUSTOMER_BU_SUB_COLUMN_BY_KEY.get("bu-total")!)).toBe(30);
+    expect(customerFigure(negative, CUSTOMER_SUB_COLUMN_BY_KEY.get("grand-total")!)).toBe(-10);
+  });
+});
+

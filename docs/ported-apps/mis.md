@@ -96,6 +96,25 @@ The unit selection is **not** a filter-bar control in the source either — it l
 `TableNavigation.js`, and the bar carries a comment where its control used to be. It is described here
 with the bar because a reader does not care which file it came from.
 
+**Three more controls belong to a Table rather than to the bar**, and none of them is in the URL. They
+commit on click, they are not part of the Applied set, and they die with the screen — which the source
+does too, and which means a shared link does not carry them (§11.11).
+
+| Table | Control | What it chooses |
+|---|---|---|
+| Software/Cloud Customers | Breakdown | **BU only** — six business units and a total — or Software / Cloud, the twelve-column split across the two books. BU only is the default, in the source and here. Both read one `POST /accounts` response, so switching costs no request. |
+| Exit ARR by Region | View | **Exit ARR**, each region's balance split by business unit, or **All ARR Metrics**, each region's movement over the column. Two endpoints and two questions, not two arrangements of one answer. Exit ARR is the default. |
+| Exit ARR by Region | Region Type | Sales Region or Sub Region. Travels in the body, so the two cuts are two cache entries. Returns to Sales Region whenever the View changes. |
+
+All ARR Metrics is the one Build surface where the unit tabs above narrow the figures rather than
+being ignored; the source instead gives it a second unit control of its own (§7).
+
+**One source control is not ported at all.** A `Totals only` checkbox on Software/Cloud Customers and
+on Exit ARR by Region (`DataGrid.js:368`, rendered at `:1110`) strips every Period group down to its
+Total column. It hides figures rather than changing any, so nothing disagrees while it is off, which
+is how it is safe to leave for later — recorded here so it is a known gap rather than a discovery
+during §10.37.
+
 ### 2.2 QRR Build — `/finance/mis/qrr-build`
 
 The same Build, quarterly, plus a Cumulative toggle Annually does not have. No TTM Window.
@@ -226,8 +245,8 @@ key construction: the key must include the serialised body, not just the URL.
 | `POST /arr-summary/customers` | ARR | Customer drill-down dialog. |
 | `POST /arr-summary/region-exit` | ARR | Exit ARR by Region. |
 | `POST /arr-summary/bu-exit` | ARR | Exit ARR by Business Unit. |
-| `POST /arr-summary/region-metrics` | ARR | Region metrics. |
-| `POST /exit-arr/search` | ARR | Exit ARR search. |
+| `POST /arr-summary/region-metrics` | ARR | The Region Summary's **All ARR Metrics** view — each region's movement over the column, narrowed to one Business Unit. The one summary whose body carries the reader's unit selection. |
+| `POST /exit-arr/search` | ARR | **ARR Analysis only** — the summary metric above its table, the Channel/Direct split (two calls, one per book) and the industry breakdown (one call per industry). Nothing under `arrDashboard/` calls it, so it backs no Build screen. |
 | `POST /accounts` | ARR | Accounts by date range. |
 | `GET /opportunities` | ARR | Opportunities for an account. |
 | `GET /balance-statement` | Flash | The P&L. |
@@ -508,10 +527,19 @@ and never reaches. **The consequence for the parallel period: these two screens 
 against the live app on a Calendar window, because the live app shows no figures there.** Reconcile
 them on TTM, where the source works, or against the backend directly.
 
-**The Region Summary's Total Exit ARR row is drawn last, whatever order the regions arrive in.** The
-source appends that row while mapping the FIRST column and pushes regions found only in later columns
-in after it, so a region can render BELOW the total that counts it. The arithmetic is unaffected — the
-total is recomputed across every region row on every column — so this is ordering alone.
+**The Region Summary's total row is drawn last, whatever order the regions arrive in — in BOTH of its
+views.** On Exit ARR the source appends that row while mapping the FIRST column and pushes regions
+found only in later columns in after it; on All ARR Metrics it appends while mapping whichever column
+it is on (`useArrSummaryRegionMetrics.js:245-249`). Either way a region can render BELOW the total
+that counts it. The arithmetic is unaffected — the total is recomputed across every region row on
+every column — so this is ordering alone.
+
+The row itself is built **unconditionally, over an empty book too**, which is the source's behaviour
+in both views: its guard asks whether a total row already exists, not whether any region does. The
+port kept that, and the grid reads a lone total as "no regions came back" and shows its empty state
+instead, so the bare row never reaches a reader. Worth stating because the two builders are
+near-identical and this is the one line they are most likely to drift on; `exitArrRows.test.ts` and
+`regionMetricsRows.test.ts` pin it on both sides.
 
 **Region names are not re-cased word by word.** `formatRegionLabel` uppercases every word of two to
 four letters so that unmapped acronyms come out as acronyms; applied per word it also shouts ordinary
@@ -527,6 +555,12 @@ body as an array or under `data`, `result` or `payload`. The service returns `ma
 every wrong guess lands on the same silent zeroes — so the port reads the contract, and a body that is
 not it renders nothing rather than nothing-shaped-like-figures.
 
+**The source's All ARR Metrics throws on a Calendar window too, for the same reason the two Exit ARR
+summaries do.** `useArrSummaryRegionMetrics.js:102` reaches the column's opening through the same
+`ttmOpeningSql(endDate, filters?.annuallyDateRanges)`, which reads `match.opening` off a range that
+has none on a Calendar cut. So the third of the three Region Summary surfaces has nothing to
+reconcile against on the default window either — reconcile it on TTM, or against the backend.
+
 **No Annually table draws forecast columns yet — Subscription, Customers, and now both summaries.**
 Found reviewing the Exit ARR slice, and it is NOT new to it. Under a Forecasted or Renewal type the
 source changes the column list itself: the Subscription Build takes `generateTwoForecastRanges`, and
@@ -536,6 +570,28 @@ calendar columns it draws for Total. The Type control still offers Forecasted, t
 carries `forecastType`, and the figures still come back — they are just read at calendar dates rather
 than forecast ones, which is wrong without looking wrong. **Needs its own ticket**, covering all three
 tables at once, since the fix is one branch in `pacificAnnualRanges`.
+
+**All ARR Metrics binds to the unit tabs rather than growing a second unit control.** The source
+gives the Region Summary's second view a pill row of its own — API Platform, IAM, Integration, Choreo,
+Agent Platform, Moesif, All BU, Custom Product Selection — held in `RegionSummaryTabs.js`'s component
+state, with its own custom-selection chip panel and Reset, sitting *below* the unit tabs the screen
+already carries. Two unit controls on one screen that can disagree, only one of them in a shared link.
+The port drops the pills and reads `businessUnitsFor(filters)`, so the tabs above the grid are the one
+unit selection, it is in the address, and the custom panel is the one `MisUnitTabs` already has.
+
+This is the first thing on a Build screen to make those tabs mean something on the Region Summary, and
+it narrows §8's note about them: they are still ignored by the Exit ARR view — correctly, since the
+per-unit split IS its columns — and they now drive All ARR Metrics, which is the view where a unit
+genuinely narrows the question.
+
+**Two consequences that change figures, so §10.37 has to expect them.** The source's pills go through
+`toProductCode`, which can only ever produce one of seven codes and silently maps everything else to
+`ALL_BU`; the tabs offer all seventeen of `BACKEND_UNIT_CODES`, so this view can now be asked for
+`ALL_SOFTWARE` or `APIM_CLOUD`, which the source cannot ask for at all. And the source's pills always
+start at **All BU** however the tabs above them are set, where the port inherits the tab — so opening
+the view on a narrowed unit shows the live app's All BU figures beside the port's narrowed ones. Both
+follow from having one unit control instead of two; both are worth knowing before a figure is called
+a discrepancy.
 
 **A link cannot carry a filter the Table does not offer; the source's can.** The source greys these
 out in the BAR — `UNAVAILABLE_BUILD_FILTERS` keeps the View and the seven account and geography
@@ -607,8 +663,41 @@ right answer rather than an oversight — the per-unit split IS these tables' co
 control stays enabled and says otherwise, which is what makes it worth writing down. **Still open
 after the placeholder controls landed**: those grey out the FILTER BAR's controls, and the unit tabs
 are not one of them — they sit above the bar, commit on click, and the source leaves them enabled on
-the summaries too (`TableNavigation.js` has no such branch). Reproduced, and it is the one remaining
-control on those two screens that promises something it does not do.
+the summaries too (`TableNavigation.js` has no such branch). Reproduced.
+
+**Narrowed by All ARR Metrics.** The tabs are ignored by the Exit ARR view and by Exit ARR by Business
+Unit, which is the correct answer for both; on the Region Summary's other view they now genuinely
+narrow the figures (§7). So the control promises something it does not do on two screens rather than
+on every screen carrying it, and on the Region Summary it depends which view is open — which is
+better than before and is still worth writing down.
+
+**All ARR Metrics writes five of the seven movements differently from the Build.** Its headers are
+`Expansion`, `Reduction`, `Loss`, `First Sale` and `Closing ARR` where the Subscription Build writes
+`Expansions`, `Reductions`, `Lost`, `New` and `Ending ARR` — the source disagreeing with itself across
+two of its own screens. Reproduced rather than harmonised: finance reconciles the two apps column by
+column for a full reporting cycle, and a renamed column is a disagreement somebody has to investigate
+before the figures can be trusted. Two of the five are words [`CONTEXT.md`](../../CONTEXT.md) does not
+use — the glossary's terms are **Lost** and **New** — so harmonising the two screens is a decision for
+after the parallel period rather than a rename in one file. The glossary records the carve-out.
+
+**The customers table's Total column means two different things depending on the breakdown.** Both
+read `arrGrandTotal` and both fall back when it is absent — to different sums, under different
+conditions, in different places:
+
+| | Rule | Falls back when | Falls back to | Where it lives |
+|---|---|---|---|---|
+| Software/Cloud | `arrGrandTotal \|\| soft + cloud \|\| 0` | falsy — `0`, `undefined`, `NaN` | the two books | the data field, `useCustomerAccounts.js:386` |
+| BU only | `_bu_total > 0 ? _bu_total : the six BU fields` over a `_bu_total` that is itself `arrGrandTotal \|\| 0` | not strictly POSITIVE | the six business units | the column's `valueGetter`, `tableConstants.js:474-489` |
+
+So a **negative** grand total renders as itself in one breakdown and is replaced by a sum of units in
+the other, and a missing one resolves to two different figures. Reproduced, which is why the port
+keys these rules on the COLUMN rather than on the field they share.
+
+**And the BU-only Total is the TOTAL ROW's rule, not the sum of the cells above it.** Its fallback is
+in a `valueGetter`, so ag-Grid applies it to the total row as a row in its own right, over a
+`_bu_total` the source had already summed raw down the book. Summing each customer's own answer gives
+a different number: with `{grand: 0, units: 100}` and `{grand: 50}` the source reads 50 and a
+per-customer sum reads 150. Every other column on the table does foot against its cells.
 
 **Switching to Customers clears the unit selection; switching to any other Table does not.**
 `FilterBar.js:606` resets `businessUnit` to `['All']` in the Customers branch of the Table-switch
@@ -760,6 +849,11 @@ ported.
     on a Calendar one: the source throws there (§7), so there is no figure on the other side.
 25. Region names arriving from the live tenant render the way Finance writes them. The label rules
     here are exercised against invented keys; only a live tenant says what the keys actually are.
+25a. **All ARR Metrics** agrees with the source figure for figure on the same region, unit and column
+    — **on a TTM window**, for the reason §24 gives: the source throws on a Calendar one there too
+    (§7). Its Total row foots against the rows above it, unlike Exit ARR's (§8). Check at a unit other
+    than All, since that is the whole point of the view — and expect the source to be showing All BU
+    there whatever its tabs say, which is the §7 deviation rather than a discrepancy.
 
 ### The filter bar
 26. A control changed but not applied leaves the address alone, enables Apply, and says so in a live
@@ -878,6 +972,9 @@ or a live session at `https://one.wso2.com`.
     a Sub Region view sends a Sales Region one**. Putting it in the query string is a one-parameter
     change here but an extension of the URL contract ticket 02 pinned — what an unrecognised value
     degrades to, whether it is suppressed on the other three Tables, what a stale link means — so it
-    is a decision to take rather than a side effect of building the table. The same question will
-    arrive again with the Region Summary's `All ARR Metrics` view and its BU pills, which are
-    component state in the source too.
+    is a decision to take rather than a side effect of building the table. **The same question has now
+    arrived again, and half of it is answered.** The Region Summary's `All ARR Metrics` view is
+    component state here as it is in the source, so a shared link opens on Exit ARR whichever view the
+    sender was reading; its BU pills are NOT, having been bound to the unit tabs and therefore to the
+    address (§7). So the open half is two controls rather than three, and they are the same decision:
+    whether a Region Summary link should carry the view and the cut it was shared from.

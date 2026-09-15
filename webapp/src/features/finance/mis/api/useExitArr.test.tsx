@@ -52,6 +52,7 @@ vi.mock("@config/apiConfig", () => ({
   misArrServiceUrls: {
     regionExit: "https://mis.example/arr-summary/region-exit",
     buExit: "https://mis.example/arr-summary/bu-exit",
+    regionMetrics: "https://mis.example/arr-summary/region-metrics",
   },
 }));
 
@@ -71,10 +72,11 @@ vi.mock("@api/http", async () => {
   };
 });
 
-const { useExitArrByRegion, useExitArrByBU } = await import("./useExitArr");
+const { useExitArrByRegion, useExitArrByBU, useRegionMetrics } = await import("./useExitArr");
 
 const REGION_URL = "https://mis.example/arr-summary/region-exit";
 const BU_URL = "https://mis.example/arr-summary/bu-exit";
+const METRICS_URL = "https://mis.example/arr-summary/region-metrics";
 
 const REGION_FILTERS = defaultAppliedFilters(
   MIS_PERIODS.ANNUALLY,
@@ -101,6 +103,17 @@ function renderRegion(
     { wrapper, initialProps: { sales: bySalesRegion } },
   );
   return { ...view, client };
+}
+
+function renderMetrics(
+  ranges: readonly MisDateRange[],
+  filters = REGION_FILTERS,
+  client = newClient(),
+) {
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return renderHook(() => useRegionMetrics(ranges, filters, true), { wrapper });
 }
 
 function renderBu(ranges: readonly MisDateRange[], client = newClient()) {
@@ -217,5 +230,45 @@ describe("when a column fails", () => {
     const { result } = renderBu([YEAR_2025, YEAR_2026]);
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.errorMessage).not.toBe("");
+  });
+});
+
+// All ARR Metrics runs on the same engine as the two summaries above. What is
+// pinned here is the two things it does differently, both of which follow from
+// its being a MOVEMENT table: it heads a column with the span it covers rather
+// than the date it closes on, and it lets the reader's unit selection narrow it.
+describe("All ARR Metrics", () => {
+  it("asks its own endpoint, once per column", async () => {
+    const { result } = renderMetrics([YEAR_2025, YEAR_2026]);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(authedPost.mock.calls.map((call) => call[0])).toEqual([METRICS_URL, METRICS_URL]);
+  });
+
+  it("heads a column with the span it covers, not the date it closes on", async () => {
+    const { result } = renderMetrics([YEAR_2026]);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // The Build's own header. `As of 2026/09/12` is what the Exit ARR summaries
+    // show, and a movement read under that heading would say nothing about
+    // which period it moved over.
+    expect(result.current.columns[0].label).toBe("2025/12/31 - 2026/09/12");
+  });
+
+  it("narrows by the unit the reader selected", async () => {
+    const { result } = renderMetrics([YEAR_2026], {
+      ...REGION_FILTERS,
+      buProductSelection: "BU_APIM",
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(authedPost.mock.calls[0][2]).toMatchObject({ businessUnits: ["APIM_BU"] });
+  });
+
+  it("asks nothing at all while a custom selection names no units", async () => {
+    const { result } = renderMetrics([YEAR_2026], {
+      ...REGION_FILTERS,
+      buProductSelection: "CUSTOM",
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(authedPost).not.toHaveBeenCalled();
+    expect(result.current.columns).toEqual([]);
   });
 });

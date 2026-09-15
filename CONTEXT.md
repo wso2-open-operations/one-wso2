@@ -80,8 +80,23 @@ _Avoid_: start/end balance, BoP/EoP
 The three ways existing recurring revenue moves between Opening and Closing. New business is New.
 _Avoid_: upsell, downgrade, churn
 
+One ported screen uses different words for these, and is meant to. The Region Summary's **All ARR
+Metrics** view heads its columns `Expansion`, `Reduction`, `Loss`, `First Sale` and `Closing ARR`
+where the Subscription Build writes `Expansions`, `Reductions`, `Lost`, `New` and `Ending ARR` — the
+source is inconsistent between two of its own screens, and the port reproduces that under
+[ADR 0003](docs/adr/0003-bug-for-bug-parity-during-the-parallel-period.md) so finance reconciling
+column by column finds the words it expects. So `Loss` and `First Sale` in those two headers are not
+glossary breaches to fix; harmonising the two screens is a decision for after the parallel period.
+The carve-out reaches the column KEYS those headers derive from as well — `REGION_METRICS_SUB_COLUMNS`
+names them off the label, so `loss` and `first-sale` sit there beside the wire fields `lost` and
+`firstSale`, and renaming either half would only make the column disagree with itself.
+Everywhere else — prose, identifiers, every other table — the words are **Lost** and **New**.
+
 **Exit ARR**:
-Recurring revenue as at the end of a Period, reported by region or business unit.
+Recurring revenue as at the end of a Period, reported by region or business unit. A BALANCE, which is
+what separates it from the **All ARR Metrics** view sharing its screen: that one reports the same
+regions' MOVEMENT over the Period instead, and is narrowed to one Business Unit rather than split by
+all of them.
 _Avoid_: closing ARR, ending ARR
 
 **TTM**:

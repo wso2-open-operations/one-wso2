@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Stack, ToggleButton, ToggleButtonGroup, Typography } from "@wso2/oxygen-ui";
+import MisSegmentedControl from "./MisSegmentedControl";
 
 // Which geography Exit ARR by Region cuts its rows by.
 //
@@ -38,6 +38,11 @@ import { Stack, ToggleButton, ToggleButtonGroup, Typography } from "@wso2/oxygen
 // The consequence, stated plainly so nobody has to discover it: a reader who
 // shares a Sub Region view sends a Sales Region one.
 
+const REGION_TYPE_OPTIONS = [
+  { value: "sales", label: "Sales Region" },
+  { value: "sub", label: "Sub Region" },
+] as const;
+
 export default function MisRegionTypeTabs({
   bySalesRegion,
   onChange,
@@ -46,30 +51,11 @@ export default function MisRegionTypeTabs({
   onChange: (bySalesRegion: boolean) => void;
 }) {
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
-      {/* Hidden from assistive tech, because the group below carries the same
-          words as its accessible name — the source hides its own the same way
-          (`region-type-label`, `aria-hidden="true"`). */}
-      <Typography variant="body2" color="text.secondary" aria-hidden>
-        Region Type
-      </Typography>
-      <ToggleButtonGroup
-        exclusive
-        size="small"
-        value={bySalesRegion ? "sales" : "sub"}
-        aria-label="Region Type"
-        // `null` when the reader clicks the cut they are already on. Ignored
-        // rather than treated as "neither": the rows are cut one way or the
-        // other and there is no third state.
-        onChange={(_event, next: string | null) => next && onChange(next === "sales")}
-      >
-        <ToggleButton value="sales" sx={{ textTransform: "none", px: 1.5 }}>
-          Sales Region
-        </ToggleButton>
-        <ToggleButton value="sub" sx={{ textTransform: "none", px: 1.5 }}>
-          Sub Region
-        </ToggleButton>
-      </ToggleButtonGroup>
-    </Stack>
+    <MisSegmentedControl
+      label="Region Type"
+      value={bySalesRegion ? "sales" : "sub"}
+      options={REGION_TYPE_OPTIONS}
+      onChange={(next) => onChange(next === "sales")}
+    />
   );
 }

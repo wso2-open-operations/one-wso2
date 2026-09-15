@@ -28,6 +28,7 @@ import {
   MIS_PERIODS,
   MIS_TABLES,
   MIS_WINDOWS,
+  type MisAppliedFilters,
 } from "@features/finance/mis/util/misViewVocabulary";
 import {
   annualColumnLabel,
@@ -42,6 +43,7 @@ import type {
   BuFigures,
   RegionExitResponse,
 } from "@features/finance/mis/components/exitArrRows";
+import type { RegionMetricsResponse } from "@features/finance/mis/components/regionMetricsRows";
 import type { DrillDownState } from "@features/finance/mis/api/useDrillDownCustomers";
 
 // The first real figures on screen. Everything below the shell: the Build's
@@ -94,6 +96,11 @@ const regionExit = {
   askedBySalesRegion: [] as boolean[],
 };
 const buExit = { value: {} as ExitArrState<BuFigures> };
+const regionMetrics = {
+  value: {} as ExitArrState<RegionMetricsResponse>,
+  askedBySalesRegion: [] as boolean[],
+  askedFilters: [] as MisAppliedFilters[],
+};
 vi.mock("@features/finance/mis/api/useExitArr", () => ({
   useExitArrByRegion: (
     _ranges: unknown,
@@ -104,6 +111,15 @@ vi.mock("@features/finance/mis/api/useExitArr", () => ({
     return regionExit.value;
   },
   useExitArrByBU: () => buExit.value,
+  useRegionMetrics: (
+    _ranges: unknown,
+    filters: MisAppliedFilters,
+    isSalesRegionSummary: boolean,
+  ) => {
+    regionMetrics.askedBySalesRegion.push(isSalesRegionSummary);
+    regionMetrics.askedFilters.push(filters);
+    return regionMetrics.value;
+  },
 }));
 
 // The filter bar's menus, stubbed at the same seam as the figures and for the
@@ -209,6 +225,14 @@ const NORTHWIND = {
   arrSoftwareTotal: 600_000,
   arrCloudTotal: 150_000,
   arrGrandTotal: 750_000,
+  // The BU-only breakdown's own fields. Not the software and cloud halves added
+  // up — the backend attributes a unit's revenue itself.
+  apimBuTotal: 400_000,
+  iamBuTotal: 200_000,
+  integrationBuTotal: 100_000,
+  choreoBuTotal: 30_000,
+  agentPlatformBuTotal: 20_000,
+  moesifBuTotal: 10_000,
 };
 
 const customerBook = (accounts: Record<string, unknown>[]): CustomerAccountsState => ({
@@ -246,6 +270,33 @@ const regionsLoaded = (response: RegionExitResponse): ExitArrState<RegionExitRes
   retry: () => {},
 });
 
+/** One region's movement over a column, as `/arr-summary/region-metrics` sends it. */
+const MOVEMENT = {
+  opening: 1_000_000,
+  firstSale: 200_000,
+  expansions: 150_000,
+  reductions: 50_000,
+  lost: 100_000,
+  netNew: 200_000,
+  ending: 1_200_000,
+};
+
+/**
+ * All ARR Metrics columns are headed with the SPAN they cover, not the date
+ * they close on — the Build's own header, because a movement covers a period.
+ */
+const THIS_YEAR_SPAN = THIS_YEAR;
+
+const metricsLoaded = (
+  response: RegionMetricsResponse,
+): ExitArrState<RegionMetricsResponse> => ({
+  columns: [{ label: THIS_YEAR_SPAN, response, isError: false }],
+  isLoading: false,
+  isError: false,
+  errorMessage: "",
+  retry: () => {},
+});
+
 const unitsLoaded = (response: BuFigures): ExitArrState<BuFigures> => ({
   columns: [{ label: THIS_YEAR_AS_OF, response, isError: false }],
   isLoading: false,
@@ -261,6 +312,9 @@ beforeEach(() => {
   regionExit.askedBySalesRegion = [];
   regionExit.value = regionsLoaded({ NA: SPLIT, "Middle East": { apim: 1_000, all: 1_000 } });
   buExit.value = unitsLoaded(SPLIT);
+  regionMetrics.askedBySalesRegion = [];
+  regionMetrics.askedFilters = [];
+  regionMetrics.value = metricsLoaded({ NA: MOVEMENT, EU: { ...MOVEMENT, ending: 300_000 } });
   drillDown.asked = [];
   drillDown.value = {
     customers: [
@@ -378,10 +432,12 @@ describe("the Software/Cloud Customers table", () => {
     expect(cells[2]).toHaveTextContent("Direct");
   });
 
-  it("heads the figure columns so the three Totals can be told apart", () => {
+  it("heads the figure columns so the three Totals can be told apart", async () => {
     // The source separates them with a Software/Cloud grouping row; this port
     // renders two header rows, so the labels have to carry it. Deviation, §7.
+    // Reached through the breakdown control, because BU only is the default.
     renderPage("?table=customers");
+    await userEvent.click(screen.getByRole("button", { name: "Software / Cloud" }));
     expect(screen.getAllByText("Software Total").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Cloud Total").length).toBeGreaterThan(0);
   });
@@ -402,6 +458,79 @@ describe("the Software/Cloud Customers table", () => {
     customers.value = { ...customerBook([]), isLoading: true, columns: [] };
     renderPage("?table=customers");
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+});
+
+describe("how the customer table breaks a customer's revenue down", () => {
+  // Two views of one response. The source's checkbox is `BU only`, it is
+  // CHECKED by default (`DataGrid.js:365`), and unticking it gives the twelve
+  // Software/Cloud columns. So the default here is the business-unit split, and
+  // the port's original twelve-column view is the second option.
+
+  it("opens on the business-unit split, which is what the source opens on", () => {
+    renderPage("?table=customers");
+    expect(screen.getAllByText("API Platform BU").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Software Total")).not.toBeInTheDocument();
+  });
+
+  it("warns that Moesif is already counted inside API Platform BU", () => {
+    renderPage("?table=customers");
+    expect(
+      screen.getAllByText("Moesif (Already included in API Platform BU)").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("swaps to the Software/Cloud breakdown when the reader asks for it", async () => {
+    renderPage("?table=customers");
+    await userEvent.click(screen.getByRole("button", { name: "Software / Cloud" }));
+    expect(screen.getAllByText("Software Total").length).toBeGreaterThan(0);
+    expect(screen.queryByText("API Platform BU")).not.toBeInTheDocument();
+  });
+
+  it("reads a unit off its own field, not off the software and cloud halves", () => {
+    // 400,000 is `apimBuTotal`. Software plus Cloud for this account is
+    // 750,000, so a port that reconstructed the unit would show that instead.
+    renderPage("?table=customers");
+    const row = screen.getByText("Northwind Bank").closest("tr")!;
+    expect(within(row).getByText("400,000.00")).toBeInTheDocument();
+  });
+
+  it("keeps the control on screen when the whole book failed", () => {
+    // The source gates its checkbox on `!loading` alone
+    // (`DataGrid.js:1063-1105`), so an error keeps it — and an error is where
+    // a reader most wants the switch still there.
+    customers.value = {
+      columns: [],
+      isLoading: false,
+      isError: true,
+      errorMessage: "Gateway said no.",
+      retry: () => {},
+    };
+    renderPage("?table=customers");
+    expect(screen.getByRole("group", { name: "Breakdown" })).toBeInTheDocument();
+  });
+
+  it("keeps the control on screen when the book came back empty", () => {
+    customers.value = customerBook([]);
+    renderPage("?table=customers");
+    expect(screen.getByText(/no customers to show/i)).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Breakdown" })).toBeInTheDocument();
+  });
+
+  it("holds the control back while the book is still loading, as the source does", () => {
+    customers.value = { ...customerBook([]), isLoading: true, columns: [] };
+    renderPage("?table=customers");
+    expect(screen.queryByRole("group", { name: "Breakdown" })).not.toBeInTheDocument();
+  });
+
+  it("asks the backend for nothing more when the breakdown changes", async () => {
+    // Both views are the same `POST /accounts` response, so switching must not
+    // refetch. The stub counts renders of the hook's result, not calls, so what
+    // is pinned is that the columns handed in are the same object.
+    renderPage("?table=customers");
+    const before = customers.value;
+    await userEvent.click(screen.getByRole("button", { name: "Software / Cloud" }));
+    expect(customers.value).toBe(before);
   });
 });
 
@@ -804,6 +933,26 @@ describe("taking the Build out of the browser", () => {
     expect(sheet.getRow(1).getCell(1).value).toBe("All amounts in USD");
   });
 
+  it("exports All ARR Metrics at units while the screen shows thousands", async () => {
+    // The fifth grid on this page, and the fifth call site §10.18 has to hold
+    // at: the sheet builder takes no Scale, but its `value` reader would carry
+    // a figure a caller had already divided.
+    renderPage("?table=region-summary&scale=k");
+    await userEvent.click(screen.getByRole("button", { name: "All ARR Metrics" }));
+    const sheet = await exportedSheet("All ARR Metrics");
+    expect(figureAt(sheet, "NA", "Opening ARR")).toBe(1_000_000);
+    expect(sheet.getRow(1).getCell(1).value).toBe("All amounts in USD");
+  });
+
+  it("names the All ARR Metrics file after the view it came from", async () => {
+    const { blobs, filenames } = captureDownloads();
+    renderPage("?table=region-summary");
+    await userEvent.click(screen.getByRole("button", { name: "All ARR Metrics" }));
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await waitFor(() => expect(blobs).toHaveLength(1));
+    expect(filenames[0]).toMatch(/^arr_build_all_arr_metrics_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  });
+
   it("exports the BU Summary at units while the screen shows thousands", async () => {
     renderPage("?table=bu-summary&scale=k");
     const sheet = await exportedSheet("BU Summary");
@@ -900,5 +1049,113 @@ describe("a session Years Back that happens to equal the Table's own default", (
     // is gone, so Region Summary answers with its own two.
     await switchTable("Region Summary");
     expect(address()).toBe("?table=region-summary");
+  });
+});
+
+describe("the Region Summary's two views", () => {
+  // `RegionSummaryTabs.js`. Exit ARR is each region's BALANCE at the column's
+  // date, split by business unit; All ARR Metrics is each region's MOVEMENT
+  // over the column, narrowed to one business unit. Two questions, not two
+  // arrangements of one answer.
+
+  const openMetrics = async () => {
+    renderPage("?table=region-summary");
+    await userEvent.click(screen.getByRole("button", { name: "All ARR Metrics" }));
+  };
+
+  it("opens on Exit ARR, which is what the source opens on", () => {
+    renderPage("?table=region-summary");
+    expect(screen.getByRole("button", { name: "Exit ARR" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("API Platform BU")).toBeInTheDocument();
+  });
+
+  it("shows each region's movement once the reader asks for the metrics", async () => {
+    await openMetrics();
+    expect(screen.getByText("Opening ARR")).toBeInTheDocument();
+    expect(screen.getByText("First Sale")).toBeInTheDocument();
+    expect(screen.getByText("Closing ARR")).toBeInTheDocument();
+    // The business-unit split belongs to the other view.
+    expect(screen.queryByText("API Platform BU")).not.toBeInTheDocument();
+  });
+
+  it("heads each column with the span it covers, not the date it closes on", async () => {
+    await openMetrics();
+    expect(screen.getAllByText(THIS_YEAR_SPAN).length).toBeGreaterThan(0);
+  });
+
+  it("gives each region a row, and totals them last", async () => {
+    await openMetrics();
+    const table = screen.getByRole("table", { name: /All ARR Metrics/ });
+    const headers = within(table).getAllByRole("rowheader");
+    expect(headers.map((header) => header.textContent)).toEqual(["NA", "EU", "Total"]);
+  });
+
+  it("adds each metric down the regions", async () => {
+    await openMetrics();
+    const table = screen.getByRole("table", { name: /All ARR Metrics/ });
+    const total = within(table).getAllByRole("row").at(-1)!;
+    // Two regions, both opening at 1,000,000.
+    expect(within(total).getByText("2,000,000.00")).toBeInTheDocument();
+    // Their Closings differ, so this is not the opening read twice.
+    expect(within(total).getByText("1,500,000.00")).toBeInTheDocument();
+  });
+
+  it("narrows the metrics by the unit the reader selected, which Exit ARR ignores", async () => {
+    // The deviation this view takes: the source gives it a pill row of its own,
+    // and here it binds to the unit tabs the screen already carries.
+    renderPage("?table=region-summary&unit=BU_APIM");
+    await userEvent.click(screen.getByRole("button", { name: "All ARR Metrics" }));
+    expect(regionMetrics.askedFilters.at(-1)).toMatchObject({ buProductSelection: "BU_APIM" });
+  });
+
+  it("cuts by Sub Region when the reader switches, on the metrics too", async () => {
+    await openMetrics();
+    await userEvent.click(screen.getByRole("button", { name: "Sub Region" }));
+    expect(regionMetrics.askedBySalesRegion.at(-1)).toBe(false);
+  });
+
+  it("returns to Sales Region when the view changes, as the source does", async () => {
+    renderPage("?table=region-summary");
+    await userEvent.click(screen.getByRole("button", { name: "Sub Region" }));
+    expect(regionExit.askedBySalesRegion.at(-1)).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "All ARR Metrics" }));
+    expect(regionMetrics.askedBySalesRegion.at(-1)).toBe(true);
+  });
+
+  it("keeps both controls on screen when every column failed", async () => {
+    regionMetrics.value = {
+      columns: [],
+      isLoading: false,
+      isError: true,
+      errorMessage: "Gateway said no.",
+      retry: () => {},
+    };
+    await openMetrics();
+    expect(screen.getByText(/Gateway said no/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exit ARR" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sales Region" })).toBeInTheDocument();
+  });
+
+  it("says what to do when a custom selection has asked for no units", async () => {
+    // `regionMetricsRequests` returns no bodies, so the hook returns no columns
+    // — the same state as no columns at all, and the source's own words for it.
+    regionMetrics.value = {
+      columns: [],
+      isLoading: false,
+      isError: false,
+      errorMessage: "",
+      retry: () => {},
+    };
+    await openMetrics();
+    expect(screen.getByText(/Choose units to generate region metrics/)).toBeInTheDocument();
+  });
+
+  it("holds the space rather than showing an empty table while it loads", async () => {
+    regionMetrics.value = { ...regionMetrics.value, isLoading: true, columns: [] };
+    await openMetrics();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 });

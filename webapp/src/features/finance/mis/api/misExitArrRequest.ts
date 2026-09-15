@@ -14,8 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// The bodies of the `POST /arr-summary/region-exit` and `POST /arr-summary/bu-exit`
-// calls the two Exit ARR summaries need — one per column.
+// The bodies of the three `POST /arr-summary/*` summary calls — `region-exit`
+// and `bu-exit` behind the two Exit ARR summaries, and `region-metrics` behind
+// the Region Summary's All ARR Metrics view — one per column.
 //
 // Ported from `buildPayload` in digiops-finance
 // `arrDashboard/hooks/useExitArrByRegion.js` and `useExitArrByBU.js`. The two
@@ -26,14 +27,19 @@
 // ---- why this body is the narrowest of the four ----------------------------
 //
 // `/arr-summary` sends eighteen fields, `/accounts` three; these send four or
-// five. `businessUnits` is hard-coded to every unit and the nine account and
-// geography lists are not forwarded at all.
+// five. The nine account and geography lists are not forwarded at all, and on
+// the two Exit ARR summaries `businessUnits` is hard-coded to every unit.
 //
-// That is the shape of the question rather than an omission. A summary reports
-// what every business unit was worth across every region, so the per-unit
-// breakdown IS the table's columns and the per-region breakdown IS its rows.
-// Narrowing to one unit would leave six of seven figures empty under a heading
-// still promising all of them.
+// That is the shape of the question rather than an omission. An Exit ARR
+// summary reports what every business unit was worth across every region, so
+// the per-unit breakdown IS the table's columns and the per-region breakdown IS
+// its rows. Narrowing to one unit would leave six of seven figures empty under
+// a heading still promising all of them.
+//
+// All ARR Metrics is the exception, and it is the exception for exactly that
+// reason: its columns are the seven MOVEMENTS rather than the seven units, so
+// nothing is spent on the unit split and the reader's selection is free to
+// narrow the question. It is the one summary whose body carries it.
 //
 // ---- a summary is a BALANCE, and a Build is a MOVEMENT ----------------------
 //
@@ -43,7 +49,7 @@
 // a summary to compare against — and `isFirstColumn`, which only a forecast
 // roll-forward needs.
 
-import { openingDateFor, toWireDate } from "./misRequestParts";
+import { businessUnitsFor, openingDateFor, toWireDate } from "./misRequestParts";
 import {
   carriesConfidence,
   isOnePartnerBook,
@@ -71,6 +77,18 @@ export interface ExitArrRequest {
 /** Exit ARR by Region also says which geography to cut by. */
 export interface RegionExitRequest extends ExitArrRequest {
   /** `true` for Sales Region, `false` for Sub Region. */
+  isSalesRegionSummary: boolean;
+}
+
+/**
+ * All ARR Metrics cuts by geography too, and narrows by the reader's units.
+ *
+ * `businessUnits` widens to a plain list because a custom selection sends the
+ * chosen codes themselves rather than one code — the same thing `/arr-summary`
+ * does, and the reason this cannot simply reuse `ExitArrRequest`.
+ */
+export interface RegionMetricsRequest extends Omit<ExitArrRequest, "businessUnits"> {
+  businessUnits: string[];
   isSalesRegionSummary: boolean;
 }
 
@@ -106,6 +124,29 @@ export function buExitRequests(
   filters: MisAppliedFilters,
 ): ExitArrRequest[] {
   return ranges.map((range) => exitArrBody(range, filters));
+}
+
+/**
+ * One request per column, oldest first, in the order the columns read.
+ *
+ * Empty when the reader has built a custom unit selection and ticked nothing —
+ * the source guards the whole fetch on `hasBusinessUnitSelection` and shows
+ * "Choose units to generate region metrics" instead. Falling back to every unit
+ * would put the whole company's movement on screen under a chip saying
+ * otherwise, which is the same trap `arrSummaryRequests` avoids the same way.
+ */
+export function regionMetricsRequests(
+  ranges: readonly MisDateRange[],
+  filters: MisAppliedFilters,
+  isSalesRegionSummary: boolean,
+): RegionMetricsRequest[] {
+  const businessUnits = businessUnitsFor(filters);
+  if (!businessUnits) return [];
+  return ranges.map((range) => ({
+    ...exitArrBody(range, filters),
+    businessUnits,
+    isSalesRegionSummary,
+  }));
 }
 
 function exitArrBody(range: MisDateRange, filters: MisAppliedFilters): ExitArrRequest {

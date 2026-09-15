@@ -222,6 +222,14 @@ describe("the Total Exit ARR row", () => {
     const table = regionExitTable(columnsOf([AS_OF_2026, {}]));
     expect(table.figures.get(AS_OF_2026)?.get(TOTAL_ROW_ID)).toMatchObject({ apim: 0, all: 0 });
   });
+
+  it("is built over an empty book too, as All ARR Metrics is", () => {
+    // Both views of the Region Summary build a lone total when nothing came
+    // back, which is how the grid tells an empty book from a loaded one
+    // (`isEmpty` reads `rows.length <= 1`). Pinned on both sides because the
+    // two builders are near-identical and this is the line they drifted on.
+    expect(regionExitTable([]).rows.map((row) => row.id)).toEqual([TOTAL_ROW_ID]);
+  });
 });
 
 describe("the columns a Region Summary repeats under every period", () => {

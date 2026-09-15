@@ -1459,6 +1459,10 @@ export const misArrServiceUrls = {
   regionExit: `${misArrBackendUrl}/arr-summary/region-exit`,
   // The same balance without the regional split — one `BuType` per column.
   buExit: `${misArrBackendUrl}/arr-summary/bu-exit`,
+  // The Region Summary's other view: each region's MOVEMENT over the column
+  // rather than its balance at the end of it. Its body carries the reader's
+  // unit selection, which is what makes it the one summary a Unit tab reaches.
+  regionMetrics: `${misArrBackendUrl}/arr-summary/region-metrics`,
 };
 
 export const misFlashBackendUrl: string = stripTrailingSlashes(

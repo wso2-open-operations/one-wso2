@@ -73,6 +73,11 @@ export interface AccountsResponse {
   lostReasonCategory?: string;
   accountRating?: string;
   employeeCount?: number;
+  apimBuTotal?: number;
+  iamBuTotal?: number;
+  integrationBuTotal?: number;
+  choreoBuTotal?: number;
+  agentPlatformBuTotal?: number;
   apimSoftwareTotal?: number;
   iamSoftwareTotal?: number;
   integrationSoftwareTotal?: number;
@@ -196,6 +201,28 @@ export interface CustomerSubColumn {
 }
 
 /**
+ * The two Total columns, which read the same `arrGrandTotal` and answer
+ * differently — see `customerFigure`. Named so the rules can key on the column
+ * rather than on the field, which cannot tell them apart.
+ */
+const GRAND_TOTAL_KEY = "grand-total";
+const BU_TOTAL_KEY = "bu-total";
+
+/** The six fields the BU-only Total falls back to adding up. */
+const BU_FIELDS = [
+  "apimBuTotal",
+  "iamBuTotal",
+  "integrationBuTotal",
+  "choreoBuTotal",
+  "agentPlatformBuTotal",
+  "moesifBuTotal",
+] as const satisfies readonly (keyof AccountsResponse)[];
+
+/** Those six added up for one account, each missing one read as zero. */
+const buFieldsTotal = (account: AccountsResponse): number =>
+  BU_FIELDS.reduce((total, field) => total + (account[field] ?? 0), 0);
+
+/**
  * The twelve figures, in the source's reading order.
  *
  * Software's three products then its total, Cloud's five then Moesif then its
@@ -241,12 +268,55 @@ export const CUSTOMER_SUB_COLUMNS: readonly CustomerSubColumn[] = [
   // rather than this column meaning something different.
   { key: "cloud-moesif", label: "Moesif", field: "moesifBuTotal" },
   { key: "cloud-total", label: "Cloud Total", field: "arrCloudTotal" },
-  { key: "grand-total", label: "Total", field: "arrGrandTotal" },
+  { key: GRAND_TOTAL_KEY, label: "Total", field: "arrGrandTotal" },
 ];
 
 /** By key, so a cell looks its column up once rather than scanning twelve. */
 export const CUSTOMER_SUB_COLUMN_BY_KEY: ReadonlyMap<string, CustomerSubColumn> = new Map(
   CUSTOMER_SUB_COLUMNS.map((column) => [column.key, column]),
+);
+
+/**
+ * The seven figures of the BU-only view, which is the source's DEFAULT.
+ *
+ * ---- this is the view the live app opens on --------------------------------
+ *
+ * `DataGrid.js:365` is `useState(true)`, so a reader arriving at Software/Cloud
+ * Customers sees these seven columns and reaches the twelve above by unticking
+ * "BU only". The port built the twelve first, which made its default the
+ * source's alternate; both are here now and the toggle decides.
+ *
+ * ---- same response, different fields ---------------------------------------
+ *
+ * There is no second request and no second hook. A business unit's figure is
+ * its own field on the very same `/accounts` account — `apimBuTotal` — and NOT
+ * the software and cloud halves added up. They are not the same number: the
+ * BU total is what the backend attributes to that unit, and reconstructing it
+ * client-side would be the port inventing arithmetic the source never did.
+ *
+ * Moesif carries its caveat in the header, exactly as `generateBuOnlyColumns`
+ * spells it, because its figure is already inside API Platform BU beside it —
+ * the same warning `exitArrRows` carries on the two Exit ARR summaries.
+ *
+ * The Total here reads `arrGrandTotal` and falls back to the SIX UNITS above it
+ * on anything not strictly positive, where the Software/Cloud view's Total reads
+ * the same field and falls back to the two BOOKS on anything falsy. Two rules,
+ * two sums, two conditions, one field — which is why `customerFigure` decides on
+ * the column's key. Recorded in `docs/ported-apps/mis.md` §8.
+ */
+export const CUSTOMER_BU_SUB_COLUMNS: readonly CustomerSubColumn[] = [
+  { key: "bu-apim", label: "API Platform BU", field: "apimBuTotal" },
+  { key: "bu-iam", label: "IAM BU", field: "iamBuTotal" },
+  { key: "bu-integration", label: "Integration BU", field: "integrationBuTotal" },
+  { key: "bu-choreo", label: "Choreo BU", field: "choreoBuTotal" },
+  { key: "bu-agent-platform", label: "Agent Platform BU", field: "agentPlatformBuTotal" },
+  { key: "bu-moesif", label: "Moesif (Already included in API Platform BU)", field: "moesifBuTotal" },
+  { key: BU_TOTAL_KEY, label: "Total", field: "arrGrandTotal" },
+];
+
+/** By key, for the same reason the twelve above have one. */
+export const CUSTOMER_BU_SUB_COLUMN_BY_KEY: ReadonlyMap<string, CustomerSubColumn> = new Map(
+  CUSTOMER_BU_SUB_COLUMNS.map((column) => [column.key, column]),
 );
 
 /**
@@ -297,6 +367,21 @@ export function customerAccountRows(
 }
 
 /**
+ * What an identity column reads for one row.
+ *
+ * Blank for a customer who is not in this column's book at all, which is what
+ * an absent account means — `BuildTable` renders the row's own label in the
+ * first column, so this is only ever asked about the sixteen after Account
+ * Name, or seventeen on a Delayed type.
+ */
+export function customerIdentityText(
+  account: AccountsResponse | undefined,
+  column: CustomerLeadColumn,
+): string {
+  return account ? column.value(account) : "";
+}
+
+/**
  * The figure for one customer in one column, or `undefined` when they are not
  * in that column's book at all.
  *
@@ -310,7 +395,7 @@ export function customerFigure(
   subColumn: CustomerSubColumn,
 ): number | undefined {
   if (!account) return undefined;
-  // The overall total alone is read the source's way:
+  // The Software/Cloud view's overall total alone is read the source's way:
   // `arrGrandTotal || arrSoftwareTotal + arrCloudTotal || 0`. That `||` means a
   // grand total of ZERO falls through to the two halves rather than being
   // reported as zero — which is the behaviour worth having, because the case it
@@ -319,8 +404,28 @@ export function customerFigure(
   // Total column reads 0 is the failure this avoids. The cost is that a
   // genuine zero total beside non-zero halves cannot be told apart from an
   // absent one — a state that would mean the backend disagreed with itself.
-  if (subColumn.field === "arrGrandTotal") {
+  //
+  // Keyed on the COLUMN and not on the field it reads, because the BU-only view
+  // has a Total column reading the very same `arrGrandTotal` and falling back
+  // differently — see the branch below. Two rules over one field, so the field
+  // cannot be what decides which applies.
+  if (subColumn.key === GRAND_TOTAL_KEY) {
     return account.arrGrandTotal || (account.arrSoftwareTotal ?? 0) + (account.arrCloudTotal ?? 0);
+  }
+  // The BU-only Total falls back to the SIX BUSINESS UNITS it is the total of,
+  // not to the two books — and only on a total that is not strictly POSITIVE.
+  // Both halves are the column's own `valueGetter`
+  // (`tableConstants.js:474-489`): `directTotal > 0 ? directTotal : apim + iam +
+  // integration + choreo + agentPlatform + moesif`, over a `_bu_total` that is
+  // itself `arrGrandTotal || 0` (`useCustomerAccounts.js:396`).
+  //
+  // So a NEGATIVE grand total is shown by the other view and replaced here,
+  // which is the source's, is strange, and is reproduced under ADR 0003. The
+  // rule lives in a column's renderer there and in a column's branch here; what
+  // matters is that it is not the field's, because the field is shared.
+  if (subColumn.key === BU_TOTAL_KEY) {
+    const sent = account.arrGrandTotal ?? 0;
+    return sent > 0 ? sent : buFieldsTotal(account);
   }
   const value = account[subColumn.field];
   return typeof value === "number" ? value : undefined;
