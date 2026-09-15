@@ -16,7 +16,7 @@
 
 import { useMemo } from "react";
 import { misArrServiceUrls } from "@config/apiConfig";
-import { annualColumnLabel, asOfColumnLabel } from "../util/misPeriods";
+import { buildColumnLabel, asOfColumnLabel } from "../util/misPeriods";
 import type { MisAppliedFilters, MisDateRange } from "../util/misViewVocabulary";
 import type { BuFigures, RegionExitResponse } from "../components/exitArrRows";
 import type { RegionMetricsResponse } from "../components/regionMetricsRows";
@@ -141,7 +141,7 @@ export function useRegionMetrics(
     // A movement is read over a span, so the header names both ends — the same
     // label the Build's own columns carry. The two Exit ARR summaries name one
     // date because a balance happens at a moment.
-    label: annualColumnLabel,
+    label: buildColumnLabel,
     ranges,
     enabled,
   });

@@ -16,7 +16,7 @@
 
 import { useMemo } from "react";
 import { misArrServiceUrls } from "@config/apiConfig";
-import { annualColumnLabel } from "../util/misPeriods";
+import { buildColumnLabel } from "../util/misPeriods";
 import type { MisAppliedFilters, MisDateRange } from "../util/misViewVocabulary";
 import type { ArrSummaryResponse } from "../components/arrBuildRows";
 import { arrSummaryRequests } from "./misArrSummaryRequest";
@@ -61,7 +61,7 @@ export function useArrSummary(
   // a column is fetched with, and pairing them anywhere else would be two lists
   // that could fall out of step.
   const bodies = useMemo(() => arrSummaryRequests(ranges, filters), [ranges, filters]);
-  const labels = useMemo(() => ranges.map(annualColumnLabel), [ranges]);
+  const labels = useMemo(() => ranges.map(buildColumnLabel), [ranges]);
 
   const state = useColumnQueries({
     name: "arr-summary",

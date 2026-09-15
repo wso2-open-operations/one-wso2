@@ -382,7 +382,7 @@ const copyLists = (from: Pick<MisAppliedFilters, MisListFilterKey>): Pick<MisPen
  * would undo whatever the reader picked there since.
  *
  * Two fields are deliberately NOT set here — `forecast` and
- * `annuallyDateRanges`. Both are derived, and `hydrateAppliedFilters` derives
+ * `columnDateRanges`. Both are derived, and `hydrateAppliedFilters` derives
  * them on the way back out of the URL, which every applied set passes through.
  * Deriving them here as well would be a second opinion about the same question.
  */

@@ -246,7 +246,7 @@ export interface MisAppliedFilters {
   cumulativeQuarterly?: boolean;
   cumulativeMonthly?: boolean;
   /** Derived column ranges, computed in Pacific Time. Never a URL parameter. */
-  annuallyDateRanges?: MisDateRange[];
+  columnDateRanges?: MisDateRange[];
 }
 
 /** The Applied-filter key holding the Period's type. */

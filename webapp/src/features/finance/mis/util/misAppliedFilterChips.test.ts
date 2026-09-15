@@ -140,7 +140,7 @@ describe("what is never a chip", () => {
   });
 
   it("says nothing about the derived fields, which nobody chose", () => {
-    const chips = chipsFor({ forecast: "Enable", annuallyDateRanges: [] });
+    const chips = chipsFor({ forecast: "Enable", columnDateRanges: [] });
     expect(chips.map((chip) => chip.key)).toEqual(["yearsBack"]);
   });
 });

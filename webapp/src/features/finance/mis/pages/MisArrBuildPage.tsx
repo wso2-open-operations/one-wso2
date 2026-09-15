@@ -27,7 +27,7 @@ import {
   type ArrSummaryResponse,
 } from "../components/arrBuildRows";
 import { useArrSummary, type ArrSummaryColumn } from "../api/useArrSummary";
-import { annualColumnLabel, pacificAnnualRanges, buildColumnRanges } from "../util/misPeriods";
+import { buildColumnLabel, pacificColumnRanges, buildColumnRanges } from "../util/misPeriods";
 import {
   MIS_VALUE_TYPES,
   amountUnitCaption,
@@ -108,7 +108,7 @@ import { misExportFilename, misFilenameWord } from "../export/misExportFilename"
 //
 //   the view      `useMisViewState` (02) reads the Period from the route and
 //                 everything else from the query string
-//   the columns   `pacificAnnualRanges` (05) cuts them in Pacific Time
+//   the columns   `pacificColumnRanges` (05) cuts them in Pacific Time
 //   the rows      `arrBuildRows` names them and says which field each reads
 //   the figures   `useArrSummary` fetches one column per query
 //   the money     `formatMisValue` (05) decides what Scale may touch
@@ -163,7 +163,7 @@ export default function MisArrBuildPage({ period }: { period: MisPeriod }) {
 
 /** Inside the shell, so it is only mounted once the gate has said yes. */
 function ArrBuild({ period }: { period: MisPeriod }) {
-  const view = useMisViewState(period, { annualRangesFor: pacificAnnualRanges });
+  const view = useMisViewState(period, { columnRangesFor: pacificColumnRanges });
   const scale = useMisScale(view);
   // The menus for the nine list filters. Fetched here rather than inside the
   // bar so the bar stays a function of its props, and so a screen that grows a
@@ -274,7 +274,7 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
   // already handles what genuinely can be.
   const byColumn = responsesByColumn(summary.columns);
   const rangeByLabel = useMemo(
-    () => new Map(ranges.map((range) => [annualColumnLabel(range), range])),
+    () => new Map(ranges.map((range) => [buildColumnLabel(range), range])),
     [ranges],
   );
   const columnGroups = summary.columns.map(({ label }) => ({ key: label, label }));
@@ -371,7 +371,7 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
         onClose={() => setOpened(null)}
         rowId={opened.rowId}
         rowLabel={opened.rowLabel}
-        periodColumn={annualColumnLabel(opened.range)}
+        periodColumn={buildColumnLabel(opened.range)}
         // The Build's own Applied filters, shown but not editable — the list
         // describes a figure computed under exactly these.
         chips={describeAppliedFilters(view.filters, { period: view.period, table: view.table })}

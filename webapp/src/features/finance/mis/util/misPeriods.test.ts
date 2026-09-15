@@ -23,14 +23,14 @@ import {
   type MisWindow,
 } from "./misViewVocabulary";
 import {
-  annualColumnLabel,
-  annualOpeningDate,
+  buildColumnLabel,
+  columnOpeningDate,
   asOfColumnLabel,
   getAnnualPeriods,
   getMonthlyPeriods,
   getQuarterlyPeriods,
   getTtmPeriods,
-  pacificAnnualRanges,
+  pacificColumnRanges,
   buildColumnRanges,
 } from "./misPeriods";
 
@@ -208,7 +208,7 @@ describe("the column-range computer the URL contract takes", () => {
   }
 
   it("gives calendar years on a Calendar Window", () => {
-    expect(atAsOf("Asia/Colombo", () => pacificAnnualRanges(MIS_WINDOWS.CALENDAR, filters))).toEqual(
+    expect(atAsOf("Asia/Colombo", () => pacificColumnRanges(MIS_WINDOWS.CALENDAR, filters))).toEqual(
       [
         { start: "2024/01/01", end: "2024/12/31" },
         { start: "2025/01/01", end: "2025/12/31" },
@@ -218,7 +218,7 @@ describe("the column-range computer the URL contract takes", () => {
   });
 
   it("gives trailing-twelve-month ranges on a TTM Window", () => {
-    expect(atAsOf("UTC", () => pacificAnnualRanges(MIS_WINDOWS.TTM, filters))).toEqual([
+    expect(atAsOf("UTC", () => pacificColumnRanges(MIS_WINDOWS.TTM, filters))).toEqual([
       {
         opening: "2024/09/12",
         start: "2024/09/13",
@@ -235,10 +235,10 @@ describe("the column-range computer the URL contract takes", () => {
   });
 
   it("is not where the Subscription table's column count is decided", () => {
-    // The seam feeds `annuallyDateRanges`, which NINE other Annually tables
+    // The seam feeds `columnDateRanges`, which NINE other Annually tables
     // draw their columns from directly. Narrowing it here would quietly shorten
     // all of them; only the Subscription table wants fewer — see below.
-    const calendar = atAsOf("UTC", () => pacificAnnualRanges(MIS_WINDOWS.CALENDAR, filters));
+    const calendar = atAsOf("UTC", () => pacificColumnRanges(MIS_WINDOWS.CALENDAR, filters));
     expect(calendar).toHaveLength(filters.yearsBack + 1);
   });
 });
@@ -272,14 +272,14 @@ describe("the header above an Annually column", () => {
   // the one it closes on. The header states them, so a reader can see which
   // twelve months a figure covers without consulting the filter bar.
   it("reads from the opening balance to the close, on a Calendar year", () => {
-    expect(annualColumnLabel({ start: "2026/01/01", end: "2026/09/12" })).toBe(
+    expect(buildColumnLabel({ start: "2026/01/01", end: "2026/09/12" })).toBe(
       "2025/12/31 - 2026/09/12",
     );
   });
 
   it("uses the TTM range's own header, which already says the same thing", () => {
     const [ttm] = getTtmPeriods({ yearsBack: 1, asOf: ASOF });
-    expect(annualColumnLabel(ttm)).toBe("2025/09/12 - 2026/09/12");
+    expect(buildColumnLabel(ttm)).toBe("2025/09/12 - 2026/09/12");
   });
 });
 
@@ -306,13 +306,13 @@ describe("the balance an Annually column opens from", () => {
   it("is the previous 31 December on a Calendar year, wherever the year closes", () => {
     // Year-to-date moves where a column CLOSES; it never moves where the
     // opening balance is read, which is always the last close of the year before.
-    expect(annualOpeningDate({ start: "2026/01/01", end: "2026/09/12" })).toBe("2025/12/31");
-    expect(annualOpeningDate({ start: "2026/01/01", end: "2026/12/31" })).toBe("2025/12/31");
+    expect(columnOpeningDate({ start: "2026/01/01", end: "2026/09/12" })).toBe("2025/12/31");
+    expect(columnOpeningDate({ start: "2026/01/01", end: "2026/12/31" })).toBe("2025/12/31");
   });
 
   it("is the TTM range's own opening, a year and a day back", () => {
     const [ttm] = getTtmPeriods({ yearsBack: 1, asOf: ASOF });
-    expect(annualOpeningDate(ttm)).toBe("2025/09/12");
+    expect(columnOpeningDate(ttm)).toBe("2025/09/12");
   });
 });
 
@@ -321,18 +321,18 @@ describe("how many columns the Subscription Build draws", () => {
   //
   // The source reaches that through two generators that disagree, and the
   // Subscription table is the only one that reads the shorter.
-  // `annuallyDateRanges` is `getAnnualPeriods({yearsBack})` — yearsBack + 1
+  // `columnDateRanges` is `getAnnualPeriods({yearsBack})` — yearsBack + 1
   // ranges (`viewState.js:267`) — and nine other Annually tables take their
   // columns straight from it. The Subscription grid instead builds its own with
   // `generateFullYearRanges(-(yearsBack - 1), 0)` (`tableUtils.js`), which is
   // yearsBack of them. A TTM Window has no such split.
   const filtersAt = (yearsBack: number, viewWindow: MisWindow = MIS_WINDOWS.CALENDAR) => {
     const base = { yearsBack, isYtd: true, endingMonth: ENDING_MONTH_TODAY };
-    const annuallyDateRanges = pacificAnnualRanges(
+    const columnDateRanges = pacificColumnRanges(
       viewWindow,
       base as unknown as MisAppliedFilters,
     );
-    return { ...base, annuallyDateRanges } as unknown as MisAppliedFilters;
+    return { ...base, columnDateRanges } as unknown as MisAppliedFilters;
   };
 
   it("draws exactly Years Back columns on a Calendar Window", () => {
@@ -348,13 +348,13 @@ describe("how many columns the Subscription Build draws", () => {
     expect(columns[0].start).toBe("2022/01/01");
     expect(columns.at(-1)?.end).toBe("2026/09/12");
     // The one it dropped is the one the source computes and never draws.
-    expect(filters.annuallyDateRanges?.[0].start).toBe("2021/01/01");
+    expect(filters.columnDateRanges?.[0].start).toBe("2021/01/01");
   });
 
   it("draws every range on a TTM Window, where the two agree", () => {
     const filters = filtersAt(5, MIS_WINDOWS.TTM);
     expect(buildColumnRanges(MIS_WINDOWS.TTM, filters)).toEqual(
-      filters.annuallyDateRanges,
+      filters.columnDateRanges,
     );
     expect(buildColumnRanges(MIS_WINDOWS.TTM, filters)).toHaveLength(5);
   });

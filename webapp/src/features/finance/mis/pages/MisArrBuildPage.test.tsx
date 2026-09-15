@@ -32,10 +32,10 @@ import {
   type MisAppliedFilters,
 } from "@features/finance/mis/util/misViewVocabulary";
 import {
-  annualColumnLabel,
+  buildColumnLabel,
   asOfColumnLabel,
   buildColumnRanges,
-  pacificAnnualRanges,
+  pacificColumnRanges,
 } from "@features/finance/mis/util/misPeriods";
 import type { ArrSummaryState } from "@features/finance/mis/api/useArrSummary";
 import type { CustomerAccountsState } from "@features/finance/mis/api/useCustomerAccounts";
@@ -170,9 +170,9 @@ vi.setConfig({ testTimeout: 20_000 });
  */
 const THIS_YEAR = inZone("Asia/Colombo", () => {
   const filters = defaultAppliedFilters(MIS_PERIODS.ANNUALLY, MIS_TABLES.SUBSCRIPTION);
-  const annuallyDateRanges = pacificAnnualRanges(MIS_WINDOWS.CALENDAR, filters);
-  const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, { ...filters, annuallyDateRanges });
-  return annualColumnLabel(columns[columns.length - 1]);
+  const columnDateRanges = pacificColumnRanges(MIS_WINDOWS.CALENDAR, filters);
+  const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, { ...filters, columnDateRanges });
+  return buildColumnLabel(columns[columns.length - 1]);
 });
 
 const loaded = (response: Record<string, unknown>): ArrSummaryState => ({
@@ -267,8 +267,8 @@ const SPLIT = {
 /** The column header both summaries show — the closing date alone. */
 const THIS_YEAR_AS_OF = inZone("Asia/Colombo", () => {
   const filters = defaultAppliedFilters(MIS_PERIODS.ANNUALLY, MIS_TABLES.EXIT_ARR_BY_REGION);
-  const annuallyDateRanges = pacificAnnualRanges(MIS_WINDOWS.CALENDAR, filters);
-  const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, { ...filters, annuallyDateRanges });
+  const columnDateRanges = pacificColumnRanges(MIS_WINDOWS.CALENDAR, filters);
+  const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, { ...filters, columnDateRanges });
   return asOfColumnLabel(columns[columns.length - 1]);
 });
 

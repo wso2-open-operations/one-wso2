@@ -451,12 +451,12 @@ export function parseViewState(search: string, { period }: { period: MisPeriod }
  * silently wrong — so the URL contract is testable, and shippable, without a
  * timezone in it. Omit it and the ranges are simply not computed.
  */
-export type AnnualRangesFor = (viewWindow: MisWindow, filters: MisAppliedFilters) => MisDateRange[];
+export type ColumnRangesFor = (viewWindow: MisWindow, filters: MisAppliedFilters) => MisDateRange[];
 
 export interface HydrateOptions {
   /** Omitted Window is Calendar. */
   viewWindow?: MisWindow;
-  annualRangesFor?: AnnualRangesFor;
+  columnRangesFor?: ColumnRangesFor;
 }
 
 /**
@@ -478,7 +478,7 @@ export function hydrateAppliedFilters(
   parsed: Partial<MisAppliedFilters>,
   period: MisPeriod,
   table: MisTable,
-  { viewWindow = MIS_WINDOWS.CALENDAR, annualRangesFor }: HydrateOptions = {},
+  { viewWindow = MIS_WINDOWS.CALENDAR, columnRangesFor }: HydrateOptions = {},
 ): MisAppliedFilters {
   const defaults = defaultAppliedFilters(period, table);
   const applied: MisAppliedFilters = { ...defaults, ...parsed };
@@ -514,8 +514,8 @@ export function hydrateAppliedFilters(
   applied.forecast = typeValue !== undefined && FORECAST_TYPE_VALUES.has(typeValue)
     ? FORECAST_STATES.ENABLE
     : FORECAST_STATES.DISABLE;
-  if (period === MIS_PERIODS.ANNUALLY && annualRangesFor) {
-    applied.annuallyDateRanges = annualRangesFor(viewWindow, applied);
+  if (period === MIS_PERIODS.ANNUALLY && columnRangesFor) {
+    applied.columnDateRanges = columnRangesFor(viewWindow, applied);
   }
   return applied;
 }
@@ -533,7 +533,7 @@ export interface ApplyWindowContext {
   fromWindow?: MisWindow;
   /** What the last Calendar → TTM switch saved. */
   remembered?: MisRememberedWindow;
-  annualRangesFor?: AnnualRangesFor;
+  columnRangesFor?: ColumnRangesFor;
 }
 
 export interface MisWindowSwitch {
@@ -556,7 +556,7 @@ export interface MisWindowSwitch {
 export function applyWindow(
   applied: MisAppliedFilters,
   nextWindow: MisWindow,
-  { period, table, fromWindow = MIS_WINDOWS.CALENDAR, remembered = {}, annualRangesFor }: ApplyWindowContext,
+  { period, table, fromWindow = MIS_WINDOWS.CALENDAR, remembered = {}, columnRangesFor }: ApplyWindowContext,
 ): MisWindowSwitch {
   if (period !== MIS_PERIODS.ANNUALLY) {
     return { filters: { ...applied }, viewWindow: MIS_WINDOWS.CALENDAR, remembered: { ...remembered } };
@@ -565,7 +565,7 @@ export function applyWindow(
   const viewWindow = nextWindow === MIS_WINDOWS.TTM ? MIS_WINDOWS.TTM : MIS_WINDOWS.CALENDAR;
   const filters: MisAppliedFilters = { ...applied };
   const withRanges = (nextRemembered: MisRememberedWindow): MisWindowSwitch => {
-    if (annualRangesFor) filters.annuallyDateRanges = annualRangesFor(viewWindow, filters);
+    if (columnRangesFor) filters.columnDateRanges = columnRangesFor(viewWindow, filters);
     return { filters, viewWindow, remembered: nextRemembered };
   };
 

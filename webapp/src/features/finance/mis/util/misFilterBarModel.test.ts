@@ -117,9 +117,9 @@ describe("applying the controls back over the Applied set", () => {
     // on when this set is serialised and read back.
     const ranges = [{ start: "2026/01/01", end: "2026/12/31" }];
     const pending = { ...pendingFor(), typeValue: "Forecasted ARR" };
-    const next = appliedFromPending(pending, appliedFor({ annuallyDateRanges: ranges }), ANNUALLY);
+    const next = appliedFromPending(pending, appliedFor({ columnDateRanges: ranges }), ANNUALLY);
     expect(next.forecast).toBe("Disable");
-    expect(next.annuallyDateRanges).toBe(ranges);
+    expect(next.columnDateRanges).toBe(ranges);
   });
 });
 

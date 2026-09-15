@@ -21,7 +21,7 @@ import {
   hydrateAppliedFilters,
   parseViewState,
   serializeViewState,
-  type AnnualRangesFor,
+  type ColumnRangesFor,
   type MisParsedView,
   type MisRememberedWindow,
   type MisView,
@@ -94,7 +94,7 @@ export interface UseMisViewStateOptions {
    * Hoist it out of the render, or it changes identity every time and the
    * Applied set is rebuilt with it.
    */
-  annualRangesFor?: AnnualRangesFor;
+  columnRangesFor?: ColumnRangesFor;
 }
 
 /**
@@ -109,7 +109,7 @@ export interface UseMisViewStateOptions {
  */
 export function useMisViewState(
   period: MisPeriod,
-  { annualRangesFor }: UseMisViewStateOptions = {},
+  { columnRangesFor }: UseMisViewStateOptions = {},
 ): MisViewState {
   // What Calendar left behind on the way to TTM. Session state, deliberately:
   // it is what the reader would get back by pressing the control again, not
@@ -128,8 +128,8 @@ export function useMisViewState(
   const table = parsed.table ?? MIS_TABLES.SUBSCRIPTION;
   const viewWindow = parsed.viewWindow ?? MIS_WINDOWS.CALENDAR;
   const filters = useMemo(
-    () => hydrateAppliedFilters(parsed.filters, period, table, { viewWindow, annualRangesFor }),
-    [parsed.filters, period, table, viewWindow, annualRangesFor],
+    () => hydrateAppliedFilters(parsed.filters, period, table, { viewWindow, columnRangesFor }),
+    [parsed.filters, period, table, viewWindow, columnRangesFor],
   );
 
   const current: MisView = { period, table, scale: parsed.scale, viewWindow, filters };
@@ -148,7 +148,7 @@ export function useMisViewState(
         table,
         fromWindow: viewWindow,
         remembered: remembered.current,
-        annualRangesFor,
+        columnRangesFor,
       });
       remembered.current = switched.remembered;
       writeView({ ...current, viewWindow: switched.viewWindow, filters: switched.filters });

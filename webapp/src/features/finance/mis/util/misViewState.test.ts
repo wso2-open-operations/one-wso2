@@ -588,7 +588,7 @@ describe("a round trip", () => {
       ...defaultAppliedFilters(ANNUALLY, SUBSCRIPTION),
       yearsBack: 3,
       forecast: "Enable",
-      annuallyDateRanges: [{ start: "2021/01/01", end: "2021/09/02" }] as MisDateRange[],
+      columnDateRanges: [{ start: "2021/01/01", end: "2021/09/02" }] as MisDateRange[],
     };
     expect(params(serializeViewState({ period: ANNUALLY, table: SUBSCRIPTION, filters }))).toEqual({ years: "3" });
   });
@@ -633,25 +633,25 @@ describe("hydrating a parsed view", () => {
   // owns. They are injected here rather than imported so this contract can be
   // tested — and shipped — without a timezone in it.
   it("asks for the Period's column ranges only when one is offered", () => {
-    const annualRangesFor = vi.fn(() => [{ start: "2026/01/01", end: "2026/09/12" }]);
-    const hydrated = hydrateAppliedFilters({ yearsBack: 3 }, ANNUALLY, SUBSCRIPTION, { annualRangesFor });
-    expect(annualRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.objectContaining({ yearsBack: 3 }));
-    expect(hydrated.annuallyDateRanges).toEqual([{ start: "2026/01/01", end: "2026/09/12" }]);
+    const columnRangesFor = vi.fn(() => [{ start: "2026/01/01", end: "2026/09/12" }]);
+    const hydrated = hydrateAppliedFilters({ yearsBack: 3 }, ANNUALLY, SUBSCRIPTION, { columnRangesFor });
+    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.objectContaining({ yearsBack: 3 }));
+    expect(hydrated.columnDateRanges).toEqual([{ start: "2026/01/01", end: "2026/09/12" }]);
 
-    expect(hydrateAppliedFilters({ yearsBack: 3 }, ANNUALLY, SUBSCRIPTION).annuallyDateRanges).toBeUndefined();
+    expect(hydrateAppliedFilters({ yearsBack: 3 }, ANNUALLY, SUBSCRIPTION).columnDateRanges).toBeUndefined();
   });
 
   it("asks for TTM ranges when the Window is TTM", () => {
-    const annualRangesFor = vi.fn(() => []);
-    hydrateAppliedFilters({}, ANNUALLY, SUBSCRIPTION, { viewWindow: MIS_WINDOWS.TTM, annualRangesFor });
-    expect(annualRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.TTM, expect.anything());
+    const columnRangesFor = vi.fn(() => []);
+    hydrateAppliedFilters({}, ANNUALLY, SUBSCRIPTION, { viewWindow: MIS_WINDOWS.TTM, columnRangesFor });
+    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.TTM, expect.anything());
   });
 
   it("has no column ranges to compute on Quarterly or Monthly", () => {
-    const annualRangesFor = vi.fn(() => []);
-    hydrateAppliedFilters({}, QUARTERLY, SUBSCRIPTION, { annualRangesFor });
-    hydrateAppliedFilters({}, MONTHLY, SUBSCRIPTION, { annualRangesFor });
-    expect(annualRangesFor).not.toHaveBeenCalled();
+    const columnRangesFor = vi.fn(() => []);
+    hydrateAppliedFilters({}, QUARTERLY, SUBSCRIPTION, { columnRangesFor });
+    hydrateAppliedFilters({}, MONTHLY, SUBSCRIPTION, { columnRangesFor });
+    expect(columnRangesFor).not.toHaveBeenCalled();
   });
 });
 
@@ -821,17 +821,17 @@ describe("switching the Window", () => {
   });
 
   it("recomputes the column ranges for the Window it switched to", () => {
-    const annualRangesFor = vi.fn(() => []);
-    const toTtm = switchTo(calendar({ yearsBack: 3 }), MIS_WINDOWS.TTM, { annualRangesFor });
-    expect(annualRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.TTM, expect.objectContaining({ yearsBack: 3 }));
+    const columnRangesFor = vi.fn(() => []);
+    const toTtm = switchTo(calendar({ yearsBack: 3 }), MIS_WINDOWS.TTM, { columnRangesFor });
+    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.TTM, expect.objectContaining({ yearsBack: 3 }));
 
-    annualRangesFor.mockClear();
+    columnRangesFor.mockClear();
     switchTo(toTtm.filters, MIS_WINDOWS.CALENDAR, {
       fromWindow: MIS_WINDOWS.TTM,
       remembered: toTtm.remembered,
-      annualRangesFor,
+      columnRangesFor,
     });
-    expect(annualRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.anything());
+    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.anything());
   });
 
   // The source also mirrors the coerced type into the summaries' `arrType`

@@ -27,7 +27,7 @@
 // `/accounts` deliberately uses none of this — see `misAccountsRequest`, which
 // records why that table sends three fields and nothing else.
 
-import { annualOpeningDate } from "../util/misPeriods";
+import { columnOpeningDate } from "../util/misPeriods";
 import {
   CUSTOM_UNIT,
   LIST_FILTER_PARAMS,
@@ -126,7 +126,7 @@ export function narrowedFilters(filters: MisAppliedFilters): Record<string, stri
 }
 
 /** The date a column's opening balance is read at, on the wire. */
-export const openingDateFor = (range: MisDateRange): string => toWireDate(annualOpeningDate(range));
+export const openingDateFor = (range: MisDateRange): string => toWireDate(columnOpeningDate(range));
 
 /** `2026/09/12` → `2026-09-12`. */
 export const toWireDate = (date: string): string => date.replace(/\//g, "-");

@@ -210,13 +210,13 @@ describe("the Annually column ranges", () => {
   // Computed in Pacific Time, which is ticket 05's. The hook only passes the
   // computer through, so the contract ships without a timezone in it.
   it("are computed by the function the caller supplies", () => {
-    const annualRangesFor = vi.fn(() => [{ start: "2026/01/01", end: "2026/09/12" }]);
-    const { result } = renderAt(ANNUALLY, "?years=3", { annualRangesFor });
-    expect(annualRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.objectContaining({ yearsBack: 3 }));
-    expect(result.current.state.filters.annuallyDateRanges).toEqual([{ start: "2026/01/01", end: "2026/09/12" }]);
+    const columnRangesFor = vi.fn(() => [{ start: "2026/01/01", end: "2026/09/12" }]);
+    const { result } = renderAt(ANNUALLY, "?years=3", { columnRangesFor });
+    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.objectContaining({ yearsBack: 3 }));
+    expect(result.current.state.filters.columnDateRanges).toEqual([{ start: "2026/01/01", end: "2026/09/12" }]);
   });
 
   it("are left uncomputed when no computer is supplied", () => {
-    expect(renderAt(ANNUALLY, "?years=3").result.current.state.filters.annuallyDateRanges).toBeUndefined();
+    expect(renderAt(ANNUALLY, "?years=3").result.current.state.filters.columnDateRanges).toBeUndefined();
   });
 });

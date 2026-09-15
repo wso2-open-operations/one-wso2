@@ -355,7 +355,7 @@ the main column shrinkable and there is no notice component. Resolved as a share
 same move the Build table makes with formatting (ticket 03), for the same reason. Pacific Time is the
 easiest rule in this port to get silently wrong, so it is built once and handed in, which also keeps
 the URL contract testable and shippable without a timezone in it. The source always computes the
-ranges; here a caller that supplies no computer gets no `annuallyDateRanges`.
+ranges; here a caller that supplies no computer gets no `columnDateRanges`.
 
 **Period boundaries are civil-date arithmetic, not `Date` arithmetic.** The source reduces an
 instant to a Pacific calendar date correctly, and then builds every boundary with
@@ -565,11 +565,11 @@ reconcile against on the default window either — reconcile it on TTM, or again
 Found reviewing the Exit ARR slice, and it is NOT new to it. Under a Forecasted or Renewal type the
 source changes the column list itself: the Subscription Build takes `generateTwoForecastRanges`, and
 the two summaries take `generateFullYearRanges(0, 2, true, …)` — the current year plus two future
-ones. `pacificAnnualRanges` branches on the Window and never on forecast, so the port draws the same
+ones. `pacificColumnRanges` branches on the Window and never on forecast, so the port draws the same
 calendar columns it draws for Total. The Type control still offers Forecasted, the request still
 carries `forecastType`, and the figures still come back — they are just read at calendar dates rather
 than forecast ones, which is wrong without looking wrong. **Needs its own ticket**, covering all three
-tables at once, since the fix is one branch in `pacificAnnualRanges`.
+tables at once, since the fix is one branch in `pacificColumnRanges`.
 
 **All ARR Metrics binds to the unit tabs rather than growing a second unit control.** The source
 gives the Region Summary's second view a pill row of its own — API Platform, IAM, Integration, Choreo,
@@ -734,10 +734,17 @@ straight from `annuallyDateRanges` and therefore draws six. So the extra oldest 
 general — it is dead on this one table, where it is recomputed on every apply and never drawn and
 never fetched. A TTM Window has no split at all: there the columns *are* `annuallyDateRanges`.
 
-The port keeps the distinction where the source puts it. `pacificAnnualRanges` — the shared
-`annualRangesFor` seam that fills `annuallyDateRanges` — stays faithful, so the tables in tickets 10
+The port keeps the distinction where the source puts it. `pacificColumnRanges` — the shared
+`columnRangesFor` seam that fills `columnDateRanges` — stays faithful, so the tables in tickets 10
 and 13 still get their six. `subscriptionColumnRanges` takes the last `yearsBack` of them for this
 table. `getAnnualPeriods` itself is untouched; it is the function the source's own tests pin.
+
+> **One name differs between the two apps on purpose.** The source's field is `annuallyDateRanges`
+> and the port's is **`columnDateRanges`**, renamed in ticket 12 when it began carrying quarterly and
+> monthly ranges as well — at which point the old name described one of the three Periods it held.
+> Every `annuallyDateRanges` in this document is the SOURCE's field, quoted as it is written there;
+> the port's is always `columnDateRanges`. The field is derived and internal — never a URL
+> parameter — so nothing a reader holds depends on either spelling.
 Nothing user-visible changes: Years Back 5 draws five Subscription columns in both apps.
 
 **Nothing in the Subscription Build is totalled client-side.** ADR 0004 obliges hand-computed totals

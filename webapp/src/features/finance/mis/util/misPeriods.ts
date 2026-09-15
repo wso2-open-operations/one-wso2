@@ -22,7 +22,7 @@
 // built from local fields, so the answer no longer depends on where the reader
 // is sitting — spec §10.8. See `misPacificTime.ts` for why that mattered.
 //
-// This is the module that plugs into the `annualRangesFor` seam the URL
+// This is the module that plugs into the `columnRangesFor` seam the URL
 // contract leaves open (`hydrateAppliedFilters`, `applyWindow`): Pacific Time is
 // handed in rather than imported there, so the contract stays testable without a
 // timezone in it — spec §7.
@@ -38,7 +38,7 @@ import {
   startOfYear,
   type MisCivilDate,
 } from "./misPacificTime";
-import type { AnnualRangesFor } from "./misViewState";
+import type { ColumnRangesFor } from "./misViewState";
 import {
   ENDING_MONTH_TODAY,
   MIS_WINDOWS,
@@ -198,7 +198,7 @@ const trailingYearEnding = (end: MisCivilDate): MisDateRange => {
 //
 // A Q/M column is the same `MisDateRange` an Annually column is, and it carries
 // its `opening` explicitly — the field TTM introduced. It has to: a quarter
-// opens at the close of the quarter before it, which `annualOpeningDate`'s
+// opens at the close of the quarter before it, which `columnOpeningDate`'s
 // fallback (the previous 31 December) would get wrong for three quarters in
 // four. The source sends only an end date for these and lets the backend infer
 // the rest; this port sends both balance dates, as it does on Annually, because
@@ -349,7 +349,7 @@ export function getMonthlyPeriods({
  * is why it is a named rule here rather than a slice of the end date computed
  * twice in two modules that could drift apart.
  */
-export function annualOpeningDate(range: MisDateRange): string {
+export function columnOpeningDate(range: MisDateRange): string {
   return range.opening ?? formatCivilDate(endOfYear(Number(range.end.slice(0, 4)) - 1));
 }
 
@@ -359,14 +359,14 @@ export function annualOpeningDate(range: MisDateRange): string {
  * Both halves are balance dates, so the header says which twelve months the
  * figures beneath it cover without a reader having to open the filter bar.
  */
-export const annualColumnLabel = (range: MisDateRange): string =>
-  range.header ?? `${annualOpeningDate(range)} - ${range.end}`;
+export const buildColumnLabel = (range: MisDateRange): string =>
+  range.header ?? `${columnOpeningDate(range)} - ${range.end}`;
 
 /**
  * The header an Exit ARR summary shows above a column: `As of {end}`.
  *
  * A summary reports a BALANCE and a Build reports a MOVEMENT, which is why the
- * two do not share `annualColumnLabel`. Exit ARR by Region and by Business Unit
+ * two do not share `buildColumnLabel`. Exit ARR by Region and by Business Unit
  * say what was on the books at one moment, so naming the span they were
  * computed over would claim a roll-forward that is not on screen.
  *
@@ -380,7 +380,7 @@ export const asOfColumnLabel = (range: MisDateRange): string =>
 
 /**
  * The Annually column ranges, ready to hand to `useMisViewState` — which is the
- * `annualRangesFor` seam spec §7 leaves open, filled in Pacific Time.
+ * `columnRangesFor` seam spec §7 leaves open, filled in Pacific Time.
  *
  * A module-level constant rather than something a screen builds, because the
  * URL contract rebuilds the whole Applied set whenever this changes identity: a
@@ -390,7 +390,7 @@ export const asOfColumnLabel = (range: MisDateRange): string =>
  * Pacific midnight recomputes rather than going on reporting yesterday.
  *
  */
-export const pacificAnnualRanges: AnnualRangesFor = (viewWindow: MisWindow, filters) =>
+export const pacificColumnRanges: ColumnRangesFor = (viewWindow: MisWindow, filters) =>
   viewWindow === MIS_WINDOWS.TTM
     ? getTtmPeriods({ yearsBack: filters.yearsBack, endingMonth: filters.endingMonth })
     : getAnnualPeriods({
@@ -401,12 +401,12 @@ export const pacificAnnualRanges: AnnualRangesFor = (viewWindow: MisWindow, filt
 
 /**
  * The ranges the SUBSCRIPTION Build's columns cover — which is not the same
- * list as the Applied set's `annuallyDateRanges`, on a Calendar Window.
+ * list as the Applied set's `columnDateRanges`, on a Calendar Window.
  *
  * The source computes Annually bounds with two generators that disagree by one,
  * and the tables on the ARR Build screen read the SHORTER of the two:
  *
- *   annuallyDateRanges   getAnnualPeriods({yearsBack})              6 at Years Back 5
+ *   columnDateRanges   getAnnualPeriods({yearsBack})              6 at Years Back 5
  *                        (viewState.js:267) — and nine other Annually
  *                        tables take their columns straight from it
  *   Subscription         generateFullYearRanges(-(yearsBack - 1), 0)  5 at Years Back 5
@@ -426,13 +426,13 @@ export const pacificAnnualRanges: AnnualRangesFor = (viewWindow: MisWindow, filt
  * in `docs/ported-apps/mis.md` §7. Ticket 10 shipped the fetch list by mistake
  * and showed six Periods where the source shows five.
  *
- * A TTM Window has no such split: there the columns ARE `annuallyDateRanges`.
+ * A TTM Window has no such split: there the columns ARE `columnDateRanges`.
  */
 export function buildColumnRanges(
   viewWindow: MisWindow,
-  filters: Pick<MisAppliedFilters, "annuallyDateRanges" | "yearsBack">,
+  filters: Pick<MisAppliedFilters, "columnDateRanges" | "yearsBack">,
 ): readonly MisDateRange[] {
-  const ranges = filters.annuallyDateRanges ?? [];
+  const ranges = filters.columnDateRanges ?? [];
   if (viewWindow === MIS_WINDOWS.TTM) return ranges;
   return ranges.slice(-Math.max(1, filters.yearsBack));
 }

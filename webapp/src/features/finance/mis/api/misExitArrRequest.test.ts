@@ -55,7 +55,7 @@ const TTM = [
 describe("the moment a summary column reports", () => {
   it("closes on the column's own date and opens on the balance before it", () => {
     // The same pair of balance dates a Build column sends. The source reaches
-    // the opening through `ttmOpeningSql(endDate, annuallyDateRanges)` with a
+    // the opening through `ttmOpeningSql(endDate, columnDateRanges)` with a
     // `${endDate year - 1}-12-31` fallback; this asks `misPeriods` for it, which
     // is where every other table already asks.
     const [first, second] = regionExitRequests(RANGES, REGION, true);
