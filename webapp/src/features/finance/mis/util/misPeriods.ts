@@ -190,6 +190,154 @@ const trailingYearEnding = (end: MisCivilDate): MisDateRange => {
   };
 };
 
+// ---- Quarterly and Monthly columns ---------------------------------------
+//
+// Ported from `generateQuarters` and `generateMonths` (`tableUtils.js:256`
+// and `:198`) together with the labelling in `toAsOfQuarterlyText` /
+// `toAsOfMonthlyText` (`:84`, `:50`).
+//
+// A Q/M column is the same `MisDateRange` an Annually column is, and it carries
+// its `opening` explicitly — the field TTM introduced. It has to: a quarter
+// opens at the close of the quarter before it, which `annualOpeningDate`'s
+// fallback (the previous 31 December) would get wrong for three quarters in
+// four. The source sends only an end date for these and lets the backend infer
+// the rest; this port sends both balance dates, as it does on Annually, because
+// `arrSummaryRequests` is one code path for all three Periods.
+
+/** The three-letter forms the source's period keys are written with. */
+const MONTH_ABBREVIATIONS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+/** 1–4. `Math.ceil` rather than a lookup, so a bad month cannot silently map. */
+const quarterOf = ({ month }: MisCivilDate): number => Math.ceil(month / 3);
+
+/** The balance date a quarter opens from: the close of the one before it. */
+const quarterOpening = (year: number, quarter: number): MisCivilDate =>
+  quarter === 1 ? endOfYear(year - 1) : endOfMonth(year, (quarter - 1) * 3);
+
+/** The balance date a month opens from: the close of the one before it. */
+const monthOpening = (year: number, month: number): MisCivilDate =>
+  month === 1 ? endOfYear(year - 1) : endOfMonth(year, month - 1);
+
+/**
+ * One column, given where it opens, where it closes, and what to call it.
+ *
+ * The header is `As of {period}` except on the period still running, which is
+ * `As of {today}` — because naming a quarter that has not finished would claim
+ * figures for months that have not happened. The source arrives at the same
+ * answer twice, in `toAsOfQuarterlyText`'s current-period branch and again in
+ * `ensureLastPeriodUsesCurrent`; once is enough.
+ */
+function periodColumn(
+  opening: MisCivilDate,
+  close: MisCivilDate,
+  periodKey: string,
+  asOf: MisCivilDate,
+  isCurrent: boolean,
+): MisDateRange {
+  const end = isCurrent ? asOf : close;
+  return {
+    opening: formatCivilDate(opening),
+    start: formatCivilDate(nextDay(opening)),
+    end: formatCivilDate(end),
+    header: `As of ${isCurrent ? formatCivilDate(asOf) : periodKey}`,
+  };
+}
+
+export interface PeriodColumnsOptions {
+  /** Prior years to include. Below 1 is treated as 1 — there is always a column. */
+  yearsBack?: number;
+  /** Today, on the Pacific calendar. Read from the clock when omitted. */
+  asOf?: MisCivilDate;
+}
+
+/**
+ * The Quarterly Build's columns: every quarter of the prior `yearsBack` years,
+ * plus the quarters of the current year that have started.
+ *
+ * So Years Back 1 is TWO calendar years of quarters, not one — the source's
+ * loop runs `-max(1, yearsBack)` to 0 INCLUSIVE (`tableUtils.js:274`). Whole
+ * prior years rather than a trailing count of quarters, so the columns line up
+ * with a financial year rather than with the day the screen was opened.
+ *
+ * Oldest first, as the columns read.
+ */
+export function getQuarterlyPeriods({
+  yearsBack = 1,
+  asOf,
+}: PeriodColumnsOptions = {}): MisDateRange[] {
+  const today = asOf ?? pacificCivilDate();
+  const currentQuarter = quarterOf(today);
+  const columns: MisDateRange[] = [];
+  for (let back = Math.max(1, Math.floor(yearsBack)); back >= 0; back--) {
+    const year = today.year - back;
+    for (let quarter = 1; quarter <= 4; quarter++) {
+      if (year === today.year && quarter > currentQuarter) break;
+      columns.push(
+        periodColumn(
+          quarterOpening(year, quarter),
+          endOfMonth(year, quarter * 3),
+          `${year} Q${quarter}`,
+          today,
+          year === today.year && quarter === currentQuarter,
+        ),
+      );
+    }
+  }
+  return columns;
+}
+
+/**
+ * The Monthly Build's columns: `yearsBack * 12` months back, ending at the
+ * current month.
+ *
+ * **That is thirteen columns at Years Back 1, not twelve**, and the extra one
+ * is the source's rather than a mistake here: `generateMonths` walks
+ * `i <= totalMonths` (`tableUtils.js:228`), so a year back is twelve months
+ * PLUS the current one. Reproduced under ADR 0003 — it is a column of real
+ * figures, and a port showing twelve where the live app shows thirteen is the
+ * first thing finance would trip over reconciling the two.
+ *
+ * Oldest first, as the columns read.
+ */
+export function getMonthlyPeriods({
+  yearsBack = 1,
+  asOf,
+}: PeriodColumnsOptions = {}): MisDateRange[] {
+  const today = asOf ?? pacificCivilDate();
+  const span = Math.max(1, Math.floor(yearsBack) * 12);
+  // Walk back `span` months from the current one, then forward again — the
+  // source's own arithmetic, and the reason the count is span + 1.
+  let year = today.year;
+  let month = today.month - span;
+  while (month < 1) {
+    month += 12;
+    year -= 1;
+  }
+  const columns: MisDateRange[] = [];
+  for (let step = 0; step <= span; step++) {
+    const isCurrent = year === today.year && month === today.month;
+    columns.push(
+      periodColumn(
+        monthOpening(year, month),
+        endOfMonth(year, month),
+        `${MONTH_ABBREVIATIONS[month - 1]} ${year}`,
+        today,
+        isCurrent,
+      ),
+    );
+    if (isCurrent) break;
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return columns;
+}
+
 /**
  * The balance date an Annually column opens from, `yyyy/MM/dd`.
  *

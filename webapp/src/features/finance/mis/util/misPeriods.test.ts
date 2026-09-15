@@ -27,6 +27,8 @@ import {
   annualOpeningDate,
   asOfColumnLabel,
   getAnnualPeriods,
+  getMonthlyPeriods,
+  getQuarterlyPeriods,
   getTtmPeriods,
   pacificAnnualRanges,
   buildColumnRanges,
@@ -361,5 +363,70 @@ describe("how many columns the Subscription Build draws", () => {
     expect(
       buildColumnRanges(MIS_WINDOWS.CALENDAR, { yearsBack: 5 } as MisAppliedFilters),
     ).toEqual([]);
+  });
+});
+
+// Ticket 12. ASOF is 12 September 2026, which is Q3 and month 9 — so both
+// generators here are cut mid-period, which is the case with the rules in it.
+describe("Quarterly columns", () => {
+  it("runs whole prior years and stops at the current quarter", () => {
+    // `-max(1, yearsBack)` to 0 inclusive, so Years Back 1 is TWO years of
+    // quarters: all four of 2025 and the three of 2026 that have started.
+    // Each opens at the close of the quarter before it, because a Build rolls
+    // a balance forward rather than measuring a span.
+    expect(getQuarterlyPeriods({ yearsBack: 1, asOf: ASOF })).toEqual([
+      { opening: "2024/12/31", start: "2025/01/01", end: "2025/03/31", header: "As of 2025 Q1" },
+      { opening: "2025/03/31", start: "2025/04/01", end: "2025/06/30", header: "As of 2025 Q2" },
+      { opening: "2025/06/30", start: "2025/07/01", end: "2025/09/30", header: "As of 2025 Q3" },
+      { opening: "2025/09/30", start: "2025/10/01", end: "2025/12/31", header: "As of 2025 Q4" },
+      { opening: "2025/12/31", start: "2026/01/01", end: "2026/03/31", header: "As of 2026 Q1" },
+      { opening: "2026/03/31", start: "2026/04/01", end: "2026/06/30", header: "As of 2026 Q2" },
+      // The current quarter closes TODAY, not on 30 September — the rest of it
+      // has not happened — and says so in its header rather than naming a
+      // quarter that is still open.
+      { opening: "2026/06/30", start: "2026/07/01", end: "2026/09/12", header: "As of 2026/09/12" },
+    ]);
+  });
+
+  it("treats Years Back below 1 as 1, so there is always a column", () => {
+    expect(getQuarterlyPeriods({ yearsBack: 0, asOf: ASOF })).toHaveLength(7);
+  });
+});
+
+describe("Monthly columns", () => {
+  it("gives THIRTEEN months at Years Back 1, which is the source's own off-by-one", () => {
+    // `generateMonths` walks `i <= totalMonths` where `totalMonths` is
+    // `yearsBack * 12`, so a year back is twelve months PLUS the current one —
+    // September 2025 through September 2026. Reproduced under ADR 0003: a
+    // column count that differs from the live app's is the first thing finance
+    // would notice reconciling the two, and it is a column of real figures
+    // rather than a duplicate.
+    const months = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF });
+    expect(months).toHaveLength(13);
+    expect(months[0]).toEqual({
+      opening: "2025/08/31",
+      start: "2025/09/01",
+      end: "2025/09/30",
+      header: "As of Sep 2025",
+    });
+    expect(months[11]).toEqual({
+      opening: "2026/07/31",
+      start: "2026/08/01",
+      end: "2026/08/31",
+      header: "As of Aug 2026",
+    });
+    // The thirteenth is the current month, closing today.
+    expect(months[12]).toEqual({
+      opening: "2026/08/31",
+      start: "2026/09/01",
+      end: "2026/09/12",
+      header: "As of 2026/09/12",
+    });
+  });
+
+  it("crosses a year boundary without losing December", () => {
+    const labels = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF }).map((m) => m.header);
+    expect(labels).toContain("As of Dec 2025");
+    expect(labels).toContain("As of Jan 2026");
   });
 });
