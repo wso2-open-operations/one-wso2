@@ -119,9 +119,23 @@ during §10.37.
 
 The same Build, quarterly, plus a Cumulative toggle Annually does not have. No TTM Window.
 
+One screen serves all three Periods: `MisArrBuildPage` takes its Period as a prop, and what differs
+between the routes is a name and a gate id. Everything else — the type key, the cumulative flag, the
+type values, the Years Back default, the unavailable-filter set — was already a function of the
+Period.
+
+Columns are every quarter of the prior Years Back years plus the quarters of the current year that
+have started, oldest first. So **Years Back 1 is two calendar years of quarters**, seven columns as
+at September, because the source's loop runs `-max(1, yearsBack)` to 0 inclusive. The quarter still
+running closes **today** rather than at quarter end and is headed `As of {today}` rather than named —
+the rest of it has not happened. Years Back defaults to 1 here, not 5.
+
 ### 2.3 MRR Build — `/finance/mis/mrr-build`
 
 The same Build, monthly, plus a Cumulative toggle. No TTM Window.
+
+Columns are `Years Back × 12` months ending at the current one — which is **thirteen at Years Back 1,
+not twelve** (§7). The current month closes today, on the same rule as the quarter above.
 
 ### 2.4 ARR Analysis — `/finance/mis/analysis`
 
@@ -599,6 +613,37 @@ of zeroes. The port shows its empty state instead: a row of zeroes reads as a co
 nothing, where "no customers to show" says what actually happened. Every other case — including a
 column that failed, which totals blank rather than zero — is the source's.
 
+**The Monthly Build draws THIRTEEN columns at Years Back 1, and so does the source.**
+`generateMonths` walks `i <= totalMonths` where `totalMonths` is `yearsBack * 12`
+(`tableUtils.js:228`), so a year back is twelve months plus the current one — September 2025 through
+September 2026. Reproduced rather than corrected: it is a column of real figures rather than a
+duplicate, and a port showing twelve where the live app shows thirteen is the first thing Finance
+would trip over reconciling the two apps column by column. Quarterly has the same shape for the same
+reason — `-max(1, yearsBack)` to 0 inclusive, so Years Back 1 spans two calendar years.
+
+**The Years Back column slice does not apply off Annually.** §9 describes the source computing annual
+bounds with two generators that disagree by one, with the Subscription grid reading the shorter;
+`buildColumnRanges` reproduces that by dropping the oldest range. `generateQuarters` and
+`generateMonths` have no such twin — one generator feeds both the columns and the fetch — so the
+slice returns early on Quarterly and Monthly. Left in place it would have cut seven quarters to one
+and thirteen months to one, at the default Years Back.
+
+**A Period switch navigates to the bare path, carrying no query string.** The Period control is the
+one control on the bar that leaves the screen, and it drops the view rather than translating it. Not
+laziness about preserving it: the three Builds do not agree about what their filters mean — `Total
+QRR` is not a type Annually has, and Years Back defaults to 1 off Annually and 5 on it — so carrying
+the old query across would hand the arriving screen values it has to discard. It hydrates from its
+own defaults and the bar's mount effect seeds Years Back back out of the session, which is what that
+session is for. TTM is the exception and stays put: it is Annually cut differently rather than a
+fourth Period.
+
+**An ignored parameter is not a scrubbed one.** Arriving on `/mrr-build?window=ttm` leaves
+`window=ttm` in the address, because nothing has WRITTEN a view yet — this app only re-serialises
+when it navigates. The parameter is genuinely ignored (no TTM button lights, no trailing columns) and
+it disappears the first time anything writes, because the serialiser emits `window` on Annually
+alone. Worth stating because "ignored, not errored" reads as though the address is cleaned on
+arrival, and it is not.
+
 **A link cannot carry a filter the Table does not offer; the source's can.** The source greys these
 out in the BAR — `UNAVAILABLE_BUILD_FILTERS` keeps the View and the seven account and geography
 filters on screen, disabled, on Customers and the two summaries; Customers loses Channel/Direct too,
@@ -898,6 +943,17 @@ ported.
     defaults, and cleared by the next Apply.
 
 ### Parity
+36a. Both new routes render the Build at their own granularity, appear in the Finance rail under the
+    same `MenuApp`, and are gated by the ARR privilege alone — one privilege opens all three Builds.
+36b. A default view serialises to an empty query string on **each of the three** Periods, not just
+    Annually; the Cumulative toggle exists on Quarterly and Monthly and serialises as
+    `cumulative=1`/`0`; and `window=ttm` on either is ignored rather than errored (§7).
+36c. The Software/Cloud Customers table shows **two historic quarters plus today** on Delayed QRR and
+    **six historic months plus today** on Delayed MRR, and the whole Period on every other type. A
+    Delayed ANNUALLY type has no such narrowing — the source's branch names quarterly and monthly
+    only — so check all three rather than generalising from one.
+36d. The Monthly Build draws thirteen columns at Years Back 1 and the Quarterly Build seven, matching
+    the source column for column (§7). This is the check most likely to look like a bug in the port.
 37. For one closed month, every figure on each ported screen matches the running MIS app, at both
     Scale settings, with filters at defaults and with a non-trivial applied filter set.
 
