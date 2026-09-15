@@ -451,3 +451,86 @@ export function buildColumnRanges(
   if (viewWindow === MIS_WINDOWS.TTM) return ranges;
   return ranges.slice(-Math.max(1, filters.yearsBack));
 }
+
+/**
+ * The Software/Cloud Customers table's column ranges, which are the Build's
+ * except on a Delayed type.
+ *
+ * On Delayed QRR the source shows **two historic quarters plus the current
+ * day**, and on Delayed MRR **six historic months plus the current day**
+ * (`useCustomerAccounts.js:59-133`) — "historic data plus current day", where
+ * every other type gets the whole Period. The reason is the type itself: a
+ * Delayed figure is revenue that has not landed yet, so a long tail of closed
+ * quarters says nothing, and what a reader wants is the recent run plus where
+ * it stands today.
+ *
+ * It is the one table with ranges of its own, which is why this is a wrapper
+ * rather than a branch inside `buildColumnRanges` — the other three tables and
+ * the Build itself must not see it.
+ *
+ * The source's branch names `quarterly` and `monthly` only, so a Delayed
+ * ANNUALLY type has no special case and falls through: reproduced rather than
+ * extended, since a third window nobody asked for is a figure Finance would
+ * have to explain.
+ */
+export function customerColumnRanges(
+  period: MisPeriod,
+  viewWindow: MisWindow,
+  filters: Pick<MisAppliedFilters, "columnDateRanges" | "yearsBack" | "qrrType" | "mrrType">,
+  asOf?: MisCivilDate,
+): readonly MisDateRange[] {
+  const today = asOf ?? pacificCivilDate();
+  if (period === MIS_PERIODS.QUARTERLY && filters.qrrType === "Delayed QRR") {
+    return recentQuarters(today, 2);
+  }
+  if (period === MIS_PERIODS.MONTHLY && filters.mrrType === "Delayed MRR") {
+    return recentMonths(today, 6);
+  }
+  return buildColumnRanges(period, viewWindow, filters);
+}
+
+/** `back` whole quarters, then the one still running, closing today. */
+function recentQuarters(today: MisCivilDate, back: number): MisDateRange[] {
+  const columns: MisDateRange[] = [];
+  for (let offset = -back; offset <= 0; offset++) {
+    let year = today.year;
+    let quarter = quarterOf(today) + offset;
+    while (quarter < 1) {
+      quarter += 4;
+      year -= 1;
+    }
+    columns.push(
+      periodColumn(
+        quarterOpening(year, quarter),
+        endOfMonth(year, quarter * 3),
+        `${year} Q${quarter}`,
+        today,
+        offset === 0,
+      ),
+    );
+  }
+  return columns;
+}
+
+/** `back` whole months, then the one still running, closing today. */
+function recentMonths(today: MisCivilDate, back: number): MisDateRange[] {
+  const columns: MisDateRange[] = [];
+  for (let offset = -back; offset <= 0; offset++) {
+    let year = today.year;
+    let month = today.month + offset;
+    while (month < 1) {
+      month += 12;
+      year -= 1;
+    }
+    columns.push(
+      periodColumn(
+        monthOpening(year, month),
+        endOfMonth(year, month),
+        `${MONTH_ABBREVIATIONS[month - 1]} ${year}`,
+        today,
+        offset === 0,
+      ),
+    );
+  }
+  return columns;
+}

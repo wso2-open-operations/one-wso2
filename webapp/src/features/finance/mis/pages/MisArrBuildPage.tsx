@@ -27,7 +27,12 @@ import {
   type ArrSummaryResponse,
 } from "../components/arrBuildRows";
 import { useArrSummary, type ArrSummaryColumn } from "../api/useArrSummary";
-import { buildColumnLabel, pacificColumnRanges, buildColumnRanges } from "../util/misPeriods";
+import {
+  buildColumnLabel,
+  buildColumnRanges,
+  customerColumnRanges,
+  pacificColumnRanges,
+} from "../util/misPeriods";
 import {
   MIS_VALUE_TYPES,
   amountUnitCaption,
@@ -416,8 +421,11 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
   // so it is the default here. Both breakdowns read the same response, so this
   // switches columns and fires no request.
   const [buOnly, setBuOnly] = useState(true);
+  // `customerColumnRanges`, not `buildColumnRanges`: this is the one table with
+  // ranges of its own, and only on a Delayed type, where the source shows a
+  // recent run plus today rather than the whole Period. See misPeriods.ts.
   const ranges = useMemo(
-    () => buildColumnRanges(view.period, view.viewWindow, view.filters),
+    () => customerColumnRanges(view.period, view.viewWindow, view.filters),
     [view.period, view.viewWindow, view.filters],
   );
   const book = useCustomerAccounts(ranges, view.filters);

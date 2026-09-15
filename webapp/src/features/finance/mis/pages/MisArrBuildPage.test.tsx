@@ -103,9 +103,16 @@ vi.mock("@features/finance/mis/api/useDrillDownCustomers", () => ({
   },
 }));
 
-const customers = { value: {} as CustomerAccountsState };
+const customers = {
+  value: {} as CustomerAccountsState,
+  /** The ranges the customers grid last asked for — see `summary.lastRanges`. */
+  lastRanges: [] as readonly MisDateRange[],
+};
 vi.mock("@features/finance/mis/api/useCustomerAccounts", () => ({
-  useCustomerAccounts: () => customers.value,
+  useCustomerAccounts: (ranges: readonly MisDateRange[]) => {
+    customers.lastRanges = ranges;
+    return customers.value;
+  },
 }));
 
 const regionExit = {
@@ -1256,6 +1263,23 @@ describe("the QRR and MRR Builds", () => {
     expect(buildColumnLabel(summary.lastRanges[0])).toMatch(
       /^\d{4}\/\d{2}\/\d{2} - \d{4}\/\d{2}\/\d{2}$/,
     );
+  });
+
+  it("narrows the customers table to a recent run plus today on a Delayed type", async () => {
+    // Carried here by ticket 10. Delayed QRR is two historic quarters plus the
+    // current day (`useCustomerAccounts.js:59`), not the seven quarters the
+    // Build draws — a Delayed figure is revenue that has not landed, so a long
+    // tail of closed quarters says nothing.
+    renderPage("?table=customers&type=Delayed+QRR", MIS_PERIODS.QUARTERLY);
+    expect(customers.lastRanges).toHaveLength(3);
+    expect(buildColumnLabel(customers.lastRanges.at(-1)!)).toMatch(
+      /^As of \d{4}\/\d{2}\/\d{2}$/,
+    );
+  });
+
+  it("gives the customers table the whole Period on every other type", () => {
+    renderPage("?table=customers", MIS_PERIODS.QUARTERLY);
+    expect(customers.lastRanges).toHaveLength(7);
   });
 
   it("serialises a default view to an empty query string on each of the three Periods", () => {

@@ -28,6 +28,7 @@ import {
   columnOpeningDate,
   asOfColumnLabel,
   getAnnualPeriods,
+  customerColumnRanges,
   getMonthlyPeriods,
   getQuarterlyPeriods,
   getTtmPeriods,
@@ -476,5 +477,67 @@ describe("which of the ranges a Build actually draws, off Annually", () => {
         yearsBack: 1,
       }),
     ).toHaveLength(13);
+  });
+});
+
+// Carried here by ticket 10. The Software/Cloud Customers table is the one
+// table with column ranges of its own, and only on a Delayed type: the source
+// gives it "historic data plus current day" there (`useCustomerAccounts.js:59`)
+// rather than the whole Period. Everywhere else it takes the Build's.
+describe("the customers table's own ranges on a Delayed type", () => {
+  const at = (extra: Record<string, unknown>) =>
+    ({ yearsBack: 1, ...extra }) as unknown as MisAppliedFilters;
+
+  it("gives two historic quarters plus today on Delayed QRR", () => {
+    expect(
+      customerColumnRanges(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.CALENDAR, at({ qrrType: "Delayed QRR" }), ASOF),
+    ).toEqual([
+      { opening: "2025/12/31", start: "2026/01/01", end: "2026/03/31", header: "As of 2026 Q1" },
+      { opening: "2026/03/31", start: "2026/04/01", end: "2026/06/30", header: "As of 2026 Q2" },
+      // The current quarter, closing today — the "plus current day" half.
+      { opening: "2026/06/30", start: "2026/07/01", end: "2026/09/12", header: "As of 2026/09/12" },
+    ]);
+  });
+
+  it("gives six historic months plus today on Delayed MRR", () => {
+    const months = customerColumnRanges(
+      MIS_PERIODS.MONTHLY,
+      MIS_WINDOWS.CALENDAR,
+      at({ mrrType: "Delayed MRR" }),
+      ASOF,
+    );
+    expect(months).toHaveLength(7);
+    expect(months[0]).toEqual({
+      opening: "2026/02/28", start: "2026/03/01", end: "2026/03/31", header: "As of Mar 2026",
+    });
+    expect(months.at(-1)).toEqual({
+      opening: "2026/08/31", start: "2026/09/01", end: "2026/09/12", header: "As of 2026/09/12",
+    });
+  });
+
+  it("takes the Build's own ranges on every other type", () => {
+    // Not a Delayed type, so there is no special case: it hands back the
+    // Applied set's own ranges, which off Annually is every month the Build
+    // draws. It READS them rather than generating them — the hydrated set is
+    // the single source of which Periods are on screen.
+    const months = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF });
+    expect(
+      customerColumnRanges(
+        MIS_PERIODS.MONTHLY,
+        MIS_WINDOWS.CALENDAR,
+        at({ mrrType: "Total MRR", columnDateRanges: months }),
+        ASOF,
+      ),
+    ).toEqual(months);
+    // And a Delayed ANNUALLY type is not one of the two cases either — the
+    // source's branch names `quarterly` and `monthly` only.
+    expect(
+      customerColumnRanges(
+        MIS_PERIODS.ANNUALLY,
+        MIS_WINDOWS.CALENDAR,
+        at({ arrType: "Delayed ARR", columnDateRanges: getAnnualPeriods({ isYtd: true, yearsBack: 1, asOf: ASOF }) }),
+        ASOF,
+      ),
+    ).toHaveLength(1);
   });
 });
