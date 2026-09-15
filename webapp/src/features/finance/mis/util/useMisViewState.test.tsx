@@ -206,13 +206,17 @@ describe("switching the Window", () => {
   });
 });
 
-describe("the Annually column ranges", () => {
+describe("the column ranges", () => {
   // Computed in Pacific Time, which is ticket 05's. The hook only passes the
   // computer through, so the contract ships without a timezone in it.
   it("are computed by the function the caller supplies", () => {
     const columnRangesFor = vi.fn(() => [{ start: "2026/01/01", end: "2026/09/12" }]);
     const { result } = renderAt(ANNUALLY, "?years=3", { columnRangesFor });
-    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.objectContaining({ yearsBack: 3 }));
+    expect(columnRangesFor).toHaveBeenCalledWith(
+      ANNUALLY,
+      MIS_WINDOWS.CALENDAR,
+      expect.objectContaining({ yearsBack: 3 }),
+    );
     expect(result.current.state.filters.columnDateRanges).toEqual([{ start: "2026/01/01", end: "2026/09/12" }]);
   });
 

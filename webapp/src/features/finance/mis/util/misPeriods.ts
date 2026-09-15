@@ -38,6 +38,7 @@ import {
   startOfYear,
   type MisCivilDate,
 } from "./misPacificTime";
+import { MIS_PERIODS, type MisPeriod } from "./misViewVocabulary";
 import type { ColumnRangesFor } from "./misViewState";
 import {
   ENDING_MONTH_TODAY,
@@ -390,14 +391,21 @@ export const asOfColumnLabel = (range: MisDateRange): string =>
  * Pacific midnight recomputes rather than going on reporting yesterday.
  *
  */
-export const pacificColumnRanges: ColumnRangesFor = (viewWindow: MisWindow, filters) =>
-  viewWindow === MIS_WINDOWS.TTM
+export const pacificColumnRanges: ColumnRangesFor = (period, viewWindow, filters) => {
+  // The Period decides first, because the Window belongs to Annually alone. A
+  // `window=ttm` that reached a Quarterly or Monthly route is a parameter
+  // already being ignored there — `allowedTypeValues` ignores it too — and
+  // must not turn either Build into a trailing one.
+  if (period === MIS_PERIODS.QUARTERLY) return getQuarterlyPeriods(filters);
+  if (period === MIS_PERIODS.MONTHLY) return getMonthlyPeriods(filters);
+  return viewWindow === MIS_WINDOWS.TTM
     ? getTtmPeriods({ yearsBack: filters.yearsBack, endingMonth: filters.endingMonth })
     : getAnnualPeriods({
         isYtd: filters.isYtd,
         endingMonth: filters.endingMonth,
         yearsBack: filters.yearsBack,
       });
+};
 
 /**
  * The ranges the SUBSCRIPTION Build's columns cover — which is not the same
@@ -429,10 +437,17 @@ export const pacificColumnRanges: ColumnRangesFor = (viewWindow: MisWindow, filt
  * A TTM Window has no such split: there the columns ARE `columnDateRanges`.
  */
 export function buildColumnRanges(
+  period: MisPeriod,
   viewWindow: MisWindow,
   filters: Pick<MisAppliedFilters, "columnDateRanges" | "yearsBack">,
 ): readonly MisDateRange[] {
   const ranges = filters.columnDateRanges ?? [];
+  // The slice below is an ANNUALLY rule and only an annual one: it exists
+  // because the source computes annual bounds with two generators that
+  // disagree by one. `generateQuarters` and `generateMonths` have no such
+  // twin — one generator feeds both the columns and the fetch — so slicing a
+  // Quarterly Build would cut seven quarters to one at the default Years Back.
+  if (period !== MIS_PERIODS.ANNUALLY) return ranges;
   if (viewWindow === MIS_WINDOWS.TTM) return ranges;
   return ranges.slice(-Math.max(1, filters.yearsBack));
 }

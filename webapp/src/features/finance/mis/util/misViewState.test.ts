@@ -635,7 +635,11 @@ describe("hydrating a parsed view", () => {
   it("asks for the Period's column ranges only when one is offered", () => {
     const columnRangesFor = vi.fn(() => [{ start: "2026/01/01", end: "2026/09/12" }]);
     const hydrated = hydrateAppliedFilters({ yearsBack: 3 }, ANNUALLY, SUBSCRIPTION, { columnRangesFor });
-    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.objectContaining({ yearsBack: 3 }));
+    expect(columnRangesFor).toHaveBeenCalledWith(
+      ANNUALLY,
+      MIS_WINDOWS.CALENDAR,
+      expect.objectContaining({ yearsBack: 3 }),
+    );
     expect(hydrated.columnDateRanges).toEqual([{ start: "2026/01/01", end: "2026/09/12" }]);
 
     expect(hydrateAppliedFilters({ yearsBack: 3 }, ANNUALLY, SUBSCRIPTION).columnDateRanges).toBeUndefined();
@@ -644,14 +648,21 @@ describe("hydrating a parsed view", () => {
   it("asks for TTM ranges when the Window is TTM", () => {
     const columnRangesFor = vi.fn(() => []);
     hydrateAppliedFilters({}, ANNUALLY, SUBSCRIPTION, { viewWindow: MIS_WINDOWS.TTM, columnRangesFor });
-    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.TTM, expect.anything());
+    expect(columnRangesFor).toHaveBeenCalledWith(ANNUALLY, MIS_WINDOWS.TTM, expect.anything());
   });
 
-  it("has no column ranges to compute on Quarterly or Monthly", () => {
+  it("asks for column ranges on Quarterly and Monthly too, naming the Period", () => {
+    // This pinned the opposite until ticket 12: the gate here was
+    // `period === ANNUALLY`, because Annually was the only Period with a
+    // generator, and the other two routes therefore rendered no columns at
+    // all. The Period now reaches the seam, which decides for itself — so what
+    // is asserted is that it is ASKED, and asked with the Period, rather than
+    // which ranges come back (that is `misPeriods.test.ts`).
     const columnRangesFor = vi.fn(() => []);
     hydrateAppliedFilters({}, QUARTERLY, SUBSCRIPTION, { columnRangesFor });
+    expect(columnRangesFor).toHaveBeenCalledWith(QUARTERLY, MIS_WINDOWS.CALENDAR, expect.anything());
     hydrateAppliedFilters({}, MONTHLY, SUBSCRIPTION, { columnRangesFor });
-    expect(columnRangesFor).not.toHaveBeenCalled();
+    expect(columnRangesFor).toHaveBeenCalledWith(MONTHLY, MIS_WINDOWS.CALENDAR, expect.anything());
   });
 });
 
@@ -823,7 +834,11 @@ describe("switching the Window", () => {
   it("recomputes the column ranges for the Window it switched to", () => {
     const columnRangesFor = vi.fn(() => []);
     const toTtm = switchTo(calendar({ yearsBack: 3 }), MIS_WINDOWS.TTM, { columnRangesFor });
-    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.TTM, expect.objectContaining({ yearsBack: 3 }));
+    expect(columnRangesFor).toHaveBeenCalledWith(
+      ANNUALLY,
+      MIS_WINDOWS.TTM,
+      expect.objectContaining({ yearsBack: 3 }),
+    );
 
     columnRangesFor.mockClear();
     switchTo(toTtm.filters, MIS_WINDOWS.CALENDAR, {
@@ -831,7 +846,7 @@ describe("switching the Window", () => {
       remembered: toTtm.remembered,
       columnRangesFor,
     });
-    expect(columnRangesFor).toHaveBeenCalledWith(MIS_WINDOWS.CALENDAR, expect.anything());
+    expect(columnRangesFor).toHaveBeenCalledWith(ANNUALLY, MIS_WINDOWS.CALENDAR, expect.anything());
   });
 
   // The source also mirrors the coerced type into the summaries' `arrType`

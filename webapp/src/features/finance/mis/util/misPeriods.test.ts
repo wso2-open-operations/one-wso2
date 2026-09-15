@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { inZone } from "@/test/timeZone";
 import {
   ENDING_MONTH_TODAY,
+  MIS_PERIODS,
   MIS_WINDOWS,
   type MisAppliedFilters,
   type MisWindow,
@@ -208,7 +209,7 @@ describe("the column-range computer the URL contract takes", () => {
   }
 
   it("gives calendar years on a Calendar Window", () => {
-    expect(atAsOf("Asia/Colombo", () => pacificColumnRanges(MIS_WINDOWS.CALENDAR, filters))).toEqual(
+    expect(atAsOf("Asia/Colombo", () => pacificColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR, filters))).toEqual(
       [
         { start: "2024/01/01", end: "2024/12/31" },
         { start: "2025/01/01", end: "2025/12/31" },
@@ -217,8 +218,28 @@ describe("the column-range computer the URL contract takes", () => {
     );
   });
 
+  it("gives quarters on Quarterly and months on Monthly, whatever the Window says", () => {
+    // The Window is Annually's alone, so the Period decides first. A
+    // `window=ttm` that reached one of the other two routes is already being
+    // ignored, and it must not turn a Quarterly Build into a trailing one.
+    const quarters = atAsOf("UTC", () =>
+      pacificColumnRanges(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.TTM, filters),
+    );
+    expect(quarters.map((r) => r.header)).toEqual([
+      "As of 2024 Q1", "As of 2024 Q2", "As of 2024 Q3", "As of 2024 Q4",
+      "As of 2025 Q1", "As of 2025 Q2", "As of 2025 Q3", "As of 2025 Q4",
+      "As of 2026 Q1", "As of 2026 Q2", "As of 2026/09/12",
+    ]);
+    const months = atAsOf("UTC", () =>
+      pacificColumnRanges(MIS_PERIODS.MONTHLY, MIS_WINDOWS.CALENDAR, filters),
+    );
+    // Years Back 2, so 24 months plus the current one.
+    expect(months).toHaveLength(25);
+    expect(months.at(-1)?.header).toBe("As of 2026/09/12");
+  });
+
   it("gives trailing-twelve-month ranges on a TTM Window", () => {
-    expect(atAsOf("UTC", () => pacificColumnRanges(MIS_WINDOWS.TTM, filters))).toEqual([
+    expect(atAsOf("UTC", () => pacificColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.TTM, filters))).toEqual([
       {
         opening: "2024/09/12",
         start: "2024/09/13",
@@ -238,7 +259,7 @@ describe("the column-range computer the URL contract takes", () => {
     // The seam feeds `columnDateRanges`, which NINE other Annually tables
     // draw their columns from directly. Narrowing it here would quietly shorten
     // all of them; only the Subscription table wants fewer — see below.
-    const calendar = atAsOf("UTC", () => pacificColumnRanges(MIS_WINDOWS.CALENDAR, filters));
+    const calendar = atAsOf("UTC", () => pacificColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR, filters));
     expect(calendar).toHaveLength(filters.yearsBack + 1);
   });
 });
@@ -329,6 +350,7 @@ describe("how many columns the Subscription Build draws", () => {
   const filtersAt = (yearsBack: number, viewWindow: MisWindow = MIS_WINDOWS.CALENDAR) => {
     const base = { yearsBack, isYtd: true, endingMonth: ENDING_MONTH_TODAY };
     const columnDateRanges = pacificColumnRanges(
+      MIS_PERIODS.ANNUALLY,
       viewWindow,
       base as unknown as MisAppliedFilters,
     );
@@ -336,15 +358,15 @@ describe("how many columns the Subscription Build draws", () => {
   };
 
   it("draws exactly Years Back columns on a Calendar Window", () => {
-    expect(buildColumnRanges(MIS_WINDOWS.CALENDAR, filtersAt(5))).toHaveLength(5);
-    expect(buildColumnRanges(MIS_WINDOWS.CALENDAR, filtersAt(1))).toHaveLength(1);
+    expect(buildColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR, filtersAt(5))).toHaveLength(5);
+    expect(buildColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR, filtersAt(1))).toHaveLength(1);
   });
 
   it("drops the OLDEST range, keeping the years nearest today", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-12T18:00:00Z"));
     const filters = inZone("UTC", () => filtersAt(5));
-    const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, filters);
+    const columns = buildColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR, filters);
     expect(columns[0].start).toBe("2022/01/01");
     expect(columns.at(-1)?.end).toBe("2026/09/12");
     // The one it dropped is the one the source computes and never draws.
@@ -353,15 +375,15 @@ describe("how many columns the Subscription Build draws", () => {
 
   it("draws every range on a TTM Window, where the two agree", () => {
     const filters = filtersAt(5, MIS_WINDOWS.TTM);
-    expect(buildColumnRanges(MIS_WINDOWS.TTM, filters)).toEqual(
+    expect(buildColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.TTM, filters)).toEqual(
       filters.columnDateRanges,
     );
-    expect(buildColumnRanges(MIS_WINDOWS.TTM, filters)).toHaveLength(5);
+    expect(buildColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.TTM, filters)).toHaveLength(5);
   });
 
   it("draws nothing when the Applied set carries no ranges at all", () => {
     expect(
-      buildColumnRanges(MIS_WINDOWS.CALENDAR, { yearsBack: 5 } as MisAppliedFilters),
+      buildColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR, { yearsBack: 5 } as MisAppliedFilters),
     ).toEqual([]);
   });
 });
@@ -428,5 +450,31 @@ describe("Monthly columns", () => {
     const labels = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF }).map((m) => m.header);
     expect(labels).toContain("As of Dec 2025");
     expect(labels).toContain("As of Jan 2026");
+  });
+});
+
+describe("which of the ranges a Build actually draws, off Annually", () => {
+  it("draws every quarter and every month, with no Years Back slice", () => {
+    // The slice is an ANNUALLY rule and only an annual one. It exists because
+    // the source computes annual bounds with two generators that disagree by
+    // one, and the Subscription grid reads the shorter — `generateQuarters`
+    // and `generateMonths` have no such twin, so slicing here would cut seven
+    // quarters down to one at the default Years Back.
+    const quarters = getQuarterlyPeriods({ yearsBack: 1, asOf: ASOF });
+    expect(quarters).toHaveLength(7);
+    expect(
+      buildColumnRanges(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.CALENDAR, {
+        columnDateRanges: quarters,
+        yearsBack: 1,
+      }),
+    ).toHaveLength(7);
+
+    const months = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF });
+    expect(
+      buildColumnRanges(MIS_PERIODS.MONTHLY, MIS_WINDOWS.CALENDAR, {
+        columnDateRanges: months,
+        yearsBack: 1,
+      }),
+    ).toHaveLength(13);
   });
 });

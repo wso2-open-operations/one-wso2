@@ -242,8 +242,8 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
   // on screen. Sliced, because on a Calendar Window this particular table shows
   // one fewer than the Applied set carries — see buildColumnRanges.
   const ranges = useMemo(
-    () => buildColumnRanges(view.viewWindow, view.filters),
-    [view.viewWindow, view.filters],
+    () => buildColumnRanges(view.period, view.viewWindow, view.filters),
+    [view.period, view.viewWindow, view.filters],
   );
   const summary = useArrSummary(ranges, view.filters);
 
@@ -417,8 +417,8 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
   // switches columns and fires no request.
   const [buOnly, setBuOnly] = useState(true);
   const ranges = useMemo(
-    () => buildColumnRanges(view.viewWindow, view.filters),
-    [view.viewWindow, view.filters],
+    () => buildColumnRanges(view.period, view.viewWindow, view.filters),
+    [view.period, view.viewWindow, view.filters],
   );
   const book = useCustomerAccounts(ranges, view.filters);
   // Seventeen identity columns, or eighteen on a Delayed type — the source
@@ -624,8 +624,8 @@ function RegionExitGrid({
   bySalesRegion: boolean;
 }) {
   const ranges = useMemo(
-    () => buildColumnRanges(view.viewWindow, view.filters),
-    [view.viewWindow, view.filters],
+    () => buildColumnRanges(view.period, view.viewWindow, view.filters),
+    [view.period, view.viewWindow, view.filters],
   );
   const summary = useExitArrByRegion(ranges, view.filters, bySalesRegion);
 
@@ -724,8 +724,8 @@ function RegionMetricsGrid({
   bySalesRegion: boolean;
 }) {
   const ranges = useMemo(
-    () => buildColumnRanges(view.viewWindow, view.filters),
-    [view.viewWindow, view.filters],
+    () => buildColumnRanges(view.period, view.viewWindow, view.filters),
+    [view.period, view.viewWindow, view.filters],
   );
   const metrics = useRegionMetrics(ranges, view.filters, bySalesRegion);
 
@@ -801,8 +801,8 @@ function RegionMetricsGrid({
  */
 function BuSummaryGrid({ view, scale }: { view: MisViewState; scale: MisScale }) {
   const ranges = useMemo(
-    () => buildColumnRanges(view.viewWindow, view.filters),
-    [view.viewWindow, view.filters],
+    () => buildColumnRanges(view.period, view.viewWindow, view.filters),
+    [view.period, view.viewWindow, view.filters],
   );
   const summary = useExitArrByBU(ranges, view.filters);
   const byColumn = new Map(summary.columns.map((column) => [column.label, column.response]));

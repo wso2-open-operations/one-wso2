@@ -451,7 +451,19 @@ export function parseViewState(search: string, { period }: { period: MisPeriod }
  * silently wrong — so the URL contract is testable, and shippable, without a
  * timezone in it. Omit it and the ranges are simply not computed.
  */
-export type ColumnRangesFor = (viewWindow: MisWindow, filters: MisAppliedFilters) => MisDateRange[];
+/**
+ * How a screen computes the column ranges for the view it is showing.
+ *
+ * Takes the Period as well as the Window because the two are not independent:
+ * the Period decides WHICH generator runs, and the Window only refines the
+ * annual one. Handed in rather than imported so the URL contract stays
+ * testable without a timezone in it — see `misPeriods.ts` for the filler.
+ */
+export type ColumnRangesFor = (
+  period: MisPeriod,
+  viewWindow: MisWindow,
+  filters: MisAppliedFilters,
+) => MisDateRange[];
 
 export interface HydrateOptions {
   /** Omitted Window is Calendar. */
@@ -514,8 +526,11 @@ export function hydrateAppliedFilters(
   applied.forecast = typeValue !== undefined && FORECAST_TYPE_VALUES.has(typeValue)
     ? FORECAST_STATES.ENABLE
     : FORECAST_STATES.DISABLE;
-  if (period === MIS_PERIODS.ANNUALLY && columnRangesFor) {
-    applied.columnDateRanges = columnRangesFor(viewWindow, applied);
+  // Every Period has columns; until ticket 12 only Annually had a generator,
+  // so this was gated on it and the other two routes rendered no columns at
+  // all. The Period now reaches the seam, which decides for itself.
+  if (columnRangesFor) {
+    applied.columnDateRanges = columnRangesFor(period, viewWindow, applied);
   }
   return applied;
 }
@@ -565,7 +580,7 @@ export function applyWindow(
   const viewWindow = nextWindow === MIS_WINDOWS.TTM ? MIS_WINDOWS.TTM : MIS_WINDOWS.CALENDAR;
   const filters: MisAppliedFilters = { ...applied };
   const withRanges = (nextRemembered: MisRememberedWindow): MisWindowSwitch => {
-    if (columnRangesFor) filters.columnDateRanges = columnRangesFor(viewWindow, filters);
+    if (columnRangesFor) filters.columnDateRanges = columnRangesFor(period, viewWindow, filters);
     return { filters, viewWindow, remembered: nextRemembered };
   };
 

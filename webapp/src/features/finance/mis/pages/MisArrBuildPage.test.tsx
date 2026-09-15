@@ -26,6 +26,7 @@ import { defaultAppliedFilters } from "@features/finance/mis/util/misViewState";
 import { YearsBackSessionProvider } from "@features/finance/mis/util/YearsBackSessionContext";
 import {
   MIS_PERIODS,
+  type MisDateRange,
   type MisPeriod,
   MIS_TABLES,
   MIS_WINDOWS,
@@ -74,9 +75,24 @@ vi.mock("@features/finance/mis/api/useMisGate", () => ({
   }),
 }));
 
-const summary = { value: {} as ArrSummaryState };
+const summary = {
+  value: {} as ArrSummaryState,
+  /**
+   * The ranges the screen last ASKED for.
+   *
+   * The fixture below hands back one fixed column whatever it is given, which
+   * is right for the ninety-odd tests about what a Build renders — but it means
+   * the render says nothing about which Periods were requested. So the stub
+   * records its argument, and the Period-to-columns wiring is asserted on the
+   * request rather than on a fixture that ignores it.
+   */
+  lastRanges: [] as readonly MisDateRange[],
+};
 vi.mock("@features/finance/mis/api/useArrSummary", () => ({
-  useArrSummary: () => summary.value,
+  useArrSummary: (ranges: readonly MisDateRange[]) => {
+    summary.lastRanges = ranges;
+    return summary.value;
+  },
 }));
 
 const drillDown = { value: {} as DrillDownState, asked: [] as unknown[] };
@@ -170,8 +186,15 @@ vi.setConfig({ testTimeout: 20_000 });
  */
 const THIS_YEAR = inZone("Asia/Colombo", () => {
   const filters = defaultAppliedFilters(MIS_PERIODS.ANNUALLY, MIS_TABLES.SUBSCRIPTION);
-  const columnDateRanges = pacificColumnRanges(MIS_WINDOWS.CALENDAR, filters);
-  const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, { ...filters, columnDateRanges });
+  const columnDateRanges = pacificColumnRanges(
+    MIS_PERIODS.ANNUALLY,
+    MIS_WINDOWS.CALENDAR,
+    filters,
+  );
+  const columns = buildColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR, {
+    ...filters,
+    columnDateRanges,
+  });
   return buildColumnLabel(columns[columns.length - 1]);
 });
 
@@ -267,8 +290,15 @@ const SPLIT = {
 /** The column header both summaries show — the closing date alone. */
 const THIS_YEAR_AS_OF = inZone("Asia/Colombo", () => {
   const filters = defaultAppliedFilters(MIS_PERIODS.ANNUALLY, MIS_TABLES.EXIT_ARR_BY_REGION);
-  const columnDateRanges = pacificColumnRanges(MIS_WINDOWS.CALENDAR, filters);
-  const columns = buildColumnRanges(MIS_WINDOWS.CALENDAR, { ...filters, columnDateRanges });
+  const columnDateRanges = pacificColumnRanges(
+    MIS_PERIODS.ANNUALLY,
+    MIS_WINDOWS.CALENDAR,
+    filters,
+  );
+  const columns = buildColumnRanges(MIS_PERIODS.ANNUALLY, MIS_WINDOWS.CALENDAR, {
+    ...filters,
+    columnDateRanges,
+  });
   return asOfColumnLabel(columns[columns.length - 1]);
 });
 
@@ -1192,6 +1222,40 @@ describe("the QRR and MRR Builds", () => {
     expect(address()).toBe("?window=ttm");
     await switchTable("Customers");
     expect(address()).toBe("?table=customers");
+  });
+
+  it("asks for quarterly ranges on the Quarterly Build, not annual ones", () => {
+    renderPage("", MIS_PERIODS.QUARTERLY);
+    // The shape comes from the source's `toAsOfQuarterlyText`, not from
+    // recomputing what the code just did: every column is `As of {year} Q{n}`
+    // except the quarter still running, which is `As of {today}`. An annual
+    // Build asks for `{opening} - {end}` ranges instead, so this fails outright
+    // if the Period did not reach the column builder.
+    const headers = summary.lastRanges.map((range) => buildColumnLabel(range));
+    expect(headers.length).toBeGreaterThanOrEqual(5);
+    for (const header of headers.slice(0, -1)) {
+      expect(header, `${header} is not a quarter`).toMatch(/^As of \d{4} Q[1-4]$/);
+    }
+    // The last is the open quarter, dated rather than named.
+    expect(headers.at(-1)).toMatch(/^As of \d{4}\/\d{2}\/\d{2}$/);
+  });
+
+  it("asks for thirteen months on the Monthly Build at its default Years Back", () => {
+    // Years Back defaults to 1 off Annually, and `generateMonths` walks
+    // `i <= yearsBack * 12` — so thirteen, which is the source's own
+    // off-by-one reproduced under ADR 0003 rather than corrected. No Years
+    // Back slice applies here either: that is an Annually rule.
+    renderPage("", MIS_PERIODS.MONTHLY);
+    expect(summary.lastRanges).toHaveLength(13);
+  });
+
+  it("still asks for an annual range on the annual Build", () => {
+    // The other side of the branch, so a change that sent quarters everywhere
+    // could not pass by only being checked off Annually.
+    renderPage();
+    expect(buildColumnLabel(summary.lastRanges[0])).toMatch(
+      /^\d{4}\/\d{2}\/\d{2} - \d{4}\/\d{2}\/\d{2}$/,
+    );
   });
 
   it("serialises a default view to an empty query string on each of the three Periods", () => {
