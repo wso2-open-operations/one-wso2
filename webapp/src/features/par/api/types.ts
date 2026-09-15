@@ -166,11 +166,52 @@ export interface ParParticipant {
 
 // Body for PATCH /par-cycles/{cycleId}/employees/{email}/par-ratings/{id}.
 // par-app's backend rejects (403) any field outside what the caller's role
-// may touch — checkForModifiableFieldsForSelf in modules/types/types.bal
-// allows only these two for an employee acting on their own record. Lead/
-// admin fields (parRating, parLeadComment, parLeadStatus, ...) are a
-// separate, larger type to add when the lead-review screen is ported.
+// may touch — checkForModifiableFieldsForSelf in modules/types/types.bal is
+// a DENYLIST, not an allowlist: it blocks parRating, parSpecialRating,
+// parLeadComment, parLeadStatus, parAdminComment and parPerformanceNoticeAck
+// for an employee acting on their own record, and lets everything else
+// through — which is why parF2fStatus/parF2fDate (below) are here despite
+// being set by the employee, same endpoint as the comment/status pair.
+// Lead/admin-only fields are a separate, larger type to add when the
+// lead-review screen is ported.
 export interface ParRatingModify {
   parEmployeeComment?: string;
   parEmployeeStatus?: ParEmployeeStatus;
+  parF2fStatus?: ParF2fStatus;
+  parF2fDate?: string;
+}
+
+// ---- F2F scheduling ----------------------------------------------------------
+//
+// Mirrors par-app backend's raw Google Calendar freebusy shape (gcalendar:
+// FreeBusyResponse) and its own ScheduleMeetingRequest — see manager.bal's
+// getBusyTimeSlots / scheduleF2FMeeting.
+
+export interface ParCalendarBusySlot {
+  start: string;
+  end: string;
+}
+
+export interface ParCalendarBusy {
+  busy: ParCalendarBusySlot[];
+}
+
+// GET .../calendar/busy-times?date=YYYY-MM-DD.
+export interface ParFreeBusyResponse {
+  calendars: Record<string, ParCalendarBusy>;
+  kind: string;
+  timeMax: string;
+  timeMin: string;
+}
+
+// Body for POST .../calendar/schedule-f2f. The response is a bare 201 with
+// no payload (service.bal's own resource returns `http:CREATED` and nothing
+// else) — there is no meetLink to read back from this call.
+export interface ParScheduleF2fRequest {
+  parRatingId: number;
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  date: string;
 }

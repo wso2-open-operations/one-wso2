@@ -89,6 +89,14 @@ function show(initial = "/people-ops/performance") {
             }
           />
           <Route path="provide-360" element={<Tab name="Provide 360" />} />
+          <Route
+            path="f2f"
+            element={
+              <ParRequiresLeadRoute>
+                <Tab name="F2F" />
+              </ParRequiresLeadRoute>
+            }
+          />
           <Route path="history" element={<Tab name="History" />} />
         </Route>
       </Routes>
@@ -99,11 +107,12 @@ function show(initial = "/people-ops/performance") {
 describe("an employee who has a lead", () => {
   beforeEach(() => hasLead("lead@wso2.com"));
 
-  it("sees all four tabs", async () => {
+  it("sees all five tabs", async () => {
     show();
     expect(await screen.findByRole("tab", { name: "Employee Feedback" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Request 360° Feedback" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Provide 360° Feedback" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "F2F" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "PAR History" })).toBeInTheDocument();
   });
 
@@ -124,6 +133,7 @@ describe("an employee with no lead", () => {
     expect(screen.getByRole("tab", { name: "PAR History" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Employee Feedback" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Request 360° Feedback" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "F2F" })).not.toBeInTheDocument();
   });
 
   it("lands on Provide 360°, not a tab they don't have", async () => {
@@ -140,6 +150,11 @@ describe("an employee with no lead", () => {
 
   it("is redirected away from Request 360° too", async () => {
     show("/people-ops/performance/request-360");
+    expect(await screen.findByTestId("url")).toHaveTextContent("/people-ops/performance/provide-360");
+  });
+
+  it("is redirected away from F2F too", async () => {
+    show("/people-ops/performance/f2f");
     expect(await screen.findByTestId("url")).toHaveTextContent("/people-ops/performance/provide-360");
   });
 

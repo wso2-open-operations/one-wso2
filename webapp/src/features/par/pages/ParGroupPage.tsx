@@ -23,14 +23,15 @@ import { useMeProfile } from "@features/my/api/useMeProfile";
 import ParShell from "../components/ParShell";
 import { useActiveParCycle, useParHasLead } from "../api/useParData";
 
-// Tab labels match par-app's own OngoingCycleView.tsx tab bar. History is
-// folded in as a tab too (a separate top-level route in the source) and,
-// unlike the other three, isn't gated by lead presence below. F2F isn't
-// ported yet — see docs/ported-apps/par-app.md.
+// Tab labels and order match par-app's own OngoingCycleView.tsx tab bar
+// (Employee Feedback / Request 360° / Provide 360° / F2F). History is
+// folded in as a fifth tab (a separate top-level route in the source) and,
+// unlike the first four, isn't gated by lead presence below.
 const FULL_TABS: RoutedTabDef[] = [
   { segment: "employee-feedback", label: "Employee Feedback" },
   { segment: "request-360", label: "Request 360° Feedback" },
   { segment: "provide-360", label: "Provide 360° Feedback" },
+  { segment: "f2f", label: "F2F" },
   { segment: "history", label: "PAR History" },
 ];
 

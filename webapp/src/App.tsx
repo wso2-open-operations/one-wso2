@@ -39,6 +39,7 @@ import ParGroupPage, { ParGroupIndex, ParRequiresLeadRoute } from "@features/par
 const ParEmployeeFeedbackTab = lazy(() => import("@features/par/pages/ParEmployeeFeedbackTab"));
 const ParRequestFeedbackTab = lazy(() => import("@features/par/pages/ParRequestFeedbackTab"));
 const ParProvideFeedbackTab = lazy(() => import("@features/par/pages/ParProvideFeedbackTab"));
+const ParF2fTab = lazy(() => import("@features/par/pages/ParF2fTab"));
 const ParHistoryTab = lazy(() => import("@features/par/pages/ParHistoryTab"));
 import MyTeamPage from "@features/my/my-team/pages/MyTeamPage";
 import TeamMemberPage from "@features/my/my-team/pages/TeamMemberPage";
@@ -298,7 +299,7 @@ export default function App() {
           {/* People Ops → PAR: the employee half of par-app, ported one screen
               at a time. Tab names match par-app's own OngoingCycleView tab bar
               (Employee Feedback / Request 360° Feedback / Provide 360°
-              Feedback / F2F) rather than invented ones; F2F isn't ported yet.
+              Feedback / F2F) rather than invented ones.
               See docs/ported-apps/par-app.md. Not admin-gated — every employee
               has their own PAR, same as Org Chart and Subscriptions above.
               Behind the same preview flag as its rail entry — hiding only the
@@ -336,6 +337,19 @@ export default function App() {
                   <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>
                     <ParProvideFeedbackTab />
                   </Suspense>
+                }
+              />
+              {/* F2F is leadless-gated too — OngoingCycleView.tsx's leadless
+                  branch has no F2F tab at all, same as Employee Feedback and
+                  Request 360°. */}
+              <Route
+                path="f2f"
+                element={
+                  <ParRequiresLeadRoute>
+                    <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>
+                      <ParF2fTab />
+                    </Suspense>
+                  </ParRequiresLeadRoute>
                 }
               />
               <Route
