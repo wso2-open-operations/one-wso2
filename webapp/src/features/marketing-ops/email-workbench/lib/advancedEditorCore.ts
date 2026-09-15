@@ -136,6 +136,28 @@ export function stripEditorAttrs(root: Element): void {
   })
 }
 
+// Heal legacy bold markup on load: a <span> whose ENTIRE inline style is just a bold font-weight
+// (produced by the old styleWithCSS-based Bold command, or by a source template authored elsewhere)
+// is indistinguishable from any other span to a template's own CSS — so a chassis rule as generic as
+// "p span { color: ... }" (meant for one specific highlighted span) also recolors it. A bare <strong>
+// can't match a span selector. Only touches spans whose style is font-weight and nothing else, so any
+// genuinely styled span (color, size, …) is left byte-faithful.
+const BOLD_WEIGHT_RE = /^font-weight\s*:\s*(bold|[6-9]00)\s*$/i
+export function normalizeBoldSpans(root: Element): void {
+  root.querySelectorAll('span[style]').forEach(span => {
+    const decls = (span.getAttribute('style') || '').split(';').map(s => s.trim()).filter(Boolean)
+    if (decls.length !== 1 || !BOLD_WEIGHT_RE.test(decls[0])) return
+    const strong = span.ownerDocument.createElement('strong')
+    // Carry over everything except style (already fully consumed above) — class, id, lang, data-*,
+    // etc. — so a span that also served as a styling/metadata hook doesn't silently lose it.
+    Array.from(span.attributes).forEach(({ name, value }) => {
+      if (name !== 'style') strong.setAttribute(name, value)
+    })
+    while (span.firstChild) strong.appendChild(span.firstChild)
+    span.replaceWith(strong)
+  })
+}
+
 // Pretty-print an inserted block as indented XHTML so it matches the hand-formatted templates (each
 // structural tag on its own line), instead of a minified one-liner. Render-NEUTRAL: whitespace is only
 // added between the children of structural containers (table/tr/td/ul/…), where it's ignored by

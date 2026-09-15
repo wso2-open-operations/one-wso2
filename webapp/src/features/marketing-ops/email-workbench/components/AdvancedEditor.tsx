@@ -43,6 +43,7 @@ import {
   isSpacerEl,
   LINK_CLASS,
   LINK_STYLE,
+  normalizeBoldSpans,
   prettyPrintBlock,
   rebuildLinkUtm,
   SPACER_SIZES,
@@ -123,6 +124,9 @@ export default function AdvancedEditor({
   const scrollRestore = useRef<number | null>(null);
   const scrollNewRef = useRef(false);
   const editingRef = useRef<HTMLElement | null>(null);
+  // Where the current mousedown started, relative to the block being edited — set by the mousedown
+  // listener, read by the click listener below (see there for why a click's own target isn't enough).
+  const mouseDownInEditingRef = useRef(false);
   const savedRange = useRef<Range | null>(null);
   const undoRef = useRef<string[]>([]);
   const redoRef = useRef<string[]>([]);
@@ -252,6 +256,7 @@ export default function AdvancedEditor({
   useEffect(() => {
     const doc = new DOMParser().parseFromString(html, "text/html");
     const host = findHost(doc);
+    normalizeBoldSpans(doc.body);
     assignIds(doc.body);
     host.setAttribute("data-ew-host", "1");
     Array.from(host.children).forEach((c) => c.setAttribute("data-ew-blk", nid("b")));
@@ -778,7 +783,11 @@ export default function AdvancedEditor({
   }
 
   // Apply B/I/U via the browser's own rich-text command, then mirror the result.
-  // styleWithCSS keeps it as inline styles, which is what email clients support.
+  // styleWithCSS keeps italic/underline as inline styles, which is what email clients support.
+  // Bold is kept OFF styleWithCSS on purpose: with it on, execCommand("bold") wraps the selection in
+  // a <span style="font-weight:..."> instead of <strong> — and a template's own dark-mode CSS can carry
+  // a broad "p span" rule (meant for one specific highlighted span) that then recolors every bold span
+  // too. <strong> can't collide with a span selector.
   function richFmt(cmd: "bold" | "italic" | "underline") {
     const d = iframeRef.current?.contentDocument;
     const el = editingRef.current;
@@ -791,7 +800,7 @@ export default function AdvancedEditor({
     }
     beginEdit("rich-fmt:" + cmd);
     try {
-      d.execCommand("styleWithCSS", false, "true");
+      d.execCommand("styleWithCSS", false, cmd === "bold" ? "false" : "true");
     } catch {
       // Not supported everywhere; the command below still applies formatting.
     }
@@ -1170,6 +1179,20 @@ export default function AdvancedEditor({
       if (bar) bar.style.display = "none";
     });
 
+    // Track where the drag started: a click's own target only tells us where the mouse came UP, and a
+    // text-selection drag that starts inside the block being edited can easily end (mouseup) over a
+    // neighboring block or gap once the cursor drifts past its edge. Without this, that stray mouseup
+    // looks just like a genuine "click elsewhere" below and tears down the selection mid-drag.
+    d.addEventListener(
+      "mousedown",
+      (e) => {
+        mouseDownInEditingRef.current = !!(
+          editingRef.current && editingRef.current.contains(e.target as Node)
+        );
+      },
+      true,
+    );
+
     // Capture-phase click: decide what was selected before the email's own markup
     // (links especially) can act on it.
     d.addEventListener(
@@ -1177,8 +1200,10 @@ export default function AdvancedEditor({
       (e) => {
         const t = e.target as HTMLElement;
         if (t.closest("#ew-toolbar") || t.closest("#ew-insertbar") || t.closest("#ew-insertmenu")) return;
-        // Already editing this block — let the browser handle caret and drag-select.
-        if (editingRef.current && editingRef.current.contains(t)) return;
+        // Already editing this block — let the browser handle caret and drag-select. A drag that
+        // started inside it counts too, even if the mouseup (and so this click's target) ended up
+        // outside — see the mousedown listener above.
+        if (editingRef.current && (editingRef.current.contains(t) || mouseDownInEditingRef.current)) return;
         const menu = d.getElementById("ew-insertmenu") as HTMLElement | null;
         if (menu) menu.style.display = "none";
         e.preventDefault();
