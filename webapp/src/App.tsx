@@ -16,8 +16,16 @@
 
 import { Suspense, lazy } from "react";
 import { Skeleton } from "@wso2/oxygen-ui";
+import {
+  AlertOctagonIcon,
+  AlertTriangleIcon,
+  ClipboardListIcon,
+  GitPullRequestIcon,
+  MegaphoneIcon,
+} from "@wso2/oxygen-ui-icons-react";
 import { Navigate, Route, Routes } from "react-router";
 import { landingPath } from "@config/landingConfig";
+import CsmOperationsPlaceholderPage from "@features/csm/operations/pages/CsmOperationsPlaceholderPage";
 import SettingsPage from "@features/settings/pages/SettingsPage";
 import MenuHomePage from "@features/menu/pages/MenuHomePage";
 import OrgChartPage from "@features/org-chart/pages/OrgChartPage";
@@ -490,6 +498,49 @@ export default function App() {
               Diligence, alongside Finance (see the finance/ routes below and
               DUE_DILIGENCE_APPS). */}
           <Route path="legal" element={<LegalPage />} />
+          {/* CSM perspective — ported from cs-tools/apps/csm-portal. First
+              slice: the Operations rail shape (see CSM_SECTIONS in
+              constants/perspectives.ts). None of its five domains has a real
+              page yet, so every one — including the Overview landing itself —
+              routes to the shared placeholder/redirect below. */}
+          <Route path="csm" element={<Navigate to="/csm/operations/service-requests" replace />} />
+          <Route
+            path="csm/operations/service-requests"
+            element={
+              <CsmOperationsPlaceholderPage
+                domainLabel="Service requests"
+                icon={ClipboardListIcon}
+              />
+            }
+          />
+          <Route
+            path="csm/operations/change-requests"
+            element={
+              <CsmOperationsPlaceholderPage
+                domainLabel="Change requests"
+                icon={GitPullRequestIcon}
+              />
+            }
+          />
+          <Route
+            path="csm/operations/incidents"
+            element={
+              <CsmOperationsPlaceholderPage domainLabel="Incidents" icon={AlertTriangleIcon} />
+            }
+          />
+          <Route
+            path="csm/operations/problem-management"
+            element={
+              <CsmOperationsPlaceholderPage
+                domainLabel="Problem management"
+                icon={AlertOctagonIcon}
+              />
+            }
+          />
+          <Route
+            path="csm/operations/outages"
+            element={<CsmOperationsPlaceholderPage domainLabel="Outages" icon={MegaphoneIcon} />}
+          />
           {/* Due Diligence — ported from digiops-finance/apps/due_diligence's
               admin-app. Routes live OUTSIDE both the Finance and Legal path
               prefixes (same reason /settings does): a screen reachable from

@@ -16,7 +16,7 @@
 
 import { useMemo, useState, type JSX, type ReactNode } from "react";
 import { Box, Link, Sidebar, Typography } from "@wso2/oxygen-ui";
-import { ExternalLinkIcon, SettingsIcon } from "@wso2/oxygen-ui-icons-react";
+import { ExternalLinkIcon, LifeBuoyIcon, SettingsIcon } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink, matchPath, useLocation, useNavigate } from "react-router";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
 import { SUBSCRIPTION_ITEM_IDS, type PerspectiveSection } from "@constants/perspectives";
@@ -24,6 +24,7 @@ import { capabilitiesFromPrivileges, type Capability } from "@constants/appMenu"
 import { FINANCE_ITEM_IDS } from "@constants/financeApps";
 import { LEAVE_ITEM_IDS } from "@constants/meApps";
 import { DUE_DILIGENCE_ITEM_IDS } from "@constants/dueDiligenceApps";
+import { csmUrl, isCsmConfigured } from "@config/apiConfig";
 import { useUserInfo } from "@api/useUserInfo";
 import { useFinanceGate } from "@features/finance/api/useFinanceGate";
 import { useLeaveGate } from "@features/leave/api/useLeaveGate";
@@ -65,6 +66,13 @@ const OVERVIEW_ID = "perspective-overview";
 /** Footer row, outside any perspective — it is a global page, not a section. */
 const SETTINGS_ID = "settings";
 const SETTINGS_PATH = "/settings";
+/**
+ * Top-level row linking out to the CSM Portal — a separate application this
+ * webapp does not host, so it opens in a new tab rather than routing. Reuses
+ * the same `csmUrl`/`isCsmConfigured` gate as the waffle's CSM tile: omitted
+ * entirely when unconfigured, same "no link to nowhere" contract as ISAC.
+ */
+const CSM_PORTAL_ID = "csm-portal";
 
 // Left padding for a sub-item, so its label lines up with its parent's label
 // rather than with the parent's icon.
@@ -333,6 +341,17 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
                 <Sidebar.ItemLabel>Overview</Sidebar.ItemLabel>
               </Sidebar.Item>
             </RouteItem>
+          )}
+
+          {isCsmConfigured() && (
+            <Link href={csmUrl} target="_blank" rel="noopener noreferrer" color="inherit" underline="none">
+              <Sidebar.Item id={CSM_PORTAL_ID}>
+                <Sidebar.ItemIcon>
+                  <LifeBuoyIcon />
+                </Sidebar.ItemIcon>
+                <Sidebar.ItemLabel>CSM Portal</Sidebar.ItemLabel>
+              </Sidebar.Item>
+            </Link>
           )}
 
           {sections.map((s) => (

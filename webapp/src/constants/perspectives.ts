@@ -17,11 +17,16 @@
 // Central perspective registry. The waffle switcher and left rail both read
 // from this — one edit here changes every entry point.
 
-import { csmUrl, isCsmConfigured, isIsacConfigured, isacUrl } from "@config/apiConfig";
+import { isIsacConfigured, isacUrl } from "@config/apiConfig";
 import {
+  AlertOctagonIcon,
+  AlertTriangleIcon,
   CheckCheckIcon,
   ClipboardCheckIcon,
+  ClipboardListIcon,
+  CogIcon,
   DatabaseIcon,
+  GitPullRequestIcon,
   HouseIcon,
   LifeBuoyIcon,
   MegaphoneIcon,
@@ -288,6 +293,56 @@ const ME_SECTIONS: PerspectiveSection[] = [
   ...appsToSections(ME_FINANCE_APPS),
 ];
 
+// CSM's Operations section — ported 1:1 from cs-tools/apps/csm-portal's own
+// rail (see that app's src/config/csmNavItems.ts): same label, same icon,
+// same five children in the same order. None of the five has a real,
+// ported backend/page yet, so each one routes to a shared placeholder (see
+// CsmOperationsPlaceholderPage) rather than a real domain screen — this is
+// the first slice of the CSM perspective, standing up the nav shape ahead of
+// the actual domain work. It's still a real, working expand/collapse rail
+// group — SectionNode's generic children-rendering handles that the same way
+// it does for every other perspective's app groups (Leave, Menu, Finance,
+// ...), no rail component changes needed.
+const CSM_SECTIONS: PerspectiveSection[] = [
+  {
+    id: "csm-operations",
+    label: "Operations",
+    icon: CogIcon,
+    children: [
+      {
+        id: "csm-operations-service-requests",
+        label: "Service requests",
+        icon: ClipboardListIcon,
+        path: "/csm/operations/service-requests",
+      },
+      {
+        id: "csm-operations-change-requests",
+        label: "Change requests",
+        icon: GitPullRequestIcon,
+        path: "/csm/operations/change-requests",
+      },
+      {
+        id: "csm-operations-incidents",
+        label: "Incidents",
+        icon: AlertTriangleIcon,
+        path: "/csm/operations/incidents",
+      },
+      {
+        id: "csm-operations-problem-management",
+        label: "Problem management",
+        icon: AlertOctagonIcon,
+        path: "/csm/operations/problem-management",
+      },
+      {
+        id: "csm-operations-outages",
+        label: "Outages",
+        icon: MegaphoneIcon,
+        path: "/csm/operations/outages",
+      },
+    ],
+  },
+];
+
 export interface PerspectiveDef {
   key: string;
   label: string;
@@ -372,15 +427,18 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     path: "/legal",
     sections: [...appsToSections(DUE_DILIGENCE_APPS)],
   },
-  // A separate application, opened in a new tab. `access` follows the URL being
-  // configured: without one the tile stays in its unbuilt state rather than
-  // becoming a link to nowhere.
+  // CSM — ported from wso2-open-operations/cs-tools/apps/csm-portal. First
+  // slice: the Operations rail shape (see CSM_SECTIONS above), standing up
+  // the nav ahead of the actual domain pages. Was previously an external-tile
+  // perspective (`externalUrl`, opened CSM Portal in a new tab); now a real
+  // internal one so it can carry its own rail.
   {
     key: "csm",
     label: "CSM",
     icon: LifeBuoyIcon,
-    access: isCsmConfigured(),
-    externalUrl: csmUrl || undefined,
+    access: true,
+    path: "/csm",
+    sections: CSM_SECTIONS,
   },
   // Marketing Ops — UNLOCKED. Ported so far: Utilities (UTM + Asset Name
   // generators and their Marketing Admin panels) and Ad Campaigns → Analytics.
