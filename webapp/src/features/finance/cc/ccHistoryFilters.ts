@@ -53,13 +53,20 @@ export type CcHistoryFilterName = "Status" | "Lead" | "User" | "Card" | "Period"
  * "no lower bound" to a backend that insists on one. Kept as the same number
  * rather than reinvented, so the request this screen makes matches.
  */
+/**
+ * "All Time" is 12600 days in the source (`pastPeriods`) rather than an absent
+ * bound, because the backend requires `dateFrom` on every request. It is also
+ * what the screen falls back to whenever the period control is hidden.
+ */
+export const CC_HISTORY_ALL_TIME_DAYS = 12600;
+
 export const CC_HISTORY_PERIODS: { days: number; label: string }[] = [
   { days: 7, label: "Last 7 Days" },
   { days: 30, label: "Last 30 Days" },
   { days: 60, label: "Last 60 Days" },
   { days: 100, label: "Last 100 Days" },
   { days: 365, label: "Last Year" },
-  { days: 12600, label: "All Time" },
+  { days: CC_HISTORY_ALL_TIME_DAYS, label: "All Time" },
 ];
 
 /**

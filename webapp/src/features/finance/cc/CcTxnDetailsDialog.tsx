@@ -68,12 +68,18 @@ export function CcTxnDetailsDialog({
 
   const isTravel = txn.expenseCategoryLabel === "Travel";
   const isMarketing = (txn.expenseCategoryLabel ?? "").startsWith("Marketing");
+  // Unique per transaction, so two dialogs never claim the same label id.
+  const headingId = `cc-txn-${txn.id}-title`;
 
   return (
     <>
       {/* TransactionDetailsDialog.tsx — `maxWidth="md"`, because the fields are
           laid out two across and a small dialog wraps every one of them. */}
-      <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+      {/* The banded header replaces `DialogTitle`, which is what would otherwise
+          name the dialog for a screen reader; `aria-labelledby` points at the
+          heading inside it so the announcement still says which transaction
+          this is rather than just "dialog". */}
+      <Dialog open onClose={onClose} maxWidth="md" fullWidth aria-labelledby={headingId}>
         {/* :108-153 — a banded header carrying the id, the description, and the
             date and amount on one line beneath. The port put the description in
             a plain title and dropped the id entirely, so nothing on screen said
@@ -81,7 +87,7 @@ export function CcTxnDetailsDialog({
         <Box sx={{ bgcolor: "action.hover", m: 2, mb: 0, p: 2, borderRadius: 1.5 }}>
           <Stack direction="row" alignItems="flex-start" spacing={1.5}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: 17, fontWeight: 700 }}>
+              <Typography id={headingId} sx={{ fontSize: 17, fontWeight: 700 }}>
                 ID: {txn.id} - {txn.txnDescription}
               </Typography>
               <Typography sx={{ fontSize: 12.5, color: "text.secondary", mt: 0.25 }}>

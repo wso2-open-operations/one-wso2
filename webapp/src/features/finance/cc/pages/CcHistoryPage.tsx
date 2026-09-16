@@ -40,9 +40,11 @@ import { useCcTransactions, useCcUserInfo, useCreditCards } from "../useCc";
 import { type CcAttachmentType, type CcTransaction, ccHasAccess } from "../ccTypes";
 import { CcHistoryFilters, CcHistoryFilterChips } from "../CcHistoryFilterPopover";
 import {
+  CC_HISTORY_ALL_TIME_DAYS,
   CC_HISTORY_PERIODS,
   ccHistoryActiveFilters,
   ccHistoryCardOptions,
+  ccHistoryFieldsShown,
   ccHistoryResetAll,
   type CcHistoryFilterState,
 } from "../ccHistoryFilters";
@@ -101,11 +103,23 @@ function HistoryBody() {
   const { status, user, card, lead, days } = filters;
   const [selected, setSelected] = useState<CcTransaction | null>(null);
 
-  const txns = useCcTransactions({ dateFrom: daysAgoIso(days), includeInactive: true });
   const email = userInfo.data?.workEmail;
   const isFinance = ccHasAccess(userInfo.data, "finance");
   const canSeeOthers = ccHasAccess(userInfo.data, "lead") || isFinance;
   const viewer = { canSeeOthers, isFinance };
+  // The period control exists only while the status is `submitted`, and its
+  // chip is gated on the same rule. Carrying `days` into the query once it is
+  // hidden leaves an invisible window narrowing the list with nothing on screen
+  // to say so, and nothing to clear it with: pick "Last 30 Days" on Completed,
+  // switch to Pending Lead, and older rows silently vanish. `dateFrom` is
+  // required by the backend, so the alternative is the whole history, not none.
+  const effectiveDays = ccHistoryFieldsShown(filters, viewer).period
+    ? days
+    : CC_HISTORY_ALL_TIME_DAYS;
+  const txns = useCcTransactions({
+    dateFrom: daysAgoIso(effectiveDays),
+    includeInactive: true,
+  });
   const activeCount = ccHistoryActiveFilters(filters, viewer).length;
   // Named in the empty message, because "nothing here" is a question and the
   // window is usually the answer: the screen opens on Completed transactions
@@ -114,7 +128,8 @@ function HistoryBody() {
   // "No submitted transactions for last 7 days" and this says the same for
   // whichever window is actually in force.
   const periodLabel = (
-    CC_HISTORY_PERIODS.find((p) => p.days === days)?.label ?? `last ${days} days`
+    CC_HISTORY_PERIODS.find((p) => p.days === effectiveDays)?.label ??
+    `last ${effectiveDays} days`
   ).toLowerCase();
 
   const all = useMemo(() => txns.data ?? [], [txns.data]);

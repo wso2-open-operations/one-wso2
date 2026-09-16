@@ -69,13 +69,20 @@ const rows = [
 
 const state = { access: ["lead"] as string[], rows: null as typeof rows | null };
 
+// Every `useCcTransactions` call, so a test can assert on the window actually
+// requested rather than on what the controls happen to show.
+const txnCalls: { dateFrom?: string }[] = [];
+
 vi.mock("../useCc", () => ({
   useCcUserInfo: () => ({
     data: { workEmail: "me@wso2.com", accessLevels: state.access },
     isLoading: false,
     isError: false,
   }),
-  useCcTransactions: () => ({ data: state.rows ?? rows, isLoading: false, isError: false }),
+  useCcTransactions: (o: { dateFrom?: string }) => {
+    txnCalls.push(o);
+    return { data: state.rows ?? rows, isLoading: false, isError: false };
+  },
   // Cards including closed ones — the CC Number cell marks a transaction whose
   // card has since been closed, as submission-history/index.tsx:262-269 does.
   useCreditCards: () => ({
@@ -105,6 +112,7 @@ const { NotificationsProvider } = await import("@context/notifications/Notificat
 beforeEach(() => {
   state.access = ["lead"];
   state.rows = null;
+  txnCalls.length = 0;
 });
 
 function show() {
@@ -441,5 +449,24 @@ describe("an empty grid", () => {
     // The window is named, because "nothing here" is usually a question about
     // the window rather than about the data.
     expect(await screen.findByText("No submitted transactions for last 7 days")).toBeInTheDocument();
+  });
+});
+
+// The period control is gated on the status (`ccHistoryFieldsShown`), and so is
+// its chip. Leaving `days` in the query once both are hidden puts an invisible
+// window on the list: pick a short period on Completed, switch to Pending Lead,
+// and older rows disappear with no control and no chip to explain it.
+describe("the period filter once the status hides it", () => {
+  it("stops narrowing the window", async () => {
+    show();
+    await pick("Filter by period", "Last 30 Days");
+    const narrowed = txnCalls.at(-1)!.dateFrom!;
+
+    await pick("Filter by Status", "Pending Lead");
+    const after = txnCalls.at(-1)!.dateFrom!;
+
+    // `dateFrom` is required by the backend, so the window opens up rather than
+    // going away: an earlier date is a wider window.
+    expect(Date.parse(after)).toBeLessThan(Date.parse(narrowed));
   });
 });
