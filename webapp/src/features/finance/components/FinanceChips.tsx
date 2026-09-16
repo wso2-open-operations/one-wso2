@@ -45,11 +45,20 @@ export function opdStatusMeta(status: string | null | undefined) {
 }
 
 // ---- Credit-card transaction statuses -------------------------------------
+//
+// The source's own words (`component/common/StatusChip.tsx:18-34`), and they
+// are not the obvious ones: a `new` transaction is not "New" to the reader, it
+// is one **pending submission** — nobody has sent it anywhere yet. And
+// `submitted` is the END of the trail, once finance has booked it, so the
+// source calls it **Completed**; "Submitted" reads like the first step rather
+// than the last.
+//
+// One map for every card screen, as the source has one chip component.
 const CC_STATUS: Record<string, { label: string; color: ChipColor }> = {
-  new: { label: "New", color: "default" },
+  new: { label: "Pending Submission", color: "default" },
   pending_lead: { label: "Pending Lead", color: "warning" },
   pending_finance: { label: "Pending Finance", color: "info" },
-  submitted: { label: "Submitted", color: "success" },
+  submitted: { label: "Completed", color: "success" },
   invalid: { label: "Invalid", color: "error" },
 };
 

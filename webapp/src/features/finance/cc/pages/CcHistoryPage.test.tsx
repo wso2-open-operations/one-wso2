@@ -23,6 +23,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "token" }));
 vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
 
+// Each filter here opens a popover, picks an option and closes it again, and
+// several tests do that twice. Under the whole suite in parallel that lands at
+// 4-6s — slow, not hung, so the default 5s cuts them off for reasons that have
+// nothing to do with what they assert.
+vi.setConfig({ testTimeout: 15000 });
+
 const base = {
   txnDate: "2026-08-20",
   txnAmount: 500,
@@ -76,8 +82,8 @@ vi.mock("../useCc", () => ({
     // "ACTIVE" upper-case on purpose: useCc.ts:76 decides active
     // case-insensitively, so the cell must too.
     data: [
-      { id: 1, ccNumber: "1111", label: "Mine", status: "ACTIVE" },
-      { id: 2, ccNumber: "2222", label: "Old", status: "Inactive" },
+      { id: 1, ccNumber: "1111", label: "Mine", employeeEmail: "me@wso2.com", status: "ACTIVE" },
+      { id: 2, ccNumber: "2222", label: "Old", employeeEmail: "them@wso2.com", status: "Inactive" },
     ],
     isLoading: false,
     isError: false,
@@ -111,9 +117,17 @@ function show() {
   );
 }
 
+/** HistoryFilterPopover.tsx — the five filters live behind one trigger. */
+const openFilters = async () =>
+  fireEvent.click(await screen.findByRole("button", { name: "Advanced Filter" }));
+
 const pick = async (label: string, option: string) => {
+  await openFilters();
   fireEvent.mouseDown(await screen.findByRole("combobox", { name: label }));
   fireEvent.click(await screen.findByRole("option", { name: option }));
+  // The popover has no Apply — the field has already committed — but it stays
+  // open, and while it is open the grid behind it is aria-hidden.
+  fireEvent.click(await screen.findByRole("button", { name: "Close filters" }));
 };
 
 // submission-history/index.tsx:74-76,142-156 — a lead or finance narrows by
@@ -122,40 +136,61 @@ const pick = async (label: string, option: string) => {
 describe("narrowing the history", () => {
   it("offers the extra filters to someone who can see others", async () => {
     show();
-    for (const l of ["User", "Card", "Lead"]) {
+    await openFilters();
+    for (const l of ["Filter by User", "Filter by Card"]) {
       expect(await screen.findByRole("combobox", { name: l })).toBeInTheDocument();
     }
+  });
+
+  // HistoryFilterPopover.tsx:172 — the lead filter is finance's alone, and even
+  // then only once the rows could have a lead worth filtering by. The port
+  // offered it to any lead, who can only ever be looking at their own name.
+  it("keeps the lead filter to finance", async () => {
+    show();
+    await openFilters();
+    expect(screen.queryByRole("combobox", { name: "Filter by Lead" })).not.toBeInTheDocument();
+  });
+
+  it("offers it to finance", async () => {
+    state.access = ["finance"];
+    show();
+    await openFilters();
+    expect(await screen.findByRole("combobox", { name: "Filter by Lead" })).toBeInTheDocument();
   });
 
   it("offers none of them to a plain employee, whose list is already their own", async () => {
     state.access = [];
     show();
     await waitFor(() => expect(screen.getByText("Mine")).toBeInTheDocument());
-    expect(screen.queryByRole("combobox", { name: "User" })).not.toBeInTheDocument();
+    await openFilters();
+    expect(screen.queryByRole("combobox", { name: "Filter by User" })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Close filters" }));
     expect(screen.queryByText("Theirs")).not.toBeInTheDocument();
   });
 
   it("filters to one person", async () => {
     show();
-    await pick("User", "them@wso2.com");
+    await pick("Filter by User", "them@wso2.com");
     await waitFor(() => expect(screen.queryByText("Mine")).not.toBeInTheDocument());
     expect(screen.getByText("Theirs")).toBeInTheDocument();
   });
 
   it("filters to one card", async () => {
     show();
-    await pick("Card", "1111");
+    await pick("Filter by Card", "1111");
     await waitFor(() => expect(screen.queryByText("Theirs")).not.toBeInTheDocument());
   });
 
   it("matches a lead within a card's comma-separated list", async () => {
+    // Finance, because that is who the lead filter is for.
+    state.access = ["finance"];
     show();
     // lead-a is the second of two leads on "Theirs" and the only one on "Mine".
-    await pick("Lead", "lead-a@wso2.com");
+    await pick("Filter by Lead", "lead-a@wso2.com");
     await waitFor(() => expect(screen.getByText("Mine")).toBeInTheDocument());
     expect(screen.getByText("Theirs")).toBeInTheDocument();
 
-    await pick("Lead", "lead-b@wso2.com");
+    await pick("Filter by Lead", "lead-b@wso2.com");
     await waitFor(() => expect(screen.queryByText("Mine")).not.toBeInTheDocument());
   });
 });
@@ -166,7 +201,7 @@ describe("narrowing the history", () => {
 describe("what became of a transaction", () => {
   it("shows the approval trail", async () => {
     show();
-    fireEvent.click((await screen.findAllByRole("button", { name: "Details" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "view details" }))[0]);
 
     expect(await screen.findByText("Lead Approved Date")).toBeInTheDocument();
     expect(screen.getByText("Finance Approved Date")).toBeInTheDocument();
@@ -175,7 +210,7 @@ describe("what became of a transaction", () => {
 
   it("shows the categorisation the table has no room for", async () => {
     show();
-    fireEvent.click((await screen.findAllByRole("button", { name: "Details" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "view details" }))[0]);
     for (const label of ["Expense Category", "Job Number", "Product Unit", "Business Unit"]) {
       expect(await screen.findByText(label)).toBeInTheDocument();
     }
@@ -191,7 +226,7 @@ describe("the approval trail names one lead", () => {
   it("shows only the first assigned lead", async () => {
     show();
     // Row 2's card carries two leads.
-    fireEvent.click((await screen.findAllByRole("button", { name: "Details" }))[1]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "view details" }))[1]);
 
     const label = await screen.findByText("Lead approver");
     const value = label.parentElement as HTMLElement;
@@ -202,7 +237,7 @@ describe("the approval trail names one lead", () => {
   it("says why a value is missing rather than showing a dash", async () => {
     show();
     // Row 3 has been submitted and approved by nobody.
-    fireEvent.click((await screen.findAllByRole("button", { name: "Details" }))[2]);
+    fireEvent.click((await screen.findAllByRole("button", { name: "view details" }))[2]);
 
     const dateLabel = await screen.findByText("Lead Approved Date");
     expect(dateLabel.parentElement).toHaveTextContent("(not approved)");
@@ -292,11 +327,19 @@ describe("the history grid says what the source says", () => {
   it("offers the toolbar the source offers, export included", async () => {
     show();
     await screen.findByRole("columnheader", { name: "ID" });
-    // What v8's composed toolbar gives us for free, and what the source built
-    // by hand from GridToolbarColumnsButton / Export / QuickFilter.
-    for (const name of ["Columns", "Filters", "Export", "Search"]) {
-      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    // :43-61 — the source names its toolbar buttons; v8's one-prop toolbar
+    // leaves them as bare icons, and Export is the least guessable of them.
+    // Asserted on the visible label rather than the accessible name, because
+    // the label is the thing that was missing — MUI gives the columns button
+    // an aria-label of its own ("Select columns") either way.
+    for (const label of ["Columns", "Density", "Export"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
     }
+    // A field, not a magnifier you have to click first — the source shows the
+    // box, and v8's composed toolbar hides it behind its own trigger.
+    expect(screen.getByPlaceholderText("Search...")).toBeInTheDocument();
+    // The source's toolbar has no Filters button.
+    expect(screen.queryByRole("button", { name: "Filters" })).toBeNull();
   });
 });
 
@@ -306,5 +349,97 @@ describe("Submitted User is gated on seeing other people", () => {
     show();
     await screen.findByRole("columnheader", { name: "ID" });
     expect(screen.queryByRole("columnheader", { name: "Submitted User" })).toBeNull();
+  });
+});
+
+// HistoryFilterPopover.tsx:115-124, :233-274 — the trigger counts what is
+// narrowing the list, and the chips say what it is. The port had neither.
+describe("saying what is narrowing the list", () => {
+  it("counts nothing when nothing is narrowed", async () => {
+    show();
+    const trigger = await screen.findByRole("button", { name: "Advanced Filter" });
+    expect(trigger.textContent).toBe("");
+  });
+
+  it("puts a chip on the page for each active filter", async () => {
+    show();
+    await pick("Filter by User", "them@wso2.com");
+    // :96-111 — `Type: Label`, not the bare value.
+    expect(await screen.findByText("User: them@wso2.com")).toBeInTheDocument();
+  });
+
+  it("names the period rather than its day count", async () => {
+    show();
+    await pick("Filter by period", "Last 30 Days");
+    expect(await screen.findByText("Period: Last 30 Days")).toBeInTheDocument();
+  });
+
+  it("clears one filter without disturbing the others", async () => {
+    show();
+    await pick("Filter by User", "them@wso2.com");
+    await pick("Filter by Card", "2222 (Inactive)");
+    await screen.findByText("Card: 2222");
+
+    // The chip's own delete, not Reset.
+    const chip = screen.getByText("User: them@wso2.com").closest(".MuiChip-root")!;
+    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon")!);
+
+    await waitFor(() => expect(screen.queryByText("User: them@wso2.com")).toBeNull());
+    expect(screen.getByText("Card: 2222")).toBeInTheDocument();
+  });
+
+  it("offers nothing to reset until something is narrowed", async () => {
+    show();
+    await openFilters();
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+  });
+
+  it("puts everything back at once", async () => {
+    show();
+    await pick("Filter by User", "them@wso2.com");
+    await openFilters();
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(screen.queryByText("User: them@wso2.com")).toBeNull());
+  });
+});
+
+// AttachmentButton.tsx:294-336 — two icons on every row, and the tooltip is
+// what says whether there is anything behind them.
+describe("the attachment icons", () => {
+  it("say what is there and what is not", async () => {
+    show();
+    await screen.findAllByRole("gridcell");
+    // The fixture's first row carries a receipt and no contract.
+    expect(screen.getAllByLabelText("receipt-attachment")[0]).toBeEnabled();
+    expect(screen.getAllByLabelText("contract-attachment")[0]).toBeDisabled();
+  });
+
+  it("are offered on every row, not only where a file exists", async () => {
+    show();
+    await screen.findAllByRole("gridcell");
+    // The port rendered an em-dash when neither file was attached, so a row
+    // with a receipt and no contract said nothing at all about the contract.
+    const receipts = screen.getAllByLabelText("receipt-attachment");
+    const contracts = screen.getAllByLabelText("contract-attachment");
+    expect(receipts.length).toBe(contracts.length);
+    expect(receipts.length).toBeGreaterThan(1);
+  });
+});
+
+// index.tsx:432-450 — the source says two different things about an empty grid.
+describe("an empty grid", () => {
+  it("blames the filters when the filters are what emptied it", async () => {
+    show();
+    // Nothing in the fixture is still waiting to be submitted.
+    await pick("Filter by Status", "Pending Submission");
+    expect(await screen.findByText("No transactions match the selected filters")).toBeInTheDocument();
+  });
+
+  it("says the period is empty when nothing is narrowed", async () => {
+    state.rows = [];
+    show();
+    // The window is named, because "nothing here" is usually a question about
+    // the window rather than about the data.
+    expect(await screen.findByText("No submitted transactions for last 7 days")).toBeInTheDocument();
   });
 });
