@@ -116,6 +116,17 @@ function HistoryBody() {
   const effectiveDays = ccHistoryFieldsShown(filters, viewer).period
     ? days
     : CC_HISTORY_ALL_TIME_DAYS;
+  // The same trap as `effectiveDays`, on the other filter that comes and goes.
+  // Lead is finance's alone and only while the status could have one, and
+  // `ccHistoryActiveFilters` gates its chip on exactly that — so applying
+  // `lead` once the control is hidden narrows the list with nothing on screen
+  // saying so and nothing to clear it with. Pick a lead on Completed, switch to
+  // Pending Lead, and rows belonging to every other lead silently vanish.
+  //
+  // Gated rather than cleared on the way out, so switching back to Completed
+  // returns the lead you had chosen instead of quietly dropping it — which is
+  // how the period already behaves.
+  const effectiveLead = ccHistoryFieldsShown(filters, viewer).lead ? lead : ALL;
   const txns = useCcTransactions({
     dateFrom: daysAgoIso(effectiveDays),
     includeInactive: true,
@@ -337,12 +348,12 @@ function HistoryBody() {
     if (user !== ALL) list = list.filter((t) => t.employeeEmail === user);
     if (card !== ALL) list = list.filter((t) => t.ccNumber === card);
     // :152 — a card can carry several leads, so match within the list.
-    if (lead !== ALL)
+    if (effectiveLead !== ALL)
       list = list.filter((t) =>
-        (t.leadEmail ?? "").split(",").map((l) => l.trim()).includes(lead),
+        (t.leadEmail ?? "").split(",").map((l) => l.trim()).includes(effectiveLead),
       );
     return list;
-  }, [all, status, canSeeOthers, email, user, card, lead]);
+  }, [all, status, canSeeOthers, email, user, card, effectiveLead]);
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>

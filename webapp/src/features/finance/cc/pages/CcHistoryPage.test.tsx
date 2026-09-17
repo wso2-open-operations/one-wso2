@@ -201,6 +201,55 @@ describe("narrowing the history", () => {
     await pick("Filter by Lead", "lead-b@wso2.com");
     await waitFor(() => expect(screen.queryByText("Mine")).not.toBeInTheDocument());
   });
+
+  // The Lead select exists only on the statuses that could have one, and
+  // `ccHistoryActiveFilters` gates its chip on the same rule. Left applied
+  // once it is hidden it narrows the list with nothing on screen saying so
+  // and no chip to clear — the period filter already avoids this the same way.
+  describe("the Lead filter, on a status that hides it", () => {
+    // "All statuses" rather than one of the pending ones: it hides Lead just
+    // the same, but leaves every row in the list, so what this asserts is the
+    // lead filter letting go — not the status filter emptying the grid.
+    it("stops narrowing the list", async () => {
+      state.access = ["finance"];
+      show();
+      await pick("Filter by Lead", "lead-b@wso2.com");
+      await waitFor(() => expect(screen.queryByText("Mine")).not.toBeInTheDocument());
+
+      // "Mine" belongs to lead-a, so it must come back rather than stay
+      // filtered out by a control that is no longer on screen.
+      await pick("Filter by Status", "All statuses");
+      await waitFor(() => expect(screen.getByText("Mine")).toBeInTheDocument());
+    });
+
+    it("is not shown as narrowing anything either", async () => {
+      state.access = ["finance"];
+      show();
+      await pick("Filter by Lead", "lead-b@wso2.com");
+      expect(await screen.findByText("Lead: lead-b@wso2.com")).toBeInTheDocument();
+
+      await pick("Filter by Status", "Pending Lead");
+      await waitFor(() =>
+        expect(screen.queryByText("Lead: lead-b@wso2.com")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("comes back when the status shows it again", async () => {
+      state.access = ["finance"];
+      show();
+      await pick("Filter by Lead", "lead-b@wso2.com");
+      await pick("Filter by Status", "All statuses");
+      await waitFor(() => expect(screen.getByText("Mine")).toBeInTheDocument());
+
+      // Gated on the way out, not cleared: the choice survives the round trip,
+      // exactly as the period does.
+      await pick("Filter by Status", "Completed");
+      await waitFor(() => expect(screen.queryByText("Mine")).not.toBeInTheDocument());
+      // getAllByText: the chip is on the page and in the popover, which is
+      // still mounted through its closing transition.
+      expect(screen.getAllByText("Lead: lead-b@wso2.com").length).toBeGreaterThan(0);
+    });
+  });
 });
 
 // TransactionDetailsDialog.tsx. The port typed leadApprovedDate,
