@@ -103,6 +103,15 @@ export default function CcSettingsPage() {
     process.reset();
   };
 
+  // A parse failure describes one file parsed as one bank. Change either and
+  // the Alert is reporting an attempt that no longer matches what is on
+  // screen — the wrong file's error sitting beside the right file, with
+  // nothing saying it is stale. `mutate` clears it too, but only once Upload
+  // is pressed, which is a whole interaction too late.
+  const forgetParseError = () => {
+    if (process.isError) process.reset();
+  };
+
   // :57-70 — picking a file does not send it; Upload does.
   const handleUpload = () => {
     if (!chosen) return;
@@ -224,9 +233,18 @@ export default function CcSettingsPage() {
         file={chosen}
         pending={process.isPending}
         error={process.isError ? describeError(process.error) : null}
-        onBankChange={setBank}
-        onPick={setChosen}
-        onClearFile={() => setChosen(null)}
+        onBankChange={(b) => {
+          forgetParseError();
+          setBank(b);
+        }}
+        onPick={(f) => {
+          forgetParseError();
+          setChosen(f);
+        }}
+        onClearFile={() => {
+          forgetParseError();
+          setChosen(null);
+        }}
         onUpload={handleUpload}
         onClose={closeDialog}
       />

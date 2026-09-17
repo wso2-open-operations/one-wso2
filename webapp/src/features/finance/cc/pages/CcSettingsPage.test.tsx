@@ -46,8 +46,16 @@ const row: CcNewTransaction = {
 const state = {
   access: ["finance"] as string[],
   group: null as unknown,
-  /** When set, processing fails with this message instead of succeeding. */
-  processError: null as string | null,
+  /**
+   * When set, the NEXT parse fails with this message instead of succeeding.
+   *
+   * Distinct from the mutation's own error state, which the mock holds in
+   * React state below. Conflating the two — one flag meaning both "the next
+   * call will fail" and "an error is on screen now" — made the Alert appear
+   * the moment the dialog opened, before Upload had been pressed, so the
+   * failure tests passed without a failure ever happening.
+   */
+  failWith: null as string | null,
 };
 
 vi.mock("../useCc", () => ({
@@ -65,25 +73,40 @@ vi.mock("../ccTypes", async () => {
 
 const processed: unknown[] = [];
 const saved: unknown[] = [];
-vi.mock("../useCcMutations", () => ({
-  useCcProcessStatement: () => ({
-    mutate: (vars: unknown, opts: { onSuccess: (g: unknown) => void }) => {
-      processed.push(vars);
-      if (!state.processError) opts.onSuccess(state.group);
+// The process mutation keeps its error in React state, the way the real one
+// does: it appears only once a call has failed, `reset()` clears it, and both
+// re-render. A plain spy for `reset` would let a component that never resets
+// still pass, since nothing on screen would change either way.
+vi.mock("../useCcMutations", async () => {
+  const { useState } = await vi.importActual<typeof import("react")>("react");
+  return {
+    useCcProcessStatement: () => {
+      const [error, setError] = useState<string | null>(null);
+      return {
+        mutate: (vars: unknown, opts: { onSuccess: (g: unknown) => void }) => {
+          processed.push(vars);
+          if (state.failWith) {
+            setError(state.failWith);
+            return;
+          }
+          setError(null);
+          opts.onSuccess(state.group);
+        },
+        reset: () => setError(null),
+        isPending: false,
+        isError: Boolean(error),
+        error: error ? new Error(error) : null,
+      };
     },
-    reset: vi.fn(),
-    isPending: false,
-    isError: Boolean(state.processError),
-    error: state.processError ? new Error(state.processError) : null,
-  }),
-  useCcUploadTransactions: () => ({
-    mutate: (vars: unknown, opts: { onSuccess: () => void }) => {
-      saved.push(vars);
-      opts.onSuccess();
-    },
-    isPending: false,
-  }),
-}));
+    useCcUploadTransactions: () => ({
+      mutate: (vars: unknown, opts: { onSuccess: () => void }) => {
+        saved.push(vars);
+        opts.onSuccess();
+      },
+      isPending: false,
+    }),
+  };
+});
 
 // The real shell adds the eyebrow, the not-configured gate and the title
 // block; the page's own actions go through it, so the stub has to render
@@ -103,7 +126,7 @@ const { NotificationsProvider } = await import("@context/notifications/Notificat
 beforeEach(() => {
   state.access = ["finance"];
   state.group = { newItems: [row], duplicateItems: [], invalidItems: [] };
-  state.processError = null;
+  state.failWith = null;
   processed.length = 0;
   saved.length = 0;
 });
@@ -206,11 +229,59 @@ describe("the upload dialog", () => {
   // :262-266 — a parse failure is reported beside the file that caused it, so
   // it can be swapped for another one without reopening anything.
   it("reports a parse failure in the dialog, and stays open", async () => {
-    state.processError = "Unrecognised column layout";
+    state.failWith = "Unrecognised column layout";
     show();
     uploadCsv();
     expect(await screen.findByText(/Unrecognised column layout/)).toBeInTheDocument();
     expect(screen.getByText("Upload Bank Statement")).toBeInTheDocument();
+  });
+
+  // A parse failure describes one file parsed as one bank. Left standing, the
+  // Alert reports an attempt that no longer matches what is on screen — the
+  // previous file's error sitting beside the file just chosen to replace it.
+  describe("a parse failure, once the inputs move", () => {
+    // Swapping the file means clearing first — the drop zone shows the chosen
+    // file's name rather than an input while one is held — so this is the
+    // whole path, not just the clear half of it.
+    it("does not come back when the replacement file is chosen", async () => {
+      state.failWith = "Unrecognised column layout";
+      show();
+      uploadCsv();
+      await screen.findByText(/Unrecognised column layout/);
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear file" }));
+      await screen.findByText("Drag & drop your CSV file here or click");
+      pick("other.csv");
+
+      expect(await screen.findByText("other.csv")).toBeInTheDocument();
+      expect(screen.queryByText(/Unrecognised column layout/)).not.toBeInTheDocument();
+    });
+
+    it("is dropped when the file is cleared", async () => {
+      state.failWith = "Unrecognised column layout";
+      show();
+      uploadCsv();
+      await screen.findByText(/Unrecognised column layout/);
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear file" }));
+      await waitFor(() =>
+        expect(screen.queryByText(/Unrecognised column layout/)).not.toBeInTheDocument(),
+      );
+    });
+
+    it("is dropped when the bank is changed", async () => {
+      state.failWith = "Unrecognised column layout";
+      show();
+      uploadCsv();
+      await screen.findByText(/Unrecognised column layout/);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("combobox", { name: "Select a Bank" }));
+      await user.click(await screen.findByRole("option", { name: "Amex" }));
+      await waitFor(() =>
+        expect(screen.queryByText(/Unrecognised column layout/)).not.toBeInTheDocument(),
+      );
+    });
   });
 
   it("can be abandoned with Cancel", async () => {
