@@ -107,6 +107,15 @@ export const PERSPECTIVE_HUES: Record<string, PerspectiveHue> = {
     light: { bg: "#F1E8FB", fg: "#7C4AB3" },
     dark: { bg: "#241D2C", fg: "#9B5DE0" },
   },
+  // Teal, placed between Finance's green (162°) and People's sky blue (207°).
+  // At 185° it stays 23° from Finance and 22° from People, wider than the
+  // palette's tightest existing pair. The tints measure 5.20:1 in light mode
+  // and 4.59:1 in dark mode, both above the 3.5:1 headroom target.
+  infra: {
+    hue: "#0E9AA7",
+    light: { bg: "#DFF5F7", fg: "#0A6F79" },
+    dark: { bg: "#1A2628", fg: "#0E9AA7" },
+  },
   // Indigo — distinct from both people's sky blue (207°) and csm's violet
   // (268°) by sitting at 225°, between them but far enough from each to read
   // as its own colour rather than a shade of either. Tints computed against

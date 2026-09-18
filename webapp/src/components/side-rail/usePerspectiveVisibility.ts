@@ -26,6 +26,8 @@ import { FINANCE_ITEM_IDS } from "@constants/financeApps";
 import { LEAVE_ITEM_IDS } from "@constants/meApps";
 import { DUE_DILIGENCE_ITEM_IDS } from "@constants/dueDiligenceApps";
 import { SECURITY_ITEM_IDS } from "@constants/securityApps";
+import { INFRA_ITEM_IDS } from "@constants/infraApps";
+import { useInfraGate } from "@features/infra/api/useInfraGate";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
 import { useUserInfo } from "@api/useUserInfo";
 import { useFinanceGate } from "@features/finance/api/useFinanceGate";
@@ -79,8 +81,8 @@ export interface PerspectiveVisibility {
    * someone as a verdict — "you have nothing here" and "we could not find out"
    * are different sentences, and only one of them is worth a Retry button.
    *
-   * Partial, and deliberately so: only three of the gates report a failure at
-   * all (Marketing Ops, Due Diligence, Subscriptions). Finance, Leave and
+   * Partial, and deliberately so: only four of the gates report a failure at
+   * all (Marketing Ops, Due Diligence, Subscriptions, Infra Portal). Finance, Leave and
    * Security fold a failed privilege read into "no privileges" — their source
    * apps do the same, and unpicking that is its own change. So this means
    * "something we needed definitely failed", never "everything else succeeded".
@@ -96,6 +98,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   const active = useActivePerspective();
   const userInfo = useUserInfo();
   const caps = capabilitiesFromPrivileges(userInfo.data?.privileges);
+  const infraGate = useInfraGate(active.key === "infra");
 
   // Finance items (OPD/credit-card/expense, surfaced under Me) gate on each
   // finance app's OWN backend roles, not the coarse people-app capabilities
@@ -194,6 +197,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
     if (SUBSCRIPTION_ITEM_IDS.has(s.id)) return subscriptionCanSee(s.id);
     if (s.id === PAR_LEAD_PORTAL_ITEM_ID) return parLeadPortalGate.isTeamLead;
     if (isMarketingOps) return marketingOpsGate.canSee(s.id);
+    if (INFRA_ITEM_IDS.has(s.id)) return infraGate.canSee(s.id);
     return sectionAllowed(s.requires, caps);
   };
 
@@ -215,23 +219,27 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
     dueDiligenceGate.isResolving ||
     securityGate.isResolving ||
     subscriptionGate.isResolving ||
+    infraGate.isResolving ||
     parLeadPortalGate.isLoading;
 
   const isError =
     userInfo.isError ||
     marketingOpsGate.isError ||
     dueDiligenceGate.isError ||
+    infraGate.isError ||
     subscriptionGate.isError;
   const error = userInfo.isError
     ? userInfo.error
     : marketingOpsGate.errorMessage ??
       dueDiligenceGate.errorMessage ??
+      infraGate.errorMessage ??
       subscriptionGate.errorMessage;
   const retry = (): void => {
     if (userInfo.isError) void userInfo.refetch();
     if (marketingOpsGate.isError) marketingOpsGate.retry();
     if (dueDiligenceGate.isError) dueDiligenceGate.retry();
     if (subscriptionGate.isError) subscriptionGate.retry();
+    if (infraGate.isError) infraGate.retry();
   };
 
   return { resolveVisible, isResolving, visibleLeaves, isError, error, retry };

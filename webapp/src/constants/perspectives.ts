@@ -36,6 +36,7 @@ import {
   UsersIcon,
   UsersRoundIcon,
   WalletIcon,
+  ServerIcon,
   type LucideIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import type { Capability, MenuApp } from "@constants/appMenu";
@@ -48,6 +49,7 @@ import { MARKETING_OPS_APPS } from "@constants/marketingOpsApps";
 import { DUE_DILIGENCE_APPS } from "@constants/dueDiligenceApps";
 import { SECURITY_APPS } from "@constants/securityApps";
 import { ME_APPS } from "@constants/meApps";
+import { INFRA_APPS } from "@constants/infraApps";
 
 export interface PerspectiveSection {
   id: string; // anchor id on the perspective's page (leaf sections)
@@ -430,6 +432,15 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     icon: LifeBuoyIcon,
     access: isCsmConfigured(),
     externalUrl: csmUrl || undefined,
+  },
+  {
+    key: "infra",
+    label: "Infra Portal",
+    icon: ServerIcon,
+    access: true,
+    path: "/infra",
+    externallyGated: true,
+    sections: appsToSections(INFRA_APPS),
   },
   // Marketing Ops — UNLOCKED. Ported so far: Utilities (UTM + Asset Name
   // generators and their Marketing Admin panels) and Ad Campaigns → Analytics.

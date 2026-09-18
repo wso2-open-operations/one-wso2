@@ -72,6 +72,10 @@ describe("landing options", () => {
     // screen the launcher would have given them anyway.
     expect(landingOptions().map((o) => o.key)).toContain("marketing");
   });
+
+  it("offers Infra Portal to a person choosing for themselves", () => {
+    expect(landingOptions().map((o) => o.key)).toContain("infra");
+  });
 });
 
 describe("landingPath", () => {

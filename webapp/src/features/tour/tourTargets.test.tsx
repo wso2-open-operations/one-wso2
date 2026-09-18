@@ -37,6 +37,9 @@ import { TOUR_STEPS } from "./tourSteps";
 import SideRail from "@components/side-rail/SideRail";
 import { HouseIcon } from "@wso2/oxygen-ui-icons-react";
 
+vi.mock("@features/infra/api/useInfraGate", () => ({
+  useInfraGate: () => ({ ...gate, isAuthorized: true, isAdmin: true }),
+}));
 vi.mock("@context/perspective/PerspectiveContext", () => ({
   useActivePerspective: () => ({
     key: "me",

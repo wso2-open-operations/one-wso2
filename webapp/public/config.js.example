@@ -117,6 +117,12 @@ window.config = {
   // that goes nowhere.
   // ONE_WSO2_CSM_URL: "<your-csm-url>",
 
+  // infra-portal backend — the Infra Portal perspective. Optional — when
+  // absent, Infra Portal shows a "not connected" state. Privileges come from
+  // this service's own /user-info (987 employee / 762 approver / 123 admin),
+  // not from people-app.
+  // ONE_WSO2_INFRA_BACKEND_URL: "<your-infra-portal-backend-url>",
+
   // Pardot UI base URL — for deep-linking to an email template after Email
   // Workbench pushes it. A link target, not an API. Optional; defaults to
   // https://pi.pardot.com, which is correct for every WSO2 environment today.

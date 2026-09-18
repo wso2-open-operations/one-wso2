@@ -108,6 +108,11 @@ declare global {
       // item is omitted rather than rendered as a dead link.
       ONE_WSO2_MARKETINGOPS_ISAC_URL?: string;
       ONE_WSO2_CSM_URL?: string;
+      // Base URL for the infra-portal Ballerina backend. Optional — when
+      // absent, Infra Portal shows a "not connected" state and makes no
+      // requests. Privileges on this service (987 / 762 / 123) are not
+      // people-app's.
+      ONE_WSO2_INFRA_BACKEND_URL?: string;
       // Base URL of the Pardot UI, used to deep-link to an email template
       // after Email Workbench pushes it. Not an API — a link target.
       // Optional; defaults to https://pi.pardot.com, which is correct for

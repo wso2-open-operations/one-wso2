@@ -935,6 +935,24 @@ export function isCsmConfigured(): boolean {
   return Boolean(csmUrl);
 }
 
+// Infra Portal backend (infra-operations/apps/infra-portal/backend).
+// Same Choreo Bearer → x-jwt-assertion rewrite as leave. Empty string =
+// not configured; the placeholder (and later InfraShell) must not fire
+// requests. Strip trailing slashes so builders do not produce "//user-info".
+export const infraBackendUrl: string = (
+  window.config?.ONE_WSO2_INFRA_BACKEND_URL ?? ""
+).replace(/\/+$/, "");
+
+export function isInfraBackendConfigured(): boolean {
+  return Boolean(infraBackendUrl);
+}
+
+export const infraServiceUrls = {
+  // GET /user-info — privileges, name, workEmail, githubUsername.
+  // Callers not in employee/approver/admin groups get HTTP 403.
+  userInfo: `${infraBackendUrl}/user-info`,
+};
+
 export const promotionServiceUrls = {
   // GET /employee-info?employeeWorkEmail=<email> — returns the caller's
   // EmployeeInfoWithLead (startDate, jobBand, lastPromotedDate, reportingLead,

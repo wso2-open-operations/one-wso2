@@ -132,6 +132,7 @@ import ViewImagePage from "@features/due-diligence/shared/pages/ViewImagePage";
 import ExpenseApprovalsScreen from "@features/finance/expense/approvals/ExpenseApprovalsScreen";
 import ExpenseLeadApprovalsScreen from "@features/finance/expense/approvals/ExpenseLeadApprovalsScreen";
 import UmtHomePage from "@features/umt/pages/UmtHomePage";
+import InfraHomePage from "@features/infra/pages/InfraHomePage";
 
 export default function App() {
   return (
@@ -627,6 +628,7 @@ export default function App() {
               its own menu item rather than a tab — it shares no data or
               backend with Email Groups. Pure client-side HTML generator. */}
           <Route path="me/email-signature" element={<EmailSignaturePage />} />
+          <Route path="infra" element={<InfraHomePage />} />
           {/* Catch-all → landing */}
           <Route path="*" element={<Navigate to={landingPath()} replace />} />
         </Route>
