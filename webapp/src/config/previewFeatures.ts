@@ -61,13 +61,6 @@ export type PreviewFeature =
    */
   | "expenseSubmitter"
   /**
-   * Finance → OPD Claims, the app's own front door under the Finance
-   * perspective. Only Claim History is migrated so far, and it has never run
-   * against the real OPD backend — the development account is refused by it —
-   * so the group is held back as a whole rather than screen by screen.
-   */
-  | "opdClaims"
-  /**
    * Finance → Claim Approval, rebuilt as its own section with the OPD queue
    * under it. Held back because the queue has not run against the real OPD
    * backend — the development account is refused by it — and because expense

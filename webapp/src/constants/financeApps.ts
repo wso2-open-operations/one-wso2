@@ -36,7 +36,6 @@ import {
 import { CC_PATH } from "@features/finance/cc/ccPaths";
 import { expenseFinancePaths } from "@features/finance/expense/expenseFinancePaths";
 import { claimApprovalPaths } from "@features/finance/opd/opdApprovalPaths";
-import { opdFinancePaths } from "@features/finance/opd/opdFinancePaths";
 import { isPreviewEnabled } from "@config/previewFeatures";
 import type { MenuApp } from "@constants/appMenu";
 
@@ -160,36 +159,6 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
     ],
     }] as MenuApp[])
     : []),
-  ...(isPreviewEnabled("opdClaims")
-    ? ([{
-    // OPD has been a tab under Me → Claims and nothing else, which is right for
-    // filing your own but left the app with no front door of its own the way
-    // Expense Claims has. Only Claim History lives here today; New Claim stays
-    // under Me until the two are reconciled, so there is one way in and no
-    // guessing which.
-    key: "opd",
-    name: "OPD Claims",
-    icon: StethoscopeIcon,
-    purpose: "Track the outpatient medical claims you have submitted.",
-    // One screen today and it will not stay that way. Collapsing to a leaf now
-    // would teach the wrong shape and make the item vanish as a concept the day
-    // a second one lands.
-    alwaysGroup: true,
-    items: [
-      {
-        id: "opd-history",
-        label: "Claim History",
-        desc: "OPD claims you have submitted, and where each one has got to.",
-        // Not a coarse capability: the OPD backend decides this, and refuses
-        // the whole app to anyone holding neither of its roles. `requires` only
-        // forces useFinanceGate to answer for the id — see its `opd-history`
-        // case, which asks the OPD backend rather than people-app.
-        requires: ["employee"],
-        path: opdFinancePaths.history,
-      },
-    ],
-    }] as MenuApp[])
-    : []),
   ...(isPreviewEnabled("creditCardExpenses")
     ? ([{
     key: "cc",
@@ -241,9 +210,7 @@ export const FINANCE_EYEBROW = {
   claims: eyebrowFor("claims"),
   cc: eyebrowFor("cc"),
   expense: eyebrowFor("expense"),
-  // OPD's screens wear the claim app's own name and icon, which is what says
-  // which claims they are about. A literal rather than eyebrowFor("opd"): the
-  // app is behind a preview flag, and with it off the lookup would fall back to
-  // the generic "Finance" chip.
+  // OPD's approval screen wears the claim app's own name and icon, which is
+  // what says which claims it is about.
   opd: { icon: StethoscopeIcon, label: "OPD Claims" },
 } as const;

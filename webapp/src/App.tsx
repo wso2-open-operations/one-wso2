@@ -99,9 +99,6 @@ const SabbaticalReportTab = lazy(
 import SabbaticalApplyTab from "@features/leave/pages/LeaveSabbaticalPage";
 import ClaimsPage, { ClaimsIndex } from "@features/finance/claims/ClaimsPage";
 import OpdNewClaimPage from "@features/finance/opd/pages/OpdNewClaimPage";
-// OPD Claims as its own Finance app — a different screen on a different route
-// from the OPD tab under Me → Claims above, which is left alone.
-import OpdClaimHistoryScreen from "@features/finance/opd/history/OpdClaimHistoryScreen";
 // Claim approval, rebuilt under Finance: OPD first, expense to follow.
 import OpdApprovalsScreen from "@features/finance/opd/approvals/OpdApprovalsScreen";
 import OpdClaimsTab from "@features/finance/opd/pages/OpdHistoryPage";
@@ -301,7 +298,6 @@ export default function App() {
           <Route path="finance/cc/approve" element={<CcApprovePage />} />
           <Route path="finance/cc/history" element={<CcHistoryPage />} />
           <Route path="finance/cc/settings" element={<CcSettingsPage />} />
-          <Route path="finance/opd/history" element={<OpdClaimHistoryScreen />} />
           <Route path="finance/claim-approval/opd" element={<OpdApprovalsScreen />} />
           <Route path="people-ops" element={<PerspectiveLanding />} />
           {/* People Ops → Org Chart: the company's reporting hierarchy, ported
