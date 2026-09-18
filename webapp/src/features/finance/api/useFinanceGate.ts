@@ -54,27 +54,17 @@ export function useFinanceGate(enabled = true): FinanceGate {
 
   const ccLeadOrFinance = ccHasAccess(cc.data, "lead") || ccHasAccess(cc.data, "finance");
   const ccFinance = ccHasAccess(cc.data, "finance");
+  // Approving OPD claims is the backend's role 555 or nobody — there is no
+  // lead stage. A lookup that FAILED is not the same answer as one that came
+  // back without the role, so it counts as a yes: the screen behind the entry
+  // carries its own error notice and a retry, which is a better place to find
+  // out than a menu entry that quietly is not there.
   const opdFinance = opdHasRole(opd.data, OPD_ROLE.FINANCE_APPROVER);
   const expenseLead = Boolean(expense.data?.enableLeadView);
   const expenseFinance = Boolean(expense.data?.enableFinanceView);
 
   const canSee = (itemId: string): boolean => {
     switch (itemId) {
-      // Claim approval, in the Finance perspective. The rules are the two
-      // standalone apps' own, unchanged — only where they are read has moved.
-      //
-      // The entry appears when ANY claim is approvable by this person, so
-      // holding one flag of the three is enough to get a screen with one thing
-      // in it. Each tab inside is gated by its own id at its own route.
-      case "claim-approval":
-        return opdFinance || expenseLead || expenseFinance;
-      // Either stage. userSlice-style independence: a person can hold both, or
-      // just one, and the tab is the same screen either way.
-      case "claim-approval-expense":
-        return expenseLead || expenseFinance;
-      // No lead stage exists for OPD — the backend grants role 555 or nothing.
-      case "claim-approval-opd":
-        return opdFinance;
       // Behind a preview flag until the Finance and Me new-claim entry points
       // are reconciled. Answered here as well as by removing the registry
       // entry, because the Finance overview builds its tiles by hand and asks
@@ -91,6 +81,17 @@ export function useFinanceGate(enabled = true): FinanceGate {
         return expenseLead;
       case "expense-finance-approvals":
         return expenseFinance;
+      // Answered here as well as by dropping the registry entry, because the
+      // Finance overview builds its tiles by hand and asks the gate by id — a
+      // registry-only change would leave a tile offering a route that is not
+      // registered.
+      case "claim-approval-opd":
+        if (!isPreviewEnabled("claimApproval")) return false;
+        // Coerced: `canSee` is typed boolean, and `isError` is only a boolean
+        // when the query hook actually ran — a caller that stubs the hook, or a
+        // shape that changes upstream, would otherwise leak undefined through a
+        // permission check and read as false everywhere it is used.
+        return opdFinance || Boolean(opd.isError);
       case "cc-approve":
         return ccLeadOrFinance;
       case "cc-settings":

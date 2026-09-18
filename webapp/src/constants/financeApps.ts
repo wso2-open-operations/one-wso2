@@ -27,9 +27,15 @@
 // Each app's own backend still enforces its real role scheme; these
 // capability gates just decide what shows in the rail.
 
-import { CreditCardIcon, ReceiptTextIcon } from "@wso2/oxygen-ui-icons-react";
+import {
+  CheckCheckIcon,
+  CreditCardIcon,
+  ReceiptTextIcon,
+  StethoscopeIcon,
+} from "@wso2/oxygen-ui-icons-react";
 import { CC_PATH } from "@features/finance/cc/ccPaths";
 import { expenseFinancePaths } from "@features/finance/expense/expenseFinancePaths";
+import { claimApprovalPaths } from "@features/finance/opd/opdApprovalPaths";
 import { isPreviewEnabled } from "@config/previewFeatures";
 import type { MenuApp } from "@constants/appMenu";
 
@@ -65,8 +71,47 @@ export const ME_FINANCE_APPS: readonly MenuApp[] = [
  * something everyone has, so the app is not part of the set every employee
  * needs; it sits with the other finance operations instead.
  */
-export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
+/**
+ * Claim approval — under **Finance**, ahead of the apps that file the claims.
+ *
+ * Deciding on somebody else's claim is a different job from making your own,
+ * and the people who do it are finance. Grouped so each claim app's queue sits
+ * beside the others rather than buried inside the app it belongs to.
+ *
+ * OPD today. Expense belongs here when it is migrated.
+ */
+export const CLAIM_APPROVAL_APPS: readonly MenuApp[] = isPreviewEnabled("claimApproval")
+  ? [
   {
+    key: "claim-approval",
+    name: "Claim Approval",
+    icon: CheckCheckIcon,
+    purpose: "Decide on the claims waiting on you.",
+    // One queue today and it will not stay that way; collapsing to a leaf now
+    // would teach the wrong shape.
+    alwaysGroup: true,
+    items: [
+      {
+        id: "claim-approval-opd",
+        // Just "OPD Claims": the group above it already says Claim Approval, and
+        // "OPD Claims Approvals" is wider than the rail and truncates to
+        // "OPD Claims Approv…".
+        label: "OPD Claims",
+        desc: "OPD claims waiting on finance, and the ones already decided.",
+        // Not a coarse capability: the OPD backend grants role 555 or nobody.
+        // `requires` only forces useFinanceGate to answer for the id — see its
+        // `claim-approval-opd` case.
+        requires: ["admin"],
+        path: claimApprovalPaths.opd,
+      },
+    ],
+  },
+    ]
+  : [];
+
+export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
+  ...(isPreviewEnabled("expenseClaims")
+    ? ([{
     key: "expense",
     name: "Expense Claims",
     icon: ReceiptTextIcon,
@@ -112,8 +157,10 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
         path: expenseFinancePaths.financeApprovals,
       },
     ],
-  },
-  {
+    }] as MenuApp[])
+    : []),
+  ...(isPreviewEnabled("creditCardExpenses")
+    ? ([{
     key: "cc",
     name: "Credit Card Expenses",
     icon: CreditCardIcon,
@@ -126,22 +173,19 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
       { id: "cc-history", label: "History", desc: "Your submitted past card transactions.", path: `${CC_PATH}/history` },
       { id: "cc-settings", label: "Settings", desc: "Upload and reconcile bank statements (finance).", requires: ["admin"], path: `${CC_PATH}/settings` },
     ],
-  },
+    }] as MenuApp[])
+    : []),
 ];
 
 /** Every finance-domain app, wherever it is surfaced. */
 export const FINANCE_APPS: readonly MenuApp[] = [
   ...ME_FINANCE_APPS,
+  ...CLAIM_APPROVAL_APPS,
   ...FINANCE_PERSPECTIVE_APPS,
 ];
 
 export const FINANCE_ITEM_IDS: ReadonlySet<string> = new Set([
   ...FINANCE_APPS.flatMap((app) => app.items.map((it) => it.id)),
-  // Claim approval is not an item of any one app — it spans two of them — so it
-  // is named here rather than derived. Without it the rail would fall back to
-  // the people-app capabilities, which have no word for "expense finance
-  // approver" and would show the entry to the wrong people.
-  "claim-approval",
 ]);
 
 // Eyebrow descriptors for FinanceShell, derived from the registry above so the
@@ -166,4 +210,7 @@ export const FINANCE_EYEBROW = {
   claims: eyebrowFor("claims"),
   cc: eyebrowFor("cc"),
   expense: eyebrowFor("expense"),
+  // OPD's approval screen wears the claim app's own name and icon, which is
+  // what says which claims it is about.
+  opd: { icon: StethoscopeIcon, label: "OPD Claims" },
 } as const;

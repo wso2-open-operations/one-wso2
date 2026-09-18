@@ -65,64 +65,6 @@ beforeEach(() => {
 // The entry appears when ANY claim is approvable. Requiring all three would
 // hide the screen from almost everyone: holding every role on three separate
 // backends is the rare case, not the common one.
-describe("the Claim approval entry", () => {
-  it("is offered to someone who only approves OPD", () => {
-    roles.opd = [555];
-    expect(gate().canSee("claim-approval")).toBe(true);
-  });
-
-  it("is offered to someone who only leads expense claims", () => {
-    roles.expenseLead = true;
-    expect(gate().canSee("claim-approval")).toBe(true);
-  });
-
-  it("is offered to someone who only signs off expense claims", () => {
-    roles.expenseFinance = true;
-    expect(gate().canSee("claim-approval")).toBe(true);
-  });
-
-  it("is withheld from someone who approves no claims", () => {
-    roles.opd = [444]; // can submit, cannot approve
-    roles.cc = ["lead", "finance"]; // credit card is not a claim type here
-    expect(gate().canSee("claim-approval")).toBe(false);
-  });
-});
-
-describe("the OPD tab", () => {
-  // userSlice.ts:39-40 — 444 grants the submit view, 555 grants approvals.
-  it("needs the approver role, not the submitter one", () => {
-    roles.opd = [444];
-    expect(gate().canSee("claim-approval-opd")).toBe(false);
-    roles.opd = [444, 555];
-    expect(gate().canSee("claim-approval-opd")).toBe(true);
-  });
-
-  // There is no lead stage in OPD, so no expense flag can open it.
-  it("is not opened by either expense flag", () => {
-    roles.expenseLead = true;
-    roles.expenseFinance = true;
-    expect(gate().canSee("claim-approval-opd")).toBe(false);
-  });
-});
-
-describe("the expense tab", () => {
-  // appDataSlice.ts:99-103 — the two flags are pushed independently.
-  it("opens on either flag alone", () => {
-    roles.expenseLead = true;
-    expect(gate().canSee("claim-approval-expense")).toBe(true);
-    roles.expenseLead = false;
-    roles.expenseFinance = true;
-    expect(gate().canSee("claim-approval-expense")).toBe(true);
-  });
-
-  it("is not opened by the OPD role", () => {
-    roles.opd = [555];
-    expect(gate().canSee("claim-approval-expense")).toBe(false);
-  });
-});
-
-// Under Finance → Expense Claims, one entry per review stage — the source
-// app's own two sidebar entries, each on its own backend flag.
 describe("the expense approval entries", () => {
   it("shows a lead only the lead entry", () => {
     roles.expenseLead = true;
@@ -174,11 +116,39 @@ describe("what stayed behind", () => {
     }
   });
 
-  // Claim approval is not an item of any single app, so it is named into the
-  // set by hand — without that the rail would fall back to people-app
-  // capabilities, which cannot express "expense finance approver".
-  it("routes the claim-approval entry through this gate", () => {
-    expect(FINANCE_ITEM_IDS.has("claim-approval")).toBe(true);
+  // Claim approval was rebuilt as its own group with OPD under it. The old
+  // synthetic parent id and the expense tab id went with the screen they
+  // fronted; asserted so a future entry reusing either name cannot quietly
+  // inherit the open default.
+  // The id is only a rail item while the preview flag is on, which is the
+  // point of the flag — asserted against the retired ids, which are gone for
+  // good either way.
+  it("no longer carries either retired approval id", () => {
+    for (const retired of ["claim-approval", "claim-approval-expense"]) {
+      expect(FINANCE_ITEM_IDS.has(retired), `${retired} is still a rail item`).toBe(false);
+    }
+  });
+
+  // Role 555 or nobody: the OPD backend has no lead stage. Behind the preview
+  // flag as well, since the queue has never run against that backend.
+  it("opens the OPD queue only to an OPD finance approver, and only in preview", () => {
+    const original = window.config;
+    try {
+      window.config = {
+        ...(window.config ?? {}),
+        ONE_WSO2_PREVIEW_FEATURES: { claimApproval: true },
+      } as Window["config"];
+      expect(gate().canSee("claim-approval-opd")).toBe(false);
+      roles.opd = [555];
+      expect(gate().canSee("claim-approval-opd")).toBe(true);
+
+      // Same approver, flag off: the whole section is held back.
+      window.config = { ...(window.config ?? {}) } as Window["config"];
+      delete (window.config as { ONE_WSO2_PREVIEW_FEATURES?: unknown }).ONE_WSO2_PREVIEW_FEATURES;
+      expect(gate().canSee("claim-approval-opd")).toBe(false);
+    } finally {
+      window.config = original;
+    }
   });
 });
 

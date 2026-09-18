@@ -20,7 +20,6 @@
 import { csmUrl, isCsmConfigured, isIsacConfigured, isacUrl } from "@config/apiConfig";
 import { isPreviewEnabled } from "@config/previewFeatures";
 import {
-  CheckCheckIcon,
   ClipboardCheckIcon,
   DatabaseIcon,
   HouseIcon,
@@ -40,8 +39,11 @@ import {
   type LucideIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import type { Capability, MenuApp } from "@constants/appMenu";
-import { FINANCE_PERSPECTIVE_APPS, ME_FINANCE_APPS } from "@constants/financeApps";
-import { CLAIM_APPROVAL_PATH } from "@features/finance/approvals/claimApprovalTabs";
+import {
+  CLAIM_APPROVAL_APPS,
+  FINANCE_PERSPECTIVE_APPS,
+  ME_FINANCE_APPS,
+} from "@constants/financeApps";
 import { MARKETING_OPS_APPS } from "@constants/marketingOpsApps";
 import { DUE_DILIGENCE_APPS } from "@constants/dueDiligenceApps";
 import { SECURITY_APPS } from "@constants/securityApps";
@@ -388,12 +390,9 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     path: "/finance",
     forwardsToFirstItem: true,
     sections: [
-      {
-        id: "claim-approval",
-        label: "Claim Approval",
-        icon: CheckCheckIcon,
-        path: CLAIM_APPROVAL_PATH,
-      },
+      // Deciding on other people's claims comes before the apps that file them:
+      // it is the work finance opens this perspective to do.
+      ...appsToSections(CLAIM_APPROVAL_APPS),
       // Credit card lives here rather than under Me because a corporate card is
       // not something everyone has — unlike leave or claims, it is not part of
       // the set every employee needs.
