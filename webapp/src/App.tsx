@@ -99,6 +99,9 @@ const SabbaticalReportTab = lazy(
 import SabbaticalApplyTab from "@features/leave/pages/LeaveSabbaticalPage";
 import ClaimsPage, { ClaimsIndex } from "@features/finance/claims/ClaimsPage";
 import OpdNewClaimPage from "@features/finance/opd/pages/OpdNewClaimPage";
+// OPD Claims as its own Finance app — a different screen on a different route
+// from the OPD tab under Me → Claims above, which is left alone.
+import OpdDashboardScreen from "@features/finance/opd/dashboard/OpdDashboardScreen";
 import OpdClaimsTab from "@features/finance/opd/pages/OpdHistoryPage";
 import OpdApprovalsTab from "@features/finance/opd/pages/OpdApprovalsPage";
 import CcDashboardPage from "@features/finance/cc/pages/CcDashboardPage";
@@ -304,6 +307,7 @@ export default function App() {
           <Route path="finance/cc/approve" element={<CcApprovePage />} />
           <Route path="finance/cc/history" element={<CcHistoryPage />} />
           <Route path="finance/cc/settings" element={<CcSettingsPage />} />
+          <Route path="finance/opd/dashboard" element={<OpdDashboardScreen />} />
           <Route path="people-ops" element={<PerspectiveLanding />} />
           {/* People Ops → Org Chart: the company's reporting hierarchy, ported
               from the standalone org-chart app. Unlike every other People Ops

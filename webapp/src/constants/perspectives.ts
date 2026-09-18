@@ -40,7 +40,11 @@ import {
   type LucideIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import type { Capability, MenuApp } from "@constants/appMenu";
-import { FINANCE_PERSPECTIVE_APPS, ME_FINANCE_APPS } from "@constants/financeApps";
+import {
+  FINANCE_OVERVIEW_APPS,
+  FINANCE_PERSPECTIVE_APPS,
+  ME_FINANCE_APPS,
+} from "@constants/financeApps";
 import { CLAIM_APPROVAL_PATH } from "@features/finance/approvals/claimApprovalTabs";
 import { MARKETING_OPS_APPS } from "@constants/marketingOpsApps";
 import { DUE_DILIGENCE_APPS } from "@constants/dueDiligenceApps";
@@ -388,6 +392,9 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     path: "/finance",
     forwardsToFirstItem: true,
     sections: [
+      // Overview first: what the numbers say comes before the work of acting on
+      // them, and it is the screen finance opens the perspective to read.
+      ...appsToSections(FINANCE_OVERVIEW_APPS),
       {
         id: "claim-approval",
         label: "Claim Approval",

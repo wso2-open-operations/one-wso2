@@ -60,9 +60,13 @@ describe("where each finance app lives", () => {
   // keeps its own registry key, distinct from "claims", which is what the other
   // invariants below actually depend on.
   it("keeps claims with the person, and both the card and expense claims with finance", async () => {
-    const { ME_FINANCE_APPS, FINANCE_PERSPECTIVE_APPS } = await load();
+    const { ME_FINANCE_APPS, FINANCE_OVERVIEW_APPS, FINANCE_PERSPECTIVE_APPS } = await load();
     expect(keys(ME_FINANCE_APPS)).toEqual(["claims"]);
     expect(keys(FINANCE_PERSPECTIVE_APPS)).toEqual(["expense", "cc"]);
+    // Reading how the allowance is spent is a different job from filing or
+    // approving a claim, so the dashboards sit in their own section above the
+    // apps rather than one inside each of them.
+    expect(keys(FINANCE_OVERVIEW_APPS)).toEqual(["finance-overview"]);
   });
 
   // The flag gates the New Claim ITEM, not the whole app. New Claim duplicates
@@ -105,12 +109,17 @@ describe("where each finance app lives", () => {
 
   it("puts every app KEY in exactly one of the two", async () => {
     for (const preview of [{}, { expenseSubmitter: true }]) {
-      const { FINANCE_APPS, ME_FINANCE_APPS, FINANCE_PERSPECTIVE_APPS } = await load(preview);
-      const overlap = keys(ME_FINANCE_APPS).filter((k) =>
-        keys(FINANCE_PERSPECTIVE_APPS).includes(k),
-      );
+      const { FINANCE_APPS, ME_FINANCE_APPS, FINANCE_OVERVIEW_APPS, FINANCE_PERSPECTIVE_APPS } =
+        await load(preview);
+      const financeSide = [...keys(FINANCE_OVERVIEW_APPS), ...keys(FINANCE_PERSPECTIVE_APPS)];
+      const overlap = keys(ME_FINANCE_APPS).filter((k) => financeSide.includes(k));
       expect(overlap).toEqual([]);
-      expect(keys(FINANCE_APPS).sort()).toEqual(["cc", "claims", "expense"]);
+      expect(keys(FINANCE_APPS).sort()).toEqual([
+        "cc",
+        "claims",
+        "expense",
+        "finance-overview",
+      ]);
     }
   });
 

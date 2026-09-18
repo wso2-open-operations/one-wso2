@@ -27,9 +27,15 @@
 // Each app's own backend still enforces its real role scheme; these
 // capability gates just decide what shows in the rail.
 
-import { CreditCardIcon, ReceiptTextIcon } from "@wso2/oxygen-ui-icons-react";
+import {
+  CreditCardIcon,
+  LayoutDashboardIcon,
+  ReceiptTextIcon,
+  StethoscopeIcon,
+} from "@wso2/oxygen-ui-icons-react";
 import { CC_PATH } from "@features/finance/cc/ccPaths";
 import { expenseFinancePaths } from "@features/finance/expense/expenseFinancePaths";
+import { opdFinancePaths } from "@features/finance/opd/opdFinancePaths";
 import { isPreviewEnabled } from "@config/previewFeatures";
 import type { MenuApp } from "@constants/appMenu";
 
@@ -65,6 +71,42 @@ export const ME_FINANCE_APPS: readonly MenuApp[] = [
  * something everyone has, so the app is not part of the set every employee
  * needs; it sits with the other finance operations instead.
  */
+/**
+ * Overview — under **Finance**, above the apps.
+ *
+ * Reading how the company is spending is a different job from filing or
+ * approving a claim: it is every employee's numbers rather than your own, and
+ * the people who do it are finance rather than the person who filed. So the
+ * dashboards live together here rather than one inside each claim app, where
+ * they would sit behind a group you open to file something.
+ *
+ * One entry today. The credit-card and expense dashboards belong here too when
+ * somebody moves them.
+ */
+export const FINANCE_OVERVIEW_APPS: readonly MenuApp[] = [
+  {
+    key: "finance-overview",
+    name: "Overview",
+    icon: LayoutDashboardIcon,
+    purpose: "How the company's claim allowances are being used.",
+    // One item today and it will not stay that way; collapsing to a leaf now
+    // would teach the wrong shape.
+    alwaysGroup: true,
+    items: [
+      {
+        id: "opd-dashboard",
+        label: "OPD Claims",
+        desc: "Claims processed and pending, and how much of each employee's OPD limit is used.",
+        // Not a coarse capability: the OPD backend decides this, and the source
+        // puts the screen behind its finance view. `requires` only forces
+        // useFinanceGate to answer for the id — see its `opd-dashboard` case.
+        requires: ["admin"],
+        path: opdFinancePaths.dashboard,
+      },
+    ],
+  },
+];
+
 export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
   {
     key: "expense",
@@ -132,6 +174,7 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
 /** Every finance-domain app, wherever it is surfaced. */
 export const FINANCE_APPS: readonly MenuApp[] = [
   ...ME_FINANCE_APPS,
+  ...FINANCE_OVERVIEW_APPS,
   ...FINANCE_PERSPECTIVE_APPS,
 ];
 
@@ -166,4 +209,8 @@ export const FINANCE_EYEBROW = {
   claims: eyebrowFor("claims"),
   cc: eyebrowFor("cc"),
   expense: eyebrowFor("expense"),
+  // Named here rather than derived: OPD analytics reports ON the OPD claim app,
+  // but there is no OPD app in the registry yet — its only migrated screen is
+  // the dashboard, and that sits under Overview.
+  opd: { icon: StethoscopeIcon, label: "OPD Claims" },
 } as const;

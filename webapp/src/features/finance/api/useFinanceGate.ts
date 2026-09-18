@@ -91,6 +91,17 @@ export function useFinanceGate(enabled = true): FinanceGate {
         return expenseLead;
       case "expense-finance-approvals":
         return expenseFinance;
+      // OPD analytics, in the Finance perspective. `routes.tsx:20-24` puts the
+      // source's dashboard behind View.FINANCE — it is every employee's spend,
+      // not your own — so the approver role is what opens it.
+      //
+      // `opd.isError` counts as a yes: a lookup that FAILED is not the same
+      // answer as one that came back without the role, and treating them alike
+      // would drop OPD out of the menu whenever its backend had a bad minute,
+      // with nothing on screen to say why. The screen behind it carries its own
+      // error notice and a retry.
+      case "opd-dashboard":
+        return opdFinance || opd.isError;
       case "cc-approve":
         return ccLeadOrFinance;
       case "cc-settings":

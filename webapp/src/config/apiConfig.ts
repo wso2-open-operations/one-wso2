@@ -346,6 +346,8 @@ export function isOpdBackendConfigured(): boolean {
 export const opdServiceUrls = {
   userInfo: `${opdBackendUrl}/user-info`,
   appData: `${opdBackendUrl}/app-data`,
+  // Finance-only: the whole analytics screen in one request.
+  dashboardSummary: `${opdBackendUrl}/dashboard-summary`,
   searchClaims: `${opdBackendUrl}/search-claims`,
   claims: `${opdBackendUrl}/claims`,
   claimDrafts: `${opdBackendUrl}/claim-drafts`,
