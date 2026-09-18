@@ -29,6 +29,8 @@ import type {
   CcCardHolderCompliance,
   CcCategoryMonthAmount,
   CcJobNumberDetails,
+  CcLeadApprovalSummary,
+  CcLeadTeamCardHolder,
   CcJobNumberList,
   CcTransactionSummary,
   CcProductAndBusinessUnitList,
@@ -231,14 +233,31 @@ const scoped = (base: string, params: Record<string, string | boolean | undefine
   return q ? `${base}?${q}` : base;
 };
 
-export function useCcTransactionSummary(dateFrom: string | undefined, ownedCardsOnly: boolean) {
+/**
+ * Whose numbers a dashboard query is about.
+ *
+ * `index.tsx:105-127` scopes the same two endpoints three ways: everybody
+ * (admin), your own cards (employee), or one lead's team. Passed as one object
+ * so a caller cannot ask for two of them at once.
+ */
+export interface CcDashboardScope {
+  ownedCardsOnly: boolean;
+  /** Set only in Lead view, once a lead has been picked. */
+  leadEmail?: string;
+}
+
+export function useCcTransactionSummary(
+  dateFrom: string | undefined,
+  ownedCardsOnly: boolean,
+  leadEmail?: string,
+) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const configured = isCcBackendConfigured();
   return useQuery<CcTransactionSummary>(
     dashboardQuery<CcTransactionSummary>(
-      ["cc-txn-summary", dateFrom ?? null, ownedCardsOnly],
-      scoped(ccServiceUrls.transactionSummary, { dateFrom, ownedCardsOnly }),
+      ["cc-txn-summary", dateFrom ?? null, ownedCardsOnly, leadEmail ?? null],
+      scoped(ccServiceUrls.transactionSummary, { dateFrom, ownedCardsOnly, leadEmail }),
       isSignedIn && configured,
       getAccessToken,
     ),
@@ -248,14 +267,15 @@ export function useCcTransactionSummary(dateFrom: string | undefined, ownedCards
 export function useCcSubmittedByCategory(
   range: { dateFrom: string; dateTo: string },
   ownedCardsOnly: boolean,
+  leadEmail?: string,
 ) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const configured = isCcBackendConfigured();
   return useQuery<CcCategoryMonthAmount[]>(
     dashboardQuery<CcCategoryMonthAmount[]>(
-      ["cc-submitted-by-category", range.dateFrom, range.dateTo, ownedCardsOnly],
-      scoped(ccServiceUrls.submittedByCategory, { ...range, ownedCardsOnly }),
+      ["cc-submitted-by-category", range.dateFrom, range.dateTo, ownedCardsOnly, leadEmail ?? null],
+      scoped(ccServiceUrls.submittedByCategory, { ...range, ownedCardsOnly, leadEmail }),
       isSignedIn && configured,
       getAccessToken,
     ),
@@ -280,3 +300,38 @@ export function useCcCardHolderCompliance(
   );
 }
 
+
+/**
+ * Every lead's approval backlog — Lead view's overview table, finance only.
+ *
+ * Takes no window: `index.tsx:139-142` fetches it unscoped, because it answers
+ * "who is behind right now", not "what happened in a period".
+ */
+export function useCcLeadApprovalSummary(enabled: boolean) {
+  const { isSignedIn } = useAsgardeo();
+  const getAccessToken = useAccessToken();
+  const configured = isCcBackendConfigured();
+  return useQuery<CcLeadApprovalSummary[]>(
+    dashboardQuery<CcLeadApprovalSummary[]>(
+      ["cc-lead-approval-summary"],
+      ccServiceUrls.leadApprovalSummary,
+      enabled && isSignedIn && configured,
+      getAccessToken,
+    ),
+  );
+}
+
+/** The card holders inside one lead's team, once that lead has been picked. */
+export function useCcLeadTeamCardHolders(leadEmail: string | undefined) {
+  const { isSignedIn } = useAsgardeo();
+  const getAccessToken = useAccessToken();
+  const configured = isCcBackendConfigured();
+  return useQuery<CcLeadTeamCardHolder[]>(
+    dashboardQuery<CcLeadTeamCardHolder[]>(
+      ["cc-lead-team-cardholders", leadEmail ?? null],
+      scoped(ccServiceUrls.leadTeamCardHolders, { leadEmail }),
+      Boolean(leadEmail) && isSignedIn && configured,
+      getAccessToken,
+    ),
+  );
+}

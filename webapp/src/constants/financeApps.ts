@@ -27,7 +27,7 @@
 // Each app's own backend still enforces its real role scheme; these
 // capability gates just decide what shows in the rail.
 
-import { CreditCardIcon, ReceiptTextIcon } from "@wso2/oxygen-ui-icons-react";
+import { CreditCardIcon, LayoutDashboardIcon, ReceiptTextIcon } from "@wso2/oxygen-ui-icons-react";
 import { CC_PATH } from "@features/finance/cc/ccPaths";
 import { expenseFinancePaths } from "@features/finance/expense/expenseFinancePaths";
 import { isPreviewEnabled } from "@config/previewFeatures";
@@ -65,6 +65,41 @@ export const ME_FINANCE_APPS: readonly MenuApp[] = [
  * something everyone has, so the app is not part of the set every employee
  * needs; it sits with the other finance operations instead.
  */
+/**
+ * Overview — under **Finance**, above the apps.
+ *
+ * Reading how money is being spent is a different job from spending it. These
+ * screens report across everyone rather than showing you your own work, and the
+ * people who read them are finance. Kept inside the app it reports on, a
+ * dashboard sits behind a group you open to file or reconcile something, which
+ * is not what you came for when you wanted the numbers.
+ *
+ * One entry today. The OPD and expense dashboards belong here too.
+ */
+export const FINANCE_OVERVIEW_APPS: readonly MenuApp[] = [
+  {
+    key: "finance-overview",
+    name: "Overview",
+    icon: LayoutDashboardIcon,
+    purpose: "How the company's card spend and claim allowances are being used.",
+    // One item today and it will not stay that way; collapsing to a leaf now
+    // would teach the wrong shape and make the entry vanish as a concept the
+    // day a second one lands.
+    alwaysGroup: true,
+    items: [
+      {
+        // The id is unchanged, so `useFinanceGate`, the rail's active-item
+        // matching and anyone's saved favourite all keep working. Only where it
+        // is listed has moved; the route is the same screen it always was.
+        id: "cc-dashboard",
+        label: "Credit Card Expenses",
+        desc: "Unsubmitted spend, how long it has been sitting, and what has been claimed.",
+        path: `${CC_PATH}/dashboard`,
+      },
+    ],
+  },
+];
+
 export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
   {
     key: "expense",
@@ -119,7 +154,6 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
     icon: CreditCardIcon,
     purpose: "Reconcile and submit corporate credit-card transactions for approval.",
     items: [
-      { id: "cc-dashboard", label: "Dashboard", desc: "Unsubmitted spend, how long it has been sitting, and what has been claimed.", path: `${CC_PATH}/dashboard` },
       { id: "cc-new", label: "Pending Submissions", desc: "Unsubmitted card transactions to categorise and submit.", path: `${CC_PATH}/new` },
       { id: "cc-pending", label: "Pending Approvals", desc: "Submissions awaiting approval.", path: `${CC_PATH}/pending` },
       { id: "cc-approve", label: "Approve Submissions", desc: "Review and approve your team's submitted card transactions.", requires: ["lead", "admin"], path: `${CC_PATH}/approve` },
@@ -132,6 +166,7 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
 /** Every finance-domain app, wherever it is surfaced. */
 export const FINANCE_APPS: readonly MenuApp[] = [
   ...ME_FINANCE_APPS,
+  ...FINANCE_OVERVIEW_APPS,
   ...FINANCE_PERSPECTIVE_APPS,
 ];
 

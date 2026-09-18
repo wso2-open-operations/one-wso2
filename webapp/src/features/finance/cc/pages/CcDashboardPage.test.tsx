@@ -28,8 +28,39 @@ vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) })
 // Who is looking, and what each hook was asked for.
 const role = { privileges: ["employee"] as string[] };
 const asked = {
-  summary: [] as { dateFrom: string | undefined; ownedCardsOnly: boolean }[],
+  summary: [] as { dateFrom: string | undefined; ownedCardsOnly: boolean; leadEmail?: string }[],
   compliance: [] as { ownedCardsOnly: boolean; enabled: boolean }[],
+  leadSummary: [] as { enabled: boolean }[],
+  leadTeam: [] as { leadEmail: string | undefined }[],
+};
+
+const leadFixtures = {
+  leads: [
+    {
+      leadEmail: "lead@wso2.com",
+      leadName: "Lead Person",
+      submitterCount: 3,
+      transactionCount: 7,
+      pendingAmount: 900,
+      bucket0To7: 1,
+      bucket8To14: 2,
+      bucket15To30: 3,
+      bucket30Plus: 1,
+    },
+  ],
+  team: [
+    {
+      employeeEmail: "holder@wso2.com",
+      cardHolderName: "Card Holder",
+      transactionCount: 4,
+      pendingAmount: 400,
+      oldestPendingDays: 22,
+      bucket0To7: 1,
+      bucket8To14: 1,
+      bucket15To30: 2,
+      bucket30Plus: 0,
+    },
+  ],
 };
 
 vi.mock("../useCc", () => ({
@@ -38,8 +69,18 @@ vi.mock("../useCc", () => ({
     isLoading: false,
     isError: false,
   }),
-  useCcTransactionSummary: (dateFrom: string | undefined, ownedCardsOnly: boolean) => {
-    asked.summary.push({ dateFrom, ownedCardsOnly });
+  // Lead view's two queries. Recorded like the others so a test can assert
+  // which of them a role actually fires.
+  useCcLeadApprovalSummary: (enabled: boolean) => {
+    asked.leadSummary.push({ enabled });
+    return { data: leadFixtures.leads, isLoading: false, isError: false };
+  },
+  useCcLeadTeamCardHolders: (leadEmail: string | undefined) => {
+    asked.leadTeam.push({ leadEmail });
+    return { data: leadFixtures.team, isLoading: false, isError: false };
+  },
+  useCcTransactionSummary: (dateFrom: string | undefined, ownedCardsOnly: boolean, leadEmail?: string) => {
+    asked.summary.push({ dateFrom, ownedCardsOnly, leadEmail });
     return {
       data: {
         current: { amount: 1250.5, count: 4, avgDaysToSubmit: 12.25 },
@@ -104,6 +145,8 @@ beforeEach(() => {
   role.privileges = ["employee"];
   asked.summary.length = 0;
   asked.compliance.length = 0;
+  asked.leadSummary.length = 0;
+  asked.leadTeam.length = 0;
 });
 
 // index.tsx:63-65 — only a lead or finance gets the company-wide view and the
@@ -123,11 +166,62 @@ describe("who sees what", () => {
     expect(asked.compliance.at(-1)?.enabled).toBe(false);
   });
 
-  it("opens an approver on the company-wide view", () => {
+  // index.tsx:79-83 — the view you land on follows the role you hold. A lead
+  // opens on their own approval queue, not on the company-wide picture: the
+  // portal used to open them on Admin, which the source never does.
+  it("opens a lead on their own team's queue", () => {
     role.privileges = ["employee", "lead"];
+    render();
+    expect(screen.getByText(/'s team/)).toBeInTheDocument();
+    // Their own email, without going through a picker — they are the lead.
+    expect(asked.leadTeam.at(-1)?.leadEmail).toBe("me@wso2.com");
+    // And the all-leads overview is never fetched for them.
+    expect(asked.leadSummary.every((c) => !c.enabled)).toBe(true);
+  });
+
+  it("opens finance on the company-wide view", () => {
+    role.privileges = ["employee", "finance"];
     render();
     expect(screen.getByText("Cardholders Details")).toBeInTheDocument();
     expect(asked.summary.at(-1)?.ownedCardsOnly).toBe(false);
+  });
+
+  // :219 — the company-wide view is finance's alone.
+  it("offers a lead Employee and Lead view, but not Admin", async () => {
+    role.privileges = ["employee", "lead"];
+    render();
+    await userEvent.click(screen.getByRole("combobox", { name: "View" }));
+    expect(screen.getByRole("option", { name: "Employee view" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Lead view" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Admin view" })).not.toBeInTheDocument();
+  });
+
+  it("offers finance all three", async () => {
+    role.privileges = ["employee", "finance"];
+    render();
+    await userEvent.click(screen.getByRole("combobox", { name: "View" }));
+    for (const name of ["Employee view", "Lead view", "Admin view"]) {
+      expect(screen.getByRole("option", { name })).toBeInTheDocument();
+    }
+  });
+
+  // Finance picks a lead before seeing a team; a lead skips that step.
+  it("walks finance from the all-leads table into one team and back", async () => {
+    role.privileges = ["employee", "finance"];
+    render();
+    await userEvent.click(screen.getByRole("combobox", { name: "View" }));
+    await userEvent.click(screen.getByRole("option", { name: "Lead view" }));
+
+    expect(screen.getByText("Approvals waiting on each lead")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /View Lead Person's team/ }));
+
+    expect(screen.getByText("Lead Person's team")).toBeInTheDocument();
+    expect(asked.leadTeam.at(-1)?.leadEmail).toBe("lead@wso2.com");
+    // The figures follow the lead being read, not the whole company.
+    expect(asked.summary.at(-1)?.leadEmail).toBe("lead@wso2.com");
+
+    await userEvent.click(screen.getByRole("button", { name: "Back to all leads" }));
+    expect(screen.getByText("Approvals waiting on each lead")).toBeInTheDocument();
   });
 
   it("narrows an approver to their own cards, and drops compliance with it", async () => {

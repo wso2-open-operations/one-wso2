@@ -64,6 +64,9 @@ import {
   type CcSummaryPeriod,
 } from "../ccDashboard";
 import { FINANCE_EYEBROW } from "@constants/financeApps";
+import { CcLeadOverviewTable, CcLeadTeamTable } from "../CcLeadViewTables";
+import { useCcLeadApprovalSummary, useCcLeadTeamCardHolders } from "../useCc";
+import type { CcLeadApprovalSummary } from "../ccTypes";
 import { ccPaths } from "../ccPaths";
 
 // Ported from view/dashboard/. The figures are aggregated in the database — the
@@ -71,6 +74,15 @@ import { ccPaths } from "../ccPaths";
 //
 // index.tsx:44 — every amount on this screen is USD, as a constant.
 const CURRENCY = "USD";
+
+/** index.tsx:79 — the three ways this screen can be scoped. */
+type CcViewMode = "admin" | "employee" | "lead";
+
+/** The lead whose team is being read, in Lead view. */
+interface PickedLead {
+  leadEmail: string;
+  leadName: string;
+}
 
 export default function CcDashboardPage() {
   return (
@@ -91,18 +103,45 @@ function DashboardBody() {
   const userInfo = useCcUserInfo();
   const isAdminEligible =
     ccHasAccess(userInfo.data, "lead") || ccHasAccess(userInfo.data, "finance");
+  const isFinanceUser = ccHasAccess(userInfo.data, "finance");
+  const isLeadUser = ccHasAccess(userInfo.data, "lead");
 
   const [period, setPeriod] = useState<CcSummaryPeriod>("allTime");
   const [granularity, setGranularity] = useState<CcGranularity>("monthly");
-  // index.tsx:63-65 — an approver opens on the company-wide view.
-  const [viewMode, setViewMode] = useState<"admin" | "employee">("admin");
+  // index.tsx:79-83 — the view you land on follows the role you hold: finance
+  // opens on the company-wide picture, a lead on their own queue, everyone else
+  // on their own cards.
+  const [viewMode, setViewMode] = useState<CcViewMode>(() =>
+    isFinanceUser ? "admin" : isLeadUser ? "lead" : "employee",
+  );
+
+  const showLeadView = (isFinanceUser || isLeadUser) && viewMode === "lead";
+  // Only finance chooses a lead; a lead IS the lead, so they skip the picker.
+  const showAllLeadsOverview = showLeadView && isFinanceUser;
+  const [selectedLead, setSelectedLead] = useState<PickedLead | null>(null);
+
+  // A lead looking at their own queue is already "selected" — there is no list
+  // for them to pick from. Derived rather than stored in an effect, so the two
+  // can never disagree for a render.
+  const viewingLead: PickedLead | null =
+    showLeadView && !isFinanceUser && isLeadUser && userInfo.data?.workEmail
+      ? { leadEmail: userInfo.data.workEmail, leadName: userInfo.data.workEmail }
+      : selectedLead;
+
+  const showTeam = showLeadView && Boolean(viewingLead);
   const ownedCardsOnly = isAdminEligible && viewMode === "employee";
   const showCompliance = isAdminEligible && viewMode === "admin";
 
+  const leads = useCcLeadApprovalSummary(showAllLeadsOverview && !viewingLead);
+  const teamCardHolders = useCcLeadTeamCardHolders(showTeam ? viewingLead?.leadEmail : undefined);
+
   const dateFrom = summaryDateFrom(period);
-  const summary = useCcTransactionSummary(dateFrom, ownedCardsOnly);
+  // In Lead view the same two endpoints answer for one lead's team instead of
+  // for you or for everybody — index.tsx:105-127.
+  const teamEmail = showTeam ? viewingLead?.leadEmail : undefined;
+  const summary = useCcTransactionSummary(dateFrom, ownedCardsOnly, teamEmail);
   const range = useMemo(() => breakdownDateRange(), []);
-  const byCategory = useCcSubmittedByCategory(range, ownedCardsOnly);
+  const byCategory = useCcSubmittedByCategory(range, ownedCardsOnly, teamEmail);
   const compliance = useCcCardHolderCompliance(
     dateFrom,
     ownedCardsOnly,
@@ -157,13 +196,19 @@ function DashboardBody() {
               size="small"
               value={viewMode}
               inputProps={{ "aria-label": "View" }}
-              onChange={(e) =>
-                setViewMode(e.target.value as "admin" | "employee")
-              }
+              onChange={(e) => {
+                setViewMode(e.target.value as CcViewMode);
+                // Leaving Lead view drops the lead you were looking at, so
+                // coming back starts at the list rather than mid-drill-down.
+                setSelectedLead(null);
+              }}
               sx={{ minWidth: 160 }}
             >
-              <MenuItem value="admin">Admin view</MenuItem>
               <MenuItem value="employee">Employee view</MenuItem>
+              {/* :218 — a lead sees their own queue; finance sees everyone's. */}
+              {(isFinanceUser || isLeadUser) && <MenuItem value="lead">Lead view</MenuItem>}
+              {/* :219 — the company-wide view is finance's alone. */}
+              {isFinanceUser && <MenuItem value="admin">Admin view</MenuItem>}
             </Select>
           )}
           {/* Scopes the four cards below; the category table has its own control. */}
@@ -183,7 +228,47 @@ function DashboardBody() {
         </Stack>
       </Stack>
 
-      {summary.isError ? (
+      {/* index.tsx:88-91 — in Lead view the page is the lead's queue until a
+          team is chosen; the summary cards below belong to whatever is in
+          scope, so they wait for one. */}
+      {showLeadView && !showTeam && (
+        <>
+          {leads.isError ? (
+            <Alert severity="error">{describeError(leads.error)}</Alert>
+          ) : leads.isLoading ? (
+            <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 1.5 }} />
+          ) : (
+            <CcLeadOverviewTable
+              leads={leads.data ?? []}
+              onSelect={(lead: CcLeadApprovalSummary) =>
+                setSelectedLead({ leadEmail: lead.leadEmail, leadName: lead.leadName || lead.leadEmail })
+              }
+            />
+          )}
+        </>
+      )}
+
+      {showTeam && viewingLead && (
+        <>
+          {teamCardHolders.isError ? (
+            <Alert severity="error">{describeError(teamCardHolders.error)}</Alert>
+          ) : teamCardHolders.isLoading ? (
+            <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 1.5 }} />
+          ) : (
+            <CcLeadTeamTable
+              leadName={viewingLead.leadName}
+              cardHolders={teamCardHolders.data ?? []}
+              onBack={() => setSelectedLead(null)}
+              // A lead has no all-leads table to return to; only finance does.
+              canGoBack={isFinanceUser}
+            />
+          )}
+        </>
+      )}
+
+      {/* Hidden while a lead is being chosen: the figures would be the whole
+          company's, sitting under a table about one person's queue. */}
+      {showLeadView && !showTeam ? null : summary.isError ? (
         <Alert severity="error">{describeError(summary.error)}</Alert>
       ) : (
         <Box
