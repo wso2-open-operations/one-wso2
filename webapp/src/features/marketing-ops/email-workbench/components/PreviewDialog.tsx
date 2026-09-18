@@ -15,7 +15,7 @@
 // under the License.
 
 import { useState } from "react";
-import { Box, Button, Dialog, IconButton, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Box, Button, Dialog, IconButton, OutlinedInput, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { ExternalLink, Moon, Sun, X } from "@wso2/oxygen-ui-icons-react";
 import { renderPreviewHtml } from "../lib/advancedEditorCore";
 
@@ -27,6 +27,11 @@ import { renderPreviewHtml } from "../lib/advancedEditorCore";
 // a dark-mode laptop could never see the light rendering most recipients get.
 
 const MOBILE_W = 380;
+// Sane bounds for the custom size inputs — wide enough to catch a fat-fingered extra
+// digit, not so wide the iframe becomes unusable or the dialog has to scroll oddly.
+const CUSTOM_MIN = 100;
+const CUSTOM_MAX = 2000;
+const clampCustom = (n: number) => Math.min(CUSTOM_MAX, Math.max(CUSTOM_MIN, Math.round(n) || CUSTOM_MIN));
 
 // A preview must look EXACTLY like the email, so nothing here rewrites the markup —
 // but a blob: URL inherits this app's origin, which means a <script> or an inline
@@ -63,8 +68,10 @@ export default function PreviewDialog({
   html: string;
   onClose: () => void;
 }) {
-  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [device, setDevice] = useState<"desktop" | "mobile" | "custom">("desktop");
   const [dark, setDark] = useState(false);
+  const [customW, setCustomW] = useState(414);
+  const [customH, setCustomH] = useState(736);
   const shown = renderPreviewHtml(html, dark ? "dark" : "light");
 
   function openInNewTab() {
@@ -98,7 +105,7 @@ export default function PreviewDialog({
       >
         <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Preview</Typography>
         <Box sx={{ flex: 1 }} />
-        {(["desktop", "mobile"] as const).map((d) => (
+        {(["desktop", "mobile", "custom"] as const).map((d) => (
           <Button
             key={d}
             onClick={() => setDevice(d)}
@@ -109,9 +116,33 @@ export default function PreviewDialog({
               minWidth: 0,
             }}
           >
-            {d === "desktop" ? "Desktop" : "Mobile"}
+            {d === "desktop" ? "Desktop" : d === "mobile" ? "Mobile" : "Custom"}
           </Button>
         ))}
+        {device === "custom" && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <OutlinedInput
+              size="small"
+              type="number"
+              value={customW}
+              onChange={(e) => setCustomW(Number(e.target.value))}
+              onBlur={(e) => setCustomW(clampCustom(Number(e.target.value)))}
+              inputProps={{ min: CUSTOM_MIN, max: CUSTOM_MAX, "aria-label": "Preview width in pixels" }}
+              sx={{ width: 80, fontSize: 13 }}
+            />
+            <Typography sx={{ fontSize: 13, color: "text.secondary" }}>×</Typography>
+            <OutlinedInput
+              size="small"
+              type="number"
+              value={customH}
+              onChange={(e) => setCustomH(Number(e.target.value))}
+              onBlur={(e) => setCustomH(clampCustom(Number(e.target.value)))}
+              inputProps={{ min: CUSTOM_MIN, max: CUSTOM_MAX, "aria-label": "Preview height in pixels" }}
+              sx={{ width: 80, fontSize: 13 }}
+            />
+            <Typography sx={{ fontSize: 12, color: "text.secondary" }}>px</Typography>
+          </Box>
+        )}
         <Tooltip
           title={dark ? "Previewing dark mode — click for light" : "Preview in dark mode"}
           arrow
@@ -158,7 +189,18 @@ export default function PreviewDialog({
           // rendering), and a theme-following backdrop would change how the edges read.
           bgcolor: "#f0f0f0",
           display: "flex",
-          justifyContent: "center",
+          // flex-start, not center: centering a frame that's LARGER than the gutter pushes half its
+          // overflow to the start side (negative offset), which `overflow: auto` can't scroll to —
+          // that half of an oversized custom preview would be unreachable. Start-aligning the
+          // container and giving the frame `margin: auto` (below) gets the best of both: auto margins
+          // center it when it fits, and collapse to 0 (i.e. start-aligned, fully scrollable) when it's
+          // bigger than the gutter.
+          justifyContent: "flex-start",
+          alignItems: "flex-start",
+          // Custom sizes can exceed the dialog's own viewport in either axis — scroll the
+          // gutter rather than clipping or squashing the frame to fit.
+          overflow: "auto",
+          p: device === "custom" ? 3 : 0,
         }}
       >
         <Box
@@ -171,11 +213,16 @@ export default function PreviewDialog({
           // app's origin, and a preview needs no origin at all.
           sandbox=""
           sx={{
-            width: device === "mobile" ? MOBILE_W : "100%",
-            height: "100%",
+            width: device === "mobile" ? MOBILE_W : device === "custom" ? customW : "100%",
+            height: device === "custom" ? customH : "100%",
+            flexShrink: 0,
+            // Auto margins center the frame within the now start-aligned gutter for any fixed-size
+            // mode (mobile's fixed 380px, or a custom size) — desktop stays 0 since it's width:100%
+            // and has no room to center within anyway.
+            m: device === "desktop" ? 0 : "auto",
             border: "none",
             bgcolor: "#fff",
-            boxShadow: device === "mobile" ? "0 0 24px rgba(0,0,0,0.15)" : "none",
+            boxShadow: device === "desktop" ? "none" : "0 0 24px rgba(0,0,0,0.15)",
           }}
         />
       </Box>
