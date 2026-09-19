@@ -19,6 +19,7 @@ import { Box, Typography } from "@wso2/oxygen-ui";
 import type { JSX } from "react";
 import type { RegisterStatusLevelCount } from "../../api/riskApi";
 import {
+  CHART_ANIMATION_MS,
   LEVEL_FALLBACK_COLORS,
   LEVEL_LABELS,
   LEVEL_ORDER,
@@ -26,10 +27,13 @@ import {
   STATUS_BUCKET_ORDER,
   labelColorOn,
   stackedSegmentAccessor,
+  type OnDrillDown,
 } from "./constants";
 
 interface RegisterStatusChartProps {
   data: RegisterStatusLevelCount[];
+  onDrillDown?: OnDrillDown;
+  registerId?: number;
 }
 
 const CHART_HEIGHT = 280;
@@ -39,7 +43,7 @@ const CHART_HEIGHT = 280;
 // residual level so the severity mix within each status is visible. All 5
 // buckets and all 3 levels are always shown, even at zero, for a consistent
 // axis/legend across registers.
-export default function RegisterStatusChart({ data }: RegisterStatusChartProps): JSX.Element {
+export default function RegisterStatusChart({ data, onDrillDown, registerId }: RegisterStatusChartProps): JSX.Element {
   const rows = new Map<string, Record<string, string | number>>();
   const colorOf: Record<string, string> = { ...LEVEL_FALLBACK_COLORS };
   for (const d of data) {
@@ -47,6 +51,10 @@ export default function RegisterStatusChart({ data }: RegisterStatusChartProps):
     rows.get(d.bucket)![d.risk_level] = d.count;
     colorOf[d.risk_level] = d.color_code;
   }
+
+  const chartRows = STATUS_BUCKET_ORDER.map(
+    (bucket) => rows.get(bucket) ?? { bucket: STATUS_BUCKET_LABELS[bucket] },
+  );
 
   const bars = LEVEL_ORDER.map((level) => ({
     dataKey: level,
@@ -61,11 +69,18 @@ export default function RegisterStatusChart({ data }: RegisterStatusChartProps):
       valueAccessor: stackedSegmentAccessor,
       formatter: (value: unknown) => (Number(value) > 0 ? Number(value) : ""),
     },
+    onClick: onDrillDown
+      ? (_: unknown, index: number) => {
+          const bucket = STATUS_BUCKET_ORDER[index];
+          if (!chartRows[index]?.[level]) return;
+          onDrillDown(
+            bucket === "CLOSED"
+              ? { closed: true, level, teamId: registerId }
+              : { treatment: bucket, level, teamId: registerId },
+          );
+        }
+      : undefined,
   }));
-
-  const chartRows = STATUS_BUCKET_ORDER.map(
-    (bucket) => rows.get(bucket) ?? { bucket: STATUS_BUCKET_LABELS[bucket] },
-  );
 
   return (
     <Box sx={{ display: "flex", alignItems: "stretch", gap: 0.5 }}>
@@ -94,7 +109,7 @@ export default function RegisterStatusChart({ data }: RegisterStatusChartProps):
           bars={bars}
           height={CHART_HEIGHT}
           maxBarSize={56}
-          isAnimationActive={false}
+          animationDuration={CHART_ANIMATION_MS}
           margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
           yAxis={{ show: true }}
         />

@@ -6,7 +6,7 @@ new and a rewrite is where new bugs come from.
 
 **32,824 lines across 178 files**, carried unedited except where listed in §3.
 
-**Lifted from grc-tools `e3395dc` (2026-09-16).** Record this on every refresh: a
+**Lifted from grc-tools `8c002b9` (2026-09-17).** Record this on every refresh: a
 sweep needs a baseline, and without one "is the copy current?" cannot be
 answered — only "does it differ from whatever is checked out right now".
 
@@ -86,7 +86,7 @@ would have sent them to swap tokens instead of at the audience.
 
 ## 3. Everything edited after copying
 
-Seven categories, and nothing else was touched.
+Eight categories, and nothing else was touched.
 
 | # | Change | Why |
 |---|---|---|
@@ -96,7 +96,8 @@ Seven categories, and nothing else was touched.
 | E4 | **`nav.ts` deleted** from all three modules | The source's sidebar tables. This app's rail reads `securityApps.ts` instead; the labels, ids, ordering and privileges there are transcribed from these so the two can be diffed |
 | E5 | **An `enabled` parameter added** to `useRiskPrivileges`, `useAuditPrivileges` and `useAdminPrivileges` | See below — the one edit made for a difference in how this app mounts the code, rather than for something wrong with it |
 | E6 | **Mock-auth bypass removed** from `audit/utils/auditor.ts` and `audit/hooks/useAuditPrivileges.ts` | Same class as E1 and worse: `isAssignedAuditor` returned `true` **unconditionally**, showing every auditor-only surface — sampling, evidence validation — to every user whenever the flag was set, and `useAuditPrivileges.can()` granted every privilege with no API call at all. The widest bypasses the port encountered |
-| E7 | **Absolute navigation paths re-pointed** under `/security` — 16 sites in 9 files | See below. The one place where "identical to the source" was itself the bug |
+| E7 | **Absolute navigation paths re-pointed** under `/security` — 17 sites in 10 files | See below. The one place where "identical to the source" was itself the bug |
+| E8 | **Previous-score outline thickened** in `RiskScoreGrid.tsx` — `2px dashed rgba(0,0,0,0.55)` → `3px dashed rgba(0,0,0,0.75)` | Requested for this app: the dashed marker for the previous score in the Reassess dialog was too faint. One string; re-apply on refresh unless the source adopts it |
 
 **E5 in full**, because it is the only change driven by this app's shape rather than
 the source's content. In GRC these hooks only ever mount inside the GRC app, so
@@ -129,8 +130,9 @@ onClick={() => void navigate(`/audit/audits/${audit.id}`)}   // AuditsListPage
 
 Correct in GRC, wrong here. This app has no `/audit/*` route, so `App.tsx`'s
 catch-all matched and redirected the user to their landing page — click an audit,
-land on Home, with no error anywhere. 14 sites in audit, 2 in risk, 0 in admin:
-every list-or-dashboard-into-detail link, the post-create redirect, both back
+land on Home, with no error anywhere. 14 sites in audit, 3 in risk, 0 in admin:
+every list-or-dashboard-into-detail link, the dashboard's chart drill-down into
+Risk Registers, the post-create redirect, both back
 buttons, and Add Risk's cancel.
 
 Worth dwelling on how this hid. A source diff cannot find it: these files were
@@ -169,6 +171,23 @@ So refreshing is a three-step merge, not a copy:
    from source, and that no navigation path escaped the prefix.
 
 `AddRisk.tsx` has now been through this once (§4.5) and it worked.
+
+### 3b. Forward-ported: ahead of the pin, not deviations
+
+Two changes were written in grc-tools and copied here **before** they merged
+there, so 14 Risk files are currently AHEAD of the pin rather than equal to it.
+A drift check will flag them; that is expected, and the entry disappears once
+grc-tools merges them and the pin moves. Neither needs re-applying on a refresh
+— unlike E1–E8, the source will already contain them.
+
+| Change | Files |
+|---|---|
+| **Chart animation at 400ms.** `CHART_ANIMATION_MS` in `dashboard/constants.ts`, replacing `isAnimationActive={false}` at all 14 of its sites with `animationDuration` at 13 — `RegisterTrendChart` set it per line AND chart-wide, and the wrapper already falls back (`line.animationDuration ?? animationDuration`). The charts had animation switched off entirely, which made Risk the only perspective here whose charts never moved | `dashboard/constants.ts` + 12 chart files under `dashboard/` and `analytics/` |
+| **Residual Level filter widened** 130 → 170, so the unshrunk label clears the select's arrow (measured: they overlapped by 3px) | `RiskRegisters.tsx` |
+
+If grc-tools changes either of them before merging, re-copy from source rather
+than reconciling by hand — these files carry no E-deviation, so a plain refresh
+is safe for them.
 
 ## 4. Issues the lift surfaced
 
@@ -326,6 +345,14 @@ found them. None carried an E-deviation, so all four were straight refreshes —
 but the lesson is the timing, not the content: **twice now, in one working day,
 and neither time did anything fail.**
 
+**A third refresh, grc-tools #84 (`8c002b9`, 2026-09-17),** moved 15 Risk files:
+the Reassess dialog's previous-score marker, the amendment diff banner, and the
+dashboard drill-down into filtered Risk Registers. Two needed more than a copy,
+which is §3a working as intended: `ReassessmentDialog.tsx` had its E2 undone by
+the copy and re-applied, and `RiskDashboard.tsx` gained a new absolute
+`navigate("/risk/registers?…")` that took E7. A full diff of `modules/risk`
+afterwards showed only E1/E2/E5/E7/E8 and the deleted `nav.ts` (E4).
+
 This is the cost of lifting, arriving on schedule rather than in theory, and it
 is worth naming precisely: **nothing warns you.** The copy compiles, tests pass,
 and the screens work — they are just a little behind, silently, and the gap only
@@ -338,7 +365,7 @@ under `features/security/grc`, reverse the alias rewrite (`@features/security/gr
 back to `@modules/`, `@components/`, and the two `shim/` paths to `@config/apiConfig`
 and `@hooks/useAuthApiClient`) and compare against the same path under
 `grc-tools/apps/grc-platform/webapp/src`. Everything should match except the
-files listed in §3 — those carry E1–E7. Anything else is drift.
+files listed in §3 — those carry E1–E8. Anything else is drift.
 
 ### 4.6 What the Audit Hub lift got right that the others did not
 
