@@ -84,7 +84,7 @@ export default function ConnectedServices() {
           {/* Hand-built link, so the registry's gate does not cover it. */}
           {isPreviewEnabled("par") && (
             <Box sx={{ mt: 1.25 }}>
-              <Button variant="outlined" size="small" component={RouterLink} to="/people-ops/performance" fullWidth>
+              <Button variant="outlined" size="small" component={RouterLink} to="/me/performance" fullWidth>
                 Open employee feedback
               </Button>
             </Box>

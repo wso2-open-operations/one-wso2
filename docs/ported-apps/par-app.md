@@ -1,9 +1,10 @@
 # PAR (Performance Appraisal Review) — functional specification
 
 **Status:** the employee-facing half of par-app (all five tabs, including F2F) is ported and live under
-People Ops. The Lead Portal is fully ported (all five tabs). Admin Portal is not started. Written from
-the source and cross-checked against the running staging app (screenshots) — this is the reference for
-verifying the port and for writing test cases against it, not a proposal.
+the Me perspective. The Lead Portal is fully ported (all five tabs) and lives under People Ops. Admin
+Portal is not started. Written from the source and cross-checked against the running staging app
+(screenshots) — this is the reference for verifying the port and for writing test cases against it, not
+a proposal.
 
 **Source of truth for behaviour:** `digiops-hr/apps/par-app/webapp/src` — `OngoingCycleView.tsx` and
 its panels/components for the five tabs below (`views/ongoingCycleView/`, `components/common/
@@ -12,14 +13,19 @@ RequestFeedbackTab.tsx`, `ProvideFeedbackTab.tsx`, `OfferFeedbackView.tsx`, `F2f
 endpoint surface, `manager.bal` for cycle lifecycle and calendar integration, `modules/types/types.bal`
 for states, roles and field-level authorization).
 
-**In One WSO2:** `/people-ops/performance`, a tab group (`features/par/`) under the People Ops
-perspective — **Employee Feedback**, **Request 360° Feedback**, **Provide 360° Feedback**, **F2F**,
-and **History**, each a real route (`employee-feedback` / `request-360` / `provide-360` / `f2f` /
-`history`). The Lead Portal lives one level down at `/people-ops/performance/lead`, gated on par-app's
-own `Role.TEAM_LEAD` (`ParRequiresTeamLeadRoute`) — **Direct Reports**, **Additional Reports**,
-**Report Chain**, **Employee History**, and **Top 5%/20% Allocation** (`direct-reports` /
-`additional-reports` / `report-chain` / `employee-history` / `allocation`). Backend is par-app's own
-Ballerina service, configured as `ONE_WSO2_PAR_BACKEND_URL`.
+**In One WSO2:** the employee half and the Lead Portal are split across two perspectives, the same
+split claim-approval already applies (`docs/ported-apps/claim-approval.md`) — completing and sharing
+your own PAR is something every employee does for themself, so it lives under **Me**; reviewing and
+rating *other people's* PAR is People-Ops-team work, so the Lead Portal stays under **People Ops**.
+
+`/me/performance`, a tab group (`features/par/`) — **Employee Feedback**, **Request 360° Feedback**,
+**Provide 360° Feedback**, **F2F**, and **History**, each a real route (`employee-feedback` /
+`request-360` / `provide-360` / `f2f` / `history`). The Lead Portal lives at
+`/people-ops/performance/lead`, gated on par-app's own `Role.TEAM_LEAD` (`ParRequiresTeamLeadRoute`) —
+**Direct Reports**, **Additional Reports**, **Report Chain**, **Employee History**, and
+**Top 5%/20% Allocation** (`direct-reports` / `additional-reports` / `report-chain` /
+`employee-history` / `allocation`). Backend is par-app's own Ballerina service, configured as
+`ONE_WSO2_PAR_BACKEND_URL`.
 
 ---
 
@@ -266,9 +272,11 @@ out of scope for this portal).
   alerts and completed-date form `ParF2fTab.tsx` shows for the employee's own side, but for this
   employee, with "Schedule Google Meet" permanently disabled — matching source's shared component
   exactly (one `F2fPanel`, `isEmployeeView` only ever gates that one button).
-- **PAR HISTORY** (`ParLeadHistoryModal.tsx`, ports `EmployeeHistoryCard.tsx`): the same merged
-  real+legacy cycle history `ParLeadEmployeeHistoryTab.tsx` shows, for this one fixed employee, in a
-  modal instead of a full tab (no employee picker).
+- **PAR HISTORY** (`ParLeadHistoryModal.tsx`, ports `EmployeeHistoryCard.tsx` as `Review.tsx`'s own
+  "PAR HISTORY" button opens it — a real modal, `CustomModal`): the same merged real+legacy cycle history
+  `ParLeadEmployeeHistoryTab.tsx` shows, for this one fixed employee, in a modal instead of a full tab (no
+  employee picker). The shared history-rendering logic lives in `ParEmployeeHistoryView.tsx`, which this
+  modal wraps in a `Dialog`.
 
 Not ported here: evidence attachments (`parPerformanceNoticeAck`'s Google Drive picker — a capability
 nothing else in this app has), and "Sync an Employee" (`TeamSummary.tsx`'s temporary org-chart-search
@@ -357,7 +365,11 @@ slot, not two.
   configuration.
 - **PAR History's Chain view** — source's `ParHistory.tsx` has a second, lead-only tab alongside "My
   History" (`views/parHistory/ChainViewTab.tsx`): a lead's view of their reports' PAR history across
-  cycles. Distinct from the Lead Portal's own "Report Chain" tab (§8.3, `ReportChainView.tsx`).
+  cycles, reached by browsing the org chart. A version of this was built and then deliberately removed —
+  it duplicated Employee History (§8.4), which already gets to the same `ParEmployeeHistoryView` content
+  for any of the lead's reports, just via a cycle+employee picker instead of an org-chart drill-down.
+  Distinct from the Lead Portal's own "Report Chain" tab (§8.3, `ReportChainView.tsx`), which is a
+  different screen (opens the review panel, not history) and stays.
 - **One unified "no cycle" state.** Source gates all Employee Portal tabs behind a single check
   (`OngoingCycleView.tsx`) that replaces the whole tab body with one notice when there's no active
   cycle; this port instead repeats a similar (but not identically worded) message independently in

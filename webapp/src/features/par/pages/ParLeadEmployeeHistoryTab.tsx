@@ -25,6 +25,7 @@ import {
   Chip,
   Divider,
   Grid,
+  MenuItem,
   Skeleton,
   Stack,
   TextField,
@@ -200,13 +201,17 @@ export default function ParLeadEmployeeHistoryTab() {
             disabled={employees.isLoading || realCycles.isLoading || cycleOptions.length === 0}
             value={cyclePickerValue}
             onChange={(e) => handleCycleChange(e.target.value)}
-            slotProps={{ select: { native: true } }}
           >
-            <option value="none">{cycleOptions.length === 0 ? "No previous PAR cycles found" : "Please select a PAR cycle"}</option>
+            <MenuItem value="none">
+              {cycleOptions.length === 0 ? "No previous PAR cycles found" : "Please select a PAR cycle"}
+            </MenuItem>
             {cycleOptions.map((option) => (
-              <option key={option.key} value={option.isLegacy ? `legacy-${option.cycleName}` : String(option.parCycleId)}>
+              <MenuItem
+                key={option.key}
+                value={option.isLegacy ? `legacy-${option.cycleName}` : String(option.parCycleId)}
+              >
                 {option.label}
-              </option>
+              </MenuItem>
             ))}
           </TextField>
         </Grid>

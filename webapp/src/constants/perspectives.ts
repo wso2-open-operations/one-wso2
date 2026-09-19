@@ -46,6 +46,7 @@ import { MARKETING_OPS_APPS } from "@constants/marketingOpsApps";
 import { DUE_DILIGENCE_APPS } from "@constants/dueDiligenceApps";
 import { SECURITY_APPS } from "@constants/securityApps";
 import { ME_APPS } from "@constants/meApps";
+import { ME_PAR_APPS } from "@constants/parApps";
 
 export interface PerspectiveSection {
   id: string; // anchor id on the perspective's page (leaf sections)
@@ -135,13 +136,13 @@ export const PEOPLE_OPS_SECTIONS: PerspectiveSection[] = [
     icon: TicketIcon,
     path: "/people-ops/subscriptions/manage",
   },
-  // par-app, ported one screen at a time — see docs/ported-apps/par-app.md.
-  // `alwaysGroup` for the same reason Master Data below carries it: a named
-  // group rather than a bare leaf, since more items (F2F scheduling; the
-  // rest of Lead Portal) are still coming. Employee Portal isn't
-  // `requires: ["admin"]` — every employee has their own PAR, same as Org
-  // Chart and Subscriptions above. Spread in rather than filtered out, so
-  // with the flag off the entry does not exist at all.
+  // par-app's Lead Portal — the half of par-app that's about your reports,
+  // not yourself (the employee portal moved to the Me perspective, see
+  // parApps.ts). `alwaysGroup` for the same reason Master Data below
+  // carries it: a named group rather than a bare leaf, since a second child
+  // (Admin Portal, once built — see docs/ported-apps/par-app.md §9) is
+  // still coming. Spread in rather than filtered out, so with the flag off
+  // the entry does not exist at all.
   ...(isPreviewEnabled("par")
     ? [
         {
@@ -150,11 +151,6 @@ export const PEOPLE_OPS_SECTIONS: PerspectiveSection[] = [
           icon: ClipboardCheckIcon,
           alwaysGroup: true,
           children: [
-            {
-              id: "par-employee-feedback",
-              label: "Employee Portal",
-              path: "/people-ops/performance",
-            },
             // Note what is NOT here: `requires: ["lead"]`. one-wso2's generic
             // "lead" capability is people-app privilege 993 — unrelated to
             // par-app's own PAR-cycle-scoped isTeamLead, and not guaranteed to
@@ -315,6 +311,8 @@ const ME_SECTIONS: PerspectiveSection[] = [
   },
   ...appsToSections(ME_APPS),
   ...appsToSections(ME_FINANCE_APPS),
+  // par-app's employee portal — see docs/ported-apps/par-app.md.
+  ...(isPreviewEnabled("par") ? appsToSections(ME_PAR_APPS) : []),
 ];
 
 export interface PerspectiveDef {

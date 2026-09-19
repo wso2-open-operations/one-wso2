@@ -21,6 +21,7 @@ import { useAccessToken } from "@hooks/useAccessToken";
 import { parBackendUrl, parServiceUrls } from "@config/apiConfig";
 import { digiopsHeaders } from "@features/my/util/digiopsHeaders";
 import type { ParCycle, ParEmployeeInfo, ParRating } from "./types";
+import { useParLeadEmployees } from "./useLeadHistory";
 
 // GET par-app's own /employees/{workEmail} — carries `leadEmail`, the exact
 // field OngoingCycleView.tsx gates its tab set on. Not people-app's
@@ -91,6 +92,47 @@ export function useParIsTeamLead(workEmail: string | undefined, enabled = true) 
     error: info.error,
     isFetching: info.isFetching,
     refetch: info.refetch,
+  };
+}
+
+/**
+ * Whether the signed-in employee should see the Lead Portal nav item.
+ * isTeamLead is scoped to the active cycle (see ParEmployeeInfo), so this
+ * ORs in the org-chart signal (GET /employees?leadEmail=) to keep it visible
+ * once a lead's cycle closes — matching ParRequiresTeamLeadRoute, the route
+ * guard that actually enforces access. Only fetches that fallback once
+ * isTeamLead resolves false. Fails CLOSED while either is unresolved, same
+ * as useParIsTeamLead alone.
+ */
+export function useParCanSeeLeadPortal(workEmail: string | undefined, enabled = true) {
+  const employeeInfo = useParIsTeamLead(workEmail, enabled);
+  const directReports = useParLeadEmployees(
+    enabled && !employeeInfo.isLoading && !employeeInfo.isTeamLead ? workEmail : undefined,
+  );
+  return {
+    canSee: employeeInfo.isTeamLead || (directReports.isSuccess && directReports.data.length > 0),
+    isLoading: employeeInfo.isLoading || (!employeeInfo.isTeamLead && directReports.isLoading),
+  };
+}
+
+/**
+ * Whether the signed-in employee currently has an OPEN par cycle — drives
+ * ParGroupPage.tsx's tab-set gate down to just PAR History when there isn't
+ * one, since every other tab (Employee Feedback, Request/Provide 360°, F2F)
+ * only makes sense inside a running cycle.
+ *
+ * Fails OPEN, same reasoning and shape as useParHasLead: true unless the
+ * fetch has actually succeeded and come back with no OPEN cycles. A slow or
+ * failed fetch must never hide tabs that would otherwise be available.
+ */
+export function useParHasActiveCycle(
+  workEmail: string | undefined,
+  workEmailLoading: boolean,
+): { isActive: boolean; isLoading: boolean } {
+  const cycles = useActiveParCycle(workEmail);
+  return {
+    isActive: !(cycles.isSuccess && cycles.data.length === 0),
+    isLoading: workEmailLoading,
   };
 }
 

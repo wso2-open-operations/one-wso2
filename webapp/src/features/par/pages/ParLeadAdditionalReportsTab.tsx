@@ -119,27 +119,43 @@ export default function ParLeadAdditionalReportsTab() {
       headerName: "Team Member",
       flex: 1.5,
       renderCell: (params) => (
-        <Box
-          role="button"
-          tabIndex={0}
-          onClick={() => setReviewEmployeeEmail(params.row.parEmployeeEmail)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setReviewEmployeeEmail(params.row.parEmployeeEmail);
-            }
-          }}
-          sx={{ cursor: "pointer", display: "flex", alignItems: "center", height: "100%" }}
-        >
-          <Avatar
-            src={thumbnailByEmail.get(params.row.parEmployeeEmail) || undefined}
-            slotProps={{ img: { referrerPolicy: "no-referrer" } }}
-            sx={{ mr: 1.5, height: "2.2rem", width: "2.2rem" }}
-          />
+        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+          <Box
+            role="button"
+            tabIndex={0}
+            aria-label={`Open review for ${params.row.parEmployeeName}`}
+            onClick={() => setReviewEmployeeEmail(params.row.parEmployeeEmail)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setReviewEmployeeEmail(params.row.parEmployeeEmail);
+              }
+            }}
+            sx={{ cursor: "pointer", display: "flex", alignItems: "center" }}
+          >
+            <Avatar
+              src={thumbnailByEmail.get(params.row.parEmployeeEmail) || undefined}
+              slotProps={{ img: { referrerPolicy: "no-referrer" } }}
+              sx={{ mr: 1.5, height: "2.2rem", width: "2.2rem" }}
+            />
+          </Box>
           <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {params.row.parEmployeeName}
-            </Typography>
+            <Box
+              role="button"
+              tabIndex={0}
+              onClick={() => setReviewEmployeeEmail(params.row.parEmployeeEmail)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setReviewEmployeeEmail(params.row.parEmployeeEmail);
+                }
+              }}
+              sx={{ cursor: "pointer", width: "fit-content" }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {params.row.parEmployeeName}
+              </Typography>
+            </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Typography variant="caption" color="text.secondary">
                 {params.row.parEmployeeEmail}
@@ -148,8 +164,7 @@ export default function ParLeadAdditionalReportsTab() {
                 <IconButton
                   size="small"
                   aria-label="Copy Email"
-                  onClick={async (e) => {
-                    e.stopPropagation();
+                  onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(params.row.parEmployeeEmail);
                       showSuccess("Email copied");
@@ -157,7 +172,6 @@ export default function ParLeadAdditionalReportsTab() {
                       showError(describeError(err));
                     }
                   }}
-                  onKeyDown={(e) => e.stopPropagation()}
                 >
                   <CopyIcon size={13} />
                 </IconButton>

@@ -348,7 +348,7 @@ export default function ParLeadReviewPanel({
 
               {!readOnly && !employeeHasStarted && (
                 <Typography color="warning.main" textAlign="right" sx={{ mb: 1 }}>
-                  * Sharing lead's feedback is disabled until employee PAR is shared
+                  * Sharing lead's feedback is disabled until employee PAR is started
                 </Typography>
               )}
 

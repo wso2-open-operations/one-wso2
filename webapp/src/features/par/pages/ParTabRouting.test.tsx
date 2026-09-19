@@ -65,12 +65,12 @@ function hasLead(leadEmail: string | null) {
 }
 
 /** The group, wired the way App.tsx wires it. */
-function show(initial = "/people-ops/performance") {
+function show(initial = "/me/performance") {
   return render(
     <MemoryRouter initialEntries={[initial]}>
       <UrlProbe />
       <Routes>
-        <Route path="/people-ops/performance" element={<ParGroupPage />}>
+        <Route path="/me/performance" element={<ParGroupPage />}>
           <Route index element={<ParGroupIndex />} />
           <Route
             path="employee-feedback"
@@ -119,7 +119,7 @@ describe("an employee who has a lead", () => {
   it("lands on Employee Feedback, so the group URL is never blank", async () => {
     show();
     expect(await screen.findByTestId("url")).toHaveTextContent(
-      "/people-ops/performance/employee-feedback",
+      "/me/performance/employee-feedback",
     );
   });
 });
@@ -138,28 +138,28 @@ describe("an employee with no lead", () => {
 
   it("lands on Provide 360°, not a tab they don't have", async () => {
     show();
-    expect(await screen.findByTestId("url")).toHaveTextContent("/people-ops/performance/provide-360");
+    expect(await screen.findByTestId("url")).toHaveTextContent("/me/performance/provide-360");
   });
 
   // Hiding a tab is not the gate — the URL can be typed or bookmarked.
   it("is redirected away from a tab reached by its URL", async () => {
-    show("/people-ops/performance/employee-feedback");
-    expect(await screen.findByTestId("url")).toHaveTextContent("/people-ops/performance/provide-360");
+    show("/me/performance/employee-feedback");
+    expect(await screen.findByTestId("url")).toHaveTextContent("/me/performance/provide-360");
     expect(screen.getByTestId("tab-body")).toHaveTextContent("Provide 360");
   });
 
   it("is redirected away from Request 360° too", async () => {
-    show("/people-ops/performance/request-360");
-    expect(await screen.findByTestId("url")).toHaveTextContent("/people-ops/performance/provide-360");
+    show("/me/performance/request-360");
+    expect(await screen.findByTestId("url")).toHaveTextContent("/me/performance/provide-360");
   });
 
   it("is redirected away from F2F too", async () => {
-    show("/people-ops/performance/f2f");
-    expect(await screen.findByTestId("url")).toHaveTextContent("/people-ops/performance/provide-360");
+    show("/me/performance/f2f");
+    expect(await screen.findByTestId("url")).toHaveTextContent("/me/performance/provide-360");
   });
 
   it("still reaches the tabs they do have", async () => {
-    show("/people-ops/performance/history");
+    show("/me/performance/history");
     expect(await screen.findByTestId("tab-body")).toHaveTextContent("History");
   });
 });
@@ -175,14 +175,14 @@ describe("before the lookup has answered", () => {
 
   it("serves a deep-linked gated tab rather than redirecting", async () => {
     employeeInfo.isSuccess = false;
-    show("/people-ops/performance/employee-feedback");
+    show("/me/performance/employee-feedback");
     expect(await screen.findByTestId("tab-body")).toHaveTextContent("Employee Feedback");
   });
 
   it("sends nobody anywhere while the signed-in email is still loading", async () => {
     profile.isLoading = true;
     show();
-    expect(await screen.findByTestId("url")).toHaveTextContent("/people-ops/performance");
+    expect(await screen.findByTestId("url")).toHaveTextContent("/me/performance");
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 });
