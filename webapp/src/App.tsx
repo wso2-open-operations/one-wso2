@@ -138,6 +138,8 @@ import ViewImagePage from "@features/due-diligence/shared/pages/ViewImagePage";
 import ExpenseApprovalsScreen from "@features/finance/expense/approvals/ExpenseApprovalsScreen";
 import ExpenseLeadApprovalsScreen from "@features/finance/expense/approvals/ExpenseLeadApprovalsScreen";
 import UmtHomePage from "@features/umt/pages/UmtHomePage";
+import UmtUpdateView from "@features/umt/pages/UmtUpdateView";
+import UmtUpdatesPage from "@features/umt/pages/UmtUpdatesPage";
 
 export default function App() {
   return (
@@ -148,10 +150,16 @@ export default function App() {
           <Route index element={<Navigate to={landingPath()} replace />} />
           {/* Me home — the full profile page including Connected apps. */}
           <Route path="me" element={<MyProfilePage />} />
-          {/* Only the UMT dashboard is mounted in this phase; UmtShell owns its role
-              gate. Behind the same preview flag as its perspective entry — hiding
-              only the rail/launcher tile would leave the route reachable by URL. */}
-          {isPreviewEnabled("umt") && <Route path="umt" element={<UmtHomePage />} />}
+          {/* UmtShell owns its role gate. Behind the same preview flag as its
+              perspective entry — hiding only the rail/launcher tile would leave
+              the routes reachable by URL. */}
+          {isPreviewEnabled("umt") && (
+            <>
+              <Route path="umt" element={<UmtHomePage />} />
+              <Route path="umt/updates" element={<UmtUpdatesPage />} />
+              <Route path="umt/updates/:id" element={<UmtUpdateView />} />
+            </>
+          )}
           {/* My Team — placeholder for now; the real subordinates view is on
               hold this iteration (mirrors people-app's lead-only nav item). */}
           {/* My Team — a lead's reporting chain, ported from people-app. The

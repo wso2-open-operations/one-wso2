@@ -15,6 +15,7 @@
 // under the License.
 
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Box,
   Button,
@@ -68,6 +69,7 @@ export default function UmtHomePage() {
 // a denied user.
 function UmtDashboardBody() {
   const dashboardStats = useUmtDashboardStats();
+  const navigate = useNavigate();
   // UmtShell has already resolved this query. Calling the gate here reads the
   // cached role decision needed for the admin-only release-chunk button.
   const gate = useUmtGate();
@@ -108,7 +110,7 @@ function UmtDashboardBody() {
           <>
             <Button
               variant="outlined"
-              onClick={() => setMaintenanceModalOpen(true)}
+              onClick={() => navigate("/umt/updates")}
             >
               View updates
             </Button>

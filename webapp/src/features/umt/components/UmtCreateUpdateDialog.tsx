@@ -15,6 +15,7 @@
 // under the License.
 
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   AdapterDateFns,
   Alert,
@@ -26,42 +27,47 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   FormControlLabel,
   IconButton,
+  Link,
   MenuItem,
   Stack,
   Switch,
   Tab,
   Tabs,
   TextField,
+  Typography,
 } from "@wso2/oxygen-ui";
 import { XIcon } from "@wso2/oxygen-ui-icons-react";
+import { describeError } from "@api/errors";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
+import { useNotifications } from "@context/notifications/NotificationsContext";
+import type { UmtCreateUpdateRequest, UmtUpdateSummary } from "../api/umtUpdates";
 import { useUmtMeta } from "../api/useUmtMeta";
-import MaintenanceDialog from "./MaintenanceDialog";
+import { useUmtCheckDuplicateUpdatesByCaseId, useUmtCreateUpdate } from "../api/useUmtCreateUpdate";
+import {
+  buildUmtCreateUpdateRequest,
+  isAfterDay,
+  isCreateUpdateFormValid,
+  isValidCaseId,
+  isValidEstimateDate,
+  isValidGithubIssueUrl,
+  laterDate,
+  nextThursday,
+  resolveCreateUpdateProductId,
+  type UmtCreateIssueType,
+  type UmtCreateUpdateFormValues,
+  type UmtCreateUpdateType,
+} from "../lib/umtCreateUpdate";
 
 const { DatePicker, LocalizationProvider } = DatePickers;
 
-// Regular updates are planned on Thursdays in the source workflow. "Next"
-// means a future Thursday even when today is Thursday; the three estimates
-// start one week apart and hotfixes may then select any date.
-function nextThursday(): Date {
-  const date = new Date();
-  const days = (4 - date.getDay() + 7) % 7 || 7;
-  date.setDate(date.getDate() + days);
-  return date;
-}
-
-function laterDate(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-// First-stage port of the source Create Update form. Product/version choices
-// are live metadata, but submission remains intentionally unavailable and opens
-// MaintenanceDialog until POST /update and duplicate-case handling are ported.
+// Create submits POST /update, and first runs a client-side duplicate-case
+// pre-check (see UmtDuplicateUpdatesDialog below). The backend's own
+// duplicate rejection is hotfix-specific and only ever surfaces as an error
+// from the create call itself; there is no separate pre-check endpoint.
 export default function UmtCreateUpdateDialog({
   open,
   onClose,
@@ -70,10 +76,18 @@ export default function UmtCreateUpdateDialog({
   onClose: () => void;
 }) {
   const meta = useUmtMeta();
+  const navigate = useNavigate();
+  const { showSuccess } = useNotifications();
+  const checkDuplicates = useUmtCheckDuplicateUpdatesByCaseId();
+  const createUpdate = useUmtCreateUpdate();
+
   const [isProactive, setIsProactive] = useState(false);
   const [isHotfix, setIsHotfix] = useState(false);
-  const [updateType, setUpdateType] = useState("regular");
-  const [issueType, setIssueType] = useState("bug");
+  const [updateType, setUpdateType] = useState<UmtCreateUpdateType>("regular");
+  const [issueType, setIssueType] = useState<UmtCreateIssueType>("bug");
+  const [caseId, setCaseId] = useState("");
+  const [internalGitIssue, setInternalGitIssue] = useState("");
+  const [publicOrSecurityGitIssue, setPublicOrSecurityGitIssue] = useState("");
   const [product, setProduct] = useState<string | null>(null);
   const [showAllVersions, setShowAllVersions] = useState(false);
   const [version, setVersion] = useState<string | null>(null);
@@ -84,15 +98,21 @@ export default function UmtCreateUpdateDialog({
   const [worstCaseEstimate, setWorstCaseEstimate] = useState<Date | null>(() =>
     laterDate(nextThursday(), 14),
   );
-  const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateResults, setDuplicateResults] = useState<UmtUpdateSummary[]>([]);
+  const [pendingRequest, setPendingRequest] = useState<UmtCreateUpdateRequest | null>(null);
+
+  const isSecurityUpdate = updateType === "security";
+  const isCloudSupportUpdate = updateType === "cloud-support";
 
   const productOptions = useMemo(() => {
     const names = Object.keys(meta.data?.products ?? {});
     // Cloud-support updates are limited to the two cloud products in the source.
-    return updateType === "cloud-support"
+    return isCloudSupportUpdate
       ? names.filter((name) => ["asgardeo", "choreo"].includes(name.toLowerCase()))
       : names;
-  }, [meta.data?.products, updateType]);
+  }, [meta.data?.products, isCloudSupportUpdate]);
 
   const versionOptions = useMemo(() => {
     if (!product) return [];
@@ -104,25 +124,125 @@ export default function UmtCreateUpdateDialog({
     return [...new Set(versions.filter(Boolean))];
   }, [meta.data?.products, product, showAllVersions]);
 
-  const isSecurityUpdate = updateType === "security";
-  const isCloudSupportUpdate = updateType === "cloud-support";
+  const productId = resolveCreateUpdateProductId(
+    meta.data?.products ?? {},
+    product,
+    version,
+    showAllVersions,
+    isCloudSupportUpdate,
+  );
+
+  const formValues: UmtCreateUpdateFormValues = {
+    isProactive,
+    isHotfix,
+    updateType,
+    issueType,
+    caseId,
+    internalGitIssue,
+    publicOrSecurityGitIssue,
+    productId,
+    bestCaseEstimate,
+    mostLikelyEstimate,
+    worstCaseEstimate,
+  };
+  const isFormValid = isCreateUpdateFormValid(formValues);
+
+  // Per-field validation messages, surfaced only once a date is present (a
+  // blank/invalid field is already covered by the DatePicker's own
+  // required/invalid state).
+  const isValidDate = (date: Date | null): date is Date => date !== null && !Number.isNaN(date.getTime());
+  const bestCaseEstimateError =
+    isValidDate(bestCaseEstimate) && !isValidEstimateDate(bestCaseEstimate, isHotfix)
+      ? "Best Case Date must be a Thursday unless it's a Hotfix."
+      : undefined;
+  const mostLikelyEstimateError = !isValidDate(mostLikelyEstimate)
+    ? undefined
+    : isValidDate(bestCaseEstimate) && !isAfterDay(bestCaseEstimate, mostLikelyEstimate)
+      ? "Must be after Best Case Estimate."
+      : !isValidEstimateDate(mostLikelyEstimate, isHotfix)
+        ? "Most Likely Date must be a Thursday unless it's a Hotfix."
+        : undefined;
+  const worstCaseEstimateError = !isValidDate(worstCaseEstimate)
+    ? undefined
+    : isValidDate(mostLikelyEstimate) && !isAfterDay(mostLikelyEstimate, worstCaseEstimate)
+      ? "Must be after Most Likely Estimate."
+      : !isValidEstimateDate(worstCaseEstimate, isHotfix)
+        ? "Worst Case Date must be a Thursday unless it's a Hotfix."
+        : undefined;
+
+  const isChecking = checkDuplicates.isPending;
+  const isCreating = createUpdate.isPending;
+  const isBusy = isChecking || isCreating;
+
+  // Shared by handleClose and the Hotfix toggle: resets all three estimates
+  // to next-Thursday/+7/+14 whenever Hotfix turns off, so a date typed or
+  // picked while Hotfix allowed any day can't be left violating the
+  // Thursday rule.
+  function resetEstimatesToNextThursday() {
+    const nextEstimate = nextThursday();
+    setBestCaseEstimate(nextEstimate);
+    setMostLikelyEstimate(laterDate(nextEstimate, 7));
+    setWorstCaseEstimate(laterDate(nextEstimate, 14));
+  }
 
   // Dialog visibility does not unmount this component, so reset explicitly to
   // avoid carrying abandoned form values into the next creation attempt.
   const handleClose = () => {
-    const nextEstimate = nextThursday();
+    if (isBusy) return;
     setIsProactive(false);
     setIsHotfix(false);
     setUpdateType("regular");
     setIssueType("bug");
+    setCaseId("");
+    setInternalGitIssue("");
+    setPublicOrSecurityGitIssue("");
     setProduct(null);
     setShowAllVersions(false);
     setVersion(null);
-    setBestCaseEstimate(nextEstimate);
-    setMostLikelyEstimate(laterDate(nextEstimate, 7));
-    setWorstCaseEstimate(laterDate(nextEstimate, 14));
+    resetEstimatesToNextThursday();
+    setSubmitError(null);
+    setDuplicateDialogOpen(false);
+    setDuplicateResults([]);
+    setPendingRequest(null);
     onClose();
   };
+
+  async function submitCreate(request: UmtCreateUpdateRequest) {
+    try {
+      const created = await createUpdate.mutateAsync(request);
+      const newId = created[0]?.id;
+      showSuccess("Update created successfully.");
+      handleClose();
+      if (newId) navigate(`/umt/updates/${newId}`);
+    } catch (error) {
+      setSubmitError(describeError(error));
+      setDuplicateDialogOpen(false);
+    }
+  }
+
+  async function handleCreateClick() {
+    setSubmitError(null);
+    if (!isFormValid || productId === null) return;
+    const request = buildUmtCreateUpdateRequest(formValues);
+
+    if (!isProactive && caseId.trim()) {
+      try {
+        const response = await checkDuplicates.mutateAsync(caseId.trim());
+        const existing = response.updates ?? [];
+        if (existing.length > 0) {
+          setDuplicateResults([...existing].sort((a, b) => b.id - a.id));
+          setPendingRequest(request);
+          setDuplicateDialogOpen(true);
+          return;
+        }
+      } catch (error) {
+        setSubmitError(describeError(error));
+        return;
+      }
+    }
+
+    await submitCreate(request);
+  }
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
@@ -131,6 +251,7 @@ export default function UmtCreateUpdateDialog({
         <IconButton
           aria-label="Close create update dialog"
           onClick={handleClose}
+          disabled={isBusy}
           sx={{ position: "absolute", right: 12, top: 12 }}
         >
           <XIcon size={18} />
@@ -138,11 +259,6 @@ export default function UmtCreateUpdateDialog({
       </DialogTitle>
 
       <DialogContent dividers>
-        <Alert severity="info" sx={{ mb: 3 }}>
-          This form previews the Create Update workflow. Submitting isn&apos;t wired up
-          yet. Create will show an unavailable notice instead of creating an update.
-        </Alert>
-
         {meta.isError && (
           <ErrorNotice
             error={meta.error}
@@ -166,14 +282,33 @@ export default function UmtCreateUpdateDialog({
         </Tabs>
 
         <Stack spacing={2.25}>
+          {submitError && <Alert severity="error">{submitError}</Alert>}
+
           <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr auto" } }}>
-            <TextField label="Case ID" required={!isProactive} disabled={isProactive} size="small" />
+            <TextField
+              label="Case ID"
+              required={!isProactive}
+              disabled={isProactive}
+              size="small"
+              value={caseId}
+              onChange={(event) => setCaseId(event.target.value)}
+              error={!isProactive && caseId.trim().length > 0 && !isValidCaseId(caseId)}
+              helperText={
+                !isProactive && caseId.trim().length > 0 && !isValidCaseId(caseId)
+                  ? "Invalid Case ID."
+                  : undefined
+              }
+            />
             <FormControlLabel
               control={
                 <Switch
                   size="small"
                   checked={isHotfix}
-                  onChange={(event) => setIsHotfix(event.target.checked)}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setIsHotfix(checked);
+                    if (!checked) resetEstimatesToNextThursday();
+                  }}
                 />
               }
               label="Hotfix"
@@ -189,7 +324,7 @@ export default function UmtCreateUpdateDialog({
               size="small"
               value={updateType}
               onChange={(event) => {
-                setUpdateType(event.target.value);
+                setUpdateType(event.target.value as UmtCreateUpdateType);
                 setProduct(null);
                 setVersion(null);
               }}
@@ -203,7 +338,7 @@ export default function UmtCreateUpdateDialog({
               label="Issue Type"
               size="small"
               value={issueType}
-              onChange={(event) => setIssueType(event.target.value)}
+              onChange={(event) => setIssueType(event.target.value as UmtCreateIssueType)}
             >
               <MenuItem value="bug">Bug</MenuItem>
               <MenuItem value="improvement">Improvement</MenuItem>
@@ -215,8 +350,28 @@ export default function UmtCreateUpdateDialog({
             label={isSecurityUpdate ? "Security Internal Git Issue" : "Public Git Issue"}
             required
             size="small"
+            value={publicOrSecurityGitIssue}
+            onChange={(event) => setPublicOrSecurityGitIssue(event.target.value)}
+            error={publicOrSecurityGitIssue.length > 0 && !isValidGithubIssueUrl(publicOrSecurityGitIssue)}
+            helperText={
+              publicOrSecurityGitIssue.length > 0 && !isValidGithubIssueUrl(publicOrSecurityGitIssue)
+                ? "Must be a WSO2 GitHub issue URL."
+                : undefined
+            }
           />
-          <TextField label="Internal Git Issue" required size="small" />
+          <TextField
+            label="Internal Git Issue"
+            required
+            size="small"
+            value={internalGitIssue}
+            onChange={(event) => setInternalGitIssue(event.target.value)}
+            error={internalGitIssue.length > 0 && !isValidGithubIssueUrl(internalGitIssue)}
+            helperText={
+              internalGitIssue.length > 0 && !isValidGithubIssueUrl(internalGitIssue)
+                ? "Must be a WSO2 GitHub issue URL."
+                : undefined
+            }
+          />
 
           <Autocomplete
             options={productOptions}
@@ -269,7 +424,14 @@ export default function UmtCreateUpdateDialog({
               onChange={setBestCaseEstimate}
               disablePast
               shouldDisableDate={(date) => !isHotfix && date.getDay() !== 4}
-              slotProps={{ textField: { required: true, size: "small" } }}
+              slotProps={{
+                textField: {
+                  required: true,
+                  size: "small",
+                  error: Boolean(bestCaseEstimateError),
+                  helperText: bestCaseEstimateError,
+                },
+              }}
             />
             <DatePicker
               label="Most Likely Estimate"
@@ -278,7 +440,14 @@ export default function UmtCreateUpdateDialog({
               disablePast
               minDate={bestCaseEstimate ?? undefined}
               shouldDisableDate={(date) => !isHotfix && date.getDay() !== 4}
-              slotProps={{ textField: { required: true, size: "small" } }}
+              slotProps={{
+                textField: {
+                  required: true,
+                  size: "small",
+                  error: Boolean(mostLikelyEstimateError),
+                  helperText: mostLikelyEstimateError,
+                },
+              }}
             />
             <DatePicker
               label="Worst Case Estimate"
@@ -287,24 +456,108 @@ export default function UmtCreateUpdateDialog({
               disablePast
               minDate={mostLikelyEstimate ?? undefined}
               shouldDisableDate={(date) => !isHotfix && date.getDay() !== 4}
-              slotProps={{ textField: { required: true, size: "small" } }}
+              slotProps={{
+                textField: {
+                  required: true,
+                  size: "small",
+                  error: Boolean(worstCaseEstimateError),
+                  helperText: worstCaseEstimateError,
+                },
+              }}
             />
           </LocalizationProvider>
         </Stack>
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button variant="outlined" onClick={handleClose}>
+        <Button variant="outlined" onClick={handleClose} disabled={isBusy}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={() => setMaintenanceModalOpen(true)}>
-          Create
+        <Button
+          variant="contained"
+          disabled={!isFormValid || isBusy}
+          loading={isBusy}
+          onClick={() => void handleCreateClick()}
+        >
+          {isChecking ? "Checking…" : isCreating ? "Creating…" : "Create"}
         </Button>
       </DialogActions>
-      <MaintenanceDialog
-        open={maintenanceModalOpen}
-        onClose={() => setMaintenanceModalOpen(false)}
+
+      <UmtDuplicateUpdatesDialog
+        open={duplicateDialogOpen}
+        updates={duplicateResults}
+        busy={isCreating}
+        onCancel={() => {
+          setDuplicateDialogOpen(false);
+          setPendingRequest(null);
+          setDuplicateResults([]);
+        }}
+        onProceed={() => {
+          if (pendingRequest) void submitCreate(pendingRequest);
+        }}
       />
+    </Dialog>
+  );
+}
+
+// A confirm dialog listing existing updates for the same case ID, letting
+// the user proceed anyway or go back and edit. Not a real backend
+// constraint by itself — the backend's own duplicate rejection
+// (hotfix-specific) only ever surfaces as an error from the create call,
+// surfaced via submitError instead.
+function UmtDuplicateUpdatesDialog({
+  open,
+  updates,
+  busy,
+  onCancel,
+  onProceed,
+}: {
+  open: boolean;
+  updates: UmtUpdateSummary[];
+  busy: boolean;
+  onCancel: () => void;
+  onProceed: () => void;
+}) {
+  return (
+    <Dialog open={open} onClose={onCancel} fullWidth maxWidth="sm">
+      <DialogTitle>Existing updates found</DialogTitle>
+      <DialogContent>
+        <DialogContentText sx={{ mb: 2 }}>
+          We found existing update(s) for this case ID. Proceed anyway, or cancel and review them first.
+        </DialogContentText>
+        <Stack spacing={1.5}>
+          {updates.map((update) => (
+            <Box key={update.id}>
+              <Link
+                href={`/umt/updates/${update.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                underline="hover"
+              >
+                Update {update.id}
+              </Link>
+              <Typography variant="body2" color="text.secondary">
+                {[
+                  update.wso2CaseId ?? "N/A",
+                  update.lifecycle ?? "N/A",
+                  update.lifecycleState ?? "N/A",
+                  (update.products ?? [])
+                    .map((p) => `${p.product?.name ?? "N/A"}-${p.product?.version ?? "N/A"}`)
+                    .join(", ") || "N/A",
+                ].join(" | ")}
+              </Typography>
+            </Box>
+          ))}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+        <Button variant="contained" loading={busy} onClick={onProceed}>
+          Proceed
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }

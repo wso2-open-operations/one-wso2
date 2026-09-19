@@ -464,6 +464,78 @@ export const umtServiceUrls = {
   meta: `${umtBackendUrl}/meta`,
   // GET — aggregate update lifecycle and release-chunk build counts.
   updatesStats: `${umtBackendUrl}/update/stats`,
+  // POST — filtered, server-paginated update summaries.
+  updatesSearch: `${umtBackendUrl}/update/search`,
+  // POST — creates a new update (and, for a hotfix, a second cloned entity).
+  createUpdate: `${umtBackendUrl}/update`,
+  // GET — one update by its numeric id.
+  update: (id: string | number) => `${umtBackendUrl}/update/${encodeURIComponent(id)}`,
+  // GET — existence/format check for one advisory id, used while typing in
+  // the Security Advisory step's Add modal. Saving the resulting list back
+  // reuses the plain `update(id)` PUT above — no dedicated save endpoint.
+  validateSecurityAdvisory: (advisoryId: string) =>
+    `${umtBackendUrl}/update/validate-security-advisory/${encodeURIComponent(advisoryId)}`,
+  // PUT — updates the worst-case estimate independently from general fields.
+  updateWorstCaseEstimate: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/worstCaseEstimate`,
+  // GET — audit trail for worst-case estimate changes.
+  updateWorstCaseEstimateLog: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/worstCaseEstimate/log`,
+  // GET — lifecycle state transition audit trail for an update.
+  updateLifecycleStateLog: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/lifecycleState/log`,
+  // Branch inspection and creation endpoints used by the update Branch tab.
+  updateBranches: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/branch`,
+  createUpdateBranch: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/updateBranch`,
+  createHotfixBranch: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/hotfixBranch`,
+  componentMaxUpdateLevel: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/componentMaxUpdateLevel`,
+  // GET — supplementary data displayed in the update View tab.
+  updateDependencies: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/dependency`,
+  updatePullRequestAnalysis: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/pullRequestAnalysis`,
+  // GET — polled while PR analysis is QUEUED/PROCESSING.
+  updatePullRequestAnalysisStatus: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/pullRequestAnalysisStatus`,
+  // POST (multipart) — uploads one manually-added file for PR analysis.
+  updatePullRequestAnalysisFile: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/pullRequestAnalysis/file`,
+  updateProductAnalysis: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/productAnalysis`,
+  // PUT — replaces an update's product list (distinct from product-analysis
+  // results, which live at updateProductAnalysis above).
+  updateProducts: (id: string | number) => `${umtBackendUrl}/update/${encodeURIComponent(id)}/products`,
+  // PUT — per-product description/instruction update (only these 3 keys are
+  // ever sent), distinct from updateProducts's whole-list replace above.
+  updateProductsDetails: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/products/details`,
+  // GET/PUT — per-product manual test-result review for the Testing step.
+  // PUT accepts exactly one product per call.
+  updateIntegrationTestStaging: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/integrationTest/staging`,
+  updateHotfixInfo: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/hotfixInfo`,
+  // POST subscribes the caller; DELETE removes the caller's subscription.
+  updateSubscription: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/subscribe`,
+  // PUT — moves an update to OnHold with a reason, from the View tab's
+  // action row (Development/PRAnalyzed/ProductAnalyzed only).
+  updateOnHold: (id: string | number) => `${umtBackendUrl}/update/${encodeURIComponent(id)}/onHold`,
+  // POST — records a "Duplicate" relationship between two updates, from the
+  // View tab's "Mark as Duplicate" action.
+  updateDependency: `${umtBackendUrl}/update/dependency`,
+  // POST — replaces an update's whole Public GitHub Issues list.
+  updateIssues: (id: string | number) => `${umtBackendUrl}/update/${encodeURIComponent(id)}/issue`,
+  // POST — replaces an update's whole Public Pull Requests list.
+  updatePublicPullRequests: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/publicPullRequest`,
+  // POST — replaces an update's whole Integration Test Pull Requests list.
+  updateTestPullRequests: (id: string | number) =>
+    `${umtBackendUrl}/update/${encodeURIComponent(id)}/testPullRequest`,
 };
 
 // ---- marketing-ops backend -------------------------------------------------

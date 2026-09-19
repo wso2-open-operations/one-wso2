@@ -15,7 +15,9 @@
 // under the License.
 
 import type { ReactNode } from "react";
-import { Alert, Box, CircularProgress, Stack, Typography } from "@wso2/oxygen-ui";
+import { Alert, Box, CircularProgress, IconButton, Stack, Typography } from "@wso2/oxygen-ui";
+import { ArrowLeftIcon } from "@wso2/oxygen-ui-icons-react";
+import { Link as RouterLink } from "react-router";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { isUmtBackendConfigured } from "@config/apiConfig";
 import { useUmtGate } from "../api/useUmtGate";
@@ -35,9 +37,11 @@ import UmtLocked from "./UmtLocked";
 // mount only after the decision succeeds, so denied users make no feature calls.
 export default function UmtShell({
   title,
+  backTo,
   children,
 }: {
   title: string;
+  backTo?: string;
   children: ReactNode;
 }) {
   const configured = isUmtBackendConfigured();
@@ -45,9 +49,16 @@ export default function UmtShell({
 
   return (
     <Box sx={{ display: "flex", flex: 1, flexDirection: "column", minHeight: 0 }}>
-      <Typography component="h1" variant="h5" sx={{ mb: 2.25, mt: 0 }}>
-        {title}
-      </Typography>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2.25, mt: 0 }}>
+        {backTo && (
+          <IconButton component={RouterLink} to={backTo} size="small" aria-label="Back">
+            <ArrowLeftIcon size={18} />
+          </IconButton>
+        )}
+        <Typography component="h1" variant="h5" sx={{ m: 0 }}>
+          {title}
+        </Typography>
+      </Stack>
 
       <UmtBody configured={configured} gate={gate}>
         {children}

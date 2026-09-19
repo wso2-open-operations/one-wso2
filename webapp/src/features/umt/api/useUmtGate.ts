@@ -14,6 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import { useEffect } from "react";
+import { useAsgardeo } from "@asgardeo/react";
 import { describeError } from "@api/errors";
 import { UMT_ROLE_ID, type UmtRole } from "./umtTypes";
 import { useUmtUserInfo } from "./useUmtUserInfo";
@@ -47,6 +49,22 @@ function umtRolesFromIds(roleIds: readonly number[] | undefined): Set<UmtRole> {
   return roles;
 }
 
+// Module-level, not React state: every top-level UMT page renders its own
+// UmtShell, so navigating between them (e.g. /umt -> /umt/updates) unmounts
+// and remounts the whole useUmtGate -> useUmtUserInfo -> useAsgardeoSub
+// chain. useAsgardeoSub resolves the Asgardeo subject via local component
+// state, so a fresh mount briefly has no `sub`, which briefly changes
+// useUmtUserInfo's query key and makes it look unresolved again even though
+// the real answer was already known a moment ago on the page just left.
+// Remembering the last real role set here — surviving the remount — avoids
+// re-flashing "Checking your UMT access..." on every navigation. Cleared on
+// sign-out so a different account in the same tab can never see it.
+let lastKnownRoles: Set<UmtRole> | null = null;
+
+export function __resetUmtGateCacheForTests(): void {
+  lastKnownRoles = null;
+}
+
 // Translates UMT's numeric service roles into the named decisions consumed by
 // the shell and dashboard. Any recognised role grants entry to the perspective;
 // `isAdmin` additionally gates product management and release-chunk creation.
@@ -54,8 +72,51 @@ function umtRolesFromIds(roleIds: readonly number[] | undefined): Set<UmtRole> {
 // This deliberately does not read People capabilities. UMT owns a separate
 // role vocabulary, returned by its own /update/user-info endpoint.
 export function useUmtGate(enabled = true): UmtGate {
+  const { isSignedIn } = useAsgardeo();
   const userInfo = useUmtUserInfo(enabled);
-  const roles = umtRolesFromIds(userInfo.data?.roles);
+  const roleIds = userInfo.data?.roles;
+  // TanStack keeps the last successful `data` in the cache through a failed
+  // background refetch (`isError` and `data` are not mutually exclusive) —
+  // so a request that has ever succeeded still has usable data even while
+  // `isError` is currently true. Only a check that has *never* produced a
+  // real answer (first load, or one already cleared to nothing) has none.
+  const hasData = userInfo.data !== undefined;
+
+  // Mutating module state must happen as an effect, not during render (React
+  // may render this hook more than once per commit) — the read below is
+  // still a plain, pure read of whatever a *previous* commit last wrote.
+  useEffect(() => {
+    if (!isSignedIn) {
+      lastKnownRoles = null;
+    } else if (hasData) {
+      lastKnownRoles = umtRolesFromIds(roleIds);
+    } else if (userInfo.isError) {
+      // A failed check that has never returned real data must never leave a
+      // remembered grant behind for a later remount (e.g. navigating away
+      // and back while /update/user-info is still erroring) to resurrect.
+      lastKnownRoles = null;
+    }
+  }, [isSignedIn, hasData, roleIds, userInfo.isError]);
+
+  // `lastKnownRoles` exists only to smooth over a remount while the SAME
+  // decision is still in flight (see the comment above the module variable);
+  // it must not be consulted once a check has genuinely failed with no data
+  // to fall back on, or an admin whose role was just revoked keeps seeing
+  // admin-only controls enabled for as long as `/update/user-info` keeps
+  // erroring. This has to be checked here, not only in the effect above:
+  // writing to a module variable in an effect doesn't itself trigger a
+  // re-render, so the render that first observes `isError` would otherwise
+  // still compute roles from the not-yet-cleared cache.
+  //
+  // A background refetch failing while `data` is still cached (a transient
+  // blip on an already-authorized session) is deliberately NOT treated as a
+  // denial here: `hasData` takes priority over `isError`, so the last real
+  // answer keeps being used instead of blanking an already-working page.
+  const roles = hasData
+    ? umtRolesFromIds(roleIds)
+    : userInfo.isError
+      ? new Set<UmtRole>()
+      : (lastKnownRoles ?? new Set<UmtRole>());
   const hasRole = (role: UmtRole): boolean => roles.has(role);
 
   return {
@@ -66,9 +127,14 @@ export function useUmtGate(enabled = true): UmtGate {
     hasRole,
     // `isPending`, not `isLoading`: the query is disabled while the Asgardeo
     // subject resolves, but the authorization decision is still outstanding.
-    isResolving: enabled && userInfo.isPending,
-    isError: userInfo.isError,
-    errorMessage: userInfo.isError ? describeError(userInfo.error) : undefined,
+    // Only shown when there's truly no prior decision to fall back on — i.e.
+    // the session's actual first load, not a remount of an already-known one.
+    isResolving: enabled && userInfo.isPending && !lastKnownRoles,
+    // Only surfaced when there's no cached answer to fall back on — a
+    // background refetch failure with `data` still cached is absorbed above
+    // instead of being reported as a request failure to the caller.
+    isError: userInfo.isError && !hasData,
+    errorMessage: userInfo.isError && !hasData ? describeError(userInfo.error) : undefined,
     retry: () => void userInfo.refetch(),
   };
 }

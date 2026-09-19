@@ -28,6 +28,7 @@ import {
   LayoutDashboard,
   MegaphoneIcon,
   NetworkIcon,
+  RefreshCcw,
   SatelliteDishIcon,
   ScaleIcon,
   ShieldIcon,
@@ -317,6 +318,10 @@ const ME_SECTIONS: PerspectiveSection[] = [
   ...appsToSections(ME_FINANCE_APPS),
 ];
 
+const UMT_SECTIONS: PerspectiveSection[] = [
+  { id: "umt-updates", label: "Updates", icon: RefreshCcw, path: "/umt/updates" },
+];
+
 export interface PerspectiveDef {
   key: string;
   label: string;
@@ -501,9 +506,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     path: "/me",
     sections: ME_SECTIONS,
   },
-  // UMT currently exposes only its dashboard. An empty section list keeps the
-  // rail at Overview until the update, product, chunk and statistics routes are
-  // actually ported; UmtShell performs the service-owned role check at /umt.
+  // UmtShell performs the service-owned role check for all UMT pages.
   //
   // Held behind a preview flag, whole perspective and all, until it's ready for
   // production — not just `access: false`, because that would still leave a
@@ -520,7 +523,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
           externallyGated: true,
           access: true,
           path: "/umt",
-          sections: [],
+          sections: UMT_SECTIONS,
         },
       ]
     : []),

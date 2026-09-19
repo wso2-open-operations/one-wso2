@@ -27,15 +27,17 @@ export function DashboardWidgetHolder({
   title,
   actions,
   children,
+  backgroundColor = "transparent",
 }: {
-  title: string;
+  title: ReactNode;
   actions: ReactNode;
   children: ReactNode;
+  backgroundColor?: string;
 }) {
   return (
     <Card
       variant="outlined"
-      sx={{ backgroundColor: "transparent", overflowX: "auto", p: { xs: 2, sm: 3 } }}
+      sx={{ backgroundColor, overflowX: "auto", p: { xs: 2, sm: 3 } }}
     >
       <Box
         sx={{

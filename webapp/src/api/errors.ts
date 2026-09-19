@@ -27,9 +27,17 @@ export function describeError(err: unknown): string {
   if (err instanceof HttpError) {
     if (err.responseBody) {
       try {
-        const parsed = JSON.parse(err.responseBody) as { message?: unknown };
+        const parsed = JSON.parse(err.responseBody) as {
+          message?: unknown;
+          error?: { message?: unknown };
+        };
         if (parsed && typeof parsed.message === "string" && parsed.message.trim()) {
           return parsed.message;
+        }
+        // Some backends (e.g. UMT) nest the message under `error` instead of
+        // returning it flat.
+        if (parsed?.error && typeof parsed.error.message === "string" && parsed.error.message.trim()) {
+          return parsed.error.message;
         }
       } catch {
         // non-JSON body — fall through
