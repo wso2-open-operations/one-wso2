@@ -87,12 +87,15 @@ function getFilterValueLabel(key: string, value: string): string {
 
 // ── Quick filter (tab) helpers ────────────────────────────────────────────────
 
-type QuickFilter = "approved" | "inProgress" | "overdue";
-const QUICK_FILTERS: QuickFilter[] = ["approved", "inProgress", "overdue"];
+type QuickFilter = "allPending" | "approved" | "inProgress" | "overdue";
+const QUICK_FILTERS: QuickFilter[] = ["allPending", "approved", "inProgress", "overdue"];
 
 function applyQuickFilter(controls: AuditControl[], qf: QuickFilter): AuditControl[] {
   if (qf === "approved") return controls.filter((c) => c.status === "COMPLETE");
   if (qf === "overdue") return controls.filter((c) => c.isOverdue);
+  // allPending mirrors the Work Queue's All Pending tab: every non-terminal
+  // status, regardless of due date — the union of In Progress and Overdue.
+  if (qf === "allPending") return controls.filter((c) => c.status !== "COMPLETE");
   return controls.filter((c) => c.status !== "COMPLETE" && !c.isOverdue);
 }
 
@@ -200,6 +203,7 @@ export default function AuditDetailPage(): JSX.Element {
     (c) => c.status !== "COMPLETE" && !c.isOverdue,
   ).length;
   const overdueCount = controls.filter((c) => c.isOverdue).length;
+  const allPendingCount = controls.filter((c) => c.status !== "COMPLETE").length;
   const approvedPct = controls.length > 0 ? Math.round((approvedCount / controls.length) * 100) : 0;
 
   function handleFilterChange(newFilters: Record<string, string[]>) {
@@ -226,11 +230,11 @@ export default function AuditDetailPage(): JSX.Element {
     search.trim().length > 0;
 
   // Return to the framework-scoped audit list the user likely came from
-  // (AuditsListPage's drilled view, /audit/audits?framework=<id>) rather than
+  // (AuditsListPage's drilled view, /security/audit/audits?framework=<id>) rather than
   // always dropping back to the top-level framework overview — the audit's
   // own framework id is already loaded, so no navigation state needs threading.
   const handleBack = () =>
-    void navigate(audit ? `/audit/audits?framework=${audit.framework.id}` : "/audit/audits");
+    void navigate(audit ? `/security/audit/audits?framework=${audit.framework.id}` : "/security/audit/audits");
 
   // Days-left pill for active audits.
   const remaining = audit?.status === "ACTIVE" ? daysLeft(audit.periodEnd) : null;
@@ -383,6 +387,7 @@ export default function AuditDetailPage(): JSX.Element {
           }}
         >
           <Tab value="all" label={`All (${controls.length})`} />
+          <Tab value="allPending" label={`All Pending (${allPendingCount})`} />
           <Tab value="approved" label={`Approved (${approvedCount})`} />
           <Tab value="inProgress" label={`In Progress (${inProgressCount})`} />
           <Tab

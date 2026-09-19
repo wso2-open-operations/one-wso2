@@ -19,7 +19,7 @@ import { useAuthApiClient } from "@features/security/grc/shim/useAuthApiClient";
 import { BACKEND_BASE_URL } from "@features/security/grc/shim/apiConfig";
 import type { ActionItem } from "@features/security/grc/modules/audit/types/dashboard";
 
-export type WorkQueueTab = "action-items" | "due-soon" | "pending" | "validation" | "overdue";
+export type WorkQueueTab = "action-items" | "due-soon" | "pending" | "validation" | "overdue" | "all-pending";
 
 export interface WorkQueuePage {
   items: ActionItem[];

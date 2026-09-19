@@ -122,13 +122,16 @@ const SELECT_MENU_PROPS = {
 let _localIdCounter = 0;
 const nextLocalId = () => String(++_localIdCounter);
 
-
-// that a due date isn't in the past.
+// Flags a due date that lands in the past for a live/upcoming audit — a
+// likely typo or CSV fallback mistake (see `allowPastDueDate` below).
 function todayISO(): string {
   const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
+  // UTC, not local: dueInfo() (Work Queue) anchors "today" to the UTC calendar
+  // date since the backend's DB connection is UTC-pinned. Using local here would
+  // let this warning disagree with the Work Queue near UTC midnight.
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
@@ -343,10 +346,15 @@ interface PopulationDialogProps {
   users: AuditUser[];
   auditorCandidates: AuditUser[];
   teams: AuditTeam[];
+  // Lifts the "due date in the past" warning when the audit period has
+  // already ended (a retrospective engagement) — past dates are expected
+  // there. Live/upcoming audits still get the warning (not a hard block —
+  // this page is admin-only and backdating may be intentional).
+  allowPastDueDate: boolean;
 }
 
 function PopulationDialog({
-  open, controlDraft, onClose, onChangePopulation, onChangeAuditor, users, auditorCandidates, teams,
+  open, controlDraft, onClose, onChangePopulation, onChangeAuditor, users, auditorCandidates, teams, allowPastDueDate,
 }: PopulationDialogProps): JSX.Element {
   const pop = controlDraft.population ?? blankPopulation();
   const paperProps = DROPDOWN_PAPER_PROPS;
@@ -377,16 +385,19 @@ function PopulationDialog({
         />
 
         {/* Due date */}
-        <TextField
-          label="Population Due Date"
-          required
-          type="date"
-          fullWidth
-          value={pop.dueDate}
-          onChange={(e) => onChangePopulation({ ...pop, dueDate: e.target.value })}
-          InputLabelProps={{ shrink: true }}
-          helperText="When population must be submitted"
-        />
+        <Tooltip title={!allowPastDueDate && pop.dueDate && pop.dueDate < todayISO() ? "This date is in the past — double-check before continuing" : ""}>
+          <TextField
+            label="Population Due Date"
+            required
+            type="date"
+            fullWidth
+            value={pop.dueDate}
+            onChange={(e) => onChangePopulation({ ...pop, dueDate: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+            error={Boolean(!allowPastDueDate && pop.dueDate && pop.dueDate < todayISO())}
+            helperText="When population must be submitted"
+          />
+        </Tooltip>
 
         {/* Comments — separate row so the textarea has full width */}
         <TextField
@@ -473,7 +484,7 @@ interface EditableControlsTableProps {
   // under the "Copy from Framework" top source — Copy from Previous
   // Audit never pushes, so the caller passes false there.
   showPushColumn: boolean;
-  // Lifts the "due date in the past" warning/min when the audit period has
+  // Lifts the "due date in the past" warning when the audit period has
   // already ended (a retrospective engagement).
   allowPastDueDate: boolean;
 }
@@ -734,12 +745,14 @@ function EditableControlsTable({ drafts, onChange, users, auditorCandidates, tea
                   ))}
                 </Select>
               </TableCell>
-              {/* Due Date — at the end. Must be today or later (never in the
-                  past) for a live audit — `min` blocks it in the native picker,
-                  `error` catches a past date typed/pasted directly. Both are
-                  lifted for a retrospective audit (period already ended). */}
+              {/* Due Date — at the end. This whole page is admin-only
+                  (AuditPrivilege.CreateAudit), so past dates aren't
+                  hard-blocked (e.g. a retrospective audit, or a control
+                  already effective before onboarding) — but a past date on
+                  a live/upcoming audit is still flagged, since it's more
+                  often a typo or CSV fallback than an intentional backdate. */}
               <TableCell>
-                <Tooltip title={!allowPastDueDate && d.dueDate && d.dueDate < todayISO() ? "Due Date cannot be in the past" : ""}>
+                <Tooltip title={!allowPastDueDate && d.dueDate && d.dueDate < todayISO() ? "This date is in the past — double-check before continuing" : ""}>
                   <TextField
                     value={d.dueDate}
                     onChange={(e) => update(d.localId, "dueDate", e.target.value)}
@@ -748,7 +761,7 @@ function EditableControlsTable({ drafts, onChange, users, auditorCandidates, tea
                     variant="standard"
                     error={Boolean(!allowPastDueDate && d.dueDate && d.dueDate < todayISO())}
                     InputLabelProps={{ shrink: true }}
-                    inputProps={{ style: FS, min: allowPastDueDate ? undefined : todayISO() }}
+                    inputProps={{ style: FS }}
                   />
                 </Tooltip>
               </TableCell>
@@ -796,6 +809,7 @@ function EditableControlsTable({ drafts, onChange, users, auditorCandidates, tea
       <PopulationDialog
         open={Boolean(populationDialogId)}
         controlDraft={dialogDraft}
+        allowPastDueDate={allowPastDueDate}
         onClose={() => setPopulationDialogId(null)}
         onChangePopulation={(p) => {
           // Auto-fill the control's owner/team from the population as a default.
@@ -2017,13 +2031,14 @@ export default function CreateAuditPage(): JSX.Element {
     periodEnd.length > 0 &&
     periodEnd >= periodStart;
 
-  // The "due date not in the past" guard is for live/upcoming audits. A
-  // completed historical period legitimately has every due date in the past —
-  // and blank CSV due dates fall back to that past periodEnd — so the guard is
-  // lifted once periodEnd is before today. Active/future periods are unchanged.
-  const allowPastDueDate = periodEnd.length > 0 && periodEnd < todayISO();
-
   // Step 2 → 3: every draft row must be complete (blank rows are not allowed).
+  // A due date in the past isn't a hard error here — this whole page is
+  // gated on AuditPrivilege.CreateAudit (compliance-admin only), and admins
+  // may deliberately backdate (e.g. a retrospective audit, or a control
+  // already effective before onboarding). It's still flagged inline on the
+  // field itself (via `allowPastDueDate` in EditableControlsTable /
+  // PopulationDialog) so a typo or CSV fallback date doesn't slip through
+  // unnoticed on a live/upcoming audit.
   const draftErrors: string[] = drafts
     .flatMap((d) => {
       const errs: string[] = [];
@@ -2032,11 +2047,9 @@ export default function CreateAuditPage(): JSX.Element {
       if (!d.description.trim())         errs.push(`${label}: Description is required`);
       if (!d.evidenceRequirement.trim()) errs.push(`${label}: Evidence Requirement is required`);
       if (!d.dueDate)                    errs.push(`${label}: Due Date is required`);
-      else if (!allowPastDueDate && d.dueDate < todayISO()) errs.push(`${label}: Due Date cannot be in the past`);
       if (d.requirementType === "OE") {
         if (!d.population?.description.trim()) errs.push(`${label}: Population Requirement is required`);
         if (!d.population?.dueDate)            errs.push(`${label}: Population Due Date is required`);
-        else if (!allowPastDueDate && d.population.dueDate < todayISO()) errs.push(`${label}: Population Due Date cannot be in the past`);
       }
       return errs;
     });
@@ -2078,7 +2091,14 @@ export default function CreateAuditPage(): JSX.Element {
   const isSubmitting = createAudit.isPending || bulkAdd.isPending;
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1500, mx: "auto" }}>
+    // The source clamps this wizard to `maxWidth: 1500, mx: "auto"`. Dropped for
+    // One WSO2: GRC's shell has a wider sidebar, so its content column lands
+    // under 1500 and the clamp almost never bites there. This app's side rail is
+    // narrower, so the clamp did bite — leaving the form centred in a band of
+    // whitespace while every sibling page (Audits list, Dashboard, Detail,
+    // Activity log) ran edge to edge, which read as a broken, undersized form.
+    // Matching the siblings is what keeps the perspective looking like one app.
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
       {/* Back */}
       <Button
         startIcon={<ChevronLeft size={16} />}

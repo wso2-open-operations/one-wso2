@@ -383,8 +383,8 @@ export default function AuditsListPage(): JSX.Element {
               onClick={() =>
                 void navigate(
                   selectedFrameworkId !== null
-                    ? `/audit/audits/create?framework=${selectedFrameworkId}`
-                    : "/audit/audits/create",
+                    ? `/security/audit/audits/create?framework=${selectedFrameworkId}`
+                    : "/security/audit/audits/create",
                 )
               }
             >
