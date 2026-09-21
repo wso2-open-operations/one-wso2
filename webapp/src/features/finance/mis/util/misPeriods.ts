@@ -38,7 +38,7 @@ import {
   startOfYear,
   type MisCivilDate,
 } from "./misPacificTime";
-import { MIS_PERIODS, type MisPeriod } from "./misViewVocabulary";
+import { CUMULATIVE_KEY_BY_PERIOD, MIS_PERIODS, type MisPeriod } from "./misViewVocabulary";
 import type { ColumnRangesFor } from "./misViewState";
 import {
   ENDING_MONTH_TODAY,
@@ -205,22 +205,42 @@ const trailingYearEnding = (end: MisCivilDate): MisDateRange => {
 // the rest; this port sends both balance dates, as it does on Annually, because
 // `arrSummaryRequests` is one code path for all three Periods.
 
-/** The three-letter forms the source's period keys are written with. */
-const MONTH_ABBREVIATIONS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+/**
+ * How a month is written on screen: year first, spelled out.
+ *
+ * `generateMonths` keys a column `Sep 2025`, but nothing shows that —
+ * `toAsOfMonthlyText` maps it through `monthFullNames` to `2025 September`
+ * before it reaches a header (`tableUtils.js:50-80`). So the abbreviation is
+ * internal to the source and this port skips it: there is one spelling, and it
+ * is the one a reader sees.
+ */
+const MONTH_FULL_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ] as const;
 
 /** 1–4. `Math.ceil` rather than a lookup, so a bad month cannot silently map. */
 const quarterOf = ({ month }: MisCivilDate): number => Math.ceil(month / 3);
 
-/** The balance date a quarter opens from: the close of the one before it. */
-const quarterOpening = (year: number, quarter: number): MisCivilDate =>
-  quarter === 1 ? endOfYear(year - 1) : endOfMonth(year, (quarter - 1) * 3);
+/**
+ * The balance date a quarter opens from: the close of the one before it — or,
+ * on a Cumulative Build, the close of the year before it.
+ *
+ * Cumulative is the whole of `computePrevDateFor`'s Quarterly branch
+ * (`useArrTableSummary.js:159-181`): it moves where the OPENING balance is
+ * read, never what the column closes at. So every quarter of a year opens at
+ * that year's previous 31 December and the figures accumulate from 1 January
+ * rather than rolling forward one quarter at a time.
+ *
+ * `year - 1` is the COLUMN's own previous year, not today's — a Build spanning
+ * two years accumulates within each of them rather than across both.
+ */
+const quarterOpening = (year: number, quarter: number, cumulative: boolean): MisCivilDate =>
+  cumulative || quarter === 1 ? endOfYear(year - 1) : endOfMonth(year, (quarter - 1) * 3);
 
-/** The balance date a month opens from: the close of the one before it. */
-const monthOpening = (year: number, month: number): MisCivilDate =>
-  month === 1 ? endOfYear(year - 1) : endOfMonth(year, month - 1);
+/** The same rule a month down — `computePrevDateFor`'s Monthly branch. */
+const monthOpening = (year: number, month: number, cumulative: boolean): MisCivilDate =>
+  cumulative || month === 1 ? endOfYear(year - 1) : endOfMonth(year, month - 1);
 
 /**
  * One column, given where it opens, where it closes, and what to call it.
@@ -243,15 +263,70 @@ function periodColumn(
     opening: formatCivilDate(opening),
     start: formatCivilDate(nextDay(opening)),
     end: formatCivilDate(end),
-    header: `As of ${isCurrent ? formatCivilDate(asOf) : periodKey}`,
+    // The PERIOD, not a label. The period still running is named by its date
+    // instead, because naming a quarter that has not finished would claim
+    // figures for months that have not happened.
+    periodKey: isCurrent ? formatCivilDate(asOf) : periodKey,
   };
 }
+
+/**
+ * One quarter's column, and one month's.
+ *
+ * Both are read from TWO callers each — the Build's own generator and the
+ * customers table's Delayed window — and each decides for itself whether the
+ * period it was handed is the one still running. That is the point of having
+ * them: the two callers arrive at the current period by different routes (a
+ * loop over whole years, and an offset from today), and a caller passing its
+ * own `isCurrent` is a caller that can be wrong about it.
+ */
+const quarterColumn = (
+  year: number,
+  quarter: number,
+  today: MisCivilDate,
+  cumulative = false,
+): MisDateRange =>
+  periodColumn(
+    quarterOpening(year, quarter, cumulative),
+    endOfMonth(year, quarter * 3),
+    `${year} Q${quarter}`,
+    today,
+    year === today.year && quarter === quarterOf(today),
+  );
+
+const monthColumn = (
+  year: number,
+  month: number,
+  today: MisCivilDate,
+  cumulative = false,
+): MisDateRange =>
+  periodColumn(
+    monthOpening(year, month, cumulative),
+    endOfMonth(year, month),
+    `${year} ${MONTH_FULL_NAMES[month - 1]}`,
+    today,
+    year === today.year && month === today.month,
+  );
+
+/** Carry a quarter or month that ran off the start of a year back into one. */
+const normalise = (year: number, index: number, perYear: number) => {
+  while (index < 1) {
+    index += perYear;
+    year -= 1;
+  }
+  return { year, index };
+};
 
 export interface PeriodColumnsOptions {
   /** Prior years to include. Below 1 is treated as 1 — there is always a column. */
   yearsBack?: number;
   /** Today, on the Pacific calendar. Read from the clock when omitted. */
   asOf?: MisCivilDate;
+  /**
+   * Accumulate from 1 January rather than rolling one period forward. The
+   * control Annually does not have; see `quarterOpening`.
+   */
+  cumulative?: boolean;
 }
 
 /**
@@ -268,6 +343,7 @@ export interface PeriodColumnsOptions {
 export function getQuarterlyPeriods({
   yearsBack = 1,
   asOf,
+  cumulative = false,
 }: PeriodColumnsOptions = {}): MisDateRange[] {
   const today = asOf ?? pacificCivilDate();
   const currentQuarter = quarterOf(today);
@@ -276,15 +352,7 @@ export function getQuarterlyPeriods({
     const year = today.year - back;
     for (let quarter = 1; quarter <= 4; quarter++) {
       if (year === today.year && quarter > currentQuarter) break;
-      columns.push(
-        periodColumn(
-          quarterOpening(year, quarter),
-          endOfMonth(year, quarter * 3),
-          `${year} Q${quarter}`,
-          today,
-          year === today.year && quarter === currentQuarter,
-        ),
-      );
+      columns.push(quarterColumn(year, quarter, today, cumulative));
     }
   }
   return columns;
@@ -306,30 +374,17 @@ export function getQuarterlyPeriods({
 export function getMonthlyPeriods({
   yearsBack = 1,
   asOf,
+  cumulative = false,
 }: PeriodColumnsOptions = {}): MisDateRange[] {
   const today = asOf ?? pacificCivilDate();
   const span = Math.max(1, Math.floor(yearsBack) * 12);
   // Walk back `span` months from the current one, then forward again — the
   // source's own arithmetic, and the reason the count is span + 1.
-  let year = today.year;
-  let month = today.month - span;
-  while (month < 1) {
-    month += 12;
-    year -= 1;
-  }
+  let { year, index: month } = normalise(today.year, today.month - span, 12);
   const columns: MisDateRange[] = [];
   for (let step = 0; step <= span; step++) {
-    const isCurrent = year === today.year && month === today.month;
-    columns.push(
-      periodColumn(
-        monthOpening(year, month),
-        endOfMonth(year, month),
-        `${MONTH_ABBREVIATIONS[month - 1]} ${year}`,
-        today,
-        isCurrent,
-      ),
-    );
-    if (isCurrent) break;
+    columns.push(monthColumn(year, month, today, cumulative));
+    if (year === today.year && month === today.month) break;
     month += 1;
     if (month > 12) {
       month = 1;
@@ -361,7 +416,10 @@ export function columnOpeningDate(range: MisDateRange): string {
  * figures beneath it cover without a reader having to open the filter bar.
  */
 export const buildColumnLabel = (range: MisDateRange): string =>
-  range.header ?? `${columnOpeningDate(range)} - ${range.end}`;
+  // A Q/M column names its period BARE here: the Subscription Build passes
+  // `includePrefix: false` (`tableUtils.js:646`, `:678`) where the summaries
+  // below take the default. Same range, two labels, one screen.
+  range.header ?? range.periodKey ?? `${columnOpeningDate(range)} - ${range.end}`;
 
 /**
  * The header an Exit ARR summary shows above a column: `As of {end}`.
@@ -377,7 +435,7 @@ export const buildColumnLabel = (range: MisDateRange): string =>
  * the same `getColumnDefinitions` branch.
  */
 export const asOfColumnLabel = (range: MisDateRange): string =>
-  range.header ?? `As of ${range.end}`;
+  range.header ?? `As of ${range.periodKey ?? range.end}`;
 
 /**
  * The Annually column ranges, ready to hand to `useMisViewState` — which is the
@@ -396,8 +454,12 @@ export const pacificColumnRanges: ColumnRangesFor = (period, viewWindow, filters
   // `window=ttm` that reached a Quarterly or Monthly route is a parameter
   // already being ignored there — `allowedTypeValues` ignores it too — and
   // must not turn either Build into a trailing one.
-  if (period === MIS_PERIODS.QUARTERLY) return getQuarterlyPeriods(filters);
-  if (period === MIS_PERIODS.MONTHLY) return getMonthlyPeriods(filters);
+  // Each Period keeps its cumulative flag under its own key, so read it
+  // through the map rather than guessing which of the two is set.
+  const cumulativeKey = CUMULATIVE_KEY_BY_PERIOD[period];
+  const cumulative = cumulativeKey ? filters[cumulativeKey] === true : false;
+  if (period === MIS_PERIODS.QUARTERLY) return getQuarterlyPeriods({ ...filters, cumulative });
+  if (period === MIS_PERIODS.MONTHLY) return getMonthlyPeriods({ ...filters, cumulative });
   return viewWindow === MIS_WINDOWS.TTM
     ? getTtmPeriods({ yearsBack: filters.yearsBack, endingMonth: filters.endingMonth })
     : getAnnualPeriods({
@@ -493,44 +555,24 @@ export function customerColumnRanges(
 function recentQuarters(today: MisCivilDate, back: number): MisDateRange[] {
   const columns: MisDateRange[] = [];
   for (let offset = -back; offset <= 0; offset++) {
-    let year = today.year;
-    let quarter = quarterOf(today) + offset;
-    while (quarter < 1) {
-      quarter += 4;
-      year -= 1;
-    }
-    columns.push(
-      periodColumn(
-        quarterOpening(year, quarter),
-        endOfMonth(year, quarter * 3),
-        `${year} Q${quarter}`,
-        today,
-        offset === 0,
-      ),
-    );
+    const { year, index: quarter } = normalise(today.year, quarterOf(today) + offset, 4);
+    columns.push(quarterColumn(year, quarter, today));
   }
   return columns;
 }
 
-/** `back` whole months, then the one still running, closing today. */
+/**
+ * `back` whole months, then the one still running, closing today.
+ *
+ * Not cumulative, whatever the flag says: the source builds the customers
+ * table's Delayed window in `useCustomerAccounts.js` and never consults
+ * `cumulativeMonthly` there — it sends an end date per column and nothing else.
+ */
 function recentMonths(today: MisCivilDate, back: number): MisDateRange[] {
   const columns: MisDateRange[] = [];
   for (let offset = -back; offset <= 0; offset++) {
-    let year = today.year;
-    let month = today.month + offset;
-    while (month < 1) {
-      month += 12;
-      year -= 1;
-    }
-    columns.push(
-      periodColumn(
-        monthOpening(year, month),
-        endOfMonth(year, month),
-        `${MONTH_ABBREVIATIONS[month - 1]} ${year}`,
-        today,
-        offset === 0,
-      ),
-    );
+    const { year, index: month } = normalise(today.year, today.month + offset, 12);
+    columns.push(monthColumn(year, month, today));
   }
   return columns;
 }

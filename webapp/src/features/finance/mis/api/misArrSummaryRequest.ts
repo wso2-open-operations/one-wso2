@@ -27,8 +27,14 @@
 // what the grids and the Excel export show; the wire wants `yyyy-MM-dd`. The
 // source converts at the same boundary and so does this.
 
-import { addYears, formatCivilDate } from "../util/misPacificTime";
-import { typeValueOf, type MisAppliedFilters, type MisDateRange } from "../util/misViewVocabulary";
+import { addYears, endOfMonth, formatCivilDate } from "../util/misPacificTime";
+import {
+  MIS_PERIODS,
+  typeValueOf,
+  type MisAppliedFilters,
+  type MisDateRange,
+  type MisPeriod,
+} from "../util/misViewVocabulary";
 import {
   businessUnitsFor,
   narrowedFilters,
@@ -77,6 +83,7 @@ export interface ArrSummaryRequest {
 export function arrSummaryRequests(
   ranges: readonly MisDateRange[],
   filters: MisAppliedFilters,
+  period: MisPeriod = MIS_PERIODS.ANNUALLY,
 ): ArrSummaryRequest[] {
   const businessUnits = businessUnitsFor(filters);
   // A custom selection that names nothing is a reader part-way through
@@ -96,13 +103,54 @@ export function arrSummaryRequests(
       endDate,
       prevColDateRange: previous
         ? { startDate: openingDateFor(previous), endDate: toWireDate(previous.end) }
-        : // Nothing to the left, so the same window a year earlier. The y/y rows
-          // need a comparison in the leftmost column too, and this is the only
-          // one available.
-          { startDate: aYearEarlier(startDate), endDate: aYearEarlier(endDate) },
+        : firstColumnComparison(period, startDate, endDate),
       ...(index === 0 ? { isFirstColumn: true as const } : {}),
     };
   });
+}
+
+/**
+ * What the LEFTMOST column is compared against, which has no column to its
+ * left and still needs one for the y/y rows.
+ *
+ * Three different answers, and they are the source's three
+ * (`useArrTableSummary.js:476-507`) rather than one rule applied thrice:
+ *
+ *   Annually   the same window a year earlier — both dates back one year.
+ *   Quarterly  the previous QUARTER: the column's own opening, and the balance
+ *              three months before it.
+ *   Monthly    the previous MONTH — the column's own opening, and the FIRST day
+ *              of the month that opening falls in.
+ *
+ * Monthly's asymmetry is worth naming: every other range in this port is two
+ * BALANCE dates, and that one is a balance date paired with a first-of-month.
+ * Reproduced under ADR 0003 — it decides which figure the leftmost y/y row
+ * compares against, so changing it would move a number on screen.
+ */
+function firstColumnComparison(
+  period: MisPeriod,
+  startDate: string,
+  endDate: string,
+): { startDate: string; endDate: string } {
+  if (period === MIS_PERIODS.QUARTERLY) {
+    return { startDate: monthsEarlier(startDate, 3), endDate: startDate };
+  }
+  if (period === MIS_PERIODS.MONTHLY) {
+    return { startDate: `${startDate.slice(0, 7)}-01`, endDate: startDate };
+  }
+  return { startDate: aYearEarlier(startDate), endDate: aYearEarlier(endDate) };
+}
+
+/** `2025-12-31` → `2025-09-30`, keeping to the end of the earlier month. */
+function monthsEarlier(wireDate: string, months: number): string {
+  const [year, month] = wireDate.split("-").map(Number);
+  let targetYear = year;
+  let targetMonth = month - months;
+  while (targetMonth < 1) {
+    targetMonth += 12;
+    targetYear -= 1;
+  }
+  return toWireDate(formatCivilDate(endOfMonth(targetYear, targetMonth)));
 }
 
 /** `2026-09-12` → `2025-09-12`, clamping a leap day rather than rolling it. */

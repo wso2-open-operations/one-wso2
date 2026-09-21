@@ -19,7 +19,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import ExcelJS from "exceljs";
 import { bytesOf, captureDownloads } from "@/test/downloads";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { inZone } from "@/test/timeZone";
 import { MIS_BUILD_PATH_BY_PERIOD } from "@constants/misApps";
 import { defaultAppliedFilters } from "@features/finance/mis/util/misViewState";
@@ -172,6 +172,7 @@ vi.mock("@features/finance/mis/api/useMisAppConfigs", () => ({
 }));
 
 const MisArrBuildPage = (await import("@features/finance/mis/pages/MisArrBuildPage")).default;
+const MisSession = (await import("@features/finance/mis/components/MisSession")).default;
 
 // Driving MUI Autocompletes through userEvent is slow — each click is a full
 // pointer-event sequence re-rendered through the Oxygen theme — and the whole
@@ -247,6 +248,48 @@ function renderPage(search = "", period: MisPeriod = MIS_PERIODS.ANNUALLY) {
     ),
   );
 }
+
+/**
+ * The same screen, but mounted through a ROUTE TREE rather than directly.
+ *
+ * Needed for the Period control alone: a Period switch is a navigation to
+ * another route, so the page and its filter bar UNMOUNT and remount. Rendering
+ * the element directly hides that — the bar would survive the switch and
+ * behave like a Table tab, which is exactly the assumption that made the reset
+ * notice look free.
+ */
+function renderRouted(initial: string) {
+  return inZone("Asia/Colombo", () =>
+    render(
+      // The same shape as `App.tsx`: three sibling routes inside the
+      // `MisSession` layout route, which is what provides the session Years
+      // Back. Mirrored rather than approximated, because whether the page
+      // REMOUNTS across a Period switch is the whole question here, and that
+      // depends on the tree.
+      <MemoryRouter initialEntries={[initial]}>
+        <Routes>
+          <Route element={<MisSession />}>
+            <Route
+              path={misPathFor(MIS_PERIODS.ANNUALLY)}
+              element={<MisArrBuildPage period={MIS_PERIODS.ANNUALLY} />}
+            />
+            <Route
+              path={misPathFor(MIS_PERIODS.QUARTERLY)}
+              element={<MisArrBuildPage period={MIS_PERIODS.QUARTERLY} />}
+            />
+            <Route
+              path={misPathFor(MIS_PERIODS.MONTHLY)}
+              element={<MisArrBuildPage period={MIS_PERIODS.MONTHLY} />}
+            />
+          </Route>
+        </Routes>
+        <Address />
+      </MemoryRouter>,
+    ),
+  );
+}
+
+const misPathFor = (period: MisPeriod) => MIS_BUILD_PATH_BY_PERIOD[period];
 
 const address = () => screen.getByTestId("address").textContent;
 const path = () => screen.getByTestId("path").textContent;
@@ -1203,6 +1246,29 @@ describe("the QRR and MRR Builds", () => {
     expect(address()).toBe("?cumulative=1");
   });
 
+  it("makes Cumulative move the figures and not just the address", () => {
+    // The review found this control inert: it serialised and nothing read it.
+    // `computePrevDateFor` (`useArrTableSummary.js:159-181`) is where it lives —
+    // it moves where each column's OPENING balance is read, so every quarter of
+    // a year opens at that year's previous 31 December and the figures
+    // accumulate from 1 January instead of rolling forward one quarter.
+    renderPage("", MIS_PERIODS.QUARTERLY);
+    const rolling = summary.lastRanges.map((range) => range.start);
+    expect(new Set(rolling).size).toBeGreaterThan(1);
+
+    cleanup();
+    renderPage("?cumulative=1", MIS_PERIODS.QUARTERLY);
+    const accumulating = summary.lastRanges;
+    expect(accumulating).toHaveLength(rolling.length);
+    // Every column of a given year now starts on that year's 1 January, so
+    // there is one start per year on screen rather than one per quarter.
+    const startsPerYear = new Set(accumulating.map((range) => range.start));
+    expect(startsPerYear.size).toBeLessThan(rolling.length);
+    for (const start of startsPerYear) {
+      expect(start, `${start} is not a 1 January`).toMatch(/\/01\/01$/);
+    }
+  });
+
   it("has no Cumulative control on Annually, which has no such flag", async () => {
     renderPage();
     await userEvent.click(screen.getByRole("button", { name: "More" }));
@@ -1233,18 +1299,18 @@ describe("the QRR and MRR Builds", () => {
 
   it("asks for quarterly ranges on the Quarterly Build, not annual ones", () => {
     renderPage("", MIS_PERIODS.QUARTERLY);
-    // The shape comes from the source's `toAsOfQuarterlyText`, not from
-    // recomputing what the code just did: every column is `As of {year} Q{n}`
-    // except the quarter still running, which is `As of {today}`. An annual
-    // Build asks for `{opening} - {end}` ranges instead, so this fails outright
-    // if the Period did not reach the column builder.
+    // The shape comes from the source, not from recomputing what the code just
+    // did: on the Build every column names its quarter BARE — the Subscription
+    // grid passes `includePrefix: false` — except the quarter still running,
+    // which is named by its date. An annual Build asks for `{opening} - {end}`
+    // instead, so this fails outright if the Period did not reach the builder.
     const headers = summary.lastRanges.map((range) => buildColumnLabel(range));
     expect(headers.length).toBeGreaterThanOrEqual(5);
     for (const header of headers.slice(0, -1)) {
-      expect(header, `${header} is not a quarter`).toMatch(/^As of \d{4} Q[1-4]$/);
+      expect(header, `${header} is not a quarter`).toMatch(/^\d{4} Q[1-4]$/);
     }
     // The last is the open quarter, dated rather than named.
-    expect(headers.at(-1)).toMatch(/^As of \d{4}\/\d{2}\/\d{2}$/);
+    expect(headers.at(-1)).toMatch(/^\d{4}\/\d{2}\/\d{2}$/);
   });
 
   it("asks for thirteen months on the Monthly Build at its default Years Back", () => {
@@ -1273,13 +1339,38 @@ describe("the QRR and MRR Builds", () => {
     renderPage("?table=customers&type=Delayed+QRR", MIS_PERIODS.QUARTERLY);
     expect(customers.lastRanges).toHaveLength(3);
     expect(buildColumnLabel(customers.lastRanges.at(-1)!)).toMatch(
-      /^As of \d{4}\/\d{2}\/\d{2}$/,
+      /^\d{4}\/\d{2}\/\d{2}$/,
     );
   });
 
   it("gives the customers table the whole Period on every other type", () => {
     renderPage("?table=customers", MIS_PERIODS.QUARTERLY);
     expect(customers.lastRanges).toHaveLength(7);
+  });
+
+  it("says which defaults it landed on when a Period switch drops the filters", async () => {
+    // Ticket 12 predicted this came free: "the Period half of it needs no new
+    // code, only a Period that can actually move." It did not. A Period switch
+    // is a NAVIGATION, so the bar unmounts and its `seededFor` re-initialises
+    // to the view it arrived on — the comparison that drives the notice can
+    // never be true. A Table switch works only because it stays on one route.
+    renderRouted(`${misPathFor(MIS_PERIODS.ANNUALLY)}?channel=Channel`);
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Period" })).getByRole("button", { name: "Quarterly" }),
+    );
+    expect(address()).toBe("");
+    expect(screen.getByText("Filters reset to the Quarterly defaults")).toBeInTheDocument();
+  });
+
+  it("says nothing when the reader was already on the defaults", async () => {
+    // The notice reports what a switch THREW AWAY. Nothing was thrown away
+    // here, so a notice would be noise — `filterResetNotice` returns "" and
+    // this pins that the new path did not lose that rule.
+    renderRouted(misPathFor(MIS_PERIODS.ANNUALLY));
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Period" })).getByRole("button", { name: "Monthly" }),
+    );
+    expect(screen.queryByText(/Filters reset to the/)).not.toBeInTheDocument();
   });
 
   it("serialises a default view to an empty query string on each of the three Periods", () => {

@@ -17,7 +17,12 @@
 import { useMemo } from "react";
 import { misArrServiceUrls } from "@config/apiConfig";
 import { buildColumnLabel } from "../util/misPeriods";
-import type { MisAppliedFilters, MisDateRange } from "../util/misViewVocabulary";
+import {
+  MIS_PERIODS,
+  type MisAppliedFilters,
+  type MisDateRange,
+  type MisPeriod,
+} from "../util/misViewVocabulary";
 import type { ArrSummaryResponse } from "../components/arrBuildRows";
 import { arrSummaryRequests } from "./misArrSummaryRequest";
 import { useColumnQueries } from "./useColumnQueries";
@@ -55,12 +60,22 @@ export interface ArrSummaryState {
 export function useArrSummary(
   ranges: readonly MisDateRange[],
   filters: MisAppliedFilters,
+  /**
+   * Which Period's Build this is. It decides what the LEFTMOST column is
+   * compared against — the same window a year earlier on Annually, the
+   * previous quarter or month otherwise — so it reaches the request body and
+   * therefore the React Query key.
+   */
+  period: MisPeriod = MIS_PERIODS.ANNUALLY,
   enabled = true,
 ): ArrSummaryState {
   // Bodies and labels are built together and stay index-aligned: a body is what
   // a column is fetched with, and pairing them anywhere else would be two lists
   // that could fall out of step.
-  const bodies = useMemo(() => arrSummaryRequests(ranges, filters), [ranges, filters]);
+  const bodies = useMemo(
+    () => arrSummaryRequests(ranges, filters, period),
+    [ranges, filters, period],
+  );
   const labels = useMemo(() => ranges.map(buildColumnLabel), [ranges]);
 
   const state = useColumnQueries({

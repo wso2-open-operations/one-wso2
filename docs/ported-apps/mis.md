@@ -585,6 +585,14 @@ carries `forecastType`, and the figures still come back — they are just read a
 than forecast ones, which is wrong without looking wrong. **Needs its own ticket**, covering all three
 tables at once, since the fix is one branch in `pacificColumnRanges`.
 
+**Ticket 12 widened that gap rather than closing it, deliberately.** Quarterly and Monthly have
+forecast branches of their own — `generateQuarters(yearsBack, true)` is eight FUTURE quarters
+(`tableUtils.js:264-278`) and `generateMonths(…, true)` twenty-four future months (`:206-214`), both
+triggered by a Forecasted or Renewal QRR/MRR type. `getQuarterlyPeriods` and `getMonthlyPeriods`
+ignore forecast exactly as the annual generator does, so the same defect now exists on three Periods
+instead of one. Left to the same ticket on purpose: the fix is one branch in one function for all of
+them, and splitting it across two tickets would mean writing that branch twice.
+
 **All ARR Metrics binds to the unit tabs rather than growing a second unit control.** The source
 gives the Region Summary's second view a pill row of its own — API Platform, IAM, Integration, Choreo,
 Agent Platform, Moesif, All BU, Custom Product Selection — held in `RegionSummaryTabs.js`'s component
@@ -620,6 +628,32 @@ September 2026. Reproduced rather than corrected: it is a column of real figures
 duplicate, and a port showing twelve where the live app shows thirteen is the first thing Finance
 would trip over reconciling the two apps column by column. Quarterly has the same shape for the same
 reason — `-max(1, yearsBack)` to 0 inclusive, so Years Back 1 spans two calendar years.
+
+**The `As of` prefix belongs to the TABLE, not to the column.** The Subscription Build passes
+`includePrefix: false` (`tableUtils.js:646` and `:678`) so its Q/M headers read `2026 Q2`; the two
+summaries take the default and read `As of 2026 Q2`. One range, two labels, on one screen — so a
+range carries its `periodKey` and `buildColumnLabel` / `asOfColumnLabel` each decide. The first draft
+of ticket 12 baked `As of ` into the range and got the Build wrong on every Q/M column.
+
+**A month is written year-first and spelled out: `2026 September`, not `Sep 2026`.** `generateMonths`
+KEYS a column `Sep 2026`, but nothing shows that string — `toAsOfMonthlyText` maps it through
+`monthFullNames` before it reaches a header (`tableUtils.js:50-80`). The abbreviation is internal to
+the source, so this port skips it and stores the spelling a reader sees. Quarterly needs no such
+mapping: `2026 Q2` is both key and label.
+
+**Cumulative moves where a column OPENS, not what it closes at.** `computePrevDateFor`
+(`useArrTableSummary.js:159-193`) is the whole of it: with the flag on, every quarter or month of a
+year opens at that year's previous 31 December instead of at the previous period's close, so the
+figures accumulate from 1 January rather than rolling forward one period at a time. It is the
+COLUMN's own previous year end, not today's, so a Build spanning two years accumulates within each of
+them. The customers table's Delayed window ignores the flag, as the source does.
+
+**The leftmost column is compared against three different things, one per Period.** It has no column
+to its left and the y/y rows still need one, and the source answers differently for each
+(`useArrTableSummary.js:476-507`): Annually takes the same window a year earlier, Quarterly the
+previous QUARTER (the column's own opening, and the balance three months before it), Monthly the
+previous MONTH — the column's own opening paired with the FIRST day of the month it falls in. That
+last is an asymmetry worth naming: every other range in this port is two balance dates.
 
 **The Years Back column slice does not apply off Annually.** §9 describes the source computing annual
 bounds with two generators that disagree by one, with the Subscription grid reading the shorter;
@@ -781,8 +815,9 @@ never fetched. A TTM Window has no split at all: there the columns *are* `annual
 
 The port keeps the distinction where the source puts it. `pacificColumnRanges` — the shared
 `columnRangesFor` seam that fills `columnDateRanges` — stays faithful, so the tables in tickets 10
-and 13 still get their six. `subscriptionColumnRanges` takes the last `yearsBack` of them for this
+and 13 still get their six. `buildColumnRanges` takes the last `yearsBack` of them for this
 table. `getAnnualPeriods` itself is untouched; it is the function the source's own tests pin.
+Nothing user-visible changes: Years Back 5 draws five Subscription columns in both apps.
 
 > **One name differs between the two apps on purpose.** The source's field is `annuallyDateRanges`
 > and the port's is **`columnDateRanges`**, renamed in ticket 12 when it began carrying quarterly and
@@ -790,7 +825,6 @@ table. `getAnnualPeriods` itself is untouched; it is the function the source's o
 > Every `annuallyDateRanges` in this document is the SOURCE's field, quoted as it is written there;
 > the port's is always `columnDateRanges`. The field is derived and internal — never a URL
 > parameter — so nothing a reader holds depends on either spelling.
-Nothing user-visible changes: Years Back 5 draws five Subscription columns in both apps.
 
 **Nothing in the Subscription Build is totalled client-side.** ADR 0004 obliges hand-computed totals
 because the community grid cannot aggregate, and that obligation is real for the summary tables — but
@@ -954,6 +988,15 @@ ported.
     only — so check all three rather than generalising from one.
 36d. The Monthly Build draws thirteen columns at Years Back 1 and the Quarterly Build seven, matching
     the source column for column (§7). This is the check most likely to look like a bug in the port.
+36e. Column HEADERS match: `2026 Q2` and `2026 September` on the Subscription Build, `As of 2026 Q2`
+    and `As of 2026 September` on the two summaries, and the period still running named by its date
+    on both. Check a Build and a summary side by side — the prefix differs by table (§7).
+36f. **Cumulative changes the figures**, not just the address: with it on, every column of a year
+    reads an opening balance at that year's previous 31 December, so each column is larger than the
+    one before within a year and resets across the year boundary (§7).
+36g. The leftmost column's y/y row agrees with the source on all three Periods — annual, previous
+    quarter and previous month are three different comparisons (§7), so checking one says nothing
+    about the others.
 37. For one closed month, every figure on each ported screen matches the running MIS app, at both
     Scale settings, with filters at defaults and with a non-trivial applied filter set.
 

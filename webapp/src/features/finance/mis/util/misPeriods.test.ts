@@ -226,17 +226,17 @@ describe("the column-range computer the URL contract takes", () => {
     const quarters = atAsOf("UTC", () =>
       pacificColumnRanges(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.TTM, filters),
     );
-    expect(quarters.map((r) => r.header)).toEqual([
-      "As of 2024 Q1", "As of 2024 Q2", "As of 2024 Q3", "As of 2024 Q4",
-      "As of 2025 Q1", "As of 2025 Q2", "As of 2025 Q3", "As of 2025 Q4",
-      "As of 2026 Q1", "As of 2026 Q2", "As of 2026/09/12",
+    expect(quarters.map((r) => r.periodKey)).toEqual([
+      "2024 Q1", "2024 Q2", "2024 Q3", "2024 Q4",
+      "2025 Q1", "2025 Q2", "2025 Q3", "2025 Q4",
+      "2026 Q1", "2026 Q2", "2026/09/12",
     ]);
     const months = atAsOf("UTC", () =>
       pacificColumnRanges(MIS_PERIODS.MONTHLY, MIS_WINDOWS.CALENDAR, filters),
     );
     // Years Back 2, so 24 months plus the current one.
     expect(months).toHaveLength(25);
-    expect(months.at(-1)?.header).toBe("As of 2026/09/12");
+    expect(months.at(-1)?.periodKey).toBe("2026/09/12");
   });
 
   it("gives trailing-twelve-month ranges on a TTM Window", () => {
@@ -398,16 +398,16 @@ describe("Quarterly columns", () => {
     // Each opens at the close of the quarter before it, because a Build rolls
     // a balance forward rather than measuring a span.
     expect(getQuarterlyPeriods({ yearsBack: 1, asOf: ASOF })).toEqual([
-      { opening: "2024/12/31", start: "2025/01/01", end: "2025/03/31", header: "As of 2025 Q1" },
-      { opening: "2025/03/31", start: "2025/04/01", end: "2025/06/30", header: "As of 2025 Q2" },
-      { opening: "2025/06/30", start: "2025/07/01", end: "2025/09/30", header: "As of 2025 Q3" },
-      { opening: "2025/09/30", start: "2025/10/01", end: "2025/12/31", header: "As of 2025 Q4" },
-      { opening: "2025/12/31", start: "2026/01/01", end: "2026/03/31", header: "As of 2026 Q1" },
-      { opening: "2026/03/31", start: "2026/04/01", end: "2026/06/30", header: "As of 2026 Q2" },
+      { opening: "2024/12/31", start: "2025/01/01", end: "2025/03/31", periodKey: "2025 Q1" },
+      { opening: "2025/03/31", start: "2025/04/01", end: "2025/06/30", periodKey: "2025 Q2" },
+      { opening: "2025/06/30", start: "2025/07/01", end: "2025/09/30", periodKey: "2025 Q3" },
+      { opening: "2025/09/30", start: "2025/10/01", end: "2025/12/31", periodKey: "2025 Q4" },
+      { opening: "2025/12/31", start: "2026/01/01", end: "2026/03/31", periodKey: "2026 Q1" },
+      { opening: "2026/03/31", start: "2026/04/01", end: "2026/06/30", periodKey: "2026 Q2" },
       // The current quarter closes TODAY, not on 30 September — the rest of it
       // has not happened — and says so in its header rather than naming a
       // quarter that is still open.
-      { opening: "2026/06/30", start: "2026/07/01", end: "2026/09/12", header: "As of 2026/09/12" },
+      { opening: "2026/06/30", start: "2026/07/01", end: "2026/09/12", periodKey: "2026/09/12" },
     ]);
   });
 
@@ -430,27 +430,27 @@ describe("Monthly columns", () => {
       opening: "2025/08/31",
       start: "2025/09/01",
       end: "2025/09/30",
-      header: "As of Sep 2025",
+      periodKey: "2025 September",
     });
     expect(months[11]).toEqual({
       opening: "2026/07/31",
       start: "2026/08/01",
       end: "2026/08/31",
-      header: "As of Aug 2026",
+      periodKey: "2026 August",
     });
     // The thirteenth is the current month, closing today.
     expect(months[12]).toEqual({
       opening: "2026/08/31",
       start: "2026/09/01",
       end: "2026/09/12",
-      header: "As of 2026/09/12",
+      periodKey: "2026/09/12",
     });
   });
 
   it("crosses a year boundary without losing December", () => {
-    const labels = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF }).map((m) => m.header);
-    expect(labels).toContain("As of Dec 2025");
-    expect(labels).toContain("As of Jan 2026");
+    const labels = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF }).map((m) => m.periodKey);
+    expect(labels).toContain("2025 December");
+    expect(labels).toContain("2026 January");
   });
 });
 
@@ -492,10 +492,10 @@ describe("the customers table's own ranges on a Delayed type", () => {
     expect(
       customerColumnRanges(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.CALENDAR, at({ qrrType: "Delayed QRR" }), ASOF),
     ).toEqual([
-      { opening: "2025/12/31", start: "2026/01/01", end: "2026/03/31", header: "As of 2026 Q1" },
-      { opening: "2026/03/31", start: "2026/04/01", end: "2026/06/30", header: "As of 2026 Q2" },
+      { opening: "2025/12/31", start: "2026/01/01", end: "2026/03/31", periodKey: "2026 Q1" },
+      { opening: "2026/03/31", start: "2026/04/01", end: "2026/06/30", periodKey: "2026 Q2" },
       // The current quarter, closing today — the "plus current day" half.
-      { opening: "2026/06/30", start: "2026/07/01", end: "2026/09/12", header: "As of 2026/09/12" },
+      { opening: "2026/06/30", start: "2026/07/01", end: "2026/09/12", periodKey: "2026/09/12" },
     ]);
   });
 
@@ -508,10 +508,10 @@ describe("the customers table's own ranges on a Delayed type", () => {
     );
     expect(months).toHaveLength(7);
     expect(months[0]).toEqual({
-      opening: "2026/02/28", start: "2026/03/01", end: "2026/03/31", header: "As of Mar 2026",
+      opening: "2026/02/28", start: "2026/03/01", end: "2026/03/31", periodKey: "2026 March",
     });
     expect(months.at(-1)).toEqual({
-      opening: "2026/08/31", start: "2026/09/01", end: "2026/09/12", header: "As of 2026/09/12",
+      opening: "2026/08/31", start: "2026/09/01", end: "2026/09/12", periodKey: "2026/09/12",
     });
   });
 
@@ -539,5 +539,84 @@ describe("the customers table's own ranges on a Delayed type", () => {
         ASOF,
       ),
     ).toHaveLength(1);
+  });
+});
+
+// The prefix belongs to the TABLE, not to the range — which is the source's
+// arrangement and was the bug in the first draft of these columns. The
+// Subscription Build passes `includePrefix: false` (`tableUtils.js:646`,
+// `:678`) and reads `2026 Q2`; the two summaries take the default and read
+// `As of 2026 Q2`. One range, two labels, so a range cannot bake either in.
+describe("labelling one Q/M column for two different tables", () => {
+  const quarter = getQuarterlyPeriods({ yearsBack: 1, asOf: ASOF })[5];
+  const month = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF })[0];
+
+  it("gives the Build the bare period and the summaries an As of", () => {
+    expect(quarter.periodKey).toBe("2026 Q2");
+    expect(buildColumnLabel(quarter)).toBe("2026 Q2");
+    expect(asOfColumnLabel(quarter)).toBe("As of 2026 Q2");
+  });
+
+  it("writes a month the source's way round — year first, spelled out", () => {
+    // `generateMonths` keys a column `Sep 2025`, but `toAsOfMonthlyText` maps
+    // that through `monthFullNames` to `2025 September` before it is shown. The
+    // abbreviation is the KEY and never reaches a reader.
+    expect(month.periodKey).toBe("2025 September");
+    expect(buildColumnLabel(month)).toBe("2025 September");
+    expect(asOfColumnLabel(month)).toBe("As of 2025 September");
+  });
+
+  it("labels the period still running by its date, on both", () => {
+    const current = getQuarterlyPeriods({ yearsBack: 1, asOf: ASOF }).at(-1)!;
+    expect(buildColumnLabel(current)).toBe("2026/09/12");
+    expect(asOfColumnLabel(current)).toBe("As of 2026/09/12");
+  });
+});
+
+// `computePrevDateFor` (`useArrTableSummary.js:159-193`) is where Cumulative
+// actually lives: it moves where a column's OPENING balance is read, not what
+// it closes at. Cumulative means every column in a year opens at that year's
+// previous 31 December, so the figures accumulate from 1 January rather than
+// rolling forward one period at a time.
+describe("the Cumulative flag, which only Quarterly and Monthly have", () => {
+  it("opens every quarter of a year at that year's previous 31 December", () => {
+    // Years Back is floored at 1 by the source, so even 0 spans two calendar
+    // years — these are the current year's three.
+    const quarters = getQuarterlyPeriods({ yearsBack: 0, asOf: ASOF, cumulative: true }).slice(-3);
+    expect(quarters.map((q) => ({ opening: q.opening, start: q.start, end: q.end }))).toEqual([
+      { opening: "2025/12/31", start: "2026/01/01", end: "2026/03/31" },
+      { opening: "2025/12/31", start: "2026/01/01", end: "2026/06/30" },
+      { opening: "2025/12/31", start: "2026/01/01", end: "2026/09/12" },
+    ]);
+  });
+
+  it("reads each column's OWN previous year end, not today's", () => {
+    // 2025's quarters open at 2024/12/31, not at 2025/12/31 — the source
+    // computes it from the column's end date, so a Build spanning two years
+    // accumulates within each of them rather than across both.
+    const quarters = getQuarterlyPeriods({ yearsBack: 1, asOf: ASOF, cumulative: true });
+    expect(quarters[0]).toMatchObject({ opening: "2024/12/31", end: "2025/03/31" });
+    expect(quarters[3]).toMatchObject({ opening: "2024/12/31", end: "2025/12/31" });
+    expect(quarters[4]).toMatchObject({ opening: "2025/12/31", end: "2026/03/31" });
+  });
+
+  it("opens every month of a year at that year's previous 31 December", () => {
+    const months = getMonthlyPeriods({ yearsBack: 1, asOf: ASOF, cumulative: true });
+    expect(months.at(-1)).toMatchObject({ opening: "2025/12/31", end: "2026/09/12" });
+    expect(months[0]).toMatchObject({ opening: "2024/12/31", end: "2025/09/30" });
+  });
+
+  it("leaves the non-cumulative openings alone, which is the default", () => {
+    const quarters = getQuarterlyPeriods({ yearsBack: 0, asOf: ASOF }).slice(-3);
+    expect(quarters.map((q) => q.opening)).toEqual(["2025/12/31", "2026/03/31", "2026/06/30"]);
+  });
+
+  it("reaches the ranges through the Applied set's own cumulative key", () => {
+    const cumulative = pacificColumnRanges(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.CALENDAR, {
+      yearsBack: 0,
+      cumulativeQuarterly: true,
+    } as unknown as MisAppliedFilters).slice(-3);
+    // All three of the current year now open on the same day — 1 January.
+    expect(new Set(cumulative.map((r) => r.start)).size).toBe(1);
   });
 });

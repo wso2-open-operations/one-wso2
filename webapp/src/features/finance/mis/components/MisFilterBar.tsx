@@ -118,7 +118,6 @@ const YEARS_BACK_OPTIONS = Array.from(
 
 const CHANGE_MESSAGE = "Filters changed — apply to refresh";
 
-/** The two ways an Annually Build cuts its columns. Ticket 12 adds the other Periods. */
 // The Period control's four buttons. Three navigate, TTM sets a window — see
 // `periodChoiceTarget`, which is where that difference is written down.
 

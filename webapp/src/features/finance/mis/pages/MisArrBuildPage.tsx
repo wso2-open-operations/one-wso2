@@ -250,7 +250,7 @@ function ArrBuildGrid({ view, scale }: { view: MisViewState; scale: MisScale }) 
     () => buildColumnRanges(view.period, view.viewWindow, view.filters),
     [view.period, view.viewWindow, view.filters],
   );
-  const summary = useArrSummary(ranges, view.filters);
+  const summary = useArrSummary(ranges, view.filters, view.period);
 
   const rows = useMemo(
     () => arrBuildRows(view.filters.channelDirect),

@@ -199,8 +199,19 @@ export interface MisDateRange {
   end: string;
   /** TTM only: the balance the window opens from. */
   opening?: string;
-  /** TTM only: the column label. */
+  /** TTM only: the column label, already formed. */
   header?: string;
+  /**
+   * Quarterly and Monthly only: the PERIOD this column names — `2026 Q2`,
+   * `2025 September`, or today's date on the period still running.
+   *
+   * Not a label. Whether it is shown bare or behind `As of ` belongs to the
+   * TABLE, not to the range: the Subscription Build passes
+   * `includePrefix: false` and the two summaries take the default
+   * (`tableUtils.js:646` and `:678`), so one range is labelled two ways on one
+   * screen. `buildColumnLabel` and `asOfColumnLabel` each decide.
+   */
+  periodKey?: string;
 }
 
 /**

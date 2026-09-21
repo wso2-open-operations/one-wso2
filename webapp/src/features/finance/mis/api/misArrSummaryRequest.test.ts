@@ -22,6 +22,7 @@ import {
   MIS_TABLES,
   type MisAppliedFilters,
 } from "../util/misViewVocabulary";
+import { getMonthlyPeriods, getQuarterlyPeriods } from "../util/misPeriods";
 import { arrSummaryRequests } from "./misArrSummaryRequest";
 
 // One POST per Build column. Ported from digiops-finance
@@ -67,6 +68,27 @@ describe("the column a request is compared against", () => {
     const [first] = arrSummaryRequests(RANGES, DEFAULTS);
     expect(first.prevColDateRange).toEqual({ startDate: "2023-12-31", endDate: "2024-12-31" });
     expect(first.isFirstColumn).toBe(true);
+  });
+
+  it("is the previous QUARTER for the first column of a Quarterly Build", () => {
+    // Not the same window a year earlier — that rule is Annually's alone
+    // (`useArrTableSummary.js:476-487`). Quarterly compares against the quarter
+    // immediately before, as two balance dates: the column's own opening, and
+    // three months before it (`:487-499`).
+    const quarters = getQuarterlyPeriods({ yearsBack: 1, asOf: { year: 2026, month: 9, day: 12 } });
+    const [first] = arrSummaryRequests(quarters, DEFAULTS, MIS_PERIODS.QUARTERLY);
+    expect(first.startDate).toBe("2024-12-31");
+    expect(first.prevColDateRange).toEqual({ startDate: "2024-09-30", endDate: "2024-12-31" });
+  });
+
+  it("is the previous MONTH for the first column of a Monthly Build", () => {
+    // `endDate` is the column's own opening; `startDate` is the FIRST day of
+    // the month that opening falls in, which is the source's own asymmetry
+    // (`:499-507`) — every other range in this port is two balance dates.
+    const months = getMonthlyPeriods({ yearsBack: 1, asOf: { year: 2026, month: 9, day: 12 } });
+    const [first] = arrSummaryRequests(months, DEFAULTS, MIS_PERIODS.MONTHLY);
+    expect(first.startDate).toBe("2025-08-31");
+    expect(first.prevColDateRange).toEqual({ startDate: "2025-08-01", endDate: "2025-08-31" });
   });
 
   it("marks no other column as the first", () => {
