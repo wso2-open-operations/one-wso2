@@ -52,6 +52,17 @@ const ONE_HOUR = 60 * 60 * 1000;
 export interface MisAppConfigsState {
   /** Always a complete set of menus; empty ones before the call has answered. */
   options: MisFilterOptions;
+  /**
+   * Whether ARR Analysis exists — `productsUsageEnabled`, the one field on this
+   * response that is not a menu.
+   *
+   * False until the backend has actually said `true`, so it is false while the
+   * call is in flight and false if it failed. Callers that need to tell those
+   * apart read `isLoading` and `isError` beside it, which is exactly what the
+   * route does: hold while loading, say so on a failure, and redirect only on a
+   * confirmed `false`. See MisArrAnalysisPage.
+   */
+  analysisEnabled: boolean;
   /** True until the call has resolved one way or the other. */
   isLoading: boolean;
   isError: boolean;
@@ -59,7 +70,12 @@ export interface MisAppConfigsState {
   retry: () => void;
 }
 
-export function useMisAppConfigs(): MisAppConfigsState {
+/**
+ * `enabled` exists for `useMisGate`, which asks this for the flag alone and is
+ * mounted by `SideRail` on every perspective. Without it, opening People Ops
+ * would fetch the MIS filter menus.
+ */
+export function useMisAppConfigs(enabled = true): MisAppConfigsState {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const { state: subState, retry: retryIdentity } = useAsgardeoSub();
@@ -67,7 +83,7 @@ export function useMisAppConfigs(): MisAppConfigsState {
 
   const query = useQuery<MisAppConfigs>({
     queryKey: ["mis", "app-configs", userSub],
-    enabled: isSignedIn && isMisArrConfigured() && Boolean(userSub),
+    enabled: enabled && isSignedIn && isMisArrConfigured() && Boolean(userSub),
     queryFn: async () => {
       const accessToken = await getAccessToken();
       return (await authedGet<MisAppConfigs>(misArrServiceUrls.appConfigs, accessToken)) ?? {};
@@ -93,6 +109,11 @@ export function useMisAppConfigs(): MisAppConfigsState {
 
   return {
     options,
+    // `=== true`, not truthiness. The backend declares a boolean, so a string
+    // or a number here means the body is not the one it claims to be — and the
+    // question being answered is "may this screen exist", where the only safe
+    // reading of an unrecognised answer is no.
+    analysisEnabled: isConfigsBody(folded.data) && folded.data.productsUsageEnabled === true,
     isLoading: folded.isPending && folded.fetchStatus !== "idle",
     isError: folded.isError,
     errorMessage: folded.error ? humanizeHttpError(folded.error) : "",

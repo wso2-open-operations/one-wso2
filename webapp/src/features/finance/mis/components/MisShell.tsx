@@ -29,11 +29,28 @@ import { ScalePreferenceProvider } from "../util/ScalePreferenceContext";
 // state, so no screen has to remember them and none of them differs:
 //
 //   1. ARR backend URL not set    → say which config key is missing
-//   2. /user-info still in flight → spinner, never a premature denial
-//   3. /user-info failed          → an error with a retry, NOT a denial
-//   4. cannot open THIS screen    → a locked door, worded by which half they hold
+//   2. a prerequisite of THIS screen is still in flight → spinner
+//   3. that prerequisite failed   → an error with a retry
+//   4. /user-info still in flight → spinner, never a premature denial
+//   5. /user-info failed          → an error with a retry, NOT a denial
+//   6. cannot open THIS screen    → a locked door, worded by which half they hold
 //
-// Rungs 3 and 4 are the pair worth keeping apart; see MisGate.isError.
+// Rungs 5 and 6 are the pair worth keeping apart; see MisGate.isError.
+//
+// ---- what a `prerequisite` is, and why it is a rung rather than a caller's
+//      early return --------------------------------------------------------
+//
+// One screen needs something answered BEFORE the gate's answer means anything:
+// ARR Analysis exists only while `productsUsageEnabled` is true, and that
+// arrives from GET /app-configs rather than from /user-info. Until it does,
+// `canSee("mis-analysis")` is false for a reason that is not a refusal — so
+// without this rung every cold load of that screen flashes a locked panel at
+// someone who is about to be let in.
+//
+// It goes ABOVE the gate for that reason, and it lives here rather than in the
+// page because this file exists to be the one place a degraded state is worded.
+// A page handling it with early returns would render a spinner and an error
+// with no heading above either, which is what the header below is for.
 //
 // ---- how this differs from MarketingOpsShell ------------------------------
 //
@@ -49,10 +66,24 @@ import { ScalePreferenceProvider } from "../util/ScalePreferenceContext";
 // ARR service and answers for the Flash screens too. So an unset ARR URL means
 // no MIS screen can establish who you are, while an unset Flash or Admin URL is
 // a per-screen concern for the ticket that ports it.
+/**
+ * Something ONE screen must resolve before its gate can be read — the shape
+ * every MIS query hook already returns. Optional: most screens have none.
+ */
+export interface MisPrerequisite {
+  isLoading: boolean;
+  isError: boolean;
+  errorMessage: string;
+  retry: () => void;
+  /** What could not be established, for the error: "whether ARR Analysis…". */
+  describe: string;
+}
+
 export default function MisShell({
   gateId,
   title,
   subtitle,
+  prerequisite,
   children,
 }: {
   // Which MIS menu item this screen is. The gate answers per item because the
@@ -60,6 +91,7 @@ export default function MisShell({
   gateId: string;
   title: string;
   subtitle?: string;
+  prerequisite?: MisPrerequisite;
   children: ReactNode;
 }) {
   const configured = isMisArrConfigured();
@@ -70,7 +102,9 @@ export default function MisShell({
   // branch the body will take. This mirrors the LAST rung of the ladder below —
   // every earlier rung has to be excluded, or someone whose check is still in
   // flight (or failed) reads as refused for one render.
-  const isLocked = configured && !gate.isResolving && !gate.isError && !gate.canSee(gateId);
+  const pending = Boolean(prerequisite?.isLoading || prerequisite?.isError);
+  const isLocked =
+    configured && !pending && !gate.isResolving && !gate.isError && !gate.canSee(gateId);
 
   return (
     // Scale is a cross-page preference, so it is provided once here rather than
@@ -122,7 +156,12 @@ export default function MisShell({
           </Typography>
         )}
 
-        <MisBody configured={configured} gate={gate} gateId={gateId}>
+        <MisBody
+          configured={configured}
+          gate={gate}
+          gateId={gateId}
+          prerequisite={prerequisite}
+        >
           {children}
         </MisBody>
       </Box>
@@ -136,11 +175,13 @@ function MisBody({
   configured,
   gate,
   gateId,
+  prerequisite,
   children,
 }: {
   configured: boolean;
   gate: ReturnType<typeof useMisGate>;
   gateId: string;
+  prerequisite?: MisPrerequisite;
   children: ReactNode;
 }) {
   if (!configured) {
@@ -149,6 +190,27 @@ function MisBody({
         Finance MIS isn't connected yet. Set <code>ONE_WSO2_MIS_ARR_BACKEND_URL</code> in{" "}
         <code>public/config.js</code> (the backend URL) and reload.
       </Alert>
+    );
+  }
+
+  // Above the gate, because the gate's answer depends on this one — see the
+  // note at the top of the file.
+  if (prerequisite?.isLoading) {
+    return (
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mt: 2 }}>
+        <CircularProgress size={16} />
+        <Typography variant="body2" color="text.secondary">
+          Checking {prerequisite.describe}…
+        </Typography>
+      </Stack>
+    );
+  }
+
+  if (prerequisite?.isError) {
+    return (
+      <ErrorNotice onRetry={prerequisite.retry} sx={{ mt: 1.5 }}>
+        Couldn&apos;t check {prerequisite.describe}. {prerequisite.errorMessage}
+      </ErrorNotice>
     );
   }
 

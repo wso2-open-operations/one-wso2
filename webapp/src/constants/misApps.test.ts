@@ -38,17 +38,27 @@ describe("the Finance MIS registry", () => {
   // A rail entry that navigates nowhere is worse than one that isn't there. The
   // screens still being ported carry no `path` until their own ticket adds the
   // route in the same change — so this asserts the two are never out of step.
-  // ARR Analysis is the one still to come, and it is absent from the registry
-  // rather than present without a path, which is the stronger version of the
-  // same rule.
+  // Every screen in the registry is now routed; a future one joins this list
+  // and `App.tsx` in the same change, never the registry alone.
   it("gives a path only to screens that have a route", () => {
     const routed = items.filter((item) => item.path !== undefined).map((item) => item.id);
     expect(routed.sort()).toEqual([
+      "mis-analysis",
       "mis-arr-build",
       "mis-flash",
       "mis-mrr-build",
       "mis-qrr-build",
     ]);
+  });
+
+  // ARR Analysis is in the registry unconditionally, and has to be: the
+  // `productsUsageEnabled` flag that decides whether it exists is a per-reader
+  // runtime answer from GET /app-configs, where this list is a module constant
+  // evaluated once at import. The rail hides the row by asking `useMisGate`,
+  // which folds the flag in — see the gate's ARR Analysis case.
+  it("lists ARR Analysis, and leaves the flag to the gate", () => {
+    const analysis = items.find((item) => item.id === "mis-analysis");
+    expect(analysis?.path).toBe("/finance/mis/analysis");
   });
 
   // The load-bearing one. SideRail dispatches by id-set: an id in no set falls

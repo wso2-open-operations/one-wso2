@@ -114,8 +114,19 @@ _Avoid_: timeframe, range, window
 
 **Scale**:
 The display control that shows currency in units or thousands. It scales currency rows only, and
-never counts or percentages.
+never counts or percentages — **and never a Headline**.
 _Avoid_: units, format, magnitude
+
+**Headline**:
+A single figure read at a glance, on a card or a chart above a table, rather than one cell among
+many in it. The distinction is load-bearing rather than decorative: a Headline is **never scaled**,
+where a grid cell follows the reader's Scale. A grid is a working surface with one caption over
+every column saying which magnitude it is in; a Headline is the number quoted out of the screen, so
+one that silently divided by a thousand because of a toggle further down the page would travel
+without its units. The source states the rule in a comment
+(`arrAnalysis/ArrAnalysisDashboard.js:695`); here it is a signature — `misHeadlineAmount` takes no
+Scale, so no call site can pass one.
+_Avoid_: summary figure, KPI, metric, big number
 
 **Applied filter**:
 A filter the user has committed, and which is therefore serialised into the query string. Distinct
@@ -134,6 +145,14 @@ _Avoid_: history, lookback, number of years
 **Business Unit (BU)**:
 The product line a figure is attributed to.
 _Avoid_: product, segment, division
+
+The one place "product" is the right word is **Products in use** — how many distinct products one
+account actually runs. That is a property of the ACCOUNT rather than of the figure, the ARR backend
+sends it per account as `productsInUse` and filters on `numberOfProductsInUse`, and ARR Analysis puts
+the two side by side as separate controls ("Business Units" and "# Products In Use"). So they are two
+concepts that happen to count similar things, not one concept with two names — the source runs them
+together by calling its Business Unit state `products`, and the port does not.
+_For the count_: **Products in use**. _For the attribution_: **Business Unit**.
 
 **Channel / Direct**:
 The partner model a customer was sold through.

@@ -181,6 +181,39 @@ const fixed = (digits: number): Intl.NumberFormatOptions => ({
 });
 
 /**
+ * A HEADLINE figure — the one on a summary card, above a table rather than in
+ * one. Compact, in dollars, and **never scaled**.
+ *
+ * The rule is the source's, stated in one line above its own grid formatter
+ * (`arrAnalysis/ArrAnalysisDashboard.js:695`): *"Grid amounts follow the shared
+ * Scale and drop cents; cards and charts keep the full currency format."* It is
+ * a coherent division rather than an oversight. A grid is a working surface,
+ * where Scale is the reader narrowing a wall of figures to the magnitude they
+ * are thinking in, and every column sits under one caption saying which. A card
+ * is a single number read at a glance, usually the first thing on the screen
+ * and the thing quoted out of it — so a headline that silently divides by a
+ * thousand because of a toggle somewhere below is the §10.18 foot-gun with no
+ * file involved.
+ *
+ * Enforced by having **no `scale` parameter at all**, the same way
+ * `misBuildSheet` has none: there is no argument a call site could pass to
+ * scale a headline, so none can. Ticket 14's charts take this one too.
+ *
+ * `$1.2M`, `$63.3K`, `$950`.
+ */
+export function misHeadlineAmount(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "";
+  return HEADLINE_FORMAT.format(value);
+}
+
+const HEADLINE_FORMAT = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: CURRENCY_CODE,
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+/**
  * What the caption above a grid says its figures are in.
  *
  * It sits with the grid rather than with the control, because Finance's

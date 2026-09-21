@@ -17,6 +17,7 @@
 import { describeError } from "@api/errors";
 import { isMisArrConfigured } from "@config/apiConfig";
 import { useMisUserInfo } from "./useMisUserInfo";
+import { useMisAppConfigs } from "./useMisAppConfigs";
 import { MIS_PRIVILEGE, misHasPrivilege } from "./misTypes";
 
 // Which MIS privilege each menu item needs. The ONLY place a One WSO2 menu id
@@ -25,17 +26,36 @@ import { MIS_PRIVILEGE, misHasPrivilege } from "./misTypes";
 //
 // One privilege covers ALL the ARR screens, not one per screen: the source app
 // gates ARR Build, QRR, MRR and ARR Analysis on a single ARR_DASHBOARD number
-// (Config.js:56). QRR and MRR joined in ticket 12 and share that number, so the
-// ARR privilege opens all three Builds at once; ARR Analysis is the last one
-// still to come, and joins with ARR_DASHBOARD in the ticket that routes it.
+// (Config.js:56). QRR and MRR joined in ticket 12 and ARR Analysis in ticket
+// 13, so the ARR privilege opens all four at once.
+//
+// ARR Analysis needs a second condition on top, and it is not a privilege —
+// see ANALYSIS_ITEM_ID above.
 //
 // An id missing from this map is refused. That is stricter than the sibling
 // gates, which fall through to an open default for their unrestricted items —
 // MIS has no unrestricted screen, so there is nothing for a default to open.
+/**
+ * The one screen whose existence is a server-side decision as well as an
+ * authorization one: `productsUsageEnabled` from `GET /app-configs`.
+ *
+ * The flag is folded in HERE rather than asked beside `canSee` at each call
+ * site, and that is load-bearing. `SideRail` and `MisShell` both decide what to
+ * show by asking this gate, so a separately-consulted flag is one either could
+ * forget — and forgetting it fails OPEN, publishing a screen the backend has
+ * turned off. One question, one answer, both conditions inside it.
+ *
+ * The route asks `useMisAppConfigs` for the flag directly as well, because it
+ * needs something this boolean cannot carry: whether a `false` is the backend's
+ * answer or merely the absence of one. See MisArrAnalysisPage.
+ */
+const ANALYSIS_ITEM_ID = "mis-analysis";
+
 const ITEM_PRIVILEGE: Record<string, number> = {
   "mis-arr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
   "mis-qrr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
   "mis-mrr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
+  [ANALYSIS_ITEM_ID]: MIS_PRIVILEGE.ARR_DASHBOARD,
   "mis-flash": MIS_PRIVILEGE.FLASH_DASHBOARD,
 };
 
@@ -71,6 +91,9 @@ export interface MisGate {
 // `enabled` avoids firing /user-info while MIS isn't on screen.
 export function useMisGate(enabled = true): MisGate {
   const userInfo = useMisUserInfo(enabled);
+  // The same `enabled`, so a perspective with no MIS in it fetches neither.
+  // React Query dedupes this with the copy every MIS screen already asks for.
+  const { analysisEnabled } = useMisAppConfigs(enabled);
 
   // Independent, not nested. The backend pushes each number on its own group
   // check, so holding one and not the other is the ordinary case: finance sees
@@ -80,6 +103,9 @@ export function useMisGate(enabled = true): MisGate {
 
   const canSee = (itemId: string): boolean => {
     const required = ITEM_PRIVILEGE[itemId];
+    // Before the privilege branch, so the flag closes the screen whatever the
+    // reader holds — and reaches this screen alone, never the Builds beside it.
+    if (itemId === ANALYSIS_ITEM_ID) return hasArr && analysisEnabled;
     if (required === MIS_PRIVILEGE.ARR_DASHBOARD) return hasArr;
     if (required === MIS_PRIVILEGE.FLASH_DASHBOARD) return hasFlash;
     // Unmapped: refused. A screen added to the registry without a line in

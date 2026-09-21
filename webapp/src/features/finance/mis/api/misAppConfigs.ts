@@ -63,6 +63,24 @@ export interface MisFilterOptions {
   salesRegions: string[];
   subRegions: string[];
   countries: string[];
+  /**
+   * The BILLING country list, which `countries` above is not.
+   *
+   * Both exist because the two screens filter on different fields. The Build's
+   * Billing Country control sends `billingCountries` and is fed
+   * `shippingCountries` — the source's substitution, reproduced under ADR 0003
+   * and described below. ARR Analysis's Country control also sends
+   * `billingCountries`, and is fed THIS, which is the list that actually
+   * answers it.
+   *
+   * That is also the evidence §8.5 was missing. It asked whether the
+   * `billingCountries` list the backend sends was ever meant to be used; ARR
+   * Analysis is a screen that means to use it and fails to, by a typo —
+   * `appConfigs?.billingcountrys`, which is never a key of the response
+   * (`ArrAnalysisDashboard.js:709`). So the list has a reader, and the reader
+   * is misspelled. Spec §7.
+   */
+  billingCountries: string[];
   industries: string[];
   subIndustries: string[];
   accountOwners: string[];
@@ -77,6 +95,7 @@ export const EMPTY_MIS_FILTER_OPTIONS: MisFilterOptions = {
   salesRegions: [],
   subRegions: [],
   countries: [],
+  billingCountries: [],
   industries: [],
   subIndustries: [],
   accountOwners: [],
@@ -120,11 +139,16 @@ const ownerNames = (owners: MisAppConfigs["accountOwners"]): string[] =>
  * The bar has two country controls — Billing Country, and Country by Sales
  * Region (which is `shippingCountry`) — and the backend answers with two lists
  * to match. The source builds ONE, out of `shippingCountries`, and hands it to
- * both (`ArrDashboard.js:52`); `billingCountries` is fetched and never read.
+ * both (`ArrDashboard.js:52`); on the Build, `billingCountries` is fetched and
+ * never read.
  * Reproduced under ADR 0003: the two apps run side by side, and a Billing
  * Country menu that offered a country the other app did not would make the same
  * filter mean two different things depending on which app you opened. Worth
  * raising with Finance, not worth fixing unilaterally — spec §8.
+ *
+ * `billingCountries` is nonetheless SHAPED here, because ARR Analysis does read
+ * it — see the field's own note. The Build's substitution stands; the list it
+ * declines is simply no longer thrown away on the way past.
  */
 export function misFilterOptions(configs: MisAppConfigs | undefined): MisFilterOptions {
   if (!configs) return EMPTY_MIS_FILTER_OPTIONS;
@@ -133,6 +157,7 @@ export function misFilterOptions(configs: MisAppConfigs | undefined): MisFilterO
     salesRegions: sortFilterOptions(configs.salesRegions),
     subRegions: sortFilterOptions(configs.subRegions),
     countries: sortFilterOptions(configs.shippingCountries),
+    billingCountries: sortFilterOptions(configs.billingCountries),
     // Appended before the sort, and only when the backend has not started
     // sending it — a day that would otherwise show it twice.
     industries: industries.includes(CLIENT_SIDE_INDUSTRY)

@@ -38,9 +38,16 @@ const state = {
   isPending: false,
   isError: false,
   configured: true,
+  // `productsUsageEnabled` from GET /app-configs. True here by default because
+  // every test but the flag's own is about privileges, and a flag left off
+  // would make ARR Analysis fail those for the wrong reason.
+  analysisEnabled: true,
 };
 
 vi.mock("@config/apiConfig", () => ({ isMisArrConfigured: () => state.configured }));
+vi.mock("./useMisAppConfigs", () => ({
+  useMisAppConfigs: () => ({ analysisEnabled: state.analysisEnabled }),
+}));
 
 vi.mock("./useMisUserInfo", () => ({
   useMisUserInfo: () => ({
@@ -65,6 +72,7 @@ beforeEach(() => {
   state.isPending = false;
   state.isError = false;
   state.configured = true;
+  state.analysisEnabled = true;
 });
 
 describe("the ARR privilege", () => {
@@ -130,12 +138,10 @@ describe("someone holding neither privilege", () => {
 describe("an id this gate has no mapping for", () => {
   it("is hidden even from someone holding both privileges", () => {
     state.privileges = [ARR, FLASH];
-    // ARR Analysis is a real screen that is not ported yet, so it is the honest
-    // example: in the registry's future, absent from ITEM_PRIVILEGE today.
-    // (QRR and MRR Build stood here until ticket 12 routed them, which is the
-    // point — this test is about the ABSENCE of a mapping, so its example has
-    // to be a screen that genuinely has none.)
-    expect(gate().canSee("mis-analysis")).toBe(false);
+    // Every screen in the registry now has a mapping — QRR and MRR joined in
+    // ticket 12 and ARR Analysis in ticket 13 — so the example here has to be
+    // an id no registry entry carries. That is the case this test is about:
+    // the ABSENCE of a mapping, not any particular screen.
     expect(gate().canSee("mis-something-added-later")).toBe(false);
   });
 
@@ -215,5 +221,49 @@ describe("while the check is in flight", () => {
     state.isPending = true;
     expect(gate().isResolving).toBe(false);
     expect(gate().canSee("mis-arr-build")).toBe(false);
+  });
+});
+
+// ---- ARR Analysis: a privilege AND a flag ---------------------------------
+//
+// The one MIS screen whose existence is a server-side decision as well as an
+// authorization one. `productsUsageEnabled` says whether the screen is part of
+// the app at all; the ARR privilege says whether this reader may open it. Both
+// have to hold, and they are asked of different backend responses.
+//
+// Folding the flag in HERE rather than at the call sites is the load-bearing
+// part. `SideRail` and `MisShell` both decide what to show by asking
+// `canSee`, so a flag consulted separately would be a flag each of them could
+// forget — and forgetting it fails OPEN, publishing a screen the backend has
+// turned off. The route reads the flag directly as well, but only to tell a
+// confirmed `false` (redirect) from an unresolved one (hold, or say so); see
+// MisArrAnalysisPage.
+describe("ARR Analysis", () => {
+  it("opens for the ARR privilege while the flag is on", () => {
+    state.privileges = [ARR];
+    expect(gate().canSee("mis-analysis")).toBe(true);
+  });
+
+  it("is shut by the flag even for someone holding both privileges", () => {
+    state.privileges = [ARR, FLASH];
+    state.analysisEnabled = false;
+    expect(gate().canSee("mis-analysis")).toBe(false);
+  });
+
+  // The flag is not an alternative route in. It says the screen EXISTS, not
+  // that anyone may read it.
+  it("stays shut for the Flash privilege while the flag is on", () => {
+    state.privileges = [FLASH];
+    expect(gate().canSee("mis-analysis")).toBe(false);
+  });
+
+  // The flag reaches this one screen and no other. A backend that turned ARR
+  // Analysis off must not take the Builds down with it.
+  it("does not touch the Builds or the Flash Dashboard", () => {
+    state.privileges = [ARR, FLASH];
+    state.analysisEnabled = false;
+    for (const id of ["mis-arr-build", "mis-qrr-build", "mis-mrr-build", "mis-flash"]) {
+      expect(gate().canSee(id), `${id} was closed by the ARR Analysis flag`).toBe(true);
+    }
   });
 });

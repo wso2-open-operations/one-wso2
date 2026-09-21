@@ -143,3 +143,67 @@ describe("a 200 that is not the shape it should be", () => {
     expect(result.current.options.salesRegions).toEqual([]);
   });
 });
+
+// ---- the ARR Analysis feature flag ----------------------------------------
+//
+// `productsUsageEnabled` decides whether ARR Analysis exists at all — the rail
+// entry, and whether its route redirects. It rides in on this response rather
+// than getting a call of its own, so it is read here.
+//
+// The cases that matter are the three non-true ones, and they are NOT the same
+// answer: the flag being FALSE is a fact about the app, while the call still
+// being in flight or having failed is an absence of one. `analysisEnabled` is
+// therefore false in all three, and callers separate them by `isLoading` and
+// `isError` — which is what lets the route hold rather than redirect on a cold
+// load, and say so rather than redirect on a failure.
+describe("the ARR Analysis flag", () => {
+  it("is on when the backend says so", async () => {
+    answer.value = { productsUsageEnabled: true };
+    const { result } = renderConfigs();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.analysisEnabled).toBe(true);
+  });
+
+  it("is off when the backend says so", async () => {
+    answer.value = { productsUsageEnabled: false };
+    const { result } = renderConfigs();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.analysisEnabled).toBe(false);
+  });
+
+  // A backend that has not grown the field yet, and a 200 carrying a gateway
+  // error page, both land here. Neither is a licence to open the screen.
+  it("is off when the field is missing, or the body is not a body", async () => {
+    answer.value = { salesRegions: ["EMEA"] };
+    const missing = renderConfigs();
+    await waitFor(() => expect(missing.result.current.isLoading).toBe(false));
+    expect(missing.result.current.analysisEnabled).toBe(false);
+
+    answer.value = "<html>gateway</html>";
+    const gateway = renderConfigs(newClient());
+    await waitFor(() => expect(gateway.result.current.isLoading).toBe(false));
+    expect(gateway.result.current.analysisEnabled).toBe(false);
+  });
+
+  // Truthiness is not the test. The backend declares a `boolean`, so a string
+  // arriving here means the body is not what it claims to be.
+  it("is off for a value that is not the boolean the backend declares", async () => {
+    answer.value = { productsUsageEnabled: "true" };
+    const { result } = renderConfigs();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.analysisEnabled).toBe(false);
+  });
+
+  it("is off, but distinguishably so, while the call is still in flight", () => {
+    const { result } = renderConfigs();
+    expect(result.current.analysisEnabled).toBe(false);
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("is off, but distinguishably so, when the call failed", async () => {
+    answer.value = new HttpError("https://mis.example", 403, "");
+    const { result } = renderConfigs();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.analysisEnabled).toBe(false);
+  });
+});

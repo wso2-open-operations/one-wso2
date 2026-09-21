@@ -57,6 +57,7 @@ export const misPaths = {
   arrBuild: `${MIS_PATH}/arr-build`,
   qrrBuild: `${MIS_PATH}/qrr-build`,
   mrrBuild: `${MIS_PATH}/mrr-build`,
+  analysis: `${MIS_PATH}/analysis`,
   flash: `${MIS_PATH}/flash`,
 } as const;
 
@@ -76,16 +77,16 @@ export const MIS_BUILD_PATH_BY_PERIOD: Readonly<Record<MisPeriod, string>> = {
   [MIS_PERIODS.MONTHLY]: misPaths.mrrBuild,
 };
 
-// Only the screens that HAVE a route are listed. ARR Analysis is not here yet,
-// and listing it early would not be harmless: the rail renders every visible
-// child of a group whether or not it carries a path, and a pathless one falls
-// through SideRail's onSelect to scrollToSection() — a no-op anywhere but the
-// perspective's own overview page. So an entry without a route is a row that
-// silently does nothing when clicked.
+// Only the screens that HAVE a route are listed, and all five now do. Listing
+// one early is not harmless: the rail renders every visible child of a group
+// whether or not it carries a path, and a pathless one falls through SideRail's
+// onSelect to scrollToSection() — a no-op anywhere but the perspective's own
+// overview page. So an entry without a route is a row that silently does
+// nothing when clicked.
 //
-// It joins this list in the ticket that ports it, together with its route, its
-// case in useMisGate, and its tests. misApps.test.ts and misRail.test.ts both
-// assert the registry and the routes stay in step.
+// A new screen joins this list in the ticket that ports it, together with its
+// route, its case in useMisGate, and its tests. misApps.test.ts and
+// misRail.test.ts both assert the registry and the routes stay in step.
 export const MIS_APPS: readonly MenuApp[] = [
   {
     key: "mis",
@@ -93,11 +94,11 @@ export const MIS_APPS: readonly MenuApp[] = [
     icon: ChartNoAxesCombinedIcon,
     purpose: "Company recurring revenue, how it moved over a period, and the monthly P&L flash.",
     // Stay a group even while one privilege sees only one screen. Someone
-    // holding just the ARR privilege has exactly one MIS row today and will
-    // have four once QRR, MRR and ARR Analysis land, so collapsing to a leaf
-    // now would teach a shape that changes under them — "ARR Build" would
-    // vanish as a concept and reappear the day the second screen ships. The
-    // case appMenu.ts names for this flag.
+    // holding just the Flash privilege has exactly one MIS row, and someone
+    // holding just the ARR privilege has three or four depending on the ARR
+    // Analysis flag — so collapsing to a leaf for the first would teach a shape
+    // that changes under them the day their access widens. The case appMenu.ts
+    // names for this flag.
     alwaysGroup: true,
     items: [
       {
@@ -120,6 +121,19 @@ export const MIS_APPS: readonly MenuApp[] = [
         desc: "The same Build, monthly, with a Cumulative toggle the annual one does not have.",
         requires: ["admin"],
         path: misPaths.mrrBuild,
+      },
+      // ARR Analysis is listed like any other screen, flag and all. The flag is
+      // a per-reader runtime answer from GET /app-configs and this is a module
+      // constant evaluated once at import, so it could not live here even if it
+      // wanted to: the rail hides the row by asking `useMisGate`, which folds
+      // `productsUsageEnabled` into its answer for this id. Off means the row
+      // is ABSENT rather than disabled, and the route redirects to ARR Build.
+      {
+        id: "mis-analysis",
+        label: "ARR Analysis",
+        desc: "Current ARR by partner model, region and industry, over an account-level table.",
+        requires: ["admin"],
+        path: misPaths.analysis,
       },
       {
         id: "mis-flash",

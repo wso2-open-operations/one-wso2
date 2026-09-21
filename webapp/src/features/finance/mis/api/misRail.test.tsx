@@ -33,14 +33,21 @@ import { PERSPECTIVES } from "@constants/perspectives";
 // with the REAL gate and mocks only the HTTP answer underneath.
 
 const privileges = { value: [] as number[] };
+// `productsUsageEnabled` from GET /app-configs — whether ARR Analysis exists.
+// On by default, so the cases below are about privileges; its own case turns
+// it off.
+const analysisEnabled = { value: true };
 
 vi.mock("@config/apiConfig", async () => {
   const actual = await vi.importActual<typeof import("@config/apiConfig")>("@config/apiConfig");
   return { ...actual, isMisArrConfigured: () => true };
 });
 
-// Mocked at the QUERY hook, not at useMisGate: the gate itself is what is
+// Both mocked at the QUERY hook, not at useMisGate: the gate itself is what is
 // under test here, along with the rail's dispatch to it.
+vi.mock("@features/finance/mis/api/useMisAppConfigs", () => ({
+  useMisAppConfigs: () => ({ analysisEnabled: analysisEnabled.value }),
+}));
 vi.mock("@features/finance/mis/api/useMisUserInfo", () => ({
   useMisUserInfo: () => ({
     data: { privileges: privileges.value },
@@ -93,6 +100,7 @@ function showRail(initial = "/finance/mis/arr-build") {
 
 beforeEach(() => {
   privileges.value = [];
+  analysisEnabled.value = true;
 });
 
 describe("the Finance rail", () => {
@@ -131,17 +139,34 @@ describe("the Finance rail", () => {
   it("offers no row that goes nowhere", () => {
     privileges.value = [987, 789];
     showRail();
-    // The group is open — its live rows are present, so an absent row is
-    // genuinely absent rather than merely un-rendered.
-    for (const live of ["ARR Build", "QRR Build", "MRR Build", "Flash Dashboard"]) {
+    // Every registered screen is routed now, so the rule this test guards has
+    // nothing left to hold back — what it asserts instead is that all five
+    // rows are live. A screen added to the registry without a route would show
+    // up here as a sixth row that navigates nowhere.
+    for (const live of ["ARR Build", "QRR Build", "MRR Build", "ARR Analysis", "Flash Dashboard"]) {
       expect(screen.getByText(live), `${live} is routed but not in the rail`).toBeInTheDocument();
     }
-    // ARR Analysis is the one screen left to port, and the only one this rule
-    // still has to hold back. QRR and MRR stood here until ticket 12 gave them
-    // routes, and they moved up rather than being deleted — which is what the
-    // rule is for.
-    for (const dead of ["ARR Analysis"]) {
-      expect(screen.queryByText(dead), `${dead} is in the rail but has no route`).not.toBeInTheDocument();
+  });
+
+  // The flag half of ticket 13: off means the entry is ABSENT, not disabled.
+  // This is the assertion that would catch the flag being dropped from the
+  // gate — the routing suite's redirect could pass while the rail still
+  // advertised a screen that bounces on click.
+  it("drops the ARR Analysis row when the backend flag is off, and keeps the rest", () => {
+    privileges.value = [987, 789];
+    analysisEnabled.value = false;
+    showRail();
+    expect(screen.queryByText("ARR Analysis")).not.toBeInTheDocument();
+    for (const live of ["ARR Build", "QRR Build", "MRR Build", "Flash Dashboard"]) {
+      expect(screen.getByText(live), `${live} was dropped by the ARR Analysis flag`).toBeInTheDocument();
     }
+  });
+
+  // The flag is not a second way in. It says the screen exists; the privilege
+  // says who may read it.
+  it("does not let the flag alone put ARR Analysis in front of a Flash-only reader", () => {
+    privileges.value = [789];
+    showRail("/finance/mis/flash");
+    expect(screen.queryByText("ARR Analysis")).not.toBeInTheDocument();
   });
 });

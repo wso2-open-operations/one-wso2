@@ -141,12 +141,65 @@ not twelve** (§7). The current month closes today, on the same rule as the quar
 
 Current ARR by partner model (Channel/Direct), by region and industry, and by customer lifetime, over
 an account-level table. Feature-flagged server-side: `productsUsageEnabled` from `GET /app-configs`.
-When off, the rail entry and the overview card are both absent and the route redirects to ARR Build.
+When off, the rail entry is absent and the route redirects to ARR Build.
 
 The account table is the one screen that takes the community `DataGrid` — it is flat, sortable and
 wants CSV, which is precisely the condition `LeaveReportsPage.tsx:315-318` documents. Charts are
-recharts: the partner-model pie, and region and industry bars, which are this codebase's first
-cartesian charts. Every chart ships a companion table beneath it, per the house convention.
+recharts rather than `@mui/x-charts`: the partner-model pie, and the industry bars, which are this
+codebase's first cartesian charts. Every chart ships a companion table beneath it, per the house
+convention.
+
+> **Corrected by the read.** This paragraph said "region and industry bars". There is no region chart
+> in the source: `ArrAnalysisDashboard.js` renders exactly two, the partner-model `PieChart` (`:1863`)
+> and the `ARR by Industry` `BarChart` (`:2034`), and Sales Region appears only as a filter. The
+> sentence was written before the page was read. Ticket 14 should establish whether region bars are an
+> aspiration worth building or a line that should simply go.
+
+**The flag decides whether the screen EXISTS; the privilege decides who may read it**, and the two
+refusals are deliberately different. Flag off is a fact about the app, so the route redirects and the
+rail carries no entry. No ARR privilege is a fact about the reader, so a direct URL says so where they
+are, like every other MIS URL. Which leaves the two states where the flag is not yet KNOWN — the call
+in flight, or failed — able to be neither: a redirect there would bounce a bookmarked link on every
+cold load, or relocate someone because of a gateway blip and tell them nothing. Both hold instead, on
+`MisShell`'s prerequisite rung. `useMisGate` folds the flag into `canSee("mis-analysis")` so the rail
+and the shell cannot forget it; the route reads it separately because one boolean cannot carry the
+distinction above.
+
+**The controls above the table** — settled by the line-by-line read of the source's 2,254-line
+`arrAnalysis/ArrAnalysisDashboard.js` that §11.9 asked for. Ten of them, in one collapsible panel,
+and unlike the Build's bar they **apply at once**:
+
+| Control | Kind | Sends |
+|---|---|---|
+| Sales Region | multi-select | `salesRegions` |
+| Sub Region | multi-select | `subRegions` |
+| Country | multi-select | `billingCountries` — BILLING, unlike the Build's region cut (§7) |
+| Business Units | multi-select over six written-down names | `businessUnits`, as wire codes |
+| Lifetime | multi-select, 0–20 years | `customerLifetime`, as strings |
+| Partner Type | single segment, with All | `partnerType` |
+| First Sale | two segments, neither pressed meaning every account | `isFirstSale` true / false / absent |
+| # Products In Use | multi segment, 1–5 with 4 meaning "4 or more" | `numberOfProductsInUse`, as numbers |
+| ARR Range | two number fields | `arrRange.lowerBoundary` / `.upperBoundary` |
+| As Of Date | date | `endDate`, and the span's `startDate` is derived from it |
+
+No Apply, because nothing here reaches the address (§4 covers the Build screens only, and this screen
+is component state in the source too — §11.12). The exception is the ARR Range's two number fields,
+which commit on blur or Enter: a number field sets state per keystroke and each change here is two
+reads. The source absorbs that with a 250ms debounce over *every* filter, which delays every
+deliberate click to smooth over two text boxes.
+
+**Two controls constrain each other.** Choosing more Business Units raises the lowest product count
+worth offering — an account cannot run fewer distinct products than the units it has been narrowed to
+— and a count already chosen that the new selection rules out is dropped rather than left as a pair
+that can match nothing. And **Moesif and the API Platform BU cannot be asked for together**: Moesif's
+ARR is already counted inside that BU, so the pair double-counts it. The panel refuses the second and
+says why.
+
+**Two figures sit above the table.** Total ARR, from `POST /exit-arr/search` — a year-to-date reading
+rather than a balance, because the span it asks for opens at the end of the previous calendar year —
+and the number of accounts, which is the row count rather than a figure from the backend. That is the
+source's behaviour and there is no alternative: `fetchSummaryMetrics` asks for `logoCount` and
+hard-codes the answer to `0` (§9).
 
 ### 2.5 Flash Dashboard — `/finance/mis/flash`
 
@@ -700,6 +753,103 @@ for a reader changing controls, but a hand-written `?view=Global&region=EMEA` we
 the wire. Now closed for links as well, on every Table including the Build, where nothing is greyed
 out at all.
 
+### ARR Analysis (ticket 13)
+
+Five deviations, all from the line-by-line read. None of them moves a figure; three fix a control that
+cannot do its job, one fixes a sort order, and one fixes what a reader is told about an export.
+
+**Its four list menus are built four different ways, and two of them are broken. The port uses one
+rule.** The source's:
+
+| Menu | Source | Effect |
+|---|---|---|
+| Sales Region | a hard-coded `["APAC", "EMEA", "Americas", "North America"]`, else the loaded rows | ignores `salesRegions`, which `GET /app-configs` sends and the Build's own bar uses. The list carries both "Americas" and "North America", which is what a stopgap looks like |
+| Sub Region | `appConfigs.subRegions`, else the loaded rows | correct |
+| Country | `appConfigs.billingcountrys`, else the loaded rows | **that key is never on the response** — the backend declares `billingCountries` (`types.bal`, `MetaData`). The branch is dead, so the menu is ALWAYS the row scrape |
+| Partner Type | `["Channel", "Direct"]` merged with the loaded rows | correct; the backend sends no list for it |
+
+One rule here: the backend's list, else what the loaded accounts show. The scrape stays as the
+fallback it was always meant to be — `GET /app-configs` failing must not leave every control on a
+screenful of data unable to narrow it — and it accumulates across fetches rather than being rebuilt,
+so a menu never narrows to the one value the reader just picked and traps them there. That last part
+is the source's own `mergeUniqueOptions` behaviour, and it is the reason the Country menu is usable at
+all despite the typo.
+
+Fixing the key is not an ADR 0003 breach. That ADR protects behaviour someone chose and Finance
+reconciles against; a menu built from a key the response has never carried is a typo, its effect is a
+menu missing options rather than a figure reading differently, and no figure moves either way.
+
+**It also answers §8.5.** That entry asks whether the `billingCountries` list the backend sends was
+ever meant to be used. It was: ARR Analysis's Country control SENDS `billingCountries`, so that list
+is exactly the menu that answers it. The Build's substitution still stands as reproduced — the two
+screens filter on different fields, so they are entitled to different menus — but the list is no
+longer discarded on the way past. `misFilterOptions` now shapes both.
+
+**Lifetime sorts as a number.** `customerLifetime` is `string` on the wire and the source leaves the
+column at the grid's default string type, so its Lifetime sorts lexicographically and "10 yrs" lands
+above "2 yrs". A sort order is not a figure Finance reconciles, so ADR 0003 does not reach it.
+
+**The count of narrowings can reach zero.** The source pushes a `Partner Type` tag unconditionally
+and an `As of Date` tag whenever a date is set — which it is by default — so a screen narrowing
+nothing reads "2 active" and offers "Clear all" with nothing to clear. A count that cannot reach zero
+cannot answer the one question it is on the page for. Here a tag appears only for a control away from
+its default, so the count IS the number of narrowings.
+
+The chip also reads `3 filters` rather than the source's `3 active`. CONTEXT.md bans "active filter",
+and **Applied filter** is no better on this screen — that term is defined as a filter serialised into
+the query string, and nothing here is. Neither contested word fits, so the chip counts and says
+nothing else.
+
+**Its CSV carries figures a spreadsheet reads as numbers.** This is §10.18's criterion, met at the
+same standard ticket 11 set for the workbook, and it took more than declining to add a formatter. The
+DataGrid's CSV exporter takes each cell's `formattedValue` (`csvSerializer.js:24-44`), and a column
+typed `number` arrives with `value.toLocaleString()` already fitted (`gridNumericColDef.js:12`). So
+the money columns format in `renderCell` for the screen AND pin `valueFormatter` to the identity for
+the file: the reader's Scale never reaches the export, and neither do the locale's thousands
+separators, which turn a figure into text everywhere the separator is not a comma. The source's export
+is in units and comma-grouped; this one is in units and plain.
+
+**And the filter panel applies at once rather than on Apply** — see §2.4, which also carries the one
+exception and why the source's 250ms debounce over every filter is not ported.
+
+Two smaller consequences of the above, recorded so they are not discovered during §10.37:
+
+- A `customerLifetime` the backend sends as something unparseable reads as `0 yrs` where the source
+  renders the raw string. It follows from typing the column as a number; the wire type is `string`
+  and the only values seen are integers.
+- The CSV's Products in Use cell carries NORMALISED spacing — `IAM,Choreo` for a field reading
+  `IAM, Choreo`. The cell is built from the parsed list rather than the raw field, so the chips on
+  screen and the text in the file cannot disagree; taking the field raw would export an empty cell
+  for an account whose products arrived as an array, which is the one shape the parse exists to
+  survive.
+
+**Product chips are Oxygen's outlined chips rather than the source's per-product colours.** The
+source assigns each product a colour (`PRODUCT_STYLES`) used in both the chips and the charts. Not
+carried: the colour vocabulary is ticket 14's to establish against the Oxygen theme, in light and
+dark, and inventing a second one here would leave two to reconcile. ADR 0002.
+
+### A rule the source states and this port makes structural (ticket 13)
+
+Not a deviation — the opposite. `ArrAnalysisDashboard.js:695` carries one line above its grid
+formatter: *"Grid amounts follow the shared Scale and drop cents; **cards and charts keep the full
+currency format**."* So the source's headline card is `compactCurrencyFormatter` — `$63.3M`, compact,
+in dollars, and **never scaled** — while every grid cell below it follows the reader's Scale.
+
+That division is right, and it is worth saying why so ticket 14 keeps it. A grid is a working
+surface: Scale is the reader narrowing a wall of figures to the magnitude they are thinking in, and
+every column sits under one caption saying which. A card is a single number, read at a glance, first
+on the screen and the thing quoted out of it — so a headline that silently divides by a thousand
+because of a toggle further down the page is §10.18's foot-gun with no file involved.
+
+In the source the rule is a comment. Here it is `misHeadlineAmount`, which has **no `scale`
+parameter at all** — the same enforcement `misBuildSheet` uses for the export, and for the same
+reason: there is no argument a call site could pass to break it, so none can. Charts take it too.
+
+The rule is not "Scale is ignored above the table". The account count beside the card DOES go
+through `formatMisValue` with the reader's live Scale, and is unaffected because the formatter reads
+Scale in the currency branch and nowhere else — §3's "Scale never scales counts", exercised on screen
+rather than only asserted.
+
 ## 8. Source behaviour reproduced deliberately, though it looks wrong
 
 Kept because the two apps run side by side during the parallel period and must agree.
@@ -871,6 +1021,23 @@ IS rendered, so the record looks designed for a Lost view that was never finishe
 onto every account row from it, and no column definition in `tableConstants.js` reads that key. Not
 ported.
 
+**ARR Analysis asks for two figures it throws away.** `fetchSummaryMetrics` reads
+`POST /exit-arr/search`, which answers with a bare `decimal`, and returns
+`{ arrAsOfToday, yoyGrowth: 0, logoCount: 0 }` — both zeros hard-coded (`arrAnalysisApi.js:197-210`).
+Nothing recovers them later: the screen's Logo Count card reads `accountsRows.length` instead, and no
+year-on-year figure is shown anywhere. So the port reads the one figure the call actually carries. The
+account count is the row count in both apps, which is also the only true answer available.
+
+**Four fields on every ARR Analysis row are built and never read.** `toDashboardRows`
+(`ArrAnalysisDashboard.js:345-368`) writes `accountId`, `businessUnits`, `industry` and
+`activationDate` onto each row; no column definition reads any of them, and neither does the filter-
+option scrape, which reads only `partnerType`, `region`, `subRegion` and `country`. `businessUnits`
+is not even a field of `AccountDetails`, so the source's branch always yields `[]`. Not ported.
+
+**Its Sub Region falls back through two keys that do not exist.**
+`a.subRegions || a.salesSubRegions || a.subRegion` — `AccountDetails` declares `subRegion` alone, so
+the first two branches are dead. Ported as the one real field.
+
 ## 10. Test checklist
 
 ### The URL contract
@@ -976,6 +1143,36 @@ ported.
     the same live region the pending-changes message uses — silently when the bar was already at its
     defaults, and cleared by the next Apply.
 
+### ARR Analysis
+35a. With `productsUsageEnabled` **false**, the rail carries no ARR Analysis entry and
+    `/finance/mis/analysis` redirects to ARR Build — for a reader holding the ARR privilege and for
+    one holding neither, because the flag is a fact about the app rather than about the reader.
+    **Closed by ticket 13** (`misRail.test.tsx`, `MisArrAnalysisPage.test.tsx`).
+35b. With the flag **true** and no ARR privilege, the same URL renders the locked panel rather than
+    redirecting — and the flag alone does not open it for a Flash-only reader. **Closed by ticket 13.**
+35c. While `GET /app-configs` is in flight, or after it has failed, the route does NEITHER: it holds,
+    then offers a retry. The distinction is the point — a flag that is false and a flag that is
+    unknown are different answers, and only the first is a fact to act on. **Closed by ticket 13.**
+    The state most likely to regress is the cold load, where a gate folding the flag in reports "not
+    permitted" for a reader who is about to be let in.
+35d. The account table's **CSV** carries every figure in units and in plain digits, at either Scale —
+    §10.18's criterion for this screen. **Closed by ticket 13**, asserted on the bytes the grid's own
+    exporter produces rather than on the column definitions, because the column type supplies a
+    formatter nobody asked for and "we added none" is not the same claim.
+35e. The whole book renders and pages without the grid throwing. The community tier throws outright
+    above `pageSize` 100 rather than degrading, so this is a crash rather than a layout problem.
+    Partly closed by ticket 13 (a hundred accounts, in jsdom); the real volume needs a live tenant,
+    like §10.22.
+35f. Choosing a second Business Unit while "1 product in use" is pressed drops the count rather than
+    leaving a pair that matches nothing, and Moesif beside the API Platform BU is refused with a
+    reason. **Closed by ticket 13.**
+35g. With `GET /app-configs` failing, the Sales Region, Sub Region and Country menus still offer what
+    the loaded accounts show, and every written-down control still works. **Closed by ticket 13** at
+    the menu-resolution seam; the panel's own warning is asserted too.
+35h. Every figure on the screen and in its CSV agrees with the running app for one closed month —
+    this is §10.37's scope, listed here so the ARR Analysis half is not assumed to be covered by the
+    Build's.
+
 ### Parity
 36a. Both new routes render the Build at their own granularity, appear in the Finance rail under the
     same `MenuApp`, and are gated by the ARR privilege alone — one privilege opens all three Builds.
@@ -1063,16 +1260,18 @@ or a live session at `https://one.wso2.com`.
    Period at a time, rendered vertically — worked at 400px with no horizontal scroll and is the
    candidate answer, at the cost of making period-over-period comparison impossible. It is kept on the
    prototype branch rather than discarded, for exactly this question.
-9. **Per-screen control detail.** ~~The individual controls of the 1,823-line FilterBar~~ **and** the
-   2,254-line ARR Analysis page need a line-by-line read before their sections in §2 are complete.
-   **The FilterBar half is done** — read for ticket 09, and §2.1 now carries the ARR Build's control
-   detail. The read produced three findings, all recorded rather than left in the code: the TTM Type
-   list and the Years Back rule are in §7, and the two country/industry list quirks are in §8.
+9. ~~**Per-screen control detail.**~~ **ANSWERED — both halves read.** The 1,823-line FilterBar was
+   read for ticket 09 and the 2,254-line ARR Analysis page for ticket 13; §2.1 and §2.4 now carry
+   each screen's control detail. Between them the two reads produced eleven findings, all recorded
+   rather than left in the code: the FilterBar's are in §7 and §8, and ARR Analysis's are the five
+   deviations in §7, the three pieces of dead code in §9, and the new §11.12.
 
-   What the read did **not** settle, because it is a question for Finance rather than for the source:
-   whether the `billingCountries` list the backend sends was ever meant to be used (§8.5).
-
-   ARR Analysis is still unread. Its section in §2.4 is routes and flags only.
+   **§8.5 is answered as a side effect of the second read**, though it was a question for Finance.
+   It asked whether the `billingCountries` list the backend sends was ever meant to be used: it was,
+   by ARR Analysis's Country control, which sends `billingCountries` and is fed a menu built from a
+   misspelled key that is never on the response. So the list has a reader and the reader is a typo —
+   see §7. The Build's own substitution still stands as reproduced; what remains for Finance is
+   whether the Build's two country controls should go on meaning the same thing.
 10. ~~**Is `987` the only privilege number that collides?**~~ **ANSWERED, and no — `789` collides
     too.** Found while building ticket 01. MIS's Flash privilege `789` is also leave-app's
     `LEAVE_PRIVILEGE.PEOPLE_OPS_TEAM` (`features/leave/api/leaveTypes.ts:58-63`), so *both* MIS
@@ -1092,3 +1291,20 @@ or a live session at `https://one.wso2.com`.
     sender was reading; its BU pills are NOT, having been bound to the unit tabs and therefore to the
     address (§7). So the open half is two controls rather than three, and they are the same decision:
     whether a Region Summary link should carry the view and the cut it was shared from.
+12. **Should an ARR Analysis link carry the view it was shared from?** The same question as §11.11,
+    one screen along and ten controls wide. Every filter on ARR Analysis is component state in the
+    source, so nothing reaches the address and a shared link opens on defaults — reproduced under
+    ADR 0003 rather than decided during ticket 13, for the reason §11.11 gives: extending the URL
+    contract ticket 02 pinned means deciding what an unrecognised value degrades to and what a stale
+    link means, which is a contract decision rather than a side effect of porting a table.
+
+    It is a sharper question here than on the Region Summary, though, because of what the screen is
+    for. A Region Summary link loses one cut; an ARR Analysis link loses the entire question — "here
+    are the Channel accounts in EMEA above $50K" arrives as the whole customer book. Finance's habit
+    of pasting a filtered view into a thread is exactly the workflow that breaks, and it breaks
+    silently: the recipient sees a table, not an error. **Worth asking Finance whether they share
+    these links today**, which decides whether this is a contract to extend or a non-issue.
+13. **Does the whole customer book page and export without the community grid throwing?** §10.35e.
+    `pageSize` above 100 throws outright rather than degrading, so the failure mode is a blank screen
+    rather than a slow one. A hundred accounts are pinned in jsdom; the real book is not, and neither
+    is the CSV's size at that volume. Same live-tenant dependency as §10.22.

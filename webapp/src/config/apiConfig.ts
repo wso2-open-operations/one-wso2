@@ -1463,6 +1463,12 @@ export const misArrServiceUrls = {
   // rather than its balance at the end of it. Its body carries the reader's
   // unit selection, which is what makes it the one summary a Unit tab reaches.
   regionMetrics: `${misArrBackendUrl}/arr-summary/region-metrics`,
+  // ARR ANALYSIS ONLY, despite the name reading like a Build endpoint. It
+  // answers with a bare `decimal` rather than a record — one figure, not a
+  // table — and nothing under the source's `arrDashboard/` calls it. It backs
+  // the summary above the account table here, and ticket 14's partner-model and
+  // per-industry breakdowns, which are this same body asked repeatedly.
+  exitArrSearch: `${misArrBackendUrl}/exit-arr/search`,
 };
 
 export const misFlashBackendUrl: string = stripTrailingSlashes(

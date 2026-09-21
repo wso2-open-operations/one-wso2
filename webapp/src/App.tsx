@@ -125,6 +125,7 @@ import ExpenseNewClaimPage from "@features/finance/expense/pages/ExpenseNewClaim
 import MisArrBuildPage from "@features/finance/mis/pages/MisArrBuildPage";
 import MisSession from "@features/finance/mis/components/MisSession";
 import { MIS_PERIODS } from "@features/finance/mis/util/misViewVocabulary";
+import MisArrAnalysisPage from "@features/finance/mis/pages/MisArrAnalysisPage";
 import MisFlashPage from "@features/finance/mis/pages/MisFlashPage";
 import ExpenseClaimsTab from "@features/finance/expense/pages/ExpenseHistoryPage";
 import ClaimApprovalPage, {
@@ -337,13 +338,20 @@ export default function App() {
               perspective and would render its rail around a MIS screen.
               See docs/ported-apps/mis.md §7.
 
-              Only the two screens that exist are routed. QRR, MRR and ARR
-              Analysis are listed in the registry without a path until their own
-              tickets add both together, so the rail never offers a dead link.
+              All five screens are routed, and each joined the registry in the
+              same change that gave it a route — the rail renders every visible
+              child of a group whether or not it carries a path, so an entry
+              without one is a row that silently does nothing.
 
-              Access is NOT enforced here: MisShell asks useMisGate, so typing
-              either URL gives a legible locked state rather than a redirect
-              that leaves the reader guessing. */}
+              Access is NOT enforced here: MisShell asks useMisGate, so typing a
+              URL you may not use gives a legible locked state rather than a
+              redirect that leaves the reader guessing.
+
+              ARR Analysis is the one exception, and it is a different question.
+              `productsUsageEnabled` decides whether that screen EXISTS rather
+              than who may read it, so with the flag off its route redirects to
+              ARR Build — see MisArrAnalysisPage, which holds the redirect
+              itself so that a flag not yet known is neither. */}
           {/* A layout route for one reason: the session Years Back. A reader
               who has set three years keeps three years across MIS screens, and
               it is held in memory alone (it dies with the tab, like the Redux
@@ -370,6 +378,7 @@ export default function App() {
               path="finance/mis/mrr-build"
               element={<MisArrBuildPage period={MIS_PERIODS.MONTHLY} />}
             />
+            <Route path="finance/mis/analysis" element={<MisArrAnalysisPage />} />
             <Route path="finance/mis/flash" element={<MisFlashPage />} />
           </Route>
           <Route path="people-ops" element={<PerspectiveLanding />} />

@@ -21,6 +21,7 @@ import {
   MIS_VALUE_TYPES,
   amountUnitCaption,
   formatMisValue,
+  misHeadlineAmount,
   misValueTypeForRow,
 } from "./misMoney";
 
@@ -118,5 +119,38 @@ describe("the caption above a grid", () => {
   it("states the currency, and the Scale when one applies", () => {
     expect(amountUnitCaption(UNITS)).toBe("All amounts in USD");
     expect(amountUnitCaption(THOUSANDS)).toBe("All amounts in USD '000");
+  });
+});
+
+// The headline figure on a summary card, which is not a grid cell and is not
+// formatted like one.
+describe("misHeadlineAmount", () => {
+  it("writes a headline compactly, in dollars", () => {
+    expect(misHeadlineAmount(1_234_567)).toBe("$1.2M");
+    expect(misHeadlineAmount(63_283)).toBe("$63.3K");
+    expect(misHeadlineAmount(950)).toBe("$950");
+  });
+
+  // The whole point of the signature. The source states the rule — "cards and
+  // charts keep the full currency format" (ArrAnalysisDashboard.js:695) — and
+  // the way it is kept here is that there is no argument to break it with: a
+  // headline that silently divided by a thousand because of a toggle further
+  // down the page would be §10.18's foot-gun with no file involved.
+  it("takes no Scale, so no call site can scale a headline", () => {
+    // If a `scale` option is ever added, this stops compiling rather than
+    // quietly starting to work.
+    expect(misHeadlineAmount.length).toBe(1);
+  });
+
+  it("has nothing to say about a figure that never arrived", () => {
+    expect(misHeadlineAmount(undefined)).toBe("");
+    expect(misHeadlineAmount(null)).toBe("");
+    expect(misHeadlineAmount(Number.NaN)).toBe("");
+  });
+
+  // Zero is a figure. An empty card and a card reading `$0` mean different
+  // things, and only the second is an answer.
+  it("writes a real zero rather than nothing", () => {
+    expect(misHeadlineAmount(0)).toBe("$0");
   });
 });
