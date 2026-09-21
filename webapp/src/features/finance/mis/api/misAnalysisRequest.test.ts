@@ -18,6 +18,8 @@ import { describe, expect, it } from "vitest";
 import {
   analysisAccountsRequest,
   analysisExitArrRequest,
+  analysisIndustryRequests,
+  analysisPartnerModelRequests,
 } from "./misAnalysisRequest";
 import {
   ANALYSIS_FIRST_SALE,
@@ -237,5 +239,102 @@ describe("POST /exit-arr/search", () => {
   it("reads a January day back to the previous year's close", () => {
     const newYear = { year: 2027, month: 1, day: 2 };
     expect(analysisExitArrRequest(narrowed({ asOf: newYear }), ON).startDate).toBe("2026-12-31");
+  });
+});
+
+// ---- ticket 14: the two breakdowns above the table -------------------------
+//
+// Both are `POST /exit-arr/search` again — the same endpoint as the summary
+// figure, asked repeatedly with one field varied. That is why
+// `analysisExitArrRequest` always names `businessUnits` even at the whole-book
+// default: these bodies are compared against each other and against the summary,
+// and a unit list present on some and absent on others would be comparing
+// differently-filtered figures.
+
+describe("the partner-model split", () => {
+  // Two calls, one per book, with `partnerType` the only difference
+  // (`arrAnalysisApi.js:212-264`).
+  it("asks once per partner model when the reader has narrowed to neither", () => {
+    const calls = analysisPartnerModelRequests(narrowed(), ON);
+    expect(calls.map((call) => call.model)).toEqual(["Channel", "Direct"]);
+    expect(calls.map((call) => call.body.partnerType)).toEqual(["Channel", "Direct"]);
+  });
+
+  // The source asks only for the side the reader is already on and reports the
+  // other as `0`. Asking for both would return the same total twice — the
+  // filter has already excluded one book — so the second call answers a
+  // question nobody asked.
+  it("asks only for the model the reader has already narrowed to", () => {
+    const channelOnly = analysisPartnerModelRequests(narrowed({ partnerType: "Channel" }), ON);
+    expect(channelOnly.map((call) => call.model)).toEqual(["Channel"]);
+
+    const directOnly = analysisPartnerModelRequests(narrowed({ partnerType: "Direct" }), ON);
+    expect(directOnly.map((call) => call.model)).toEqual(["Direct"]);
+  });
+
+  it("matches on a partner type however it was cased", () => {
+    const calls = analysisPartnerModelRequests(narrowed({ partnerType: "channel" }), ON);
+    expect(calls.map((call) => call.model)).toEqual(["Channel"]);
+  });
+
+  // A partner type the backend reports that is neither model — the Partner Type
+  // menu offers whatever the accounts say. Asking both sides of a split the
+  // reader has already left would be two calls for one answer.
+  it("asks for neither model when narrowed to something that is neither", () => {
+    expect(analysisPartnerModelRequests(narrowed({ partnerType: "Marketplace" }), ON)).toEqual([]);
+  });
+
+  it("carries the rest of the narrowing unchanged", () => {
+    const filters = narrowed({ salesRegions: ["EMEA"], arrRange: { lower: 10, upper: null } });
+    for (const call of analysisPartnerModelRequests(filters, ON)) {
+      expect(call.body.salesRegions).toEqual(["EMEA"]);
+      expect(call.body.arrRange).toEqual({ lowerBoundary: 10 });
+      expect(call.body.startDate).toBe("2025-12-31");
+    }
+  });
+});
+
+describe("the industry breakdown", () => {
+  const OFFERED = ["Information", "Utilities", "Retail Trade", "Something Else"];
+
+  // ONE CALL PER INDUSTRY, fired in parallel over a hard-coded list
+  // (`arrAnalysisApi.js:266-299`).
+  it("asks once per industry the backend actually offers", () => {
+    const calls = analysisIndustryRequests(narrowed(), ON, OFFERED);
+    expect(calls.map((call) => call.industry).sort()).toEqual([
+      "Information",
+      "Retail Trade",
+      "Utilities",
+    ]);
+  });
+
+  it("narrows each call to its own industry and nothing else", () => {
+    const calls = analysisIndustryRequests(narrowed(), ON, OFFERED);
+    for (const call of calls) {
+      expect(call.body.industries).toEqual([call.industry]);
+    }
+  });
+
+  // The chart's six are a written-down list; the backend's is longer and
+  // varies. An industry it offers that the chart does not name is the Industry
+  // FILTER's business, not this chart's.
+  it("does not ask about an industry the chart has no bar for", () => {
+    const calls = analysisIndustryRequests(narrowed(), ON, OFFERED);
+    expect(calls.some((call) => call.industry === "Something Else")).toBe(false);
+  });
+
+  // The half that decides what the chart may claim. An industry the backend
+  // does not offer is not asked about — and `industrySeries` then draws no bar
+  // rather than a zero one.
+  it("asks about nothing when the backend has offered no list yet", () => {
+    expect(analysisIndustryRequests(narrowed(), ON, [])).toEqual([]);
+  });
+
+  it("carries the rest of the narrowing into every call", () => {
+    const filters = narrowed({ partnerType: "Channel", countries: ["Japan"] });
+    for (const call of analysisIndustryRequests(filters, ON, OFFERED)) {
+      expect(call.body.partnerType).toBe("Channel");
+      expect(call.body.billingCountries).toEqual(["Japan"]);
+    }
   });
 });

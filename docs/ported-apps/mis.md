@@ -144,16 +144,26 @@ an account-level table. Feature-flagged server-side: `productsUsageEnabled` from
 When off, the rail entry is absent and the route redirects to ARR Build.
 
 The account table is the one screen that takes the community `DataGrid` — it is flat, sortable and
-wants CSV, which is precisely the condition `LeaveReportsPage.tsx:315-318` documents. Charts are
-recharts rather than `@mui/x-charts`: the partner-model pie, and the industry bars, which are this
-codebase's first cartesian charts. Every chart ships a companion table beneath it, per the house
-convention.
+wants CSV, which is precisely the condition `LeaveReportsPage.tsx:315-318` documents. There are **two**
+charts, both recharts rather than `@mui/x-charts`, and both with a companion table beneath them per
+the house convention: the partner-model split, and ARR by industry.
 
-> **Corrected by the read.** This paragraph said "region and industry bars". There is no region chart
-> in the source: `ArrAnalysisDashboard.js` renders exactly two, the partner-model `PieChart` (`:1863`)
-> and the `ARR by Industry` `BarChart` (`:2034`), and Sales Region appears only as a filter. The
-> sentence was written before the page was read. Ticket 14 should establish whether region bars are an
-> aspiration worth building or a line that should simply go.
+> **Corrected by the read.** This paragraph said "the partner-model pie, and region and industry
+> bars". There is no region chart in the source — `ArrAnalysisDashboard.js` renders exactly two, the
+> partner-model `PieChart` (`:1863`) and the `ARR by Industry` `BarChart` (`:2034`), and Sales Region
+> appears only as a filter — and neither of the two is drawn the way the sentence assumed. Ticket 14
+> built the two that exist and the region bars are dropped: a new chart during the parallel period is
+> one Finance cannot reconcile against the running app, and it is ADR 0002's kind of decision rather
+> than a port's. §7 has the two form changes.
+
+| Chart | Form | Colour |
+|---|---|---|
+| ARR by partner model | one horizontal proportion bar, Channel and Direct, direct-labelled | two categorical slots, fixed per model |
+| ARR by industry | horizontal bars, six named industries and Other | ONE hue for every bar |
+
+**Ten reads per filter change**, which is what the panel's debounce is for. One `POST /accounts`, one
+`POST /exit-arr/search` for the headline, two more for the partner split (one when the reader has
+already narrowed to a model), and **one per industry** over the six. See §7.
 
 **The flag decides whether the screen EXISTS; the privilege decides who may read it**, and the two
 refusals are deliberately different. Flag off is a fact about the app, so the route redirects and the
@@ -828,6 +838,102 @@ source assigns each product a colour (`PRODUCT_STYLES`) used in both the chips a
 carried: the colour vocabulary is ticket 14's to establish against the Oxygen theme, in light and
 dark, and inventing a second one here would leave two to reconcile. ADR 0002.
 
+### ARR Analysis, the charts (ticket 14)
+
+Several deviations. Two are chart FORM — no figure moves, and the companion tables carry every
+amount to the cent — and the rest are claims the source makes that the data does not support.
+
+**The partner-model split is a proportion bar, not a two-slice pie.** The `dataviz` skill names a
+2-slice pie outright as a thing not to draw, and routes part-to-whole to a stacked bar. Two segments
+in a circle make a reader compare angles to answer a question one bar answers by length. It is also
+the shape the source itself falls back to: when one model holds all the ARR its pie is replaced by
+hand with a single labelled bar (`ArrAnalysisDashboard.js:1901-1929`), so this generalises a form the
+screen already had rather than inventing one.
+
+**The industry chart is horizontal, and every bar is one hue.** Horizontal because the categories
+have long names — "Health Care and Social Assistance" does not fit under a vertical bar, which is
+why the source ships a hand-rolled `wrapAxisLabel` that breaks them at sixteen characters. That is a
+workaround for the axis being the wrong one. One hue because these are nominal categories and the
+measure is magnitude: colouring each bar by its own value would double-encode what bar length already
+shows, which the skill also names outright. One series also means no legend — the title names it.
+
+**A zero and an absence are different answers, and there are THREE states rather than two.** `POST
+/exit-arr/search` is asked once per industry, but only for industries `GET /app-configs` offers; the
+rest are reported as `revenue: 0` with no request made (`arrAnalysisApi.js:266-299`). So a zero bar
+in the source can mean any of:
+
+| State | What it means | What the port draws |
+|---|---|---|
+| asked, answered `0` | this industry holds no ARR | a bar of no length, and a `0` in the table — the honest reading |
+| never asked | this tenant does not track it | no bar; *"Not reported by this tenant"* |
+| asked, read FAILED | we do not know | no bar; *"Didn't load"* |
+
+(When EVERY industry answers zero — reachable by over-narrowing, an ARR Range no account falls in —
+the chart says *"No industry figures in this view"* rather than drawing seven bars of no length, which
+reads as a chart that failed. The partner chart beside it already said so in that case, and two
+charts on one screen must not disagree about what an empty view looks like.)
+
+The third is the one that is easy to miss, and the first version of this port missed it: carrying
+"was it asked" separates the first two and leaves the third filed under whichever branch the
+coercion happens to take — which was `0`, the very claim the distinction exists to refuse. Both
+absent states must stay absent; only the sentence the reader gets differs.
+
+**Other is withheld in either absent case.** It is the total less the six, so a six missing one of
+its members hands that member's ARR to Other and overstates it. An un-asked industry and a failed
+read do that equally.
+
+The same three states reach the partner split, where the failure mode is worse because there are only
+two bars. The source reports the side it did not ask about as `0`, which is right for a filtered view
+and indistinguishable from a read that failed — and `isError` does not help, because one read
+succeeding means the pair did not wholly fail. So a failed Channel read renders **Direct at 100%**: a
+confident statement about a book half of which never answered. The port refuses to draw a split at
+all when a model was asked and did not answer, and says so; a model that was never asked about still
+leaves the survivor at a true 100%.
+
+**A failing call costs one bar, not the whole breakdown.** The source's `Promise.allSettled` is over
+its FOUR fetches (`ArrAnalysisDashboard.js:770-777`), so a chart failing while the table survives is
+its behaviour and is kept. But INSIDE each breakdown it is `Promise.all`
+(`arrAnalysisApi.js:254`, `:299`), so one failing industry read rejects the whole breakdown:
+`setIndustryBreakdown([])` leaves all six reading as ZERO under an error banner. Six industries
+silently worth nothing because one request fell over is the same false claim this screen is built to
+refuse, one level up. Here the five that answered keep their figures and the one that did not says
+so.
+
+**A partner type that is neither Channel nor Direct asks for nothing.** The Partner Type menu offers
+whatever the loaded accounts report, so a third value is reachable. The source still fires both calls
+— and `buildBasePayload`'s `partnerType` is OVERRIDDEN by `"Channel"`/`"Direct"`
+(`arrAnalysisApi.js:254-257`), so it draws the whole UNFILTERED Channel/Direct split beside a table
+narrowed to that third type: two figures on one screen answering different questions. The port asks
+for neither and says the split does not apply. Eight reads instead of ten, and one fewer way to
+misread the screen.
+
+**Industry shares are of the rows shown, not of the summary figure.** Identical whenever the six fit
+inside the total — Other is exactly the difference — and different when they EXCEED it, because Other
+floors at zero. Dividing by the summary figure there gave shares summing to 180%. The source divides
+by its rows (`ArrAnalysisDashboard.js:878-882`) and so does this.
+
+**What is ON a chart is never scaled; what is in its table always is.** The axis ticks and the
+tooltips go through `misHeadlineAmount` — compact, in dollars, no Scale — because everything on a
+chart is a **Headline** (CONTEXT.md), and the source states the same rule for cards and charts
+together. The companion table below each chart goes through `formatMisValue` at the reader's Scale,
+like every other table on the screen. So a chart reading `$1.2M` above a table row reading `1,234.57`
+is the two surfaces doing their own jobs, not a disagreement: the chart is for the shape, the table
+is for the figure. The one thing that would be a defect is a chart disagreeing with ITSELF, which is
+why the tooltip takes the axis's formatter rather than the table's.
+
+**The palette is computed, not chosen.** Both slots are documented steps from the `dataviz`
+reference palette, run through its validator against THIS app's surfaces (`#FFFFFF` and `#141417`
+from `brandTheme.ts`) rather than the skill's, and passing every check in both modes. The values and
+the commands to re-run live in `src/components/charts/chartPalette.ts`. Colour is assigned by ENTITY
+— Channel is always slot 1 whichever model is larger — so two screenshots stay comparable.
+
+**And the debounce comes back.** Ticket 13 dropped the source's 250ms debounce on the reasoning that
+the table was two reads and delaying every deliberate click to smooth over two number fields was the
+wrong trade. These charts make it ten reads per filter change, so a reader stepping through four
+Sales Regions would fire forty. Reinstated in ONE place, over the filter state, so all four reads
+move together — staggering them would leave the table and the charts above it briefly answering
+different questions.
+
 ### A rule the source states and this port makes structural (ticket 13)
 
 Not a deviation — the opposite. `ArrAnalysisDashboard.js:695` carries one line above its grid
@@ -1172,6 +1278,20 @@ the first two branches are dead. Ported as the one real field.
 35h. Every figure on the screen and in its CSV agrees with the running app for one closed month —
     this is §10.37's scope, listed here so the ARR Analysis half is not assumed to be covered by the
     Build's.
+35i. **A chart states nothing it was not told.** An industry `GET /app-configs` does not offer gets no
+    bar, an em dash in its companion table, and a line naming it — not a zero bar. **Other** is
+    suppressed in the same case, and so are all the shares when the summary read failed. **Closed by
+    ticket 14.** This is the one the source cannot pass: it reports an un-asked industry as `0` and
+    draws it.
+35j. Both charts' companion tables carry the amounts at the reader's Scale and the shares NOT scaled,
+    at either setting. **Closed by ticket 14** — §3's rule reaches a chart's table the same way it
+    reaches a grid cell.
+35k. The palette passes the `dataviz` validator in BOTH modes against this app's own surfaces, and a
+    change to any slot re-runs it. Commands are in `chartPalette.ts`. Colour is by entity, so a view
+    where Direct overtakes Channel repaints neither.
+35l. A burst of filter changes fires ONE round of reads, not one per change — the debounce. **Closed
+    by ticket 14** at the hook seam; what is not pinned is the ten-read round itself against a live
+    gateway (§11.14).
 
 ### Parity
 36a. Both new routes render the Build at their own granularity, appear in the Finance rail under the
@@ -1308,3 +1428,12 @@ or a live session at `https://one.wso2.com`.
     `pageSize` above 100 throws outright rather than degrading, so the failure mode is a blank screen
     rather than a slow one. A hundred accounts are pinned in jsdom; the real book is not, and neither
     is the CSV's size at that volume. Same live-tenant dependency as §10.22.
+
+14. **Does the gateway tolerate ten concurrent reads per filter change?** ARR Analysis fires one
+    `POST /accounts`, one `POST /exit-arr/search` for the headline, two more for the partner split and
+    **one per industry** over six — all in parallel, all on one filter change. The debounce collapses
+    a burst of changes into one such round; it does nothing about the size of the round. That is the
+    source's shape and presumably survives in production today, but One WSO2 reaches these services
+    through a different client and §11.1's token path is still unproven, so it is worth watching on
+    the first live visit rather than assuming. The one place to change it for every table at once is
+    `useColumnQueries`, which already carries this note for the Build's columns (§7).

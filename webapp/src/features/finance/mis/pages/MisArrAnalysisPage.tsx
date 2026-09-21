@@ -31,6 +31,13 @@ import {
 } from "../components/analysisAccountRows";
 import { useMisAppConfigs } from "../api/useMisAppConfigs";
 import { useAnalysisAccounts, useAnalysisSummaryArr } from "../api/useAnalysisAccounts";
+import {
+  useAnalysisIndustries,
+  useAnalysisPartnerModels,
+} from "../api/useAnalysisBreakdowns";
+import AnalysisPartnerModelChart from "../components/AnalysisPartnerModelChart";
+import AnalysisIndustryChart from "../components/AnalysisIndustryChart";
+import { useDebouncedValue } from "../util/useDebouncedValue";
 import { analysisMenus } from "../util/misAnalysisMenus";
 import {
   defaultAnalysisFilters,
@@ -120,8 +127,23 @@ function ArrAnalysis() {
   const [filters, setFilters] = useState<Filters>(() => defaultAnalysisFilters(today));
 
   const configs = useMisAppConfigs();
-  const accounts = useAnalysisAccounts(filters, today);
-  const summary = useAnalysisSummaryArr(filters, today);
+
+  // The reads are keyed on the SETTLED filters, the controls on the live ones.
+  // Named `settled` rather than `applied`: CONTEXT.md reserves **Applied
+  // filter** for one serialised into the query string, and nothing on this
+  // screen is.
+  // Ticket 13 had two reads per change and no debounce; the charts below take
+  // that to ten — one per industry, two for the partner split — so a reader
+  // stepping through four Sales Regions would fire forty. Debounced in ONE
+  // place so all four reads move together: staggering them would leave the
+  // table and the charts above it briefly answering different questions, which
+  // is the one thing a screen built for comparing them must not do.
+  const settled = useDebouncedValue(filters);
+
+  const accounts = useAnalysisAccounts(settled, today);
+  const summary = useAnalysisSummaryArr(settled, today);
+  const partnerModels = useAnalysisPartnerModels(settled, today);
+  const industries = useAnalysisIndustries(settled, today, configs.options.industries);
 
   // The scraped fallback menus, widened by each fetch and never narrowed — see
   // `mergeScrapedOptions` for why that matters.
@@ -160,7 +182,7 @@ function ArrAnalysis() {
       />
 
       <SummaryCards
-        asOf={filters.asOf}
+        asOf={settled.asOf}
         today={today}
         arr={summary.arr}
         isLoading={summary.isLoading}
@@ -191,6 +213,25 @@ function ArrAnalysis() {
             ? ""
             : `${accounts.rows.length} ${accounts.rows.length === 1 ? "account" : "accounts"}`}
       </Typography>
+
+      {/* The two breakdowns, above the table they are cut from. Each ships a
+          companion table beneath it, per the house convention — a chart alone is
+          not an accessible presentation of a number someone has to act on. */}
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1.5,
+          mb: 1.5,
+          gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 0.8fr) minmax(0, 1.2fr)" },
+        }}
+      >
+        <AnalysisPartnerModelChart breakdown={partnerModels} scale={scale} />
+        <AnalysisIndustryChart
+          breakdown={industries}
+          totalArr={summary.arr}
+          scale={scale}
+        />
+      </Box>
 
       <Stack
         direction="row"

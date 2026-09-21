@@ -53,6 +53,7 @@ import {
   ANALYSIS_FIRST_SALE,
   type MisAnalysisFilters,
 } from "../util/misAnalysisFilters";
+import { ANALYSIS_INDUSTRIES } from "../components/analysisBreakdowns";
 
 /**
  * Every MIS figure is `Total ARR` on this screen.
@@ -102,6 +103,8 @@ export interface AnalysisRequest {
   numberOfProductsInUse?: number[];
   isFirstSale?: boolean;
   arrRange?: { lowerBoundary?: number; upperBoundary?: number };
+  /** Ticket 14's industry breakdown only — one industry per call. */
+  industries?: string[];
 }
 
 /**
@@ -216,3 +219,88 @@ const wireDate = ({ year, month, day }: MisCivilDate): string =>
   `${year}-${pad(month)}-${pad(day)}`;
 
 const pad = (value: number): string => String(value).padStart(2, "0");
+
+
+// ---- ticket 14: the two breakdowns ----------------------------------------
+//
+// Both are `POST /exit-arr/search` again — the same endpoint as the summary
+// figure, asked repeatedly with one field varied. Each body is
+// `analysisExitArrRequest` with that one field added, which is what makes the
+// figures comparable: they answer the same question about the same book, cut
+// one way each.
+//
+// This is also where the request count on this screen comes from. One filter
+// change is 1 (accounts) + 1 (summary) + up to 2 (partner models) + up to 6
+// (industries) = up to **ten** reads. That is the source's shape, and it is why
+// the page debounces its filter state before any of them fire — see
+// `useDebouncedFilters`. Ticket 13 had two reads and dropped the debounce; ten
+// earns it back.
+
+/** The two partner models the split is between, in the chart's fixed order. */
+const PARTNER_MODELS = ["Channel", "Direct"] as const;
+export type AnalysisPartnerModel = (typeof PARTNER_MODELS)[number];
+
+/** One call of the partner-model split: which model, and the body asking for it. */
+export interface AnalysisPartnerModelRequest {
+  model: AnalysisPartnerModel;
+  body: AnalysisRequest;
+}
+
+/**
+ * One call per partner model — or ONE call when the reader has already narrowed
+ * to a model, because the other side would return a figure for a book the
+ * filter has already excluded (`arrAnalysisApi.js:212-264`).
+ *
+ * A Partner Type that is neither model asks for neither. The Partner Type menu
+ * offers whatever the loaded accounts report, so a third value is reachable, and
+ * asking both sides of a split the reader has left is two calls for one answer.
+ */
+export function analysisPartnerModelRequests(
+  filters: MisAnalysisFilters,
+  today: MisCivilDate,
+): AnalysisPartnerModelRequest[] {
+  const base = analysisExitArrRequest(filters, today);
+  const chosen = filters.partnerType?.trim().toLowerCase();
+
+  const wanted =
+    !chosen || chosen === ANALYSIS_ALL
+      ? PARTNER_MODELS
+      : PARTNER_MODELS.filter((model) => model.toLowerCase() === chosen);
+
+  return wanted.map((model) => ({ model, body: { ...base, partnerType: model } }));
+}
+
+/** One call of the industry breakdown: which industry, and its body. */
+export interface AnalysisIndustryRequest {
+  industry: string;
+  body: AnalysisRequest;
+}
+
+/**
+ * One call per industry — and **only for industries the backend actually
+ * offers**.
+ *
+ * The source does the same and then reports the rest as `revenue: 0`
+ * (`arrAnalysisApi.js:266-299`), which states "this industry holds no ARR" on
+ * the strength of a question nobody put. The port carries the asked-about set
+ * forward instead, and `industrySeries` draws no bar for the others. So this
+ * function's RETURN is the honest record of what was asked, not just a list of
+ * bodies.
+ *
+ * `offered` is `GET /app-configs`'s industry list, which is longer than the
+ * chart's six and varies; an industry it offers that the chart has no bar for
+ * is the Industry FILTER's business.
+ */
+export function analysisIndustryRequests(
+  filters: MisAnalysisFilters,
+  today: MisCivilDate,
+  offered: readonly string[],
+): AnalysisIndustryRequest[] {
+  const available = new Set(offered);
+  const base = analysisExitArrRequest(filters, today);
+
+  return ANALYSIS_INDUSTRIES.filter((industry) => available.has(industry)).map((industry) => ({
+    industry,
+    body: { ...base, industries: [industry] },
+  }));
+}

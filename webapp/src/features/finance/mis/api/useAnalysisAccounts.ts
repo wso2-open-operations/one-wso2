@@ -53,11 +53,11 @@ import { useColumnQueries } from "./useColumnQueries";
 // here in spirit — the two reads are independent queries, so the figure failing
 // leaves the table standing and the other way round.
 //
-// The debounce is worth naming rather than silently dropping. It exists in the
-// source because typing in the ARR Range boxes sets state on every keystroke.
-// The port's panel commits those on blur instead (see MisAnalysisFilters), so
-// there is no per-keystroke burst to absorb, and a debounce here would only
-// delay every deliberate change by a quarter second.
+// The debounce IS ported, one level up — see `useDebouncedValue`, which the
+// page applies to the filter state feeding all four reads. Ticket 13 dropped it
+// on the reasoning that two reads did not justify delaying every deliberate
+// click; ticket 14's charts took that to ten and earned it back. It lives over
+// the filters rather than in any hook so that all four reads move together.
 
 export interface AnalysisAccountsState {
   rows: AnalysisAccountRow[];
@@ -156,12 +156,16 @@ export function useAnalysisSummaryArr(
 /**
  * The figure in a response, whatever shape it arrived in.
  *
+ * Exported because ticket 14's breakdowns read the SAME endpoint, several times
+ * over, and a second coercion for the same wire type is a second place for
+ * "what counts as no figure" to be decided.
+ *
  * A string is the ordinary case rather than the odd one: a Ballerina `decimal`
  * serialises as a string wherever precision matters. Anything that is not a
  * finite number after coercion is `undefined` — an absent figure, which the
  * card can say nothing about, rather than a zero it would state as fact.
  */
-const figureIn = (payload: unknown): number | undefined => {
+export const figureIn = (payload: unknown): number | undefined => {
   if (payload == null || payload === "") return undefined;
   const parsed = Number(payload);
   return Number.isFinite(parsed) ? parsed : undefined;

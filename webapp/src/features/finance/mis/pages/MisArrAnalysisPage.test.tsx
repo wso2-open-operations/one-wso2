@@ -119,6 +119,31 @@ vi.mock("../api/useAnalysisAccounts", () => ({
     retry: () => {},
   }),
 }));
+// Ticket 14's two breakdowns. Same reason as the table's reads: what is under
+// test is the flag and the gate, not what the charts say.
+vi.mock("../api/useAnalysisBreakdowns", () => ({
+  useAnalysisPartnerModels: () => ({
+    channel: 0,
+    direct: 0,
+    // Both models asked about — the shape the real hook always returns. A
+    // `vi.mock` factory is untyped, so nothing but a test run catches a mock
+    // that has fallen behind the interface it stands in for; this one did,
+    // and threw inside `partnerModelSlices` rather than failing an assertion.
+    asked: new Set(["Channel", "Direct"]),
+    isLoading: false,
+    isError: false,
+    errorMessage: "",
+    retry: () => {},
+  }),
+  useAnalysisIndustries: () => ({
+    byIndustry: {},
+    asked: new Set<string>(),
+    isLoading: false,
+    isError: false,
+    errorMessage: "",
+    retry: () => {},
+  }),
+}));
 
 const { default: MisArrAnalysisPage } = await import("./MisArrAnalysisPage");
 const { misPaths } = await import("@constants/misApps");

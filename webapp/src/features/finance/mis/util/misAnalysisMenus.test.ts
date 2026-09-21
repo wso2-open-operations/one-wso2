@@ -32,7 +32,7 @@ import { EMPTY_SCRAPED_OPTIONS } from "../components/analysisAccountRows";
 //   Partner Type  `["Channel", "Direct"]` merged with the scrape
 
 const scraped = {
-  partnerTypes: ["Reseller"],
+  partnerTypes: ["Marketplace"],
   salesRegions: ["Oceania"],
   subRegions: ["Nordics"],
   countries: ["Sri Lanka"],
@@ -88,9 +88,12 @@ describe("Partner Type", () => {
 
   // Merged rather than replaced: the two models are a floor, not a ceiling. An
   // account reporting something else is a fact about the book, and a menu that
-  // hid it would leave rows nothing on the screen can select.
+  // hid it would leave rows nothing on the screen can select. (The fixture
+  // deliberately avoids "Reseller" — CONTEXT.md lists it as a word not to use
+  // for a partner model, and this case is exactly the one where a reader might
+  // take it for a synonym of Channel.)
   it("adds anything else the accounts actually report", () => {
-    expect(analysisMenus({}, scraped).partnerTypes).toEqual(["Channel", "Direct", "Reseller"]);
+    expect(analysisMenus({}, scraped).partnerTypes).toEqual(["Channel", "Direct", "Marketplace"]);
   });
 
   it("does not list a model twice when the accounts report one of them", () => {

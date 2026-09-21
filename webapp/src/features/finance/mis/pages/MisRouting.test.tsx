@@ -21,6 +21,13 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// Vitest's 5s default is the wrong one for this file: each test mounts a whole
+// MIS screen, and under the full suite's parallelism that runs past five
+// seconds while taking a fraction of one on its own. It began timing out when
+// ticket 14 added five more component-heavy files to the same run — the load
+// changed, not this file. Same line as the other screen-mounting suites here.
+vi.setConfig({ testTimeout: 20_000 });
+
 // Test checklist §10.10, §10.11 and §10.12 — what a person actually SEES at a
 // MIS URL they are and are not entitled to.
 //
