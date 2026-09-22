@@ -14,14 +14,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import MisFlashDetailDialog from "./MisFlashDetailDialog";
 import { FLASH_UNIT_COLUMNS } from "./flashPnlRows";
 import { flashMonthlyRanges } from "../util/misFlashPeriods";
 import { MIS_SCALES } from "../util/misViewVocabulary";
 import type { FlashDetailState } from "../api/useFlashDetail";
+import type { MisFlashAccountsDialogProps } from "./MisFlashAccountsDialog";
+
+// The account view is its own component with its own suite; what is asked
+// here is only whether a figure OPENS it, and with what question. So it is
+// replaced by a stand-in that records the props it was mounted with — typed
+// against the real component's props, so a renamed one fails to compile here.
+const accountViews: MisFlashAccountsDialogProps[] = [];
+vi.mock("./MisFlashAccountsDialog", () => ({
+  default: (props: MisFlashAccountsDialogProps) => {
+    accountViews.push(props);
+    return <div role="dialog" aria-label="Account View" />;
+  },
+}));
+
+const { default: MisFlashDetailDialog } = await import("./MisFlashDetailDialog");
 
 vi.setConfig({ testTimeout: 20_000 });
 
@@ -69,15 +83,19 @@ const FAILED: FlashDetailState = {
   retry,
 };
 
-function show(state: FlashDetailState = ANSWERED, ranges = RANGES) {
+/** The month the server takes forecasts for, as the page would pass it. */
+const FORECAST_MONTH = { year: 2026, month: 8 };
+
+function show(state: FlashDetailState = ANSWERED, ranges = RANGES, unit = IAM) {
   return render(
     <MisFlashDetailDialog
       open
       onClose={() => {}}
-      unit={IAM}
+      unit={unit}
       ranges={ranges}
       state={state}
       scale={MIS_SCALES.UNITS}
+      forecastMonth={FORECAST_MONTH}
     />,
   );
 }
@@ -162,5 +180,81 @@ describe("when it has nothing to show", () => {
     show(ANSWERED, flashMonthlyRanges({ year: 2026, month: 9 }, { year: 2026, month: 9 }));
     expect(screen.getByText("No months in this range to break down.")).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Monthly detail for IAM" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the accounts behind a figure (ticket 16)", () => {
+  // Revenue's heading line and one of its parts, across the thirteen months
+  // asked for: index 0 is fetched and not drawn, so October 2025 is index 1.
+  const months = (from: number) => Array.from({ length: 13 }, (_, i) => ({ value: from + i }));
+  const WITH_REVENUE: FlashDetailState = {
+    ...ANSWERED,
+    accounts: {
+      revenue: [
+        { id: "1", title: "Revenue", summary: months(100) },
+        { id: "2", title: "Recurring", summary: months(500) },
+      ],
+    },
+  };
+  const WSO2 = FLASH_UNIT_COLUMNS.find((column) => column.businessUnit === "All")!;
+  /**
+   * The figure controls in the `nth` row named `label` — figures only, so a
+   * section's own expand toggle is not counted. `nth`, because the Revenue
+   * SECTION and its heading LINE are both called "Revenue", as the backend
+   * names them.
+   */
+  const buttonsIn = (label: string, nth = 0) => {
+    const table = screen.getByRole("table", { name: /^Monthly detail for / });
+    const rows = Array.from(table.querySelectorAll("tbody tr")).filter(
+      (row) => row.querySelector("th")?.textContent === label,
+    );
+    return Array.from(rows[nth].querySelectorAll("td button"));
+  };
+
+  beforeEach(() => {
+    accountViews.length = 0;
+  });
+
+  it("makes each month of a line with accounts behind it a control", () => {
+    show(WITH_REVENUE);
+    expect(buttonsIn("Recurring")).toHaveLength(12);
+  });
+
+  // The figure under Oct 2025 is the response's index 1, and the question it
+  // opens is for October — the month on the header, which is the month the
+  // backend summed (spec §8).
+  it("opens the account view for that line, that unit and that column's month", async () => {
+    show(WITH_REVENUE);
+    const [october] = buttonsIn("Recurring");
+    expect(october).toHaveTextContent("501.00");
+    await userEvent.click(october as HTMLElement);
+    expect(accountViews[accountViews.length - 1]).toMatchObject({
+      query: {
+        book: "income",
+        accountCategory: "Recurring Revenue",
+        businessUnit: "IAM",
+        month: "2025-10",
+      },
+      unitLabel: "IAM",
+      forecastMonth: FORECAST_MONTH,
+    });
+  });
+
+  it("leaves the Revenue heading and every other section plain", () => {
+    show(WITH_REVENUE);
+    expect(buttonsIn("Revenue", 1)).toHaveLength(0);
+    expect(buttonsIn("Opening ARR")).toHaveLength(0);
+  });
+
+  // `bu !== BU_LIST.WSO2` in the source. The whole company's figure is every
+  // unit's accounts at once, and no single account list stands behind it.
+  it("opens nothing on the WSO2 column", () => {
+    show(WITH_REVENUE, RANGES, WSO2);
+    expect(buttonsIn("Recurring")).toHaveLength(0);
+  });
+
+  it("is shut until a figure is opened", () => {
+    show(WITH_REVENUE);
+    expect(screen.queryByRole("dialog", { name: "Account View" })).not.toBeInTheDocument();
   });
 });

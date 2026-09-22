@@ -105,8 +105,23 @@ _Avoid_: LTM, rolling year
 
 **Flash**:
 The monthly P&L reported ahead of a formal close — revenue, cost of sales, gross profit, gross
-margin, plus ARR and booking per business unit. The only MIS surface where users write data.
+margin, plus ARR and booking per business unit. The only MIS surface where users write data — a
+**Forecast**, from the **Account View** behind a figure, never on a figure itself.
 _Avoid_: P&L, management accounts, monthly report
+
+**Account View**:
+The GL accounts behind one Flash figure, for one business unit and one month — opened from a Revenue
+line or a Cost of Sales sub-category in a business unit's monthly view. A figure is their SUM, which is
+why it cannot be edited itself: the backend writes one account at a time, by its id. The source's own
+name for the dialog, kept.
+_Avoid_: drill-down (that is the Build's customer list), account list, GL detail
+
+**Forecast**:
+The value Finance writes against one GL account for the month just closed, which stands in for that
+account's amount on the P&L while the ledger has none, until the monthly cutoff. ONE value: the
+tickets say "budget and forecast", the backend reads it back as `budgetedValue` and takes it as
+`value`, and the source heads its column "Updated Amount" — all the same field.
+_Avoid_: budget, as though it were a second value; updated amount, outside that one column header
 
 **Period**:
 The time bucket a Build covers. Carried in the route path, not the query string.
@@ -114,7 +129,9 @@ _Avoid_: timeframe, range, window
 
 **Scale**:
 The display control that shows currency in units or thousands. It scales currency rows only, and
-never counts or percentages — **and never a Headline**.
+never counts or percentages — **and never a Headline**. Nor the Flash's **Account View**, the one
+grid that ignores it: a Forecast is typed there in units, and a list in thousands beside the form
+would invite one a thousand times off.
 _Avoid_: units, format, magnitude
 
 **Headline**:

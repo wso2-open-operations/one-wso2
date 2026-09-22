@@ -18,9 +18,10 @@ import { describe, expect, it } from "vitest";
 import { MIS_VALUE_TYPES } from "../util/misMoney";
 import type {
   FlashFinancialAccountStatistics,
+  FlashRangeRow,
   FlashSalesStatistics,
 } from "../api/misFlashTypes";
-import { FLASH_DETAIL_SECTIONS, flashDetailRows } from "./flashDetailRows";
+import { FLASH_DETAIL_SECTIONS, flashAccountsQuery, flashDetailRows } from "./flashDetailRows";
 import { FLASH_PNL_SECTIONS } from "./flashPnlRows";
 
 // One business unit's P&L month by month — the same statement as the Flash
@@ -214,5 +215,124 @@ describe("the ids the table tracks open sections by", () => {
       {},
     );
     expect(rows[0].children![0].id).not.toBe(rows[0].children![1].id);
+  });
+});
+
+// Ticket 16. A figure in the detail view is a sum of GL accounts, and the ones
+// Finance may write forecasts against open the list of those accounts — the
+// source's Account View. Which ones, and what each asks the backend, is decided
+// here, BY NAME: a line whose title the backend renames stops opening anything,
+// rather than opening some other category's accounts.
+describe("which figures have accounts behind them", () => {
+  const line = (id: string, title: string, subLevel?: FlashRangeRow[]): FlashRangeRow => ({
+    id,
+    title,
+    summary: [month("2026-08-31", "2026-09-30", 1)],
+    ...(subLevel ? { subLevel } : {}),
+  });
+  // The backend's own shapes: a heading line first (id "1"), then its parts;
+  // every Cost of Sales line repeats its own name as its first sub-level.
+  const BOOKS: FlashFinancialAccountStatistics = {
+    revenue: [
+      line("1", "Revenue"),
+      line("2", "Recurring"),
+      line("3", "Non-Recurring/PSO"),
+      line("4", "Cloud"),
+    ],
+    costOfSales: [
+      line("1", "Cost of Sales", [line("1", "Cost of Sales"), line("2", "Bonus")]),
+      line("2", "Recurring", [line("1", "Recurring"), line("2", "Bonus"), line("3", "Infra/IT")]),
+      line("3", "Non-Recurring/PSO", [line("1", "Non-Recurring/PSO"), line("2", "Consultancy")]),
+      // "Public Cloud" is both this line's name and one of its sub-categories.
+      line("4", "Public Cloud", [line("1", "Public Cloud"), line("2", "Public Cloud")]),
+    ],
+    // The same titles, in sections nobody writes to.
+    grossProfit: [line("1", "Gross Profit"), line("2", "Recurring")],
+    expense: [line("1", "Expenses"), line("2", "Sales", [line("1", "Sales"), line("2", "Travel")])],
+  };
+  const { rows, figures } = flashDetailRows({}, BOOKS);
+  const section = (label: string) => rows.find((row) => row.label === label)!;
+  const behind = (row: { id: string }) => figures.get(row.id)?.accounts;
+  const revenue = section("Revenue").children!;
+  const costOfSales = section("Cost of Sales").children!;
+
+  // `constants.bal`'s REVENUE_* — note "Non Recurring" has no hyphen at the
+  // backend, where the line's own title does.
+  it("opens each revenue line on its own account category", () => {
+    expect(revenue.slice(1).map(behind)).toEqual([
+      { book: "income", accountCategory: "Recurring Revenue" },
+      { book: "income", accountCategory: "Non Recurring Revenue" },
+      { book: "income", accountCategory: "Cloud" },
+    ]);
+  });
+
+  it("does not open the Revenue heading, which is every category at once", () => {
+    expect(behind(revenue[0])).toBeUndefined();
+  });
+
+  // The category comes from the LINE ABOVE, the sub-category from the line.
+  it("opens a cost-of-sales sub-category within the category its line sums", () => {
+    expect(behind(costOfSales[1].children![2])).toEqual({
+      book: "cost-of-sales",
+      accountCategory: "Recurring Revenue COS",
+      accountSubCategory: "Infra/IT",
+    });
+    expect(behind(costOfSales[2].children![1])).toEqual({
+      book: "cost-of-sales",
+      accountCategory: "Non-Recurring Revenue COS",
+      accountSubCategory: "Consultancy",
+    });
+    expect(behind(costOfSales[3].children![1])).toEqual({
+      book: "cost-of-sales",
+      accountCategory: "Cloud",
+      accountSubCategory: "Public Cloud",
+    });
+  });
+
+  // `MonthlyViewDialog.js` marks `subObj.id === "1"` as a title. Asserted on
+  // Public Cloud, the one line where the heading and a sub-category share a
+  // name, so a rule by title could not pass it.
+  it("does not open a sub-level's own heading, even beside its namesake", () => {
+    const [heading, namesake] = costOfSales[3].children!;
+    expect(heading.label).toBe(namesake.label);
+    expect(behind(heading)).toBeUndefined();
+    expect(behind(namesake)).toBeDefined();
+  });
+
+  it("does not open anything under the Cost of Sales total", () => {
+    expect(costOfSales[0].children!.map(behind)).toEqual([undefined, undefined]);
+  });
+
+  it("does not open a cost-of-sales line itself, only its sub-categories", () => {
+    expect(costOfSales.map(behind)).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it("opens nothing in any other section, whatever its lines are called", () => {
+    expect(section("Gross Profit").children!.map(behind)).toEqual([undefined, undefined]);
+    const sales = section("Expense").children![1];
+    expect([sales, ...sales.children!].map(behind)).toEqual([undefined, undefined, undefined]);
+  });
+});
+
+describe("what an account view asks for", () => {
+  const RECURRING = { book: "income", accountCategory: "Recurring Revenue" } as const;
+
+  it("asks for one business unit and one month", () => {
+    expect(flashAccountsQuery(RECURRING, "IAM", { year: 2026, month: 9 })).toEqual({
+      book: "income",
+      accountCategory: "Recurring Revenue",
+      businessUnit: "IAM",
+      month: "2026-09",
+    });
+  });
+
+  // `MonthlyViewTable.js` opens nothing when `bu === BU_LIST.WSO2`, whose value
+  // is "All" — the whole company, which no single account belongs to.
+  it("asks nothing of the WSO2 column", () => {
+    expect(flashAccountsQuery(RECURRING, "All", { year: 2026, month: 9 })).toBeNull();
+  });
+
+  it("asks nothing for a figure with no accounts behind it", () => {
+    expect(flashAccountsQuery(undefined, "IAM", { year: 2026, month: 9 })).toBeNull();
   });
 });

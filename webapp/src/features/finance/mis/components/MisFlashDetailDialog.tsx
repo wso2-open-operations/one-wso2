@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Box,
   CircularProgress,
@@ -28,7 +28,8 @@ import {
 import { XIcon } from "@wso2/oxygen-ui-icons-react";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import BuildTable, { type BuildCellFor } from "./BuildTable";
-import { flashDetailRows } from "./flashDetailRows";
+import MisFlashAccountsDialog from "./MisFlashAccountsDialog";
+import { flashAccountsQuery, flashDetailRows } from "./flashDetailRows";
 import { flashSectionIds } from "./flashRowIds";
 import type { FlashUnitColumn } from "./flashPnlRows";
 import {
@@ -36,10 +37,12 @@ import {
   flashMonthLabel,
   flashRangeLabel,
   type FlashMonthlyRange,
+  type MisMonth,
 } from "../util/misFlashPeriods";
 import { amountUnitCaption, formatMisValue } from "../util/misMoney";
 import type { MisScale } from "../util/misViewVocabulary";
 import type { FlashDetailState } from "../api/useFlashDetail";
+import type { FlashAccountsQuery } from "../api/misFlashTypes";
 
 // One business unit's P&L, month by month.
 //
@@ -48,12 +51,14 @@ import type { FlashDetailState } from "../api/useFlashDetail";
 // Flash, which is where the source opens it from too — its column headers ARE
 // the buttons.
 //
-// ---- what ticket 15 takes, and what it leaves ------------------------------
+// ---- what it does besides read ---------------------------------------------
 //
-// Read-only. The source's version of this dialog is also where budget and
-// forecast values are edited (ticket 16), where comments hang off every cell
-// (ticket 17), and where its own Export button is (ticket 18). Each of those
-// adds to this dialog rather than replacing it.
+// Ticket 16: a Revenue line or a Cost of Sales sub-category is a sum of GL
+// accounts, and its figures open the list of them — `MisFlashAccountsDialog`,
+// where forecasts are written. Which figures, and what each asks, is
+// `flashDetailRows`' to say; this dialog only puts the question on the cell.
+// Comments (ticket 17) and the Export button (ticket 18) are still to come, and
+// each adds to this dialog rather than replacing it.
 //
 // ---- which month a column is ----------------------------------------------
 //
@@ -85,6 +90,8 @@ export interface MisFlashDetailDialogProps {
   ranges: readonly FlashMonthlyRange[];
   state: FlashDetailState;
   scale: MisScale;
+  /** The month whose forecasts the server takes — see `flashForecastMonth`. */
+  forecastMonth: MisMonth;
 }
 
 export default function MisFlashDetailDialog({
@@ -94,8 +101,13 @@ export default function MisFlashDetailDialog({
   ranges,
   state,
   scale,
+  forecastMonth,
 }: MisFlashDetailDialogProps) {
   const title = unit ? `Monthly View — ${unit.label}` : "Monthly View";
+  // The figure whose accounts are open, if any. Nothing resets it when this
+  // dialog shuts, and nothing needs to: the account view is modal over this
+  // one, so this one cannot be shut while it is open.
+  const [accountsQuery, setAccountsQuery] = useState<FlashAccountsQuery | null>(null);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
@@ -131,8 +143,26 @@ export default function MisFlashDetailDialog({
             {amountUnitCaption(scale)}
           </Typography>
         </Stack>
-        <DetailBody ranges={ranges} state={state} scale={scale} unitLabel={unit?.label ?? ""} />
+        <DetailBody
+          ranges={ranges}
+          state={state}
+          scale={scale}
+          unitLabel={unit?.label ?? ""}
+          businessUnit={unit?.businessUnit ?? ""}
+          onOpenAccounts={setAccountsQuery}
+        />
       </DialogContent>
+      {/* Mounted only while a figure is open, so its list is never read for a
+          figure nobody opened, and a view opened again starts from a fresh read
+          and an empty form rather than from the last one's. */}
+      {accountsQuery && (
+        <MisFlashAccountsDialog
+          query={accountsQuery}
+          unitLabel={unit?.label ?? ""}
+          forecastMonth={forecastMonth}
+          onClose={() => setAccountsQuery(null)}
+        />
+      )}
     </Dialog>
   );
 }
@@ -142,11 +172,16 @@ function DetailBody({
   state,
   scale,
   unitLabel,
+  businessUnit,
+  onOpenAccounts,
 }: {
   ranges: readonly FlashMonthlyRange[];
   state: FlashDetailState;
   scale: MisScale;
   unitLabel: string;
+  /** `BU_LIST`'s name for the unit — what an account view asks by. */
+  businessUnit: string;
+  onOpenAccounts: (query: FlashAccountsQuery) => void;
 }) {
   const { rows, figures } = useMemo(
     () => flashDetailRows(state.sales, state.accounts),
@@ -166,18 +201,28 @@ function DetailBody({
       })),
     [columns],
   );
+  /** Each drawn column's month, by the response index its key carries. */
+  const monthAt = useMemo(
+    () => new Map(columns.map((column) => [column.index, column.range.month])),
+    [columns],
+  );
   const cell: BuildCellFor = (row, group) => {
     const held = figures.get(row.id);
     // The column's key IS the index it reads — see `columnGroups` above.
     const index = Number(group.key);
-    if (!held || !Number.isInteger(index)) return { text: "" };
+    const month = monthAt.get(index);
+    if (!held || !month) return { text: "" };
     const raw = held.values[index] ?? null;
+    // The month on the header, which is the month the backend summed here —
+    // so the accounts listed are the ones this figure is the sum of.
+    const accounts = flashAccountsQuery(held.accounts, businessUnit, month);
     return {
       // Through ticket 05, so Scale reaches currency and nothing else. Gross
       // Margin is a percentage here exactly as it is on the P&L, and
       // `formatMisValue` reads `scale` in the currency branch alone.
       text: formatMisValue(raw, held.valueType, { scale }),
       negative: typeof raw === "number" && raw < 0,
+      ...(accounts ? { onActivate: () => onOpenAccounts(accounts) } : {}),
     };
   };
 

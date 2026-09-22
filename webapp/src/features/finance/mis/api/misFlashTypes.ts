@@ -139,6 +139,74 @@ export interface FlashSummaryRequest {
   subRegions: readonly string[];
 }
 
+/**
+ * Which of the two account books a figure's accounts are in — and so which pair
+ * of endpoints reads and writes them: `/income-accounts` for Revenue,
+ * `/cost-of-sales-accounts` for Cost of Sales. No other section has a book: the
+ * flash backend writes forecasts into these two tables and no others
+ * (`flash-backend/service.bal:136-160`, the two PATCH resources).
+ */
+export type FlashAccountBook = "income" | "cost-of-sales";
+
+/**
+ * What an account view asks for: the GL accounts behind one figure, for one
+ * business unit and one month.
+ *
+ * `IncomeAccountsFilter` and `CostOfSalesAccountsFilter` (`types.bal:260-281`),
+ * both sent as query parameters on a GET.
+ */
+export interface FlashAccountsQuery {
+  book: FlashAccountBook;
+  /** A GL account category — "Recurring Revenue", "Non-Recurring Revenue COS". */
+  accountCategory: string;
+  /**
+   * Cost of Sales only: the sub-category line's own title — "Bonus", "Infra/IT".
+   * Required by the backend there, and absent from the income endpoint.
+   */
+  accountSubCategory?: string;
+  /** `BU_LIST`'s name for the unit, as `FlashDetailRequest.businessUnit`. */
+  businessUnit: string;
+  /** `yyyy-MM`. */
+  month: string;
+}
+
+/**
+ * One GL account behind a figure, as an account view lists it.
+ *
+ * `FinancialAccount` (`types.bal:25-38`), where `id`, `accountName`, `month`
+ * and `amount` are required and `comment` and `budgetedValue` are not. Optional
+ * throughout here for the reason this file's header gives.
+ */
+export interface FlashFinancialAccount {
+  /** The id a forecast is written against — `ForecastValueInput.id`. */
+  id?: number | null;
+  accountName?: string | null;
+  /** The comment written with the forecast. */
+  comment?: string | null;
+  /**
+   * The forecast written through this screen — the source heads it "Updated
+   * Amount". Null until someone writes one; the P&L reads it only in place of a
+   * missing `amount`, and only for last month before the cutoff.
+   */
+  budgetedValue?: number | null;
+  /** `yyyy-MM`. */
+  month?: string | null;
+  /** What the ledger says. */
+  amount?: number | null;
+}
+
+/**
+ * `PATCH /income-accounts` and `PATCH /cost-of-sales-accounts` — the only
+ * write in MIS's Build and analysis half. `ForecastValueInput`
+ * (`types.bal:283-290`): `value` is a required decimal, so a forecast can be
+ * changed and never cleared, and `comment` is `string?`.
+ */
+export interface FlashForecastInput {
+  id: number;
+  value: number;
+  comment: string | null;
+}
+
 /** A number the backend sent, or nothing. Anything else is nothing. */
 export function flashAmount(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;

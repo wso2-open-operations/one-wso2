@@ -32,9 +32,11 @@
 // component, so it keeps the tree.
 
 import { MIS_VALUE_TYPES, type MisValueType } from "../util/misMoney";
+import { monthInputValue, type MisMonth } from "../util/misFlashPeriods";
 import {
   flashAmount,
   flashRowsIn,
+  type FlashAccountsQuery,
   type FlashFinancialAccountStatistics,
   type FlashRangeRow,
   type FlashRangeSummary,
@@ -185,7 +187,19 @@ export interface FlashDetailFigures {
    * reads it here.
    */
   values: readonly (number | null)[];
+  /**
+   * The GL accounts this figure sums, when Finance may write forecasts against
+   * them — ticket 16's account view. Absent for every other line. See
+   * `accountsBehind`.
+   */
+  accounts?: FlashAccountsBehind;
 }
+
+/** Which accounts sit behind a figure: an account view's question, less its unit and month. */
+export type FlashAccountsBehind = Pick<
+  FlashAccountsQuery,
+  "book" | "accountCategory" | "accountSubCategory"
+>;
 
 export interface FlashDetail {
   rows: BuildRow[];
@@ -214,17 +228,23 @@ export function flashDetailRows(
     lines: readonly FlashRangeRow[],
     section: FlashDetailSection,
     prefix: string,
+    parent: FlashRangeRow | null,
   ): BuildRow[] => {
     const taken = new Set<string>();
     return lines.map((line, index) => {
       const label = line.title ?? "";
       const id = flashRowId(prefix, label, index, taken);
-      figures.set(id, { valueType: section.valueType, values: valuesOf(line.summary) });
+      const accounts = accountsBehind(section, parent, line);
+      figures.set(id, {
+        valueType: section.valueType,
+        values: valuesOf(line.summary),
+        ...(accounts ? { accounts } : {}),
+      });
       const children = flashRowsIn<FlashRangeRow>(line.subLevel);
       return {
         id,
         label,
-        ...(children.length ? { children: lineRows(children, section, id) } : {}),
+        ...(children.length ? { children: lineRows(children, section, id, line) } : {}),
       };
     });
   };
@@ -235,7 +255,7 @@ export function flashDetailRows(
       id: section.id,
       label: section.label,
       emphasis: true,
-      ...(lines.length ? { children: lineRows(lines, section, section.id) } : {}),
+      ...(lines.length ? { children: lineRows(lines, section, section.id, null) } : {}),
     } satisfies BuildRow;
   });
 
@@ -252,4 +272,90 @@ export function flashDetailRows(
  */
 function valuesOf(summary: FlashRangeSummary[] | null | undefined): (number | null)[] {
   return flashRowsIn<FlashRangeSummary>(summary).map((entry) => flashAmount(entry?.value));
+}
+
+// ---- which figures open an account view (ticket 16) ------------------------
+//
+// A figure here is a SUM of GL accounts, and the flash backend's only writes
+// are a forecast against one of those accounts, by its id. So the edit is never
+// on a figure: a figure opens the list of accounts behind it — the source's
+// Account View (`MonthlyViewTable.js`'s `viewAccountsDialog`) — and an account
+// in that list is what gets written.
+//
+// Two books, and in each the source opens a different depth:
+//
+//   * Revenue's LINES — Recurring, Non-Recurring/PSO, Cloud — each on its own
+//     account category. Not the Revenue heading, which is all three.
+//   * Cost of Sales' SUB-LEVELS — Bonus, Infra/IT, … — within the category of
+//     the line above them. Not the lines themselves, not anything under the
+//     Cost of Sales total (every category at once — the source's `category:
+//     ""`), and not a sub-level's own heading.
+//
+// Both by NAME, which is a deliberate departure from the source's reading by
+// position (`obj.id === "2"` means Recurring). A backend that renamed or
+// reordered a line would make a positional rule open some OTHER category's
+// accounts under this one's figure; by name, the line just stops opening
+// anything. The one exception is the sub-level heading, which the source marks
+// by `id === "1"` and which has to be read that way: under Public Cloud the
+// heading and a sub-category are both called "Public Cloud".
+//
+// Expense sub-levels are editable in the source and are NOT here. It sends
+// them to `/cost-of-sales-accounts` with an Expense category, which searches
+// the cost-of-sales table for accounts that are not in it; ticket 16 covers
+// the two books the backend actually writes. Spec §7.
+
+/** Revenue's lines, by title, and the category each sums. `constants.bal`'s `REVENUE_*`. */
+const REVENUE_CATEGORIES: ReadonlyMap<string, string> = new Map([
+  ["Recurring", "Recurring Revenue"],
+  // No hyphen at the backend, where the line's own title has one.
+  ["Non-Recurring/PSO", "Non Recurring Revenue"],
+  ["Cloud", "Cloud"],
+]);
+
+/** Cost of Sales' lines, by title, and the category their sub-levels sum within. `COS_*`. */
+const COST_OF_SALES_CATEGORIES: ReadonlyMap<string, string> = new Map([
+  ["Recurring", "Recurring Revenue COS"],
+  ["Non-Recurring/PSO", "Non-Recurring Revenue COS"],
+  ["Public Cloud", "Cloud"],
+]);
+
+/** The backend's id for the first line of a list, which is that list's heading. */
+const HEADING_LINE_ID = "1";
+
+function accountsBehind(
+  section: FlashDetailSection,
+  parent: FlashRangeRow | null,
+  line: FlashRangeRow,
+): FlashAccountsBehind | undefined {
+  const title = line.title ?? "";
+  if (section.id === "revenue" && !parent) {
+    const accountCategory = REVENUE_CATEGORIES.get(title);
+    return accountCategory ? { book: "income", accountCategory } : undefined;
+  }
+  if (section.id === "cost-of-sales" && parent && line.id !== HEADING_LINE_ID && title) {
+    const accountCategory = COST_OF_SALES_CATEGORIES.get(parent.title ?? "");
+    return accountCategory
+      ? { book: "cost-of-sales", accountCategory, accountSubCategory: title }
+      : undefined;
+  }
+  return undefined;
+}
+
+/** `BU_LIST.WSO2` — the whole company, the column no account belongs to. */
+const WHOLE_COMPANY = "All";
+
+/**
+ * The account view a figure opens, or none.
+ *
+ * None for the WSO2 column: the source opens nothing there (`bu !==
+ * BU_LIST.WSO2` in `MonthlyViewTable.js`), and an account list for "All" would
+ * be every unit's accounts at once under a figure that is already their sum.
+ */
+export function flashAccountsQuery(
+  behind: FlashAccountsBehind | undefined,
+  businessUnit: string,
+  month: MisMonth,
+): FlashAccountsQuery | null {
+  if (!behind || businessUnit === WHOLE_COMPANY) return null;
+  return { ...behind, businessUnit, month: monthInputValue(month) };
 }

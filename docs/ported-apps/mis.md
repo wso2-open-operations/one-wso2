@@ -222,17 +222,43 @@ Booking per business unit. **The only screen in MIS that writes.** Two write pat
   config still points at it. Either comments are already broken in production, or they have moved and
   the config is stale. Porting a feature against a dead backend would be the most expensive possible
   way to discover which.
-- **Budget and forecast values** — inline cell edits against the flash backend, rejected server-side
-  after the monthly cutoff (§3).
+- **Budget and forecast values** — against the flash backend, rejected server-side after the monthly
+  cutoff (§3). **Not inline on the P&L**, whatever this line said before ticket 16: a figure is a sum
+  of GL accounts, and the only write the backend has is a forecast against ONE account, by its id
+  (`PATCH` with `{id, value, comment}`). So, as in the source, a figure in a business unit's monthly
+  view opens the **Account View** — the GL accounts behind it for that unit and month — and each
+  account there has an Edit button opening a Value + Comment form. The figures that open one are
+  Revenue's Recurring, Non-Recurring/PSO and Cloud lines, and Cost of Sales' sub-categories under
+  Recurring, Non-Recurring/PSO and Public Cloud; never the WSO2 column. Edit is offered on the account
+  views of one month only — see §3. Built as `MisFlashAccountsDialog` (ticket 16).
 
 Excel export is a hand-built ExcelJS workbook, ported as pure functions (§7).
 
 ## 3. Business rules
 
-**The monthly editing cutoff.** Budget and forecast edits are refused by the flash backend after the
-**15th of the month** (`dateCutoff`, configurable). The frontend does not pre-empt the cutoff; it
-surfaces the rejection. Port that behaviour exactly — a client-side guess at the date would disagree
-with the server the moment the config changes.
+**The monthly editing cutoff.** Budget and forecast edits are refused after the **15th of the month**.
+The frontend does not pre-empt the cutoff; it surfaces the rejection. Port that behaviour exactly — a
+client-side guess at the date would disagree with the server the moment its rule changes.
+
+> **Corrected by ticket 16.** This said the cutoff was the flash backend's `dateCutoff`, configurable.
+> That variable is declared (`flash-backend/modules/compute/utils.bal:10`) and **never read**. The
+> check that applies is in the finance entity service the flash backend writes through:
+> `isCutoffDatePassed()` refuses once the **UTC** day of the month exceeds `DATE_CUTOFF = 15`, a
+> compile-time constant (`entity-service/modules/database/transaction.bal:408-418`,
+> `constants.bal:21`) — so the 15th itself is allowed, and changing the rule is a redeploy of a
+> different service. None of which changes what the port does, and all of which strengthens the
+> reason not to copy it.
+
+**Which month's forecasts can be written.** The source offers Edit on the account views of ONE month —
+the one before the current one (`AccountViewTable.js:53`) — and the port keeps that. It is a
+different rule from the cutoff: the server never checks the month (its UPDATE is `WHERE id = ?`), but
+that month is the one its P&L reads forecasts for, so without the rule the port would let Finance
+write forecasts into months the source has never let anyone touch. **It is computed in UTC, the one
+MIS month that is not Pacific**, because it is the server's month: the P&L's
+`DATE_FORMAT(UTC_TIMESTAMP() - INTERVAL 1 MONTH, '%Y-%m')`, and the server's clock is the only one
+that decides whether a write lands. A Pacific rule would offer the wrong month for the first seven or
+eight hours of every month, while the server's day is the 1st and it accepts anything.
+`util/misFlashForecastMonth.ts`.
 
 **Pacific Time is canonical.** Every Period boundary, and the Period label itself, is computed in
 `America/Los_Angeles`, not the viewer's zone and not UTC. The screen renders a permanent
@@ -329,8 +355,8 @@ key construction: the key must include the serialised body, not just the URL.
 | `GET /balance-statement` | Flash | The P&L. |
 | `POST /customer-summary`, `POST /account-summary` | Flash | Flash detail views. |
 | `GET /sub-regions` | Flash | Sub-region list. |
-| `GET`, `PATCH /income-accounts` | Flash | Revenue budget/forecast. **Write.** |
-| `GET`, `PATCH /cost-of-sales-accounts` | Flash | Cost-of-sales budget/forecast. **Write.** |
+| `GET`, `PATCH /income-accounts` | Flash | Revenue budget/forecast. **Write.** The GET lists the GL accounts behind one Revenue line (`accountCategory`, `businessUnit`, `month`); the PATCH writes one account's forecast, `{id, value, comment}`, and answers an empty 200. |
+| `GET`, `PATCH /cost-of-sales-accounts` | Flash | Cost-of-sales budget/forecast. **Write.** The GET also REQUIRES `accountSubCategory`, which the source does not send — §7, §11.18. Every failure of either PATCH, the cutoff's included, arrives as a bare 500 with no body. |
 | `GET /comments/all`, `GET`/`POST`/`PATCH`/`DELETE /comments` | Admin | Flash comments. **Write.** ⚠ The Admin component is named "DEPRECATED" and its Production deployment is **suspended** — see §2.5. |
 
 Each service gets its own `isMisArrConfigured()` / `isMisFlashConfigured()` / `isMisAdminConfigured()`
@@ -1023,12 +1049,65 @@ through `formatMisValue` with the reader's live Scale, and is unaffected because
 Scale in the currency branch and nowhere else — §3's "Scale never scales counts", exercised on screen
 rather than only asserted.
 
+### Flash budget and forecast editing (ticket 16)
+
+**Cost of Sales account views ask for the sub-category by the name the backend declares.** The flash
+backend renamed its required parameter `expenseType` → `accountSubCategory` on 2023-11-20
+(`ec5cfa857`, `service.bal:95-96`), and the source's `MonthlyViewTable.js:440-445` still sends
+`expenseType` — so a Ballerina resource missing a required query parameter answers its Cost of Sales
+account view with a 400, and Cost of Sales forecasts have, on the evidence, not been writable from the
+source since. (It also double-encodes: `encodeURI` over a query `URLSearchParams` has already encoded
+turns `Infra/IT`'s `%2F` into `%252F`.) The port sends `accountSubCategory`, encoded once. The two apps
+cannot disagree about a figure because of it — both read the same P&L, which the forecast feeds — so
+ADR 0003 does not reach it; what differs is that one of them can write. **Unverified against a live
+tenant**, §11.18.
+
+**Expense sub-levels open nothing.** The source opens an account view on the Expense section's
+sub-levels too, against `/cost-of-sales-accounts` with an Expense category — the cost-of-sales table,
+searched for accounts it does not hold, and refused with the same 400 besides. The flash backend's
+only writes are the income and cost-of-sales books, which is this ticket's scope.
+
+**Which lines open an account view is decided by NAME**, where the source reads position (`obj.id ===
+"2"` is Recurring). A renamed or reordered line then stops opening anything, rather than opening some
+other category's accounts under this one's figure. The one positional rule kept is the source's own
+for a sub-level's heading, `id === "1"`: under Public Cloud the heading and a sub-category are both
+called "Public Cloud". `flashDetailRows`' `accountsBehind`.
+
+**The refused edit stays in the form.** The source shuts its form on submit and reports a refusal in
+a snackbar — *"Error occurred when updating the account! This may be due to the Cutoff date (15th) is
+already passed…"* (`Config.js:112-113`), which names a day the server has never said and states a
+guess as the cause. Here the form stays open with what was typed and says *"Not saved — the Flash
+backend refused the change (HTTP 500). It refuses every edit after the monthly cutoff, and doesn't
+say which refusal this was."* That is all the 500 establishes: the flash backend turns every failure
+into one (`service.bal:139-143`, `:154-158`). A refusal with any other status is not called a
+possible cutoff.
+
+**After a save, the P&L refreshes too.** The source re-reads the account list at once, the monthly
+view when the account view is shut, and the P&L not at all until the next Search. Here all three are
+re-read as soon as the server has taken the write — and nothing is written into any of them first
+(§10.16).
+
+**Three smaller ones in the account view.** A forecast nobody has written is blank, where the source
+prints `$0.00` (`Number(null)`) — a forecast of nought and no forecast are different things to the P&L,
+which uses the forecast only in place of a missing amount. The form opens pre-filled and sends as soon
+as the value is a number, where the source seeds its Update button from a field the record does not
+have (`mis_updated_value`), so changing only the comment meant retyping the value. And the source's
+ID column, a database key, is not carried over.
+
+**The account view is in units, whatever the Scale.** The form takes units — the PATCH's `value` is
+dollars — and a list in thousands beside it invites a forecast a thousand times off. The source's
+account view ignores its thousands toggle too. The one MIS grid that does not follow Scale; recorded
+in `CONTEXT.md`.
+
 ## 8. Source behaviour reproduced deliberately, though it looks wrong
 
 Kept because the two apps run side by side during the parallel period and must agree.
 
 1. **The cutoff is not pre-empted client-side.** The edit is attempted and the server's rejection is
-   surfaced, even though the date is knowable locally.
+   surfaced, even though the date is knowable locally. Ticket 16: Edit is offered on the right
+   month's account views on every day of that month, and nothing in `MisFlashAccountsDialog` reads
+   the date — pinned by a test run on the 22nd. What IS kept from the source is its other date rule,
+   which month is editable (§3); that one the server does not apply, and the port has to.
 2. **`hasViewState` ignores `scale`.** A link carrying only `?scale=k` counts as having no view state.
 3. **Customers + Delayed silently resets Years Back to 1** unless the link sets `years` explicitly.
 4. **The email-domain check on the backend accepts `ws02.com` as well as `wso2.com`.** Backend
@@ -1207,6 +1286,14 @@ the two apps now send identical bodies.
 
 **The P&L's own range is a different question, and still open** — see §11.17.
 
+### An account view ignores the sub-region filter (ticket 16)
+
+Neither account GET takes sub-regions (`service.bal:95-96`, `:117`), so on a narrowed P&L the accounts
+listed behind a figure are the whole unit's, and need not add up to the figure they were opened from.
+On five of the six units that is already true of the figure itself (§8, the lower-case `subregions=`),
+and on Integration it is not. Reproduced by construction — there is no parameter to send — and worth
+knowing before anyone reports it as a port defect.
+
 ### The Flash's Sub Region chips cannot be cleared (ticket 15)
 
 `SubRegionFilter.js` holds the EXPANDED sub-region list as its state and derives which region chips
@@ -1366,8 +1453,10 @@ the first two branches are dead. Ported as the one real field.
 ### Flash writes
 14. A comment can be created, edited and deleted, and the list reflects each without a manual refresh.
 15. A budget edit after the cutoff surfaces the server's rejection and leaves the displayed value
-    unchanged.
-16. A failed PATCH does not leave an optimistic value on screen.
+    unchanged. **Ticket 16:** `MisFlashAccountsDialog.test.tsx`, "when the server refuses the edit".
+16. A failed PATCH does not leave an optimistic value on screen. **Ticket 16:** the same file, and
+    `useFlashAccounts.test.tsx` for the cache — nothing is ever written into it by hand, so a refusal
+    has nothing to roll back.
 
 ### Excel
 17. The generated workbook loads back via `wb.xlsx.load` with the expected sheet names, cell values and
@@ -1728,3 +1817,13 @@ or a live session at `https://one.wso2.com`.
     question. **One side-by-side load from Colombo settles it**: if the two P&Ls disagree by a month,
     §3 and ADR 0003 pull opposite ways and it is a decision for Finance — whose month the Flash opens
     on is not a port detail.
+
+18. **Can Cost of Sales forecasts be written from the source at all today?** Ticket 16, §7. On the
+    code, no: the source's account view sends `expenseType`, and the flash backend has required
+    `accountSubCategory` in its place since 2023-11-20, so the view should be refused with a 400
+    before any account is listed. Production runs a 2025 build, which includes the rename. The port
+    sends `accountSubCategory`, so on a live tenant it should list accounts where the source shows
+    *"Something went wrong! Couldn't fetch data."* — **one side-by-side attempt settles it**, and
+    also answers whether the gateway reads the `+` the account GETs send for a space (the source's
+    own wire form for them, `useFlashAccounts.ts`). If Finance have been editing Cost of Sales some
+    other way, that is worth knowing before the old frontend goes dark.

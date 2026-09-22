@@ -1490,9 +1490,8 @@ export function isMisFlashConfigured(): boolean {
 // behind different Choreo components, and a Flash path built on
 // `misArrBackendUrl` resolves perfectly and 404s.
 //
-// The writes — PATCH /income-accounts and /cost-of-sales-accounts — are not
-// here yet. Ticket 16 adds them with the screen that calls them, so this file
-// never lists a URL nothing calls.
+// Ticket 16 added the one pair of endpoints on this service that WRITES — the
+// last two below.
 export const misFlashServiceUrls = {
   // The P&L itself: one GET, one date range, fourteen sections back. The only
   // MIS read that is a GET with query parameters besides /opportunities — and
@@ -1511,6 +1510,12 @@ export const misFlashServiceUrls = {
   // filter is made of. A GET, and keyed by its dates — the list narrows with
   // the range rather than being a fixed reference list like /app-configs.
   subRegions: `${misFlashBackendUrl}/sub-regions`,
+  // The GL accounts behind one Revenue figure (GET, by query parameters), and
+  // a forecast written against one of them (PATCH). Same path, both verbs.
+  incomeAccounts: `${misFlashBackendUrl}/income-accounts`,
+  // The same for one Cost of Sales sub-category. The GET needs an
+  // `accountSubCategory` the income one does not take.
+  costOfSalesAccounts: `${misFlashBackendUrl}/cost-of-sales-accounts`,
 };
 
 export const misAdminBackendUrl: string = stripTrailingSlashes(
