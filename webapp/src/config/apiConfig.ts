@@ -1469,6 +1469,11 @@ export const misArrServiceUrls = {
   // the summary above the account table here, and ticket 14's partner-model and
   // per-industry breakdowns, which are this same body asked repeatedly.
   exitArrSearch: `${misArrBackendUrl}/exit-arr/search`,
+  // The opportunities behind ONE account on the Software/Cloud Customers
+  // table. The only MIS read that is a GET with query parameters rather than a
+  // POST carrying a filter body — so it is the only one whose URL is its own
+  // cache key. Takes `accountId` and `endDate`, and nothing else.
+  opportunities: `${misArrBackendUrl}/opportunities`,
 };
 
 export const misFlashBackendUrl: string = stripTrailingSlashes(

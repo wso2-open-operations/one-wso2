@@ -108,6 +108,34 @@ const customers = {
   /** The ranges the customers grid last asked for — see `summary.lastRanges`. */
   lastRanges: [] as readonly MisDateRange[],
 };
+const opportunities = {
+  /** What `opportunitiesRequest` produced, or null when the dialog is shut. */
+  asked: null as { accountId: string; endDate: string } | null,
+  value: {
+    opportunities: [
+      { id: "OPP-1", name: "Renewal FY26", stageName: "Closed Won", apimArr: 500_000 },
+    ],
+    isLoading: false,
+    isError: false,
+    errorMessage: "",
+    retry: () => {},
+  },
+};
+vi.mock("@features/finance/mis/api/useOpportunities", async () => {
+  const actual = await vi.importActual<typeof import("@features/finance/mis/api/useOpportunities")>(
+    "@features/finance/mis/api/useOpportunities",
+  );
+  return {
+    // `opportunitiesRequest` stays REAL: the date it derives from the clicked
+    // column is the whole point of the port's version, so mocking it would
+    // leave these tests asserting against a stand-in.
+    ...actual,
+    useOpportunities: (request: { accountId: string; endDate: string } | null) => {
+      opportunities.asked = request;
+      return opportunities.value;
+    },
+  };
+});
 vi.mock("@features/finance/mis/api/useCustomerAccounts", () => ({
   useCustomerAccounts: (ranges: readonly MisDateRange[]) => {
     customers.lastRanges = ranges;
@@ -405,6 +433,7 @@ beforeEach(() => {
   regionMetrics.askedBySalesRegion = [];
   regionMetrics.askedFilters = [];
   regionMetrics.value = metricsLoaded({ NA: MOVEMENT, EU: { ...MOVEMENT, ending: 300_000 } });
+  opportunities.asked = null;
   drillDown.asked = [];
   drillDown.value = {
     customers: [
@@ -1490,5 +1519,56 @@ describe("the Region Summary's two views", () => {
     regionMetrics.value = { ...regionMetrics.value, isLoading: true, columns: [] };
     await openMetrics();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+});
+
+
+// Ticket 10, reopened. `GET /opportunities` was on ticket 13's checklist and
+// belongs here: its only caller in the source is this table's row dialog.
+describe("opening the opportunities behind an account", () => {
+  /** The first openable figure cell on Northwind's row. */
+  const northwindFigure = () => {
+    const row = screen.getByText("Northwind Bank").closest("tr")!;
+    return within(row).getAllByRole("button")[0];
+  };
+
+  it("opens on a figure cell, and asks for that account as at that column", async () => {
+    renderPage("?table=customers");
+    await userEvent.click(northwindFigure());
+
+    expect(opportunities.asked).toMatchObject({ accountId: NORTHWIND.id });
+    // A real date, in the shape the endpoint wants — NOT recovered by running
+    // regexes over the column header the way the source does it.
+    expect(opportunities.asked?.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("shows the opportunities for the account that was opened", async () => {
+    renderPage("?table=customers");
+    await userEvent.click(northwindFigure());
+    expect(await screen.findByRole("heading", { name: /Opportunities/ })).toBeInTheDocument();
+    expect(screen.getByText("Renewal FY26")).toBeInTheDocument();
+  });
+
+  // The Total row is a computed footing, not an account, so there are no
+  // opportunities behind it. Enforced by its id missing from the account map
+  // rather than by a name check — see the comment on `onActivate` — so this
+  // pins the behaviour independently of which guard happens to do it.
+  it("does not open anything from the Total row", async () => {
+    renderPage("?table=customers");
+    // Found by the row it heads rather than by the word alone: "Total" is
+    // also in the `Software Total` and `Cloud Total` column headers.
+    const total = screen
+      .getAllByRole("row")
+      .find((row) => row.textContent?.trim().startsWith("Total"))!;
+    expect(total).toBeDefined();
+    expect(within(total).queryAllByRole("button")).toHaveLength(0);
+  });
+
+  // Nothing is asked until something is opened. The dialog being shut is the
+  // ordinary state of this screen.
+  it("asks for nothing before anything is opened", () => {
+    renderPage("?table=customers");
+    expect(screen.getByText("Northwind Bank")).toBeInTheDocument();
+    expect(opportunities.asked).toBeNull();
   });
 });

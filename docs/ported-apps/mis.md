@@ -763,6 +763,38 @@ for a reader changing controls, but a hand-written `?view=Global&region=EMEA` we
 the wire. Now closed for links as well, on every Table including the Build, where nothing is greyed
 out at all.
 
+### The Opportunities dialog (ticket 10, reopened)
+
+`GET /opportunities` was on ticket 13's checklist and belongs to the Build: its only caller in the
+source is the Software/Cloud Customers table's row dialog. Three deviations, all from the same fact
+— the port knows the clicked column's date, and the source has to go looking for it.
+
+**The date is taken from the column, not recovered from its header.** The source reaches `endDate`
+through two layers: `extractDateRangeFromColumn(params.column)` (`DataGrid.js:611`), and then, when
+that comes back empty, `OpportunitiesDialog` runs two REGEXES over the column's rendered header text
+— matching `as of 2025-06-30`, then `as of Jun 30, 2025`. Reading a date back out of a string the
+component just printed is a round trip through the presentation layer, and it fails silently: no
+match means no `endDate`, which means a 400 the dialog reports as its generic error. `BuildTable`
+hands the cell's own `MisDateRange` to `onActivate`, so the port has the date structurally and none
+of that is ported.
+
+**Only a FIGURE cell opens it.** The source's `onCellClicked` tests nothing but the table type, so
+clicking an account's name or its owner opens the dialog too — from a column that has no date, which
+is one of the two paths the header-scraping exists to rescue. Here only a figure cell opens it,
+because only a figure cell belongs to a Period. The Total row opens nothing, having no account.
+
+**The failure says what went wrong.** `useOpportunities.js` reads `error?.message` off a value
+`http.js:65` passes as a STRING, so it is always `undefined` and always falls through to
+`'Failed to fetch data. Select an account under a date range to view opportunities.'` — a sentence
+that blames the reader for a gateway timeout. The port surfaces the backend's own, as the drill-down
+beside it does.
+
+**Its twenty columns are flat**, where the source nests the figures under `Software` and `Cloud`
+group headers. `BuildTable`'s groups are Periods and its sub-columns are shared across them, so two
+groups of four and seven cannot be expressed; the drill-down dialog beside this one is flat for the
+same reason. Nothing is lost that the headers do not carry — `API Platform Private Cloud + Bjira`
+says which book it is without a group above it.
+
 ### ARR Analysis (ticket 13)
 
 Five deviations, all from the line-by-line read. None of them moves a figure; three fix a control that
@@ -1127,6 +1159,11 @@ IS rendered, so the record looks designed for a Lost view that was never finishe
 onto every account row from it, and no column definition in `tableConstants.js` reads that key. Not
 ported.
 
+**The Opportunities dialog's `startDate` is accepted and never sent.** `useOpportunities.js:21`
+takes it, documents it as "(Deprecated/ignored)", and never puts it on the URL; the backend resource
+declares `accountId` and `endDate` only (`arr-backend/service.bal:129`). The port takes the two that
+exist.
+
 **ARR Analysis asks for two figures it throws away.** `fetchSummaryMetrics` reads
 `POST /exit-arr/search`, which answers with a bare `decimal`, and returns
 `{ arrAsOfToday, yoyGrowth: 0, logoCount: 0 }` — both zeros hard-coded (`arrAnalysisApi.js:197-210`).
@@ -1206,6 +1243,20 @@ the first two branches are dead. Ported as the one real field.
     released its rows — `visibleRows` never rendered a closed subtree. What is **not** pinned is the
     frame rate: jsdom has no layout and no frames. That needs a browser and real per-customer volume,
     which arrives with **ticket 10**.
+
+### The Opportunities dialog
+22a. Clicking a FIGURE cell on Software/Cloud Customers opens the opportunities for that account as
+    at that column's closing date, and the date on the wire is the column's own rather than one
+    parsed from its header. **Closed by ticket 10 (reopened)** — asserted on the request.
+22b. Clicking an identity cell opens nothing, and the Total row opens nothing. The second is enforced
+    by the Total row having no account rather than by a name check, so it is pinned as behaviour.
+    **Closed by ticket 10 (reopened).**
+22c. A failed read shows the backend's message and a retry, not "Select an account under a date
+    range to view opportunities". **Closed by ticket 10 (reopened).**
+22d. The two totals agree with the columns beside them: the backend's aggregate when it sent a
+    positive one, the components added otherwise. **Closed by ticket 10 (reopened)** — the source's
+    rule, reproduced including its `> 0` quirk, which is harmless because both branches give zero
+    where it fires.
 
 ### The Exit ARR summaries
 23. The Region Summary's rows match the regions the live tenant reports, under both Sales Region and

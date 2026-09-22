@@ -73,6 +73,8 @@ import { useMisAppConfigs } from "../api/useMisAppConfigs";
 import MisFilterBar from "../components/MisFilterBar";
 import MisTableTabs from "../components/MisTableTabs";
 import MisCustomerDrillDown from "../components/MisCustomerDrillDown";
+import MisOpportunities from "../components/MisOpportunities";
+import { opportunitiesRequest, useOpportunities } from "../api/useOpportunities";
 import MisCustomerBreakdownTabs from "../components/MisCustomerBreakdownTabs";
 import MisRegionTypeTabs from "../components/MisRegionTypeTabs";
 import MisRegionSummaryTabs, {
@@ -429,6 +431,22 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
     [view.period, view.viewWindow, view.filters],
   );
   const book = useCustomerAccounts(ranges, view.filters);
+
+  // Which account's opportunities the reader opened, if any. The RANGE is held
+  // rather than an index into `ranges`, for the same reason the Build's
+  // drill-down holds one: the Applied set can shrink under an open dialog and a
+  // stored index would then point past the end.
+  const [openedAccount, setOpenedAccount] = useState<{
+    account: { id: string; name: string };
+    range: MisDateRange;
+  } | null>(null);
+  const opportunities = useOpportunities(
+    openedAccount ? opportunitiesRequest(openedAccount.account.id, openedAccount.range) : null,
+  );
+  const rangeByLabel = useMemo(
+    () => new Map(ranges.map((range) => [buildColumnLabel(range), range])),
+    [ranges],
+  );
   // Seventeen identity columns, or eighteen on a Delayed type — the source
   // spreads Delayed Day Count in only there.
   const leadColumns = customerLeadColumns(typeValueOf(view.filters));
@@ -475,12 +493,34 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
   };
   const cell: BuildCellFor = (row, group, subColumn) => {
     const raw = rawFigure(row, group, subColumn.key);
+    const range = rangeByLabel.get(group.key);
+    const account = accountById.get(row.id);
     return {
       // Every figure here is currency, so the Scale applies to all of them —
       // unlike the Build, where counts and percentages share the column.
       text: formatMisValue(raw, "currency", { scale }),
       negative: typeof raw === "number" && raw < 0,
       muted: raw === undefined,
+      // A FIGURE cell opens the opportunities, and only a figure cell: only
+      // one belongs to a Period and so has a date to ask about. The source
+      // opens on any cell in the table, identity columns included, and then
+      // scrapes the date back out of the column header it printed
+      // (`DataGrid.js:604-626`).
+      //
+      // The Total row is excluded by `account` alone — its id is `TOTAL_ROW`,
+      // which no account carries, so the lookup misses. An explicit
+      // `row.id !== CUSTOMER_TOTAL_ROW_ID` beside it was redundant, and a
+      // redundant guard is worse than none: it reads as the load-bearing one
+      // and invites someone to simplify the wrong half. The behaviour is
+      // pinned by a test rather than by a second condition.
+      onActivate:
+        range && account
+          ? () =>
+              setOpenedAccount({
+                account: { id: row.id, name: account.name ?? "" },
+                range,
+              })
+          : undefined,
     };
   };
 
@@ -495,6 +535,17 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
   // an empty book keeps the control, rather than losing the switch at the
   // moment they most want to try the other side of it.
   const breakdownTabs = <MisCustomerBreakdownTabs buOnly={buOnly} onChange={setBuOnly} />;
+
+  const opportunitiesDialog = (
+    <MisOpportunities
+      open={openedAccount !== null}
+      onClose={() => setOpenedAccount(null)}
+      account={openedAccount?.account ?? null}
+      asOf={openedAccount?.range.end}
+      state={opportunities}
+      scale={scale}
+    />
+  );
 
   if (book.isError) {
     return (
@@ -557,6 +608,10 @@ function CustomersGrid({ view, scale }: { view: MisViewState; scale: MisScale })
         rows={rows}
         cell={cell}
       />
+      {/* Mounted only on the happy path, beside the table it opens from — the
+          same place the Build's drill-down sits. Nothing to open a dialog from
+          on the error or empty states. */}
+      {opportunitiesDialog}
     </Box>
   );
 }
