@@ -28,12 +28,13 @@
 // Spec §3 and §10.8. The source reaches its months by round-tripping ISO date
 // strings through a local `Date`: `new Date("2026-09-01")` is UTC midnight,
 // `.getMonth()` on it is LOCAL, and the two disagree for anyone not on UTC. In
-// California that lands the whole monthly range list one month early
-// (`FlashConsole.js`'s `getMonthlyRangeObject`), and in Colombo the default
-// range's own dates land a day early (`date.toISOString().split("T")[0]` over a
-// local-midnight `Date`). So a Flash reader sees a different P&L depending on
-// where they opened it, which is precisely what Pacific Time being canonical
-// exists to prevent.
+// California that lands the whole monthly range list's dates one month early
+// (`FlashConsole.js`'s `getMonthlyRangeObject`), and in Colombo every date lands
+// a day early (`date.toISOString().split("T")[0]` over a local-midnight
+// `Date`) — which, because the backend reads a range by its end MONTH, moves
+// whole months of figures rather than a day. See `flashMonthlyRanges`. So a
+// Flash reader sees a different P&L depending on where they opened it, which is
+// precisely what Pacific Time being canonical exists to prevent.
 //
 // Nothing here parses a date. A month is two integers, a date string is built
 // from them, and a date string is read by its own characters.
@@ -202,29 +203,62 @@ export function flashRangeOf(start: FlashMonthFilter, end: FlashMonthFilter): Mi
   return { startDate: start.date, endDate: end.date };
 }
 
+/** One month of a detail view, and the range that asks the backend for it. */
+export interface FlashMonthlyRange extends MisFlashRange {
+  /**
+   * The month this range is FOR. Carried beside the dates because neither date
+   * falls on that month's first day, so reading it back off one of them is a
+   * rule a later reader would have to rediscover.
+   */
+  month: MisMonth;
+}
+
 /**
  * One range per month from `start` to `end`, both included, oldest first.
  *
- * Each covers `[first of the month, first of the next)` — a half-open month,
- * which is how the source builds them and how the backend's own date filters
- * read them.
+ * ---- month M is asked for as `[last of M−1, last of M]` --------------------
  *
- * The two date STRINGS the balance statement is asked for do not reach this:
- * the source derives its monthly ranges from them but only ever reads the month
- * off each, so first-of-month and last-of-month produce the same list. Taking
- * the months directly says that, instead of leaving it to be rediscovered.
+ * Not the obvious pair, which is `[first of M, first of M+1]` — ticket 15 sent
+ * that one, and it was wrong. The flash backend reads one range two ways:
+ *
+ *   * every financial account — Revenue, Cost of Sales and everything below
+ *     them — is summed over `month > SUBSTRING(startDate, 1, 7) AND month <=
+ *     SUBSTRING(endDate, 1, 7)` (`entity-service/modules/database/
+ *     transaction.bal`, in every group search), so a range is its END month;
+ *   * ARR and Booking read the two dates as instants: opening at the start,
+ *     closing at the end (`flash-backend/modules/compute/arr_bookings.bal`).
+ *
+ * So `[first of M, first of M+1]` is month M for ARR and month M+1 for every
+ * financial account, and a detail view built on it showed each column's
+ * Revenue a month late under its own header. `[last of M−1, last of M]` is M
+ * for both halves.
+ *
+ * It is also exactly what the source sends from Colombo, where Finance works:
+ * `getMonthlyRangeObject` builds local midnights and serialises them with
+ * `toISOString`, which east of UTC lands each on the day before. From UTC or
+ * California it sends `[first of M−1, first of M]` for the column it heads M —
+ * the right financial accounts, and ARR a month early. Spec §8 has the table.
+ * The port writes the Colombo answer out as arithmetic rather than recovering
+ * it from a `Date`, which is the only way to send it from every zone.
+ *
+ * ---- and what does not reach this ------------------------------------------
+ *
+ * The two date STRINGS the balance statement is asked for. The source derives
+ * its monthly ranges from them but only ever reads the month off each, so
+ * first-of-month and last-of-month produce the same list. Taking the months
+ * directly says that, instead of leaving it to be rediscovered.
  *
  * Empty when the months are the wrong way round. The pickers hold each other
  * apart, so that is a link or a state restored from somewhere rather than
  * something a reader can do — and an empty list reaches the screen as a detail
  * view with no columns rather than as a backwards one.
  */
-export function flashMonthlyRanges(start: MisMonth, end: MisMonth): MisFlashRange[] {
+export function flashMonthlyRanges(start: MisMonth, end: MisMonth): FlashMonthlyRange[] {
   const span = monthsBetween(start, end);
   if (span < 0) return [];
   return Array.from({ length: span + 1 }, (_, offset) => {
     const month = addMonths(start, offset);
-    return { startDate: firstOfMonth(month), endDate: firstOfMonth(addMonths(month, 1)) };
+    return { month, startDate: lastOfMonth(addMonths(month, -1)), endDate: lastOfMonth(month) };
   });
 }
 
@@ -232,7 +266,7 @@ export function flashMonthlyRanges(start: MisMonth, end: MisMonth): MisFlashRang
 export interface FlashDetailColumn {
   /** The index into a response's `summary` array. */
   index: number;
-  range: MisFlashRange;
+  range: FlashMonthlyRange;
 }
 
 /**
@@ -252,7 +286,7 @@ export interface FlashDetailColumn {
  * The same shape as spec §9's sixth Annual Period: a range computed and fetched
  * on every read, and drawn by nothing.
  */
-export function flashDetailColumns(ranges: readonly MisFlashRange[]): FlashDetailColumn[] {
+export function flashDetailColumns(ranges: readonly FlashMonthlyRange[]): FlashDetailColumn[] {
   return ranges.slice(1).map((range, offset) => ({ index: offset + 1, range }));
 }
 
@@ -274,19 +308,19 @@ const MONTH_LABELS = [
 /**
  * How a month column is headed: `Jan 2026`.
  *
- * Read off the string's own characters, which is what the source does too
- * (`MonthlyViewTable.js`'s `formatHeader`, `substring(0, 4)` and
- * `substring(5, 7)`) and the one thing it gets right about zones: parsing the
- * date first would put the month back through UTC.
+ * From the month itself. The source's `formatHeader` reads the characters of
+ * `period.endDate`, which with these ranges names the same month — and which is
+ * the RIGHT month, for the financial accounts at least, in every zone: the
+ * backend sums a range under its end month (see `flashMonthlyRanges`). Ticket
+ * 15 recorded that header as a defect and headed by the start date instead;
+ * spec §8 says what that cost.
  *
- * Empty for anything that is not a `yyyy-MM-…` string. A header is a label, and
- * a label that cannot be built should be absent rather than `NaN undefined`.
+ * Empty for a month outside 1–12. A header is a label, and a label that cannot
+ * be built should be absent rather than `undefined 2026`.
  */
-export function flashMonthLabel(isoDate: string): string {
-  const match = /^(\d{4})-(\d{2})/.exec(isoDate);
-  if (!match) return "";
-  const label = MONTH_LABELS[Number(match[2]) - 1];
-  return label ? `${label} ${match[1]}` : "";
+export function flashMonthLabel({ year, month }: MisMonth): string {
+  const label = MONTH_LABELS[month - 1];
+  return label ? `${label} ${year}` : "";
 }
 
 /**
@@ -295,7 +329,7 @@ export function flashMonthLabel(isoDate: string): string {
  * It names the months actually DRAWN, not the ones fetched: it begins at the
  * second range, which is exactly the one `flashDetailColumns` begins at.
  */
-export function flashRangeLabel(ranges: readonly MisFlashRange[]): string {
+export function flashRangeLabel(ranges: readonly FlashMonthlyRange[]): string {
   const drawn = flashDetailColumns(ranges);
   if (!drawn.length) return "";
   return `${drawn[0].range.startDate} to ${drawn[drawn.length - 1].range.endDate}`;

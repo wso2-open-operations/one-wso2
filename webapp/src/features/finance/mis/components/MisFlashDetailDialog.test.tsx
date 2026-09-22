@@ -91,13 +91,10 @@ const rowLabelled = (label: string) =>
   )!;
 
 describe("the months a detail view is headed with", () => {
-  // Spec §8. `MonthlyViewTable.js`'s `formatHeader` reads `period.endDate`, and
-  // a range runs from the first of its month to the first of the NEXT — so the
-  // source heads September's figures "Oct 2025". The port heads a column with
-  // the month it COVERS, which is a correction rather than a reproduction: a
-  // column of figures under the wrong month is not a disagreement a reconciler
-  // could settle.
-  it("names the month each column covers, not the month after it", () => {
+  // Spec §8. A column is headed with the month the backend summed under it —
+  // which, for every financial account, is its range's END month. The ranges
+  // end on the last of their own month, so the header and the figures agree.
+  it("names the month each column's figures cover", () => {
     show();
     expect(headers()[1]).toBe("Oct 2025");
     expect(headers()[headers().length - 1]).toBe("Sep 2026");
@@ -113,7 +110,7 @@ describe("the months a detail view is headed with", () => {
 
   it("heads the span with the months it drew, not the ones it fetched", () => {
     show();
-    expect(screen.getByText("2025-10-01 to 2026-10-01")).toBeInTheDocument();
+    expect(screen.getByText("2025-09-30 to 2026-09-30")).toBeInTheDocument();
   });
 });
 

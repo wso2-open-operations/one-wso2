@@ -35,7 +35,7 @@ import {
   flashDetailColumns,
   flashMonthLabel,
   flashRangeLabel,
-  type MisFlashRange,
+  type FlashMonthlyRange,
 } from "../util/misFlashPeriods";
 import { amountUnitCaption, formatMisValue } from "../util/misMoney";
 import type { MisScale } from "../util/misViewVocabulary";
@@ -55,24 +55,22 @@ import type { FlashDetailState } from "../api/useFlashDetail";
 // (ticket 17), and where its own Export button is (ticket 18). Each of those
 // adds to this dialog rather than replacing it.
 //
-// ---- the two off-by-one months in the source, and what is done about each --
+// ---- which month a column is ----------------------------------------------
 //
-// The columns here are NOT the columns the source draws, and both differences
-// are defects rather than decisions. Spec §8 records them:
+// Each column is one month, asked for as `[last of M−1, last of M]` and headed
+// M. That pair is the one both halves of the backend read as M — the financial
+// accounts sum a range under its END month, ARR reads its two dates as instants
+// — and it is what the source sends from Colombo. From any other zone the
+// source sends something else, because it builds the dates through a local
+// `Date`; the port writes the Colombo answer out as arithmetic. Spec §8, and
+// `flashMonthlyRanges` for the primary sources.
 //
-//   1. Its monthly ranges are built by round-tripping ISO dates through a local
-//      `Date`, which in California lands every one of them a month early. The
-//      port computes months in Pacific and does not shift — spec §3, §10.8.
-//   2. Its column header reads `period.endDate`, and a range runs from the
-//      first of its month to the first of the NEXT, so September's figures are
-//      headed "Oct 2025". The port heads a column with the month it COVERS.
+// Ticket 15 sent `[first of M, first of M+1]` and headed it by the start, which
+// put every financial-account figure here one month late under its header.
+// Ticket 16 found it, because an account view has to name the month a figure
+// covers.
 //
-// Both are corrections rather than ADR 0003 reproductions, because a column of
-// figures under the wrong month is not a disagreement a reconciler could settle
-// — it is the two apps describing different months while appearing to describe
-// the same one.
-//
-// The third oddity IS reproduced: **the oldest month is fetched and not
+// The oldest month IS reproduced as the source has it: **fetched and not
 // drawn**. See `flashDetailColumns`.
 
 const COLUMN_WIDTH = 116;
@@ -84,7 +82,7 @@ export interface MisFlashDetailDialogProps {
   /** Which column was opened. Its label titles the dialog. */
   unit: FlashUnitColumn | null;
   /** Every month asked for, oldest first. All but the first are drawn. */
-  ranges: readonly MisFlashRange[];
+  ranges: readonly FlashMonthlyRange[];
   state: FlashDetailState;
   scale: MisScale;
 }
@@ -145,7 +143,7 @@ function DetailBody({
   scale,
   unitLabel,
 }: {
-  ranges: readonly MisFlashRange[];
+  ranges: readonly FlashMonthlyRange[];
   state: FlashDetailState;
   scale: MisScale;
   unitLabel: string;
@@ -162,8 +160,8 @@ function DetailBody({
         // label is not unique enough to key on in principle and the index is
         // exactly what identifies the column.
         key: String(column.index),
-        // Headed by the month it COVERS — its start. See the note above.
-        label: flashMonthLabel(column.range.startDate),
+        // Headed by the month its figures cover. See the note above.
+        label: flashMonthLabel(column.range.month),
         width: COLUMN_WIDTH,
       })),
     [columns],

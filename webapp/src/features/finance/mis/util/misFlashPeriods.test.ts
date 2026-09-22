@@ -210,12 +210,36 @@ describe("where Reset goes back to", () => {
 describe("the monthly ranges behind a detail view", () => {
   const RANGES = flashMonthlyRanges({ year: 2025, month: 11 }, { year: 2026, month: 2 });
 
-  it("covers every month from the first to the last, both included", () => {
+  // Month M is asked for as the last day of M−1 to the last day of M — what the
+  // source sends from Colombo. February's end is 28 in 2026.
+  it("asks for each month as the month-ends either side of it", () => {
     expect(RANGES).toEqual([
-      { startDate: "2025-11-01", endDate: "2025-12-01" },
-      { startDate: "2025-12-01", endDate: "2026-01-01" },
-      { startDate: "2026-01-01", endDate: "2026-02-01" },
-      { startDate: "2026-02-01", endDate: "2026-03-01" },
+      { month: { year: 2025, month: 11 }, startDate: "2025-10-31", endDate: "2025-11-30" },
+      { month: { year: 2025, month: 12 }, startDate: "2025-11-30", endDate: "2025-12-31" },
+      { month: { year: 2026, month: 1 }, startDate: "2025-12-31", endDate: "2026-01-31" },
+      { month: { year: 2026, month: 2 }, startDate: "2026-01-31", endDate: "2026-02-28" },
+    ]);
+  });
+
+  // The finding behind the shape. Every financial-account section is summed
+  // over `month > SUBSTRING(startDate, 1, 7) AND month <= SUBSTRING(endDate, 1,
+  // 7)` (`entity-service/modules/database/transaction.bal`). Written out here as
+  // the backend's rule, not as this module's: the range must select its own
+  // month and no other. `[first of M, first of M+1]`, which ticket 15 sent,
+  // selects M+1.
+  it("is read by the financial accounts as exactly the month it is for", () => {
+    const selects = (range: { startDate: string; endDate: string }, yyyyMm: string) =>
+      yyyyMm > range.startDate.slice(0, 7) && yyyyMm <= range.endDate.slice(0, 7);
+    const september = flashMonthlyRanges(SEPTEMBER_2026, SEPTEMBER_2026)[0];
+    expect(["2026-08", "2026-09", "2026-10"].filter((m) => selects(september, m))).toEqual([
+      "2026-09",
+    ]);
+  });
+
+  it("knows a leap February at both ends", () => {
+    expect(flashMonthlyRanges({ year: 2028, month: 2 }, { year: 2028, month: 3 })).toEqual([
+      { month: { year: 2028, month: 2 }, startDate: "2028-01-31", endDate: "2028-02-29" },
+      { month: { year: 2028, month: 3 }, startDate: "2028-02-29", endDate: "2028-03-31" },
     ]);
   });
 
@@ -225,7 +249,7 @@ describe("the monthly ranges behind a detail view", () => {
 
   it("is one range when both ends are the same month", () => {
     expect(flashMonthlyRanges(SEPTEMBER_2026, SEPTEMBER_2026)).toEqual([
-      { startDate: "2026-09-01", endDate: "2026-10-01" },
+      { month: SEPTEMBER_2026, startDate: "2026-08-31", endDate: "2026-09-30" },
     ]);
   });
 
@@ -233,15 +257,15 @@ describe("the monthly ranges behind a detail view", () => {
     expect(flashMonthlyRanges(SEPTEMBER_2026, { year: 2025, month: 9 })).toEqual([]);
   });
 
-  // The zone rule, on the shape it actually bites: a month range built by
-  // round-tripping an ISO date through a local `Date` lands a month early for
-  // anyone west of UTC and a month late for anyone east of it. Asserted against
-  // the dates written out, not against another call to the same function.
+  // The zone rule, on the shape it actually bites: the source builds these by
+  // serialising local midnights, so it sends a different pair from every zone.
+  // Asserted against the dates written out, not against another call to the
+  // same function.
   it.each(["UTC", "Asia/Colombo"])("is the same list in %s", (tz) => {
     expect(inZone(tz, () => flashMonthlyRanges({ year: 2025, month: 12 }, { year: 2026, month: 1 })))
       .toEqual([
-        { startDate: "2025-12-01", endDate: "2026-01-01" },
-        { startDate: "2026-01-01", endDate: "2026-02-01" },
+        { month: { year: 2025, month: 12 }, startDate: "2025-11-30", endDate: "2025-12-31" },
+        { month: { year: 2026, month: 1 }, startDate: "2025-12-31", endDate: "2026-01-31" },
       ]);
   });
 });
@@ -302,30 +326,31 @@ describe("the value a month picker holds", () => {
 });
 
 describe("how a month is headed", () => {
+  // Headed from the month the range is FOR, which it carries — not recovered
+  // from one of its dates, now that neither date is in that month's first day.
   it("is the short month and the year", () => {
-    expect(flashMonthLabel("2026-01-31")).toBe("Jan 2026");
-    expect(flashMonthLabel("2026-12-01")).toBe("Dec 2026");
+    expect(flashMonthLabel({ year: 2026, month: 1 })).toBe("Jan 2026");
+    expect(flashMonthLabel({ year: 2026, month: 12 })).toBe("Dec 2026");
   });
 
-  // Read off the string's own characters, never parsed into a `Date`: parsing
-  // "2026-01-01" yields UTC midnight, and reading a month back out of it in a
-  // negative-offset zone gives December.
-  it.each(["UTC", "Asia/Colombo"])("says the same month in %s", (tz) => {
-    expect(inZone(tz, () => flashMonthLabel("2026-01-01"))).toBe("Jan 2026");
+  it("heads a range with its own month, not the month its start date falls in", () => {
+    const [september] = flashMonthlyRanges(SEPTEMBER_2026, SEPTEMBER_2026);
+    expect(flashMonthLabel(september.month)).toBe("Sep 2026");
   });
 
-  it("says nothing about a date it cannot read", () => {
-    expect(flashMonthLabel("")).toBe("");
-    expect(flashMonthLabel("not-a-date")).toBe("");
+  it("says nothing about a month that does not exist", () => {
+    expect(flashMonthLabel({ year: 2026, month: 13 })).toBe("");
+    expect(flashMonthLabel({ year: 2026, month: 0 })).toBe("");
   });
 });
 
 describe("the span a detail view is headed with", () => {
   // The source's `ytdRange`: the SECOND range's start to the last one's end,
-  // which is exactly the twelve months it goes on to draw.
+  // which is exactly the twelve months it goes on to draw — and, from Colombo,
+  // exactly these two dates.
   it("names the drawn months, not the fetched ones", () => {
     const { start, end } = defaultFlashMonths(SEPTEMBER_2026);
-    expect(flashRangeLabel(flashMonthlyRanges(start, end))).toBe("2025-10-01 to 2026-10-01");
+    expect(flashRangeLabel(flashMonthlyRanges(start, end))).toBe("2025-09-30 to 2026-09-30");
   });
 
   it("says nothing when there is nothing to span", () => {

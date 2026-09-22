@@ -1167,22 +1167,45 @@ which is precisely what the parallel period exists to prevent. Carried as
 `flashPnlRows.test.ts` and `MisFlashPage.test.tsx` — a typo is exactly the kind of reproduction a
 later reader would "fix" without one. See §11.16.
 
-### Two things about the Flash that are NOT reproduced, and why (ticket 15)
+### What a Flash detail column asks for, and the month ticket 15 got wrong (tickets 15, 16)
 
-Both are month boundaries computed wrongly rather than figures disagreeing, so ADR 0003 does not
-reach them — a column of figures under the wrong month is the two apps describing different periods
-while appearing to describe the same one, which is exactly what that ADR exists to prevent.
+**The flash backend reads one range two ways**, and the dates a monthly range sends decide which
+month's figures come back:
 
-1. **The source's monthly ranges shift with the VIEWER'S ZONE.** `getMonthlyRangeObject` does
-   `new Date("2026-09-01")` — UTC midnight — and then reads `.getMonth()` off it, which is local. In
-   California that is 31 August, so every range in the list lands a month early; east of UTC the
-   default range's own dates land a day early instead (`date.toISOString().split("T")[0]` over a
-   local-midnight `Date`). §3 makes Pacific canonical and §10.8 requires the boundaries to be
-   identical under any `TZ`, so the port computes months as integer arithmetic on `{year, month}` and
-   never puts one through a `Date`.
-2. **The detail view's column headers name the wrong month.** `MonthlyViewTable.js`'s `formatHeader`
-   reads `period.endDate`, and a range runs from the first of its month to the first of the NEXT — so
-   September's figures are headed `Oct 2025`. The port heads a column with the month it covers.
+- **Every financial account** — Revenue, Cost of Sales and everything below them — is summed over
+  `month > SUBSTRING(startDate, 1, 7) AND month <= SUBSTRING(endDate, 1, 7)`
+  (`entity-service/modules/database/transaction.bal`, in every group search). So a range is its **end
+  month** and never its start: `2026-09-01 → 2026-10-01` is October.
+- **ARR and Booking** read the two dates as instants — opening at the start, closing at the end
+  (`flash-backend/modules/compute/arr_bookings.bal`).
+
+The source builds its ranges from local midnights (`getMonthlyRangeObject`) and heads each column
+from `period.endDate` (`MonthlyViewTable.js`'s `formatHeader`), so what a column holds depends on
+where it was opened:
+
+| Opened from | Sent for the column headed Sep 2026 | Financial accounts | ARR, Booking |
+|---|---|---|---|
+| Colombo (UTC+5:30) | `2026-08-31 → 2026-09-30` | September | September |
+| UTC, California | `2026-08-01 → 2026-09-01` | September | **August** |
+| Ticket 15's port | `2026-09-01 → 2026-10-01` | **October** | September |
+| This port, since ticket 16 | `2026-08-31 → 2026-09-30` | September | September |
+
+**Ticket 15 read the backend the wrong way round.** It took `[first of M, first of M+1]` to be month M,
+recorded the source's `endDate` header as a defect ("September's figures are headed Oct 2025"), and
+headed each column by its start instead — which put every financial-account figure in the detail view
+one month late under its own header. The source's header was right for the financial accounts in every
+zone. Found by ticket 16, whose account view has to name the month a figure covers, and fixed before
+it: month M now sends `[last of M−1, last of M]`, the Colombo row, from every zone — the one pair both
+halves of the backend read as M. Integer arithmetic on `{year, month}` (`flashMonthlyRanges`), never a
+`Date`, which is §3 and §10.8's rule and the only way to send one answer from every zone.
+
+What is **not** reproduced, then, is the zone: from UTC or California the source puts August's ARR
+under September. That stays a correction rather than an ADR 0003 reproduction, because a column of
+figures under the wrong month is the two apps describing different periods while appearing to describe
+the same one — not a disagreement a reconciler could settle. Colombo is where Finance works, and there
+the two apps now send identical bodies.
+
+**The P&L's own range is a different question, and still open** — see §11.17.
 
 ### The Flash's Sub Region chips cannot be cleared (ticket 15)
 
@@ -1693,3 +1716,15 @@ or a live session at `https://one.wso2.com`.
     the same day. **Worth raising**, because unlike the other reproductions this one is not a
     judgement call anybody made — and a reader comparing Integration's detail view against IAM's
     today is comparing a filtered figure with an unfiltered one.
+
+17. **Which twelve months does the source's P&L open on in Colombo?** Found by ticket 16, left for
+    ticket 19's parity check. The P&L's load range is seeded by `FlashConsole.js`'s mount effect
+    through `date.toISOString().split("T")[0]` over local midnights — the same construction §8 shows
+    moving the detail view's dates — so from Colombo it sends `2025-08-31 → 2026-08-31` where the port
+    sends `2025-09-01 → 2026-09-01`. The financial accounts read a range by its end MONTH (§8), so on
+    the trace those two are twelve different months: September 2025 to August 2026 in Colombo, October
+    2025 to September 2026 in the port and in the source from UTC or California. Ticket 15 reproduced
+    the UTC/Pacific load, which §3 makes canonical, and did not know the Colombo one asked a different
+    question. **One side-by-side load from Colombo settles it**: if the two P&Ls disagree by a month,
+    §3 and ADR 0003 pull opposite ways and it is a decision for Finance — whose month the Flash opens
+    on is not a port detail.
