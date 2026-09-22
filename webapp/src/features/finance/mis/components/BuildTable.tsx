@@ -28,6 +28,7 @@ import {
   useTheme,
 } from "@wso2/oxygen-ui";
 import { ChevronDown, ChevronRight } from "@wso2/oxygen-ui-icons-react";
+import WideTableNotice from "@components/wide-table-notice/WideTableNotice";
 import {
   ROW_WINDOW_THRESHOLD,
   buildTableIds,
@@ -205,261 +206,283 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
     });
 
   const tint = theme.palette.action.hover;
+  // The width this table NEEDS — computed from the column model, never
+  // measured. It sizes the table below and it is what the narrow-viewport
+  // notice compares the viewport against, which is why that notice lives here
+  // rather than on the page: this is the only place the number exists.
   const minWidth = tableMinWidth(columnGroups.length, subColumns, leadWidth);
 
   return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: "divider",
-        borderRadius: 1.5,
-        overflow: "hidden",
-        backgroundColor: "background.paper",
-      }}
-    >
+    <>
+      {/* Above the table it describes, and only ever beside a real one — a page
+          that mounted this itself would show it over a loading skeleton, an
+          error and an empty state too, none of which is a table wider than the
+          screen. Spec §11.8, ticket 08. */}
+      <WideTableNotice tableMinWidth={minWidth} sx={{ mb: 1.25 }} />
       <Box
-        ref={scrollRef}
-        onScroll={onScroll}
-        sx={{ overflow: "auto", position: "relative" }}
-        style={{ maxHeight: maxBodyHeight }}
+        sx={{
+          border: 1,
+          borderColor: "divider",
+          borderRadius: 1.5,
+          overflow: "hidden",
+          backgroundColor: "background.paper",
+        }}
       >
-        <Table
-          size="small"
-          stickyHeader
-          aria-label={label}
-          // `minWidth` is computed from the Periods on screen, so it is an
-          // inline style rather than an sx value: a style that changes with the
-          // data would otherwise mint an emotion class per column count. The
-          // same rule holds for every measured or derived value below.
-          style={{ minWidth }}
-          sx={{
-            // stickyHeader forces this anyway. Stated so that the per-cell
-            // borders throughout read as deliberate rather than as inherited
-            // luck — under `separate` the collapsed shorthand does nothing.
-            borderCollapse: "separate",
-            borderSpacing: 0,
-          }}
+        <Box
+          ref={scrollRef}
+          onScroll={onScroll}
+          sx={{ overflow: "auto", position: "relative" }}
+          style={{ maxHeight: maxBodyHeight }}
         >
-          <TableHead>
-            {/* ROW 1 — the row-label column, then one cell per Period. */}
-            <TableRow ref={periodRowRef}>
-              {lead.map((column, index) => (
-                <TableCell
-                  key={column.key}
-                  id={leadHeaderId(index)}
-                  // Spans both header rows when there IS a second one. The
-                  // drill-down dialog is all identity columns and no Periods,
-                  // and a rowSpan over a row that does not exist is a lie the
-                  // table algorithm has to resolve on its own.
-                  rowSpan={columnGroups.length && subColumns.length ? 2 : 1}
-                  scope="col"
-                  style={{ width: column.width, minWidth: column.width }}
-                  sx={leadHeadCellSx(leadOffsets[index])}
-                >
-                  {column.label}
-                </TableCell>
-              ))}
-              {columnGroups.map((group, groupIndex) => (
-                <TableCell
-                  key={group.key}
-                  id={ids.groupHeader(group.key)}
-                  colSpan={subColumns.length}
-                  scope="colgroup"
-                  sx={{
-                    ...HEAD_CELL_SX,
-                    top: 0,
-                    zIndex: Z.header,
-                    textAlign: "center",
-                    color: "text.primary",
-                    ...groupEdgeSx(groupIndex),
-                  }}
-                >
-                  {group.label}
-                </TableCell>
-              ))}
-            </TableRow>
-
-            {/* ROW 2 — held below row 1 by the measured offset, not by MUI.
-                Absent entirely when there are no figure cells to head, which is
-                the drill-down dialog's flat list of identity columns: an empty
-                header row is a row a screen reader still counts. Both lists are
-                tested, not just `subColumns` — row 2's cells are the product of
-                the two, so either being empty leaves it blank. */}
-            {columnGroups.length > 0 && subColumns.length > 0 && (
-            <TableRow>
-              {columnGroups.map((group, groupIndex) =>
-                subColumns.map((subColumn, subIndex) => (
+          <Table
+            size="small"
+            stickyHeader
+            aria-label={label}
+            // `minWidth` is computed from the Periods on screen, so it is an
+            // inline style rather than an sx value: a style that changes with the
+            // data would otherwise mint an emotion class per column count. The
+            // same rule holds for every measured or derived value below.
+            style={{ minWidth }}
+            sx={{
+              // stickyHeader forces this anyway. Stated so that the per-cell
+              // borders throughout read as deliberate rather than as inherited
+              // luck — under `separate` the collapsed shorthand does nothing.
+              borderCollapse: "separate",
+              borderSpacing: 0,
+            }}
+          >
+            <TableHead>
+              {/* ROW 1 — the row-label column, then one cell per Period. */}
+              <TableRow ref={periodRowRef}>
+                {lead.map((column, index) => (
                   <TableCell
-                    key={`${group.key}:${subColumn.key}`}
-                    id={ids.subHeader(group.key, subColumn.key)}
+                    key={column.key}
+                    id={leadHeaderId(index)}
+                    // Spans both header rows when there IS a second one. The
+                    // drill-down dialog is all identity columns and no Periods,
+                    // and a rowSpan over a row that does not exist is a lie the
+                    // table algorithm has to resolve on its own.
+                    rowSpan={columnGroups.length && subColumns.length ? 2 : 1}
                     scope="col"
-                    style={{
-                      top: periodRowHeight,
-                      width: subColumn.width,
-                      minWidth: subColumn.width,
-                    }}
+                    style={{ width: column.width, minWidth: column.width }}
+                    sx={leadHeadCellSx(leadOffsets[index])}
+                  >
+                    {column.label}
+                  </TableCell>
+                ))}
+                {columnGroups.map((group, groupIndex) => (
+                  <TableCell
+                    key={group.key}
+                    id={ids.groupHeader(group.key)}
+                    colSpan={subColumns.length}
+                    scope="colgroup"
                     sx={{
                       ...HEAD_CELL_SX,
+                      top: 0,
                       zIndex: Z.header,
-                      textAlign: "right",
-                      fontSize: 10,
-                      ...(subIndex === 0 ? groupEdgeSx(groupIndex) : {}),
+                      textAlign: "center",
+                      color: "text.primary",
+                      ...groupEdgeSx(groupIndex),
                     }}
                   >
-                    {subColumn.label}
+                    {group.label}
                   </TableCell>
-                )),
-              )}
-            </TableRow>
-            )}
-          </TableHead>
+                ))}
+              </TableRow>
 
-          <TableBody>
-            {/* The rows above the window, as height rather than as rows, so the
-                scrollbar still describes the whole table. `aria-hidden` because
-                it holds space and says nothing: a screen reader counting rows
-                should count the ones carrying figures. */}
-            <RowSpacer height={rowsInView.topPad} columnCount={columnCount} />
-            {onScreen.map(({ row, depth, expandable, expanded }, index) => (
-              <TableRow
-                key={row.id}
-                // One row is measured, and every other is assumed to match it.
-                // They do: the label cannot wrap (`nowrap`) and every figure is
-                // one line, so the only variation is the 2px rule above a total.
-                ref={index === 0 ? firstRowRef : undefined}
-                sx={rowSx({ emphasis: row.emphasis, ruleAbove: row.ruleAbove, tint })}
-              >
-                <TableCell
-                  component="th"
-                  scope="row"
-                  id={ids.rowHeader(row.id)}
-                  style={{ width: lead[0].width, minWidth: lead[0].width, maxWidth: lead[0].width }}
-                  sx={leadCellSx(leadOffsets[0])}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} style={{ paddingLeft: depth * 18 }}>
-                    {expandable ? (
-                      <IconButton
-                        size="small"
-                        onClick={() => toggle(row.id)}
-                        aria-expanded={expanded}
-                        aria-label={row.label}
-                        sx={{ p: 0.2, color: "text.secondary" }}
-                      >
-                        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </IconButton>
-                    ) : (
-                      // Keeps a leaf's label on the same left edge as its siblings'.
-                      <Box aria-hidden sx={{ width: 19, flexShrink: 0 }} />
-                    )}
-                    <Typography
-                      component="span"
+              {/* ROW 2 — held below row 1 by the measured offset, not by MUI.
+                  Absent entirely when there are no figure cells to head, which is
+                  the drill-down dialog's flat list of identity columns: an empty
+                  header row is a row a screen reader still counts. Both lists are
+                  tested, not just `subColumns` — row 2's cells are the product of
+                  the two, so either being empty leaves it blank. */}
+              {columnGroups.length > 0 && subColumns.length > 0 && (
+              <TableRow>
+                {columnGroups.map((group, groupIndex) =>
+                  subColumns.map((subColumn, subIndex) => (
+                    <TableCell
+                      key={`${group.key}:${subColumn.key}`}
+                      id={ids.subHeader(group.key, subColumn.key)}
+                      scope="col"
+                      style={{
+                        top: periodRowHeight,
+                        width: subColumn.width,
+                        minWidth: subColumn.width,
+                      }}
                       sx={{
-                        fontSize: 12.5,
-                        lineHeight: 1.6,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        color: depth >= 2 ? "text.secondary" : "text.primary",
+                        ...HEAD_CELL_SX,
+                        zIndex: Z.header,
+                        textAlign: "right",
+                        fontSize: 10,
+                        ...(subIndex === 0 ? groupEdgeSx(groupIndex) : {}),
                       }}
                     >
-                      {row.label}
-                    </Typography>
-                  </Box>
-                </TableCell>
+                      {subColumn.label}
+                    </TableCell>
+                  )),
+                )}
+              </TableRow>
+              )}
+            </TableHead>
 
-                {/* The identity columns after the name. Ordinary cells, not row
-                    headers: an Account ID is a fact ABOUT the row, not a second
-                    name for it, so a screen reader should hear it as a value
-                    under its own column and not as part of the row's name. */}
-                {lead.slice(1).map((column, offsetIndex) => {
-                  const index = offsetIndex + 1;
-                  return (
-                    <TableCell
-                      key={column.key}
-                      headers={`${ids.rowHeader(row.id)} ${ids.leadHeader(column.key)}`}
-                      style={{ width: column.width, minWidth: column.width, maxWidth: column.width }}
-                      sx={leadCellSx(leadOffsets[index])}
+            <TableBody>
+              {/* The rows above the window, as height rather than as rows, so the
+                  scrollbar still describes the whole table. `aria-hidden` because
+                  it holds space and says nothing: a screen reader counting rows
+                  should count the ones carrying figures. */}
+              <RowSpacer height={rowsInView.topPad} columnCount={columnCount} />
+              {onScreen.map(({ row, depth, expandable, expanded }, index) => (
+                <TableRow
+                  key={row.id}
+                  // One row is measured, and every other is assumed to match it.
+                  // They do: the label cannot wrap (`nowrap`) and every figure is
+                  // one line, so the only variation is the 2px rule above a total.
+                  ref={index === 0 ? firstRowRef : undefined}
+                  sx={rowSx({ emphasis: row.emphasis, ruleAbove: row.ruleAbove, tint })}
+                >
+                  <TableCell
+                    component="th"
+                    scope="row"
+                    id={ids.rowHeader(row.id)}
+                    style={{
+                      width: lead[0].width,
+                      minWidth: lead[0].width,
+                      maxWidth: lead[0].width,
+                    }}
+                    sx={leadCellSx(leadOffsets[0])}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                      style={{ paddingLeft: depth * 18 }}
                     >
-                      {/* The full value on the cell itself. Identity columns
-                          truncate — every row is one line, because the row
-                          window measures one and assumes the rest match — so a
-                          long value would otherwise be readable only as the
-                          fragment that happens to fit. */}
+                      {expandable ? (
+                        <IconButton
+                          size="small"
+                          onClick={() => toggle(row.id)}
+                          aria-expanded={expanded}
+                          aria-label={row.label}
+                          sx={{ p: 0.2, color: "text.secondary" }}
+                        >
+                          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </IconButton>
+                      ) : (
+                        // Keeps a leaf's label on the same left edge as its siblings'.
+                        <Box aria-hidden sx={{ width: 19, flexShrink: 0 }} />
+                      )}
                       <Typography
                         component="span"
-                        title={leadCell?.(row, column) ?? ""}
                         sx={{
                           fontSize: 12.5,
                           lineHeight: 1.6,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
-                          display: "block",
+                          color: depth >= 2 ? "text.secondary" : "text.primary",
                         }}
                       >
-                        {leadCell?.(row, column) ?? ""}
+                        {row.label}
                       </Typography>
-                    </TableCell>
-                  );
-                })}
+                    </Box>
+                  </TableCell>
 
-                {columnGroups.map((group, groupIndex) =>
-                  subColumns.map((subColumn, subIndex) => {
-                    const figure = cell(row, group, subColumn);
+                  {/* The identity columns after the name. Ordinary cells, not row
+                      headers: an Account ID is a fact ABOUT the row, not a second
+                      name for it, so a screen reader should hear it as a value
+                      under its own column and not as part of the row's name. */}
+                  {lead.slice(1).map((column, offsetIndex) => {
+                    const index = offsetIndex + 1;
                     return (
                       <TableCell
-                        key={`${group.key}:${subColumn.key}`}
-                        headers={ids.cellHeaders(row.id, group.key, subColumn.key)}
-                        style={{ width: subColumn.width, minWidth: subColumn.width }}
-                        sx={{
-                          ...NUMERIC_CELL_SX,
-                          ...(subIndex === 0 ? groupEdgeSx(groupIndex) : {}),
-                          ...(figure.negative
-                            ? { color: "error.main" }
-                            : figure.muted
-                              ? { color: "text.secondary" }
-                              : {}),
+                        key={column.key}
+                        headers={`${ids.rowHeader(row.id)} ${ids.leadHeader(column.key)}`}
+                        style={{
+                          width: column.width,
+                          minWidth: column.width,
+                          maxWidth: column.width,
                         }}
+                        sx={leadCellSx(leadOffsets[index])}
                       >
-                        {figure.onActivate ? (
-                          // A real button inside the cell, not a click handler
-                          // on the cell. A `<td onClick>` is invisible to the
-                          // keyboard and announces nothing, and a drill-down
-                          // only a mouse can reach is one half the readers of a
-                          // finance report cannot use. Inside rather than
-                          // instead, so the cell keeps its `headers` wiring.
-                          <ButtonBase
-                            onClick={figure.onActivate}
-                            sx={{
-                              font: "inherit",
-                              color: "inherit",
-                              textDecoration: "underline",
-                              textDecorationStyle: "dotted",
-                              textUnderlineOffset: 3,
-                              borderRadius: 0.5,
-                              px: 0.25,
-                              // The figure stays where an unopenable one sits,
-                              // so a column of numbers still reads as a column.
-                              justifyContent: "flex-end",
-                              width: "100%",
-                            }}
-                          >
-                            {figure.text}
-                          </ButtonBase>
-                        ) : (
-                          figure.text
-                        )}
+                        {/* The full value on the cell itself. Identity columns
+                            truncate — every row is one line, because the row
+                            window measures one and assumes the rest match — so a
+                            long value would otherwise be readable only as the
+                            fragment that happens to fit. */}
+                        <Typography
+                          component="span"
+                          title={leadCell?.(row, column) ?? ""}
+                          sx={{
+                            fontSize: 12.5,
+                            lineHeight: 1.6,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            display: "block",
+                          }}
+                        >
+                          {leadCell?.(row, column) ?? ""}
+                        </Typography>
                       </TableCell>
                     );
-                  }),
-                )}
-              </TableRow>
-            ))}
-            <RowSpacer height={rowsInView.bottomPad} columnCount={columnCount} />
-          </TableBody>
-        </Table>
+                  })}
+
+                  {columnGroups.map((group, groupIndex) =>
+                    subColumns.map((subColumn, subIndex) => {
+                      const figure = cell(row, group, subColumn);
+                      return (
+                        <TableCell
+                          key={`${group.key}:${subColumn.key}`}
+                          headers={ids.cellHeaders(row.id, group.key, subColumn.key)}
+                          style={{ width: subColumn.width, minWidth: subColumn.width }}
+                          sx={{
+                            ...NUMERIC_CELL_SX,
+                            ...(subIndex === 0 ? groupEdgeSx(groupIndex) : {}),
+                            ...(figure.negative
+                              ? { color: "error.main" }
+                              : figure.muted
+                                ? { color: "text.secondary" }
+                                : {}),
+                          }}
+                        >
+                          {figure.onActivate ? (
+                            // A real button inside the cell, not a click handler
+                            // on the cell. A `<td onClick>` is invisible to the
+                            // keyboard and announces nothing, and a drill-down
+                            // only a mouse can reach is one half the readers of a
+                            // finance report cannot use. Inside rather than
+                            // instead, so the cell keeps its `headers` wiring.
+                            <ButtonBase
+                              onClick={figure.onActivate}
+                              sx={{
+                                font: "inherit",
+                                color: "inherit",
+                                textDecoration: "underline",
+                                textDecorationStyle: "dotted",
+                                textUnderlineOffset: 3,
+                                borderRadius: 0.5,
+                                px: 0.25,
+                                // The figure stays where an unopenable one sits,
+                                // so a column of numbers still reads as a column.
+                                justifyContent: "flex-end",
+                                width: "100%",
+                              }}
+                            >
+                              {figure.text}
+                            </ButtonBase>
+                          ) : (
+                            figure.text
+                          )}
+                        </TableCell>
+                      );
+                    }),
+                  )}
+                </TableRow>
+              ))}
+              <RowSpacer height={rowsInView.bottomPad} columnCount={columnCount} />
+            </TableBody>
+          </Table>
+        </Box>
       </Box>
-    </Box>
+    </>
   );
 }
 

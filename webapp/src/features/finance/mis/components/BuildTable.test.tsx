@@ -39,6 +39,13 @@ import {
 // which is still the rendered artefact, not a constant standing in for it.
 // (`financeGridSx.test.ts` records the same jsdom limit for `:focus`.)
 
+// The same raise the many-rows block below argues for, applied to the whole
+// file: a render here costs ~540ms in jsdom whatever the fixture size, so under
+// the suite's parallelism the ordinary tests also land close enough to vitest's
+// 5s default to pass alone and fail under load. The repo's other table-mounting
+// suites carry this line for the same reason.
+vi.setConfig({ testTimeout: 20_000 });
+
 const SUB_COLUMNS: BuildSubColumn[] = [
   { key: "amount", label: "Amount", width: 104 },
   { key: "pct", label: "% Open", width: 68 },
@@ -130,6 +137,12 @@ let measuredHeaderHeight = 30;
 const realGetBoundingClientRect = HTMLTableRowElement.prototype.getBoundingClientRect;
 
 beforeEach(() => {
+  // Wide enough that the narrow-viewport notice stays out of the way. It is
+  // rendered by this component (spec §11.8) and is a real focusable element
+  // above the table, so at jsdom's default 1024 it would sit in front of every
+  // keyboard assertion below — which is about the TABLE, not about the notice.
+  // The notice has its own tests, and one here for the fact it is mounted.
+  Object.defineProperty(window, "innerWidth", { value: 20_000, configurable: true });
   measuredHeaderHeight = 30;
   HTMLTableRowElement.prototype.getBoundingClientRect = function measured() {
     return { ...new DOMRect(0, 0, 800, measuredHeaderHeight), height: measuredHeaderHeight } as DOMRect;
@@ -137,6 +150,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true });
   HTMLTableRowElement.prototype.getBoundingClientRect = realGetBoundingClientRect;
 });
 
@@ -1066,5 +1080,37 @@ describe("a table that is all identity and no Periods", () => {
     renderFlat(many);
     expect(bodyRows().filter((r) => !r.hasAttribute("aria-hidden")).length).toBeLessThan(100);
     expect(screen.queryByText("Customer 2999")).not.toBeInTheDocument();
+  });
+});
+
+
+// Spec §11.8, ticket 08. The notice lives HERE rather than on the page because
+// this is the only place the table's required width exists — `tableMinWidth`
+// computes it from the column model — and because a page that mounted it itself
+// would show it over a loading skeleton and an error too.
+describe("the narrow-viewport notice", () => {
+  const atViewport = (width: number) =>
+    Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
+
+  it("says nothing when the viewport fits the table", () => {
+    atViewport(20_000);
+    renderTable(5);
+    expect(screen.queryByText(/wider than your screen/i)).not.toBeInTheDocument();
+  });
+
+  it("says so when it does not, and still renders every figure", () => {
+    atViewport(400);
+    renderTable(5);
+    expect(screen.getByText(/wider than your screen/i)).toBeInTheDocument();
+    // The decision's other half: a notice ABOVE a table, never instead of one.
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  // The width is the TABLE's, not a fixed breakpoint — which is what lets a
+  // narrow table on a narrow screen stay quiet. One Period is 288 + 170 = 458px.
+  it("stays quiet for a table that fits, even on a small screen", () => {
+    atViewport(600);
+    renderTable(1);
+    expect(screen.queryByText(/wider than your screen/i)).not.toBeInTheDocument();
   });
 });

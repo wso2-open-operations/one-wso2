@@ -426,6 +426,10 @@ column of figures that cannot be summed.
 
 **Minimum width.** MIS shows a dismissible notice below 1024px. `AppShellLayout` deliberately makes
 the main column shrinkable and there is no notice component. Resolved as a shared one — see §11.
+The port compares the viewport against the TABLE'S OWN computed width rather than a fixed 1,024,
+because the Build is not one width (§11.8). Dismissal persisting across visits is a **deviation**:
+the source records only that the notice is dismissible, not whether the dismissal survives a
+reload.
 
 **Pacific Time is injected, not imported.** The URL contract's `hydrateAppliedFilters` and
 `applyWindow` take the Annually column-range computer as an argument rather than importing it — the
@@ -1258,6 +1262,22 @@ the first two branches are dead. Ported as the one real field.
     rule, reproduced including its `> 0` quirk, which is harmless because both branches give zero
     where it fires.
 
+### The narrow viewport
+22e. When the table needs more width than the viewport has, the Build shows a notice saying so —
+    **and still renders the table**, every figure reachable by horizontal scroll with the label
+    column pinned. The comparison is against the table's own computed width, not a fixed 1,024:
+    a BU Summary at `?years=1` is 380px and says nothing on a 400px phone, while Software/Cloud
+    Customers at 8,170px says so on a 1,280px laptop.
+    The second half is the decision; a notice that replaced the table would be Variant C, which
+    §11.8 rejected. **Closed by ticket 08.**
+22f. The notice is dismissible, stays dismissed across a remount, and stays dismissed after the
+    viewport has been wide again. **Closed by ticket 08.**
+22g. The dismissal is remembered once per READER rather than per table — what they have understood
+    is "wide tables here scroll", which is not a fact about one table — and it survives a
+    `localStorage` that throws: a private window with site data blocked shows it and dismisses for
+    that visit.
+    **Closed by ticket 08.**
+
 ### The Exit ARR summaries
 23. The Region Summary's rows match the regions the live tenant reports, under both Sales Region and
     Sub Region, and switching between the two actually re-reads rather than regrouping.
@@ -1426,11 +1446,48 @@ or a live session at `https://one.wso2.com`.
 6. **Which of the five screens is actually used, and by how many people?** It changes what the tracer
    bullet should prove first and what may not need porting at all.
 7. **Who signs off the re-placed screens**, per [ADR 0002](../adr/0002-rethink-ia-rather-than-transcribe.md)?
-8. **Is a minimum-width notice acceptable** in a shell that otherwise promises every screen works at
-   every width, or should the Build degrade some other way below 1024px? The prototype's Variant C — one
-   Period at a time, rendered vertically — worked at 400px with no horizontal scroll and is the
-   candidate answer, at the cost of making period-over-period comparison impossible. It is kept on the
-   prototype branch rather than discarded, for exactly this question.
+8. ~~**Is a minimum-width notice acceptable** in a shell that otherwise promises every screen works
+   at every width, or should the Build degrade some other way below 1024px?~~ **ANSWERED: the notice,
+   and the table still renders.** Decided in ticket 08 and built as
+   `components/wide-table-notice/WideTableNotice.tsx`, shared rather than MIS-local.
+
+   **What settled it was measuring the real tables rather than the prototype's seven fake
+   customers.** Variant C — one Period at a time, rendered vertically — answers for ONE of the four:
+
+   | Table | Natural width | Variant C, at one Period |
+   |---|---|---|
+   | Subscription Build | 1,138px (288 label + 5 × 170) | 458px — fits |
+   | Software/Cloud Customers | 8,170px BU-only, 11,920px split | 3,970px — does not |
+
+   The customers table carries **2,920px of identity columns before a single figure** — seventeen of
+   them, and eighteen on a Delayed type, where a 200px Delayed Day Count is spread in — then seven or
+   twelve sub-columns per Period at 150px each. Its width is per-Period BREADTH, not Period count, so
+   the mechanism that rescues the Build does nothing for it. Shipping Variant C would mean two mechanisms on one
+   screen, with period-over-period comparison vanishing on one tab and not the others — an
+   inconsistency a reader would rightly report as a bug.
+
+   So: one notice, above whichever table is showing, and **the table still renders and still
+   scrolls** with its label column pinned. The tension this ticket named is not papered over — the
+   shell does promise every screen works at every width, and this is an admission that the Build does
+   not do so comfortably. It is true, and a reader told the truth can act on it. Dismissible, and
+   remembered app-wide: what they have understood is "wide tables here scroll", which is not a fact
+   about one table.
+
+   **It compares the viewport against the table's OWN width**, which `tableMinWidth` COMPUTES from
+   the column model rather than measuring off the DOM — so no layout is involved and jsdom models it
+   exactly. A fixed 1,024px threshold was the first attempt and was wrong, because **the Build is not
+   one width**: this same page serves QRR and MRR, where Years Back defaults to 1 and the table can
+   be 1,648px or 2,498px, while Software/Cloud Customers is 8,170px and a BU Summary at `?years=1` is
+   380px. A fixed threshold told a reader on a 400px screen that a 380px table was "wider than your
+   screen", which is false, and said nothing at 1,100px about a table needing 8,170px.
+
+   It therefore lives in `BuildTable` rather than on the page: that is the only place the required
+   width exists, and a page mounting it itself also showed it above the loading skeleton, the error
+   and the empty state — none of which is a table wider than the screen.
+
+   Dismissal being remembered across visits is a **deviation** rather than established parity: §7
+   records only that the source shows a dismissible notice below 1024px, not whether its dismissal
+   survives a reload.
 9. ~~**Per-screen control detail.**~~ **ANSWERED — both halves read.** The 1,823-line FilterBar was
    read for ticket 09 and the 2,254-line ARR Analysis page for ticket 13; §2.1 and §2.4 now carry
    each screen's control detail. Between them the two reads produced eleven findings, all recorded

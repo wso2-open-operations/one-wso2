@@ -642,3 +642,44 @@ describe("the Total row's own reading of the BU-only Total", () => {
     expect(customerTotal(book, CUSTOMER_SUB_COLUMN_BY_KEY.get("grand-total")!)).toBe(110);
   });
 });
+
+
+// The figures spec §11.8 cites, pinned at their source.
+//
+// The narrow-viewport decision (ticket 08) rests on this table being thousands
+// of pixels wide before its first figure — that is what makes the prototype's
+// Variant C, which reduces only the PERIOD COUNT, unable to rescue it. Those
+// numbers are quoted in §11.8, in the ticket and in `WideTableNotice`, and
+// nothing guarded them: the first version of the spec text was 200px out,
+// because a quick `grep` for `width:` swept up the Delayed column and reported
+// the widest case as the ordinary one.
+//
+// Asserted as LITERALS rather than recomputed from the same constants the code
+// adds up — a test that re-derives the sum the way the source does cannot
+// disagree with it, which is exactly the tautology that would have let the
+// original mistake through.
+describe("the width §11.8's decision rests on", () => {
+  const totalWidth = (columns: readonly { width: number }[]) =>
+    columns.reduce((sum, column) => sum + column.width, 0);
+
+  it("is 2,920px of identity columns on an ordinary type", () => {
+    const columns = customerLeadColumns("Total ARR");
+    expect(columns).toHaveLength(17);
+    expect(totalWidth(columns)).toBe(2920);
+  });
+
+  // A Delayed type spreads in a Delayed Day Count, which is where the original
+  // 3,120 came from — real, but not the ordinary case it was written up as.
+  it("is 3,120px on a Delayed type, which is the widest case and not the usual one", () => {
+    const columns = customerLeadColumns("Delayed ARR");
+    expect(columns).toHaveLength(18);
+    expect(totalWidth(columns)).toBe(3120);
+  });
+
+  // Seven or twelve figures per Period is the other half: the width comes from
+  // per-Period BREADTH, which is why cutting the Period count does not save it.
+  it("carries seven figures per Period on BU only, and twelve when split", () => {
+    expect(CUSTOMER_BU_SUB_COLUMNS).toHaveLength(7);
+    expect(CUSTOMER_SUB_COLUMNS).toHaveLength(12);
+  });
+});

@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ExcelJS from "exceljs";
@@ -1145,9 +1145,12 @@ describe("what a Table switch does to the filters", () => {
   it("says which Table's defaults it landed on", async () => {
     renderPage("?channel=Channel");
     await switchTable("Region Summary");
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Filters reset to the Region Summary defaults",
-    );
+    // By its TEXT rather than by the role alone: this screen has two
+    // always-mounted live regions — the bar's, and the table's narrow-viewport
+    // notice — which is correct, and means `getByRole("status")` is ambiguous.
+    expect(
+      screen.getByText("Filters reset to the Region Summary defaults"),
+    ).toBeInTheDocument();
   });
 
   it("carries the Years Back the reader set, which is the one thing not lost", async () => {
@@ -1570,5 +1573,65 @@ describe("opening the opportunities behind an account", () => {
     renderPage("?table=customers");
     expect(screen.getByText("Northwind Bank")).toBeInTheDocument();
     expect(opportunities.asked).toBeNull();
+  });
+});
+
+
+// Ticket 08 / spec §11.8. The decision is that the notice appears and the table
+// STILL RENDERS — it is a sentence above one, not a substitute for it. So what
+// this pins is both halves, on the real screen rather than on the component.
+//
+// The notice itself is `BuildTable`'s, because that is the only place the
+// table's required width exists. What belongs HERE is that it reaches the real
+// Build with a real width, and does NOT appear over the states that have no
+// table at all.
+describe("the Build on a narrow screen", () => {
+  const atWidth = (width: number) => {
+    Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
+  };
+
+  afterEach(() => atWidth(1024));
+
+  it("says nothing on a screen with room for it", () => {
+    atWidth(20_000);
+    renderPage();
+    expect(screen.queryByText(/wider than your screen/i)).not.toBeInTheDocument();
+  });
+
+  it("says so on a narrow one, and still draws every figure", () => {
+    atWidth(400);
+    renderPage();
+    expect(screen.getByText(/wider than your screen/i)).toBeInTheDocument();
+    // The half that matters most: the figures are all still there, reachable by
+    // scrolling. A notice that replaced the table would be Variant C, which is
+    // the candidate this decision rejected.
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getAllByText("1,234,567.50").length).toBeGreaterThan(0);
+  });
+
+  it("says it once, and on the table that is actually showing", () => {
+    atWidth(400);
+    renderPage("?table=customers");
+    expect(screen.getAllByText(/wider than your screen/i)).toHaveLength(1);
+    // Named, not just counted: the old version of this test passed identically
+    // on the Subscription table.
+    expect(screen.getByRole("table")).toHaveAccessibleName(/Software\/Cloud Customers/);
+  });
+
+  // The reason the notice moved into `BuildTable`. Mounted on the page it also
+  // appeared above the loading skeleton, the error and the empty state — none
+  // of which is a table wider than the screen.
+  it("says nothing when the Build failed to load", () => {
+    atWidth(400);
+    summary.value = {
+      columns: [],
+      isLoading: false,
+      isError: true,
+      errorMessage: "Gateway timed out.",
+      retry: () => {},
+    };
+    renderPage();
+    expect(screen.getByText(/Gateway timed out/)).toBeInTheDocument();
+    expect(screen.queryByText(/wider than your screen/i)).not.toBeInTheDocument();
   });
 });
