@@ -30,7 +30,7 @@ vi.setConfig({ testTimeout: 20_000 });
 // writes a forecast against one of them. Ticket 16.
 //
 // Spec §10.15 and §10.16 are asserted HERE, on what is on screen, through the
-// real `useFlashAccounts` and `useUpdateFlashAccount` over a mocked transport —
+// real `useFlashAccounts` and `useWriteFlashForecast` over a mocked transport —
 // not over a mocked hook, which could only describe a screen in whatever state
 // the mock was told to be in. The failure these tests exist to rule out is a
 // value that looks saved and is not, and that is a property of the hooks and
@@ -83,14 +83,17 @@ vi.mock("@api/http", async () => {
 const { default: MisFlashAccountsDialog } = await import("./MisFlashAccountsDialog");
 const { NotificationsProvider } = await import("@context/notifications/NotificationsContext");
 
-/** Recurring Revenue for IAM, in August — the month the server takes forecasts for. */
+/**
+ * Recurring Revenue for IAM, in August — the month the server takes Forecasts
+ * for on `EARLY_SEPTEMBER`, which is the clock every test starts on.
+ */
 const AUGUST: FlashAccountsQuery = {
   book: "income",
   accountCategory: "Recurring Revenue",
   businessUnit: "IAM",
   month: "2026-08",
 };
-const FORECAST_MONTH = { year: 2026, month: 8 };
+const EARLY_SEPTEMBER = new Date("2026-09-03T10:00:00Z");
 
 const SUBSCRIPTIONS: FlashFinancialAccount = {
   id: 41,
@@ -109,17 +112,12 @@ const SUPPORT: FlashFinancialAccount = {
   month: "2026-08",
 };
 
-function show(query: FlashAccountsQuery | null = AUGUST) {
+function show(query: FlashAccountsQuery = AUGUST) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <NotificationsProvider>
-        <MisFlashAccountsDialog
-          query={query}
-          unitLabel="IAM"
-          forecastMonth={FORECAST_MONTH}
-          onClose={() => {}}
-        />
+        <MisFlashAccountsDialog query={query} unitLabel="IAM" onClose={() => {}} />
       </NotificationsProvider>
     </QueryClientProvider>,
   );
@@ -143,6 +141,9 @@ const editButton = (accountName: string) =>
 const form = () => screen.getByRole("dialog", { name: /^Update:/ });
 
 beforeEach(() => {
+  // The Date alone, so userEvent's and React Query's timers still run.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(EARLY_SEPTEMBER);
   server.accounts = [SUBSCRIPTIONS, SUPPORT];
   server.readFails = false;
   patchOutcome.value = null;
@@ -225,9 +226,20 @@ describe("which accounts can be edited", () => {
   // Spec §8.1. The 22nd is past the cutoff, and Edit is offered anyway: the
   // server decides, and the screen reports what it decided.
   it("still offers Edit after the 15th, because the cutoff is the server's to apply", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-22T10:00:00Z"));
     show();
+    expect(await editButton("4010 Subscriptions")).toBeInTheDocument();
+  });
+
+  // Read when the view opens, not when the page did: a Flash left open into
+  // October offers September, which is what the server now takes.
+  it("offers the month the server takes when the view is opened", async () => {
+    vi.setSystemTime(new Date("2026-10-02T10:00:00Z"));
+    const august = show();
+    await accountsTable();
+    expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+    august.unmount();
+    show({ ...AUGUST, month: "2026-09" });
     expect(await editButton("4010 Subscriptions")).toBeInTheDocument();
   });
 });

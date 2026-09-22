@@ -22,7 +22,7 @@ import type {
   FlashSalesStatistics,
 } from "../api/misFlashTypes";
 import { FLASH_DETAIL_SECTIONS, flashAccountsQuery, flashDetailRows } from "./flashDetailRows";
-import { FLASH_PNL_SECTIONS } from "./flashPnlRows";
+import { FLASH_PNL_SECTIONS, FLASH_UNIT_COLUMNS } from "./flashPnlRows";
 
 // One business unit's P&L month by month — the same statement as the Flash
 // table, turned ninety degrees.
@@ -316,23 +316,26 @@ describe("which figures have accounts behind them", () => {
 
 describe("what an account view asks for", () => {
   const RECURRING = { book: "income", accountCategory: "Recurring Revenue" } as const;
+  const column = (key: string) => FLASH_UNIT_COLUMNS.find((unit) => unit.key === key)!;
 
-  it("asks for one business unit and one month", () => {
-    expect(flashAccountsQuery(RECURRING, "IAM", { year: 2026, month: 9 })).toEqual({
+  // By the name the backend knows the unit by, which for Integration is not
+  // its column header.
+  it("asks for one business unit, by its backend name, and one month", () => {
+    expect(
+      flashAccountsQuery(RECURRING, column("integrationSoftware"), { year: 2026, month: 9 }),
+    ).toEqual({
       book: "income",
       accountCategory: "Recurring Revenue",
-      businessUnit: "IAM",
+      businessUnit: "Integration-Software",
       month: "2026-09",
     });
   });
 
-  // `MonthlyViewTable.js` opens nothing when `bu === BU_LIST.WSO2`, whose value
-  // is "All" — the whole company, which no single account belongs to.
   it("asks nothing of the WSO2 column", () => {
-    expect(flashAccountsQuery(RECURRING, "All", { year: 2026, month: 9 })).toBeNull();
+    expect(flashAccountsQuery(RECURRING, column("wso2"), { year: 2026, month: 9 })).toBeNull();
   });
 
   it("asks nothing for a figure with no accounts behind it", () => {
-    expect(flashAccountsQuery(undefined, "IAM", { year: 2026, month: 9 })).toBeNull();
+    expect(flashAccountsQuery(undefined, column("iam"), { year: 2026, month: 9 })).toBeNull();
   });
 });

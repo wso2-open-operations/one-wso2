@@ -103,6 +103,14 @@ describe("the columns of a P&L", () => {
     expect(sending.map((column) => column.key)).toEqual(["integrationSoftware"]);
   });
 
+  // Ticket 16. `MonthlyViewTable.js` opens no account view when `bu ===
+  // BU_LIST.WSO2`: the whole company's figure is every unit's accounts at once,
+  // and no single account list stands behind it.
+  it("opens account views from every unit's monthly view but the whole company's", () => {
+    const closed = FLASH_UNIT_COLUMNS.filter((column) => !column.opensAccounts);
+    expect(closed.map((column) => column.key)).toEqual(["wso2"]);
+  });
+
   // The detail views ask per business unit, and the name they ask by is NOT the
   // column header: `BU_LIST` calls the WSO2 column "All" and the Integration
   // one "Integration-Software" (`Config.js:95-103`).

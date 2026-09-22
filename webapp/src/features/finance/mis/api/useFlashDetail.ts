@@ -24,6 +24,7 @@ import { useAsgardeoSub } from "@hooks/useAsgardeoSub";
 import { isMisFlashConfigured, misFlashServiceUrls } from "@config/apiConfig";
 import type { MisFlashRange } from "../util/misFlashPeriods";
 import { recordIn } from "./misResponseArray";
+import { FLASH_ACCOUNT_SUMMARY_KEY } from "./misFlashQueryKeys";
 import type {
   FlashFinancialAccountStatistics,
   FlashSalesStatistics,
@@ -122,7 +123,7 @@ export function useFlashDetail(request: FlashDetailRequest | null): FlashDetailS
   });
 
   const accounts = useQuery<FlashFinancialAccountStatistics, Error>({
-    queryKey: ["mis", "account-summary", userSub, body],
+    queryKey: [...FLASH_ACCOUNT_SUMMARY_KEY, userSub, body],
     enabled: ready,
     queryFn: async () =>
       recordIn<FlashFinancialAccountStatistics>(

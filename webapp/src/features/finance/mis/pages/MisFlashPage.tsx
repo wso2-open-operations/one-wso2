@@ -52,7 +52,6 @@ import {
   type MisMonth,
 } from "../util/misFlashPeriods";
 import { flashSubRegionsFor } from "../util/misFlashSubRegions";
-import { flashForecastMonth } from "../util/misFlashForecastMonth";
 import { amountUnitCaption, formatMisValue } from "../util/misMoney";
 import { useScalePreference } from "../util/ScalePreferenceContext";
 import { MIS_SCALES } from "../util/misViewVocabulary";
@@ -67,9 +66,9 @@ import { MIS_SCALES } from "../util/misViewVocabulary";
 //
 // ---- what ticket 15 builds, and what the tickets after it add --------------
 //
-// This is the only MIS surface where users WRITE. Budget and forecast values
-// are written from the detail dialog, against the GL accounts behind a figure
-// rather than on the P&L itself (ticket 16 — see `MisFlashAccountsDialog`).
+// This is the only MIS surface where users WRITE. Forecasts are written from
+// the detail dialog, against the GL accounts behind a figure rather than on the
+// P&L itself (ticket 16 — see `MisFlashAccountsDialog`).
 // Still ahead: comments against the admin backend (ticket 17, blocked on ticket
 // 04 establishing whether that backend is alive at all), and the ExcelJS export
 // (ticket 18). Each extends this screen and the detail dialog behind it rather
@@ -133,10 +132,6 @@ function Flash() {
   // against this, and a value that moved mid-session would re-key every query
   // at midnight Pacific.
   const [today] = useState(pacificMonth);
-  // The month whose forecasts the server takes — in UTC, the server's clock,
-  // which makes it the one month on this screen that is not Pacific. Read once
-  // per mount for the same reason as `today`. See `flashForecastMonth`.
-  const [forecastMonth] = useState(() => flashForecastMonth());
 
   // The two ends as the source's `filterState` holds them: a month, and the
   // date that month will send. Which is not one fact — see `FlashMonthFilter`.
@@ -367,7 +362,6 @@ function Flash() {
         ranges={detailRanges}
         state={detail}
         scale={scale}
-        forecastMonth={forecastMonth}
       />
     </Box>
   );

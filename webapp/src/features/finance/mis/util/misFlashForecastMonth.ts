@@ -16,7 +16,7 @@
 
 import { addMonths, type MisMonth } from "./misFlashPeriods";
 
-// Which month's budget and forecast values an account view offers to edit.
+// Which month's Forecasts an Account View offers to edit.
 //
 // ---- this is not the cutoff, and it is not Pacific ------------------------
 //
@@ -50,7 +50,7 @@ import { addMonths, type MisMonth } from "./misFlashPeriods";
 //
 // The source's own rule is the viewer's LOCAL month, which in Colombo turns
 // five and a half hours before the server's — harmless there, since the
-// server's day is then the 30th or 31st and it refuses everything. And it
+// server's day is then the last of the month and it refuses everything. And it
 // compares the year too, so in January, whose month before is last December,
 // it offers nothing. That is not reproduced: the server takes December's
 // forecasts on 1–15 January like any other month's.

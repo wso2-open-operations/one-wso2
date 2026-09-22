@@ -222,12 +222,13 @@ Booking per business unit. **The only screen in MIS that writes.** Two write pat
   config still points at it. Either comments are already broken in production, or they have moved and
   the config is stale. Porting a feature against a dead backend would be the most expensive possible
   way to discover which.
-- **Budget and forecast values** — against the flash backend, rejected server-side after the monthly
-  cutoff (§3). **Not inline on the P&L**, whatever this line said before ticket 16: a figure is a sum
-  of GL accounts, and the only write the backend has is a forecast against ONE account, by its id
-  (`PATCH` with `{id, value, comment}`). So, as in the source, a figure in a business unit's monthly
-  view opens the **Account View** — the GL accounts behind it for that unit and month — and each
-  account there has an Edit button opening a Value + Comment form. The figures that open one are
+- **Forecasts** (the tickets' "budget and forecast values" — one value, `CONTEXT.md`) — against the
+  flash backend, rejected server-side after the monthly cutoff (§3). **Not inline on the P&L**,
+  whatever this line said before ticket 16: a figure is a sum of GL accounts, and the only write the
+  backend has is a forecast against ONE account, by its id (`PATCH` with `{id, value, comment}`). So,
+  as in the source, a figure in a business unit's monthly view opens the **Account View** — the GL
+  accounts behind it for that unit and month — and each account there has an Edit button opening a
+  Value + Comment form. The figures that open one are
   Revenue's Recurring, Non-Recurring/PSO and Cloud lines, and Cost of Sales' sub-categories under
   Recurring, Non-Recurring/PSO and Public Cloud; never the WSO2 column. Edit is offered on the account
   views of one month only — see §3. Built as `MisFlashAccountsDialog` (ticket 16).
@@ -236,7 +237,8 @@ Excel export is a hand-built ExcelJS workbook, ported as pure functions (§7).
 
 ## 3. Business rules
 
-**The monthly editing cutoff.** Budget and forecast edits are refused after the **15th of the month**.
+**The monthly editing cutoff.** Forecast edits — the tickets' "budget and forecast", which is one value
+(`CONTEXT.md`) — are refused after the **15th of the month**.
 The frontend does not pre-empt the cutoff; it surfaces the rejection. Port that behaviour exactly — a
 client-side guess at the date would disagree with the server the moment its rule changes.
 
@@ -250,10 +252,14 @@ client-side guess at the date would disagree with the server the moment its rule
 > reason not to copy it.
 
 **Which month's forecasts can be written.** The source offers Edit on the account views of ONE month —
-the one before the current one (`AccountViewTable.js:53`) — and the port keeps that. It is a
-different rule from the cutoff: the server never checks the month (its UPDATE is `WHERE id = ?`), but
-that month is the one its P&L reads forecasts for, so without the rule the port would let Finance
-write forecasts into months the source has never let anyone touch. **It is computed in UTC, the one
+the one before the current one, by the viewer's LOCAL clock (`AccountViewTable.js:53-64`) — and the
+port keeps the rule. It is a different rule from the cutoff: the server never checks the month (its
+UPDATE is `WHERE id = ?`), but that month is the one its P&L reads forecasts for, so without the rule
+the port would let Finance write forecasts into months the source has never let anyone touch. (The
+entity service does carry a month check — `getIncomeRecordMonthByIdQuery` and its cost-of-sales twin,
+`query_builder.bal:411-425`, and its cutoff message mentions "the past month" — but nothing calls
+either query. A redeploy that wired them in would make the server enforce this rule as well, which
+the port would then agree with rather than contradict.) **It is computed in UTC, the one
 MIS month that is not Pacific**, because it is the server's month: the P&L's
 `DATE_FORMAT(UTC_TIMESTAMP() - INTERVAL 1 MONTH, '%Y-%m')`, and the server's clock is the only one
 that decides whether a write lands. A Pacific rule would offer the wrong month for the first seven or
@@ -356,7 +362,7 @@ key construction: the key must include the serialised body, not just the URL.
 | `POST /customer-summary`, `POST /account-summary` | Flash | Flash detail views. |
 | `GET /sub-regions` | Flash | Sub-region list. |
 | `GET`, `PATCH /income-accounts` | Flash | Revenue budget/forecast. **Write.** The GET lists the GL accounts behind one Revenue line (`accountCategory`, `businessUnit`, `month`); the PATCH writes one account's forecast, `{id, value, comment}`, and answers an empty 200. |
-| `GET`, `PATCH /cost-of-sales-accounts` | Flash | Cost-of-sales budget/forecast. **Write.** The GET also REQUIRES `accountSubCategory`, which the source does not send — §7, §11.18. Every failure of either PATCH, the cutoff's included, arrives as a bare 500 with no body. |
+| `GET`, `PATCH /cost-of-sales-accounts` | Flash | Cost-of-sales budget/forecast. **Write.** The GET also REQUIRES `accountSubCategory`, which the source does not send — §7, §11.18. Every failure the service itself reports on either PATCH, the cutoff's included, arrives as a bare 500 with no body; a body that does not bind is a 400 and a bad token a 401, both before the service runs. |
 | `GET /comments/all`, `GET`/`POST`/`PATCH`/`DELETE /comments` | Admin | Flash comments. **Write.** ⚠ The Admin component is named "DEPRECATED" and its Production deployment is **suspended** — see §2.5. |
 
 Each service gets its own `isMisArrConfigured()` / `isMisFlashConfigured()` / `isMisAdminConfigured()`
@@ -1079,20 +1085,34 @@ already passed…"* (`Config.js:112-113`), which names a day the server has neve
 guess as the cause. Here the form stays open with what was typed and says *"Not saved — the Flash
 backend refused the change (HTTP 500). It refuses every edit after the monthly cutoff, and doesn't
 say which refusal this was."* That is all the 500 establishes: the flash backend turns every failure
-into one (`service.bal:139-143`, `:154-158`). A refusal with any other status is not called a
-possible cutoff.
+of its own into one (`service.bal:139-143`, `:154-158`). A refusal with any other status — a 400 for
+a body that does not bind, a 401 from the interceptor — is not called a possible cutoff, and reads
+`Not saved — <the backend's or gateway's message>`.
 
 **After a save, the P&L refreshes too.** The source re-reads the account list at once, the monthly
 view when the account view is shut, and the P&L not at all until the next Search. Here all three are
 re-read as soon as the server has taken the write — and nothing is written into any of them first
 (§10.16).
 
-**Three smaller ones in the account view.** A forecast nobody has written is blank, where the source
+**The editable month is the server's, in UTC, and January has one.** The source's rule (§3) reads the
+viewer's local month and compares the year as well, so in January — whose month before is last
+December — it offers no Edit at all, although the server takes December's forecasts on 1–15 January
+like any other month's. The port offers December, and computes the month on the server's UTC clock,
+read when an Account View opens (`util/misFlashForecastMonth.ts`). From Colombo the two rules differ
+only between 18:30 UTC on the last day of a month and midnight, when the server refuses everything
+anyway; from California a Pacific or local rule would offer the wrong month for the first seven or
+eight hours of every month, while the server accepts writes.
+
+**Four smaller ones in the account view.** A forecast nobody has written is blank, where the source
 prints `$0.00` (`Number(null)`) — a forecast of nought and no forecast are different things to the P&L,
 which uses the forecast only in place of a missing amount. The form opens pre-filled and sends as soon
 as the value is a number, where the source seeds its Update button from a field the record does not
-have (`mis_updated_value`), so changing only the comment meant retyping the value. And the source's
-ID column, a database key, is not carried over.
+have (`mis_updated_value`), so changing only the comment meant retyping the value. The source's ID
+column, a database key, is not carried over. And the title names the sub-category and the month as
+its column is headed — *"Account View — Recurring Revenue COS › Infra/IT of Integration for Aug
+2026"* — where the source's is *"<category> of <BU_LIST name> for yyyy-MM"* and names no
+sub-category, so two Cost of Sales lines' views were titled alike (`MonthlyViewTable.js:388`,
+`:446`).
 
 **The account view is in units, whatever the Scale.** The form takes units — the PATCH's `value` is
 dollars — and a list in thousands beside it invites a forecast a thousand times off. The source's
@@ -1255,14 +1275,15 @@ month's figures come back:
   `month > SUBSTRING(startDate, 1, 7) AND month <= SUBSTRING(endDate, 1, 7)`
   (`entity-service/modules/database/transaction.bal`, in every group search). So a range is its **end
   month** and never its start: `2026-09-01 → 2026-10-01` is October.
-- **ARR and Booking** read the two dates as instants — opening at the start, closing at the end
-  (`flash-backend/modules/compute/arr_bookings.bal`).
+- **ARR** reads the two dates as instants — opening at the start, closing at the end
+  (`flash-backend/modules/compute/arr_bookings.bal:258-275`). Booking is computed from the sales
+  entity service, which is not in this tree; that it reads the dates the same way is unverified.
 
 The source builds its ranges from local midnights (`getMonthlyRangeObject`) and heads each column
 from `period.endDate` (`MonthlyViewTable.js`'s `formatHeader`), so what a column holds depends on
 where it was opened:
 
-| Opened from | Sent for the column headed Sep 2026 | Financial accounts | ARR, Booking |
+| Opened from | Sent for the column headed Sep 2026 | Financial accounts | ARR |
 |---|---|---|---|
 | Colombo (UTC+5:30) | `2026-08-31 → 2026-09-30` | September | September |
 | UTC, California | `2026-08-01 → 2026-09-01` | September | **August** |
@@ -1282,9 +1303,11 @@ What is **not** reproduced, then, is the zone: from UTC or California the source
 under September. That stays a correction rather than an ADR 0003 reproduction, because a column of
 figures under the wrong month is the two apps describing different periods while appearing to describe
 the same one — not a disagreement a reconciler could settle. Colombo is where Finance works, and there
-the two apps now send identical bodies.
+the two apps now send an identical body for any given month's column.
 
-**The P&L's own range is a different question, and still open** — see §11.17.
+**Which months the view opens on is a different question, and still open** — see §11.17. On a first
+load from Colombo the source's detail view spans a month earlier than the port's, because its load
+range does; once a picker has been moved, or Reset pressed, the two agree.
 
 ### An account view ignores the sub-region filter (ticket 16)
 
@@ -1807,7 +1830,10 @@ or a live session at `https://one.wso2.com`.
     today is comparing a filtered figure with an unfiltered one.
 
 17. **Which twelve months does the source's P&L open on in Colombo?** Found by ticket 16, left for
-    ticket 19's parity check. The P&L's load range is seeded by `FlashConsole.js`'s mount effect
+    ticket 19's parity check. It reaches the detail view too: the source derives its monthly ranges
+    from the same load dates, so from Colombo its first-load detail view is headed Sep 2025 to Aug
+    2026 where the port's is Oct 2025 to Sep 2026 — each column asking the same question as its
+    namesake, and the set of columns one month apart. The P&L's load range is seeded by `FlashConsole.js`'s mount effect
     through `date.toISOString().split("T")[0]` over local midnights — the same construction §8 shows
     moving the detail view's dates — so from Colombo it sends `2025-08-31 → 2026-08-31` where the port
     sends `2025-09-01 → 2026-09-01`. The financial accounts read a range by its end MONTH (§8), so on

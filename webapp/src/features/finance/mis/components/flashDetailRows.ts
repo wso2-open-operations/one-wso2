@@ -43,6 +43,7 @@ import {
   type FlashSalesStatistics,
 } from "../api/misFlashTypes";
 import type { BuildRow } from "./buildTableModel";
+import type { FlashUnitColumn } from "./flashPnlRows";
 import { flashRowId } from "./flashRowIds";
 
 /** Which of the two reads a section's lines come from. */
@@ -341,21 +342,17 @@ function accountsBehind(
   return undefined;
 }
 
-/** `BU_LIST.WSO2` — the whole company, the column no account belongs to. */
-const WHOLE_COMPANY = "All";
-
 /**
  * The account view a figure opens, or none.
  *
- * None for the WSO2 column: the source opens nothing there (`bu !==
- * BU_LIST.WSO2` in `MonthlyViewTable.js`), and an account list for "All" would
- * be every unit's accounts at once under a figure that is already their sum.
+ * None for a column that opens no accounts — the WSO2 column, whose figure is
+ * every unit's accounts at once. See `FlashUnitColumn.opensAccounts`.
  */
 export function flashAccountsQuery(
   behind: FlashAccountsBehind | undefined,
-  businessUnit: string,
+  unit: Pick<FlashUnitColumn, "businessUnit" | "opensAccounts">,
   month: MisMonth,
 ): FlashAccountsQuery | null {
-  if (!behind || businessUnit === WHOLE_COMPANY) return null;
-  return { ...behind, businessUnit, month: monthInputValue(month) };
+  if (!behind || !unit.opensAccounts) return null;
+  return { ...behind, businessUnit: unit.businessUnit, month: monthInputValue(month) };
 }

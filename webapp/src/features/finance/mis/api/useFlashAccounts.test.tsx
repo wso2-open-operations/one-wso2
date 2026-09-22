@@ -73,7 +73,7 @@ vi.mock("@api/http", async () => {
   };
 });
 
-const { flashAccountsUrl, useFlashAccounts, useUpdateFlashAccount } = await import(
+const { flashAccountsUrl, useFlashAccounts, useWriteFlashForecast } = await import(
   "./useFlashAccounts"
 );
 
@@ -112,7 +112,7 @@ function renderAccounts(query: FlashAccountsQuery | null, client = newClient()) 
 /** The list and the write together, the way an account view holds them. */
 function renderAccountView(client = newClient()) {
   return renderHook(
-    () => ({ list: useFlashAccounts(RECURRING), update: useUpdateFlashAccount() }),
+    () => ({ list: useFlashAccounts(RECURRING), update: useWriteFlashForecast() }),
     { wrapper: wrapperFor(client) },
   );
 }

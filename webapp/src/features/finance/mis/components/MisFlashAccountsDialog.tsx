@@ -38,26 +38,32 @@ import { Pencil, XIcon } from "@wso2/oxygen-ui-icons-react";
 import { HttpError, humanizeHttpError } from "@api/http";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
-import { useFlashAccounts, useUpdateFlashAccount } from "../api/useFlashAccounts";
+import {
+  useFlashAccounts,
+  useWriteFlashForecast,
+  type FlashAccountsState,
+} from "../api/useFlashAccounts";
 import {
   flashAmount,
   type FlashAccountBook,
   type FlashAccountsQuery,
   type FlashFinancialAccount,
 } from "../api/misFlashTypes";
-import { flashMonthLabel, monthFromInput, monthInputValue, type MisMonth } from "../util/misFlashPeriods";
+import { flashMonthLabel, monthFromInput, monthInputValue } from "../util/misFlashPeriods";
+import { flashForecastMonth } from "../util/misFlashForecastMonth";
 import { MIS_VALUE_TYPES, amountUnitCaption, formatMisValue } from "../util/misMoney";
 import { MIS_SCALES } from "../util/misViewVocabulary";
 
-// The GL accounts behind one Flash figure, and the form that writes a forecast
-// against one of them — the only write in MIS's Build and analysis half.
+// The Account View: the GL accounts behind one Flash figure, and the form that
+// writes a Forecast against one of them — MIS's one write besides comments.
 // Ticket 16.
 //
 // Ported from `flashConsole/tableView.js/AccountViewTable.js` (the list) and
 // `UpdateCommentDialog.js` (the form), reached as the source reaches them: a
-// figure in a business unit's monthly view opens this, and each account in it
-// has an Edit button. The figure itself is never edited, because it is a SUM —
-// the backend writes one account's forecast, by the account's id.
+// figure in a business unit's monthly view opens this, and on the month the
+// server takes Forecasts for, each account in it has an Edit button. The
+// figure itself is never edited, because it is a SUM — the backend writes one
+// account's Forecast, by the account's id.
 //
 // ---- what is on screen is only ever what the server last said -------------
 //
@@ -74,43 +80,48 @@ import { MIS_SCALES } from "../util/misViewVocabulary";
 //
 // ---- and the cutoff is not guessed at ---------------------------------------
 //
-// Spec §8.1. Edit is offered on the month the server takes forecasts for
+// Spec §8.1. Edit is offered on the month the server takes Forecasts for
 // (`flashForecastMonth`), on every day of it; after the 15th the server refuses
-// and the form says so. Nothing here reads the date.
+// and the form says so. The only date read here is the MONTH, when the view
+// opens — never the day.
 
 export interface MisFlashAccountsDialogProps {
-  /** The figure that was opened, or `null` when the view is shut. */
-  query: FlashAccountsQuery | null;
+  /**
+   * The figure that was opened. Always one: the view is mounted while it is
+   * open and unmounted to shut it, so every opening reads afresh.
+   */
+  query: FlashAccountsQuery;
   /** The unit as its column is headed — not `BU_LIST`'s name for it. */
   unitLabel: string;
-  /** The month whose forecasts the server takes. See `flashForecastMonth`. */
-  forecastMonth: MisMonth;
   onClose: () => void;
 }
 
 export default function MisFlashAccountsDialog({
   query,
   unitLabel,
-  forecastMonth,
   onClose,
 }: MisFlashAccountsDialogProps) {
   const state = useFlashAccounts(query);
   const [editing, setEditing] = useState<FlashFinancialAccount | null>(null);
+  // Read when the view OPENS, as the source reads it on every render
+  // (`AccountViewTable.js:53-55`) — so a Flash left open across the turn of the
+  // server's month offers the new month the next time a figure is opened.
+  const [forecastMonth] = useState(() => flashForecastMonth());
 
   // The source's own test (`getHideEdit`), on the server's month — and on the
   // month alone. The day is the server's to judge.
-  const editable = query !== null && query.month === monthInputValue(forecastMonth);
-  const figure = query ? figureName(query) : "";
-  const month = query ? monthFromInput(query.month) : null;
+  const editable = query.month === monthInputValue(forecastMonth);
+  const figure = figureName(query);
+  const month = monthFromInput(query.month);
   // The source's title — "<category> of <unit> for <month>" — with the month
-  // written as the column above it is headed.
-  const title = query
-    ? `Account View — ${figure} of ${unitLabel} for ${month ? flashMonthLabel(month) : query.month}`
-    : "Account View";
+  // written as the column above it is headed. Spec §7.
+  const title = `Account View — ${figure} of ${unitLabel} for ${
+    month ? flashMonthLabel(month) : query.month
+  }`;
 
   return (
     <>
-      <Dialog open={query !== null} onClose={onClose} maxWidth="md" fullWidth>
+      <Dialog open onClose={onClose} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontSize: 17, fontWeight: 700, pr: 6 }}>
           {title}
           <IconButton
@@ -141,7 +152,7 @@ export default function MisFlashAccountsDialog({
           />
         </DialogContent>
       </Dialog>
-      {query && editing && (
+      {editing && (
         <ForecastForm account={editing} book={query.book} onClose={() => setEditing(null)} />
       )}
     </>
@@ -156,7 +167,8 @@ function figureName(query: FlashAccountsQuery): string {
 }
 
 /** Units, two places — ticket 05's formatter, with Scale left at its default on purpose. */
-const units = (value: unknown) => formatMisValue(flashAmount(value), MIS_VALUE_TYPES.CURRENCY);
+const formatUnits = (value: unknown) =>
+  formatMisValue(flashAmount(value), MIS_VALUE_TYPES.CURRENCY);
 
 function AccountsBody({
   label,
@@ -165,7 +177,7 @@ function AccountsBody({
   onEdit,
 }: {
   label: string;
-  state: ReturnType<typeof useFlashAccounts>;
+  state: FlashAccountsState;
   editable: boolean;
   onEdit: (account: FlashFinancialAccount) => void;
 }) {
@@ -211,10 +223,10 @@ function AccountsBody({
             <TableCell component="th" scope="row">
               {account.accountName ?? ""}
             </TableCell>
-            <TableCell align="right">{units(account.amount)}</TableCell>
+            <TableCell align="right">{formatUnits(account.amount)}</TableCell>
             {/* Blank until someone writes one. The source prints `$0.00` here
                 (`Number(null)`), which reads as a forecast of nought. */}
-            <TableCell align="right">{units(account.budgetedValue)}</TableCell>
+            <TableCell align="right">{formatUnits(account.budgetedValue)}</TableCell>
             <TableCell>{account.comment ?? ""}</TableCell>
             {editable && (
               <TableCell padding="checkbox">
@@ -241,9 +253,11 @@ function AccountsBody({
 /**
  * What a refusal says.
  *
- * The flash backend turns EVERY failure into a bare 500 (`service.bal:139-143`,
- * `:154-158`) — the entity service's cutoff message included — so a 500 is the
- * one status that may be the cutoff, and the reader is told exactly that much.
+ * The flash backend turns every failure of its OWN into a bare 500
+ * (`service.bal:139-143`, `:154-158`) — the entity service's cutoff message
+ * included — so a 500 is the one status that may be the cutoff, and the reader
+ * is told exactly that much. A body that does not bind is a 400 and a bad
+ * token a 401, both before the service runs.
  * The source's message names "the 15th" and states it as the cause; the day is
  * the server's to say, and the server has not said.
  *
@@ -270,7 +284,7 @@ function ForecastForm({
   book: FlashAccountBook;
   onClose: () => void;
 }) {
-  const update = useUpdateFlashAccount();
+  const update = useWriteFlashForecast();
   const { showSuccess } = useNotifications();
   // Both pre-filled with what is saved. The source pre-fills them too, but
   // seeds its Update button from a field the record does not have

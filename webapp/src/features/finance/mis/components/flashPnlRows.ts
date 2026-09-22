@@ -97,6 +97,16 @@ export interface FlashUnitColumn extends BuildColumnGroup {
    * Finance whether they want the one-line fix in the source instead.
    */
   sendsSubRegions: boolean;
+  /**
+   * Whether a figure in this column's monthly view can open the accounts
+   * behind it — ticket 16's Account View. **False for WSO2 alone**: the source
+   * opens nothing when `bu === BU_LIST.WSO2` (`MonthlyViewTable.js:373`,
+   * `:436`), because the whole company's figure is every unit's accounts at
+   * once and no one list stands behind it. A property of the column, beside
+   * the name it is asked by, so the rule does not live on as a second copy of
+   * the string `"All"`.
+   */
+  opensAccounts: boolean;
 }
 
 /** How wide one business-unit column is. Six of them and a label column fit a laptop. */
@@ -117,6 +127,7 @@ export const FLASH_UNIT_COLUMNS: readonly FlashUnitColumn[] = [
     width: UNIT_COLUMN_WIDTH,
     // The only column whose prop the source spells correctly — see the field.
     sendsSubRegions: true,
+    opensAccounts: true,
   },
   {
     key: "iam",
@@ -124,6 +135,7 @@ export const FLASH_UNIT_COLUMNS: readonly FlashUnitColumn[] = [
     businessUnit: "IAM",
     width: UNIT_COLUMN_WIDTH,
     sendsSubRegions: false,
+    opensAccounts: true,
   },
   {
     key: "apim",
@@ -131,6 +143,7 @@ export const FLASH_UNIT_COLUMNS: readonly FlashUnitColumn[] = [
     businessUnit: "APIM-Software",
     width: UNIT_COLUMN_WIDTH,
     sendsSubRegions: false,
+    opensAccounts: true,
   },
   {
     key: "choreo",
@@ -138,6 +151,7 @@ export const FLASH_UNIT_COLUMNS: readonly FlashUnitColumn[] = [
     businessUnit: "Choreo",
     width: UNIT_COLUMN_WIDTH,
     sendsSubRegions: false,
+    opensAccounts: true,
   },
   {
     key: "corporate",
@@ -145,6 +159,7 @@ export const FLASH_UNIT_COLUMNS: readonly FlashUnitColumn[] = [
     businessUnit: "Corporate",
     width: UNIT_COLUMN_WIDTH,
     sendsSubRegions: false,
+    opensAccounts: true,
   },
   {
     key: "wso2",
@@ -152,6 +167,8 @@ export const FLASH_UNIT_COLUMNS: readonly FlashUnitColumn[] = [
     businessUnit: "All",
     width: UNIT_COLUMN_WIDTH,
     sendsSubRegions: false,
+    // The whole company — see the field.
+    opensAccounts: false,
   },
 ];
 

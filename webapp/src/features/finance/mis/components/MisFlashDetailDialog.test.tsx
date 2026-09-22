@@ -83,9 +83,6 @@ const FAILED: FlashDetailState = {
   retry,
 };
 
-/** The month the server takes forecasts for, as the page would pass it. */
-const FORECAST_MONTH = { year: 2026, month: 8 };
-
 function show(state: FlashDetailState = ANSWERED, ranges = RANGES, unit = IAM) {
   return render(
     <MisFlashDetailDialog
@@ -95,7 +92,6 @@ function show(state: FlashDetailState = ANSWERED, ranges = RANGES, unit = IAM) {
       ranges={ranges}
       state={state}
       scale={MIS_SCALES.UNITS}
-      forecastMonth={FORECAST_MONTH}
     />,
   );
 }
@@ -236,7 +232,6 @@ describe("the accounts behind a figure (ticket 16)", () => {
         month: "2025-10",
       },
       unitLabel: "IAM",
-      forecastMonth: FORECAST_MONTH,
     });
   });
 

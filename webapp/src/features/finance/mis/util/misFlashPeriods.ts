@@ -225,8 +225,9 @@ export interface FlashMonthlyRange extends MisFlashRange {
  *     them — is summed over `month > SUBSTRING(startDate, 1, 7) AND month <=
  *     SUBSTRING(endDate, 1, 7)` (`entity-service/modules/database/
  *     transaction.bal`, in every group search), so a range is its END month;
- *   * ARR and Booking read the two dates as instants: opening at the start,
- *     closing at the end (`flash-backend/modules/compute/arr_bookings.bal`).
+ *   * ARR reads the two dates as instants: opening at the start, closing at the
+ *     end (`flash-backend/modules/compute/arr_bookings.bal:258-275`). Booking
+ *     comes from the sales entity service, which is not in this tree.
  *
  * So `[first of M, first of M+1]` is month M for ARR and month M+1 for every
  * financial account, and a detail view built on it showed each column's
@@ -326,8 +327,12 @@ export function flashMonthLabel({ year, month }: MisMonth): string {
 /**
  * The span a detail view is headed with — the source's `ytdRange`.
  *
- * It names the months actually DRAWN, not the ones fetched: it begins at the
- * second range, which is exactly the one `flashDetailColumns` begins at.
+ * It spans the ranges actually DRAWN, not the ones fetched: it begins at the
+ * second range, which is exactly the one `flashDetailColumns` begins at. As
+ * DATES, the source's own: the first drawn range's start, which is the last
+ * day of the month BEFORE the first column, to the last one's end — so a view
+ * of October to September reads "…-09-30 to …-09-30", exactly as the source's
+ * does from Colombo.
  */
 export function flashRangeLabel(ranges: readonly FlashMonthlyRange[]): string {
   const drawn = flashDetailColumns(ranges);

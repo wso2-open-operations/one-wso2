@@ -113,8 +113,9 @@ _Avoid_: P&L, management accounts, monthly report
 The GL accounts behind one Flash figure, for one business unit and one month — opened from a Revenue
 line or a Cost of Sales sub-category in a business unit's monthly view. A figure is their SUM, which is
 why it cannot be edited itself: the backend writes one account at a time, by its id. The source's own
-name for the dialog, kept.
-_Avoid_: drill-down (that is the Build's customer list), account list, GL detail
+name for the dialog, kept. Its accounts come from one of two **books** — income (Revenue) or cost of
+sales — which are the two tables a Forecast can be written into, each behind its own endpoint.
+_Avoid_: drill-down (that is the Build's customer list), GL detail
 
 **Forecast**:
 The value Finance writes against one GL account for the month just closed, which stands in for that

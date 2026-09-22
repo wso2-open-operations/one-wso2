@@ -37,7 +37,6 @@ import {
   flashMonthLabel,
   flashRangeLabel,
   type FlashMonthlyRange,
-  type MisMonth,
 } from "../util/misFlashPeriods";
 import { amountUnitCaption, formatMisValue } from "../util/misMoney";
 import type { MisScale } from "../util/misViewVocabulary";
@@ -90,8 +89,6 @@ export interface MisFlashDetailDialogProps {
   ranges: readonly FlashMonthlyRange[];
   state: FlashDetailState;
   scale: MisScale;
-  /** The month whose forecasts the server takes — see `flashForecastMonth`. */
-  forecastMonth: MisMonth;
 }
 
 export default function MisFlashDetailDialog({
@@ -101,7 +98,6 @@ export default function MisFlashDetailDialog({
   ranges,
   state,
   scale,
-  forecastMonth,
 }: MisFlashDetailDialogProps) {
   const title = unit ? `Monthly View — ${unit.label}` : "Monthly View";
   // The figure whose accounts are open, if any. Nothing resets it when this
@@ -147,8 +143,7 @@ export default function MisFlashDetailDialog({
           ranges={ranges}
           state={state}
           scale={scale}
-          unitLabel={unit?.label ?? ""}
-          businessUnit={unit?.businessUnit ?? ""}
+          unit={unit}
           onOpenAccounts={setAccountsQuery}
         />
       </DialogContent>
@@ -159,7 +154,6 @@ export default function MisFlashDetailDialog({
         <MisFlashAccountsDialog
           query={accountsQuery}
           unitLabel={unit?.label ?? ""}
-          forecastMonth={forecastMonth}
           onClose={() => setAccountsQuery(null)}
         />
       )}
@@ -171,18 +165,16 @@ function DetailBody({
   ranges,
   state,
   scale,
-  unitLabel,
-  businessUnit,
+  unit,
   onOpenAccounts,
 }: {
   ranges: readonly FlashMonthlyRange[];
   state: FlashDetailState;
   scale: MisScale;
-  unitLabel: string;
-  /** `BU_LIST`'s name for the unit — what an account view asks by. */
-  businessUnit: string;
+  unit: FlashUnitColumn | null;
   onOpenAccounts: (query: FlashAccountsQuery) => void;
 }) {
+  const unitLabel = unit?.label ?? "";
   const { rows, figures } = useMemo(
     () => flashDetailRows(state.sales, state.accounts),
     [state.sales, state.accounts],
@@ -215,7 +207,7 @@ function DetailBody({
     const raw = held.values[index] ?? null;
     // The month on the header, which is the month the backend summed here —
     // so the accounts listed are the ones this figure is the sum of.
-    const accounts = flashAccountsQuery(held.accounts, businessUnit, month);
+    const accounts = unit ? flashAccountsQuery(held.accounts, unit, month) : null;
     return {
       // Through ticket 05, so Scale reaches currency and nothing else. Gross
       // Margin is a percentage here exactly as it is on the P&L, and

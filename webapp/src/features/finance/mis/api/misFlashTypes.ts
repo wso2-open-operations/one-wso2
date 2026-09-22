@@ -196,8 +196,8 @@ export interface FlashFinancialAccount {
 }
 
 /**
- * `PATCH /income-accounts` and `PATCH /cost-of-sales-accounts` — the only
- * write in MIS's Build and analysis half. `ForecastValueInput`
+ * `PATCH /income-accounts` and `PATCH /cost-of-sales-accounts` — a Forecast,
+ * MIS's one write besides comments. `ForecastValueInput`
  * (`types.bal:283-290`): `value` is a required decimal, so a forecast can be
  * changed and never cleared, and `comment` is `string?`.
  */

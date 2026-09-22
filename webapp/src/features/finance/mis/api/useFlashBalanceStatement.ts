@@ -24,6 +24,7 @@ import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
 import { isMisFlashConfigured, misFlashServiceUrls } from "@config/apiConfig";
 import type { MisFlashRange } from "../util/misFlashPeriods";
 import { recordIn } from "./misResponseArray";
+import { FLASH_BALANCE_STATEMENT_KEY } from "./misFlashQueryKeys";
 import type { FlashBalanceStatement } from "./misFlashTypes";
 
 // `GET /balance-statement` — the whole monthly P&L in one read.
@@ -100,7 +101,7 @@ export function useFlashBalanceStatement(
   const url = useMemo(() => balanceStatementUrl(range, subRegions), [range, subRegions]);
 
   const query = useQuery<FlashBalanceStatement, Error>({
-    queryKey: ["mis", "balance-statement", userSub, url],
+    queryKey: [...FLASH_BALANCE_STATEMENT_KEY, userSub, url],
     enabled: isSignedIn && isMisFlashConfigured() && Boolean(userSub),
     // A body that is not a record draws fourteen empty sections if it reaches
     // `flashPnlRows` — see `recordIn`.

@@ -23,6 +23,11 @@ import { useAccessToken } from "@hooks/useAccessToken";
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
 import { isMisFlashConfigured, misFlashServiceUrls } from "@config/apiConfig";
 import { arrayIn } from "./misResponseArray";
+import {
+  FLASH_ACCOUNTS_KEY,
+  FLASH_ACCOUNT_SUMMARY_KEY,
+  FLASH_BALANCE_STATEMENT_KEY,
+} from "./misFlashQueryKeys";
 import type {
   FlashAccountBook,
   FlashAccountsQuery,
@@ -31,8 +36,8 @@ import type {
 } from "./misFlashTypes";
 
 // `GET` and `PATCH /income-accounts` and `/cost-of-sales-accounts` — the GL
-// accounts behind one Flash figure, and the one write MIS makes against them.
-// Ticket 16.
+// accounts behind one Flash figure, and the Forecast written against one of
+// them. Ticket 16.
 //
 // ---- nothing here is optimistic, and that is the whole design -------------
 //
@@ -47,7 +52,8 @@ import type {
 // ---- the cutoff is not checked here -----------------------------------------
 //
 // Spec §8.1. The server refuses every edit after the 15th, and this file makes
-// the attempt and reports the refusal rather than guessing at the date.
+// the attempt and hands any refusal to its caller rather than guessing at the
+// date. What a refusal SAYS is the Account View's (`refusalOf`).
 
 /** `/income-accounts` or `/cost-of-sales-accounts` — one path per book, both verbs. */
 function bookUrl(book: FlashAccountBook): string {
@@ -88,9 +94,6 @@ export interface FlashAccountsState {
   retry: () => void;
 }
 
-/** Every account list, under one prefix — what a save marks stale. */
-const ACCOUNTS_KEY = ["mis", "flash-accounts"] as const;
-
 export function useFlashAccounts(query: FlashAccountsQuery | null): FlashAccountsState {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
@@ -101,7 +104,7 @@ export function useFlashAccounts(query: FlashAccountsQuery | null): FlashAccount
 
   const read = useQuery<FlashFinancialAccount[], Error>({
     // A GET, so the URL is the whole question — the same as the P&L's.
-    queryKey: [...ACCOUNTS_KEY, userSub, url],
+    queryKey: [...FLASH_ACCOUNTS_KEY, userSub, url],
     enabled: Boolean(url) && isSignedIn && isMisFlashConfigured() && Boolean(userSub),
     queryFn: async () =>
       arrayIn<FlashFinancialAccount>(await authedGet<unknown>(url!, await getAccessToken())),
@@ -135,10 +138,7 @@ export interface FlashForecastEdit {
  * every monthly detail. The detail's ARR and Booking half (`customer-summary`)
  * is sales data and is not among them.
  */
-const FIGURES_A_FORECAST_MOVES = [
-  ["mis", "balance-statement"],
-  ["mis", "account-summary"],
-] as const;
+const FIGURES_A_FORECAST_MOVES = [FLASH_BALANCE_STATEMENT_KEY, FLASH_ACCOUNT_SUMMARY_KEY];
 
 /**
  * Writes one account's forecast, and on success only, marks stale what it moved.
@@ -155,7 +155,7 @@ const FIGURES_A_FORECAST_MOVES = [
  * awaited and the rest are not, so the form closes on the new list without
  * waiting on a fourteen-section P&L.
  */
-export function useUpdateFlashAccount() {
+export function useWriteFlashForecast() {
   const getAccessToken = useAccessToken();
   const client = useQueryClient();
   return useMutation<void, Error, FlashForecastEdit>({
@@ -167,7 +167,7 @@ export function useUpdateFlashAccount() {
         client.removeQueries({ queryKey, type: "inactive" });
         void client.invalidateQueries({ queryKey });
       }
-      await client.invalidateQueries({ queryKey: ACCOUNTS_KEY });
+      await client.invalidateQueries({ queryKey: FLASH_ACCOUNTS_KEY });
     },
   });
 }
