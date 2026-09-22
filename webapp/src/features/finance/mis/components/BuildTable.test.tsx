@@ -1084,6 +1084,144 @@ describe("a table that is all identity and no Periods", () => {
 });
 
 
+describe("a table whose columns have no sub-division", () => {
+  // The Flash P&L (ticket 15): a row label and six business-unit columns, with
+  // no Amount / % pair beneath any of them. The other degenerate case — all
+  // identity and no columns at all — is the drill-down above; this is its
+  // mirror, and between them they say that either half of the figure axis may
+  // be empty without the table growing a header row with nothing in it.
+
+  const UNITS: BuildColumnGroup[] = [
+    { key: "integrationSoftware", label: "Integration", width: 130 },
+    { key: "iam", label: "IAM", width: 130 },
+    { key: "wso2", label: "WSO2", width: 130 },
+  ];
+  const PNL: BuildRow[] = [
+    { id: "revenue", label: "Revenue", emphasis: true },
+    { id: "cost-of-sales", label: "Cost of Sales", children: [{ id: "cos-cloud", label: "Cloud" }] },
+  ];
+
+  const renderPnl = (rows: BuildRow[] = PNL) =>
+    render(
+      <BuildTable
+        label="Flash P&L"
+        rowLabelHeader="Line"
+        columnGroups={UNITS}
+        subColumns={[]}
+        rows={rows}
+        cell={cell}
+      />,
+    );
+
+  it("has ONE header row, the label column and one cell per business unit", () => {
+    renderPnl();
+    expect(headerRows()).toHaveLength(1);
+    expect(cellsOf(headerRows()[0]).map((one) => one.textContent)).toEqual([
+      "Line",
+      "Integration",
+      "IAM",
+      "WSO2",
+    ]);
+  });
+
+  it("does not span the label column across a row that is not there", () => {
+    renderPnl();
+    expect(cellsOf(headerRows()[0])[0]).not.toHaveAttribute("rowspan", "2");
+  });
+
+  it("gives each row exactly one figure per business unit", () => {
+    renderPnl();
+    const cells = cellsOf(rowLabelled("Revenue"));
+    expect(cells).toHaveLength(4);
+  });
+
+  // The group stands in for the sub-column it does not have, so a caller's
+  // `cell` keeps a `BuildSubColumn` in its third argument rather than an
+  // optional one every Build screen would then have to narrow.
+  it("hands the cell function the column itself where a sub-column would go", () => {
+    renderPnl();
+    expect(cellsOf(rowLabelled("Revenue")).slice(1).map((one) => one.textContent)).toEqual([
+      "revenue/integrationSoftware/integrationSoftware",
+      "revenue/iam/iam",
+      "revenue/wso2/wso2",
+    ]);
+  });
+
+  it("points every figure at its row and its column, and at nothing that is not there", () => {
+    renderPnl();
+    const figure = cellsOf(rowLabelled("Revenue"))[1];
+    const named = figure.getAttribute("headers")!.split(" ");
+    expect(named).toHaveLength(2);
+    const [rowHeader, unitHeader] = named.map((id) => document.getElementById(id));
+    expect(rowHeader).toHaveTextContent("Revenue");
+    expect(unitHeader).toHaveTextContent("Integration");
+  });
+
+  it("asks for the width of its label column plus its business units", () => {
+    renderPnl();
+    expect(screen.getByRole("table", { name: "Flash P&L" }).style.minWidth).toBe(
+      `${288 + 3 * 130}px`,
+    );
+  });
+
+  it("still collapses a section, which is what the sub-levels need", async () => {
+    renderPnl();
+    expect(screen.queryByText("Cloud")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cost of Sales" }));
+    expect(screen.getByText("Cloud")).toBeInTheDocument();
+  });
+
+  it("still freezes the row-label column", () => {
+    renderPnl();
+    expect(getComputedStyle(cellsOf(rowLabelled("Revenue"))[0]).position).toBe("sticky");
+  });
+
+  // The Flash's monthly detail opens from a business-unit column header, which
+  // is where the source opens it from too. Per GROUP, like `onActivate` is per
+  // cell, and for the same reason: only the caller knows which columns have
+  // something behind them.
+  describe("a column with something behind it", () => {
+    const opened: string[] = [];
+    const withAction = () =>
+      render(
+        <BuildTable
+          label="Flash P&L"
+          rowLabelHeader="Line"
+          columnGroups={UNITS.map((unit) => ({
+            ...unit,
+            onActivate: () => opened.push(unit.key),
+          }))}
+          subColumns={[]}
+          rows={PNL}
+          cell={cell}
+        />,
+      );
+
+    beforeEach(() => {
+      opened.length = 0;
+    });
+
+    it("heads it with a real button, so the keyboard can reach it", async () => {
+      withAction();
+      await userEvent.click(screen.getByRole("button", { name: "IAM" }));
+      expect(opened).toEqual(["iam"]);
+    });
+
+    it("keeps the header a header, so the figures below it still resolve", () => {
+      withAction();
+      const figure = cellsOf(rowLabelled("Revenue"))[1];
+      const named = figure.getAttribute("headers")!.split(" ");
+      expect(named.map((id) => document.getElementById(id)?.tagName)).toEqual(["TH", "TH"]);
+    });
+
+    it("leaves a column with nothing behind it as plain text", () => {
+      renderPnl();
+      expect(screen.queryByRole("button", { name: "IAM" })).not.toBeInTheDocument();
+    });
+  });
+});
+
+
 // Spec §11.8, ticket 08. The notice lives HERE rather than on the page because
 // this is the only place the table's required width exists — `tableMinWidth`
 // computes it from the column model — and because a page that mounted it itself

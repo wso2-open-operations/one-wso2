@@ -34,3 +34,26 @@ export function arrayIn<T>(payload: unknown): T[] {
   const wrapped = (payload as { data?: unknown } | null)?.data;
   return Array.isArray(wrapped) ? (wrapped as T[]) : [];
 }
+
+/**
+ * The record in a response, whatever shape it arrived in.
+ *
+ * The mirror of `arrayIn`, and the shape worth naming is the opposite one: an
+ * ARRAY reaching a caller that expects a record gets its INDICES read as field
+ * names, so a table grows rows called "0" and "1"; a string — which is what a
+ * gateway error page resolves to on a 200 — gets every field read as
+ * `undefined`, so the screen draws its headings and no figures and calls that an
+ * answer.
+ *
+ * An empty record instead, which reads everywhere as a call that ANSWERED with
+ * nothing — different from one still in flight, and different from one that
+ * failed.
+ *
+ * Three callers: the two Exit ARR summaries and the Region Summary's movement
+ * view (`useExitArr`), the Flash P&L (`useFlashBalanceStatement`) and the
+ * Flash's two detail reads (`useFlashDetail`).
+ */
+export function recordIn<T>(payload: unknown): T {
+  const isRecord = typeof payload === "object" && payload !== null && !Array.isArray(payload);
+  return (isRecord ? payload : {}) as T;
+}

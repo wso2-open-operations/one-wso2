@@ -35,6 +35,7 @@ import {
   leadColumnOffsets,
   rowWindow,
   tableMinWidth,
+  undividedSubColumn,
   visibleRows,
   type BuildColumnGroup,
   type BuildLeadColumn,
@@ -195,8 +196,26 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
     maxBodyHeight,
   );
   const onScreen = visible.slice(rowsInView.first, rowsInView.last);
+
+  // A table with column groups and nothing under them: the Flash P&L, whose
+  // columns are business units. The group IS the column, so it heads itself,
+  // there is no second header row to hold below the first, and a figure's
+  // `headers` names two cells rather than three — see `undividedSubColumn`.
+  const undivided = columnGroups.length > 0 && subColumns.length === 0;
+  /**
+   * The figure axis, flattened: one entry per numeric column, carrying the
+   * group it sits under and the sub-column `cell` is asked for.
+   *
+   * Flat rather than the nested `groups.map(subColumns.map(…))` the body used
+   * to walk, because the undivided case has no inner list to walk and a branch
+   * around the whole of the row's markup would be the same forty lines twice.
+   */
+  const figureColumns: readonly { group: BuildColumnGroup; sub: BuildSubColumn }[] = undivided
+    ? columnGroups.map((group) => ({ group, sub: undividedSubColumn(group) }))
+    : columnGroups.flatMap((group) => subColumns.map((sub) => ({ group, sub })));
+
   /** Every column, for a spacer row to span. */
-  const columnCount = lead.length + columnGroups.length * subColumns.length;
+  const columnCount = lead.length + figureColumns.length;
 
   const toggle = (id: string) =>
     setExpandedIds((open) => {
@@ -210,7 +229,7 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
   // measured. It sizes the table below and it is what the narrow-viewport
   // notice compares the viewport against, which is why that notice lives here
   // rather than on the page: this is the only place the number exists.
-  const minWidth = tableMinWidth(columnGroups.length, subColumns, leadWidth);
+  const minWidth = tableMinWidth(columnGroups, subColumns, leadWidth);
 
   return (
     <>
@@ -274,18 +293,58 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                   <TableCell
                     key={group.key}
                     id={ids.groupHeader(group.key)}
-                    colSpan={subColumns.length}
-                    scope="colgroup"
+                    // Undivided, it spans nothing and heads one column of
+                    // figures rather than a set of them — so `col`, not
+                    // `colgroup`: a colgroup over a single column claims a
+                    // grouping a reader would then look for and not find.
+                    colSpan={undivided ? 1 : subColumns.length}
+                    scope={undivided ? "col" : "colgroup"}
+                    // The same width its body cells take — `undividedSubColumn`
+                    // supplies the default, so the header cannot disagree with
+                    // the column beneath it about how wide the column is.
+                    style={
+                      undivided
+                        ? {
+                            width: undividedSubColumn(group).width,
+                            minWidth: undividedSubColumn(group).width,
+                          }
+                        : undefined
+                    }
                     sx={{
                       ...HEAD_CELL_SX,
                       top: 0,
                       zIndex: Z.header,
-                      textAlign: "center",
+                      textAlign: undivided ? "right" : "center",
                       color: "text.primary",
                       ...groupEdgeSx(groupIndex),
                     }}
                   >
-                    {group.label}
+                    {group.onActivate ? (
+                      // A real button inside the header cell, not a click
+                      // handler on it. The source makes its whole header a
+                      // `<Button>`, which loses the `<th>`; here the cell stays
+                      // a header — so the `headers` wiring on every figure
+                      // below still resolves to something a screen reader reads
+                      // as this column's name.
+                      <ButtonBase
+                        onClick={group.onActivate}
+                        sx={{
+                          font: "inherit",
+                          color: "inherit",
+                          textDecoration: "underline",
+                          textDecorationStyle: "dotted",
+                          textUnderlineOffset: 3,
+                          borderRadius: 0.5,
+                          px: 0.25,
+                          width: "100%",
+                          justifyContent: undivided ? "flex-end" : "center",
+                        }}
+                      >
+                        {group.label}
+                      </ButtonBase>
+                    ) : (
+                      group.label
+                    )}
                   </TableCell>
                 ))}
               </TableRow>
@@ -425,56 +484,66 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                     );
                   })}
 
-                  {columnGroups.map((group, groupIndex) =>
-                    subColumns.map((subColumn, subIndex) => {
-                      const figure = cell(row, group, subColumn);
-                      return (
-                        <TableCell
-                          key={`${group.key}:${subColumn.key}`}
-                          headers={ids.cellHeaders(row.id, group.key, subColumn.key)}
-                          style={{ width: subColumn.width, minWidth: subColumn.width }}
-                          sx={{
-                            ...NUMERIC_CELL_SX,
-                            ...(subIndex === 0 ? groupEdgeSx(groupIndex) : {}),
-                            ...(figure.negative
-                              ? { color: "error.main" }
-                              : figure.muted
-                                ? { color: "text.secondary" }
-                                : {}),
-                          }}
-                        >
-                          {figure.onActivate ? (
-                            // A real button inside the cell, not a click handler
-                            // on the cell. A `<td onClick>` is invisible to the
-                            // keyboard and announces nothing, and a drill-down
-                            // only a mouse can reach is one half the readers of a
-                            // finance report cannot use. Inside rather than
-                            // instead, so the cell keeps its `headers` wiring.
-                            <ButtonBase
-                              onClick={figure.onActivate}
-                              sx={{
-                                font: "inherit",
-                                color: "inherit",
-                                textDecoration: "underline",
-                                textDecorationStyle: "dotted",
-                                textUnderlineOffset: 3,
-                                borderRadius: 0.5,
-                                px: 0.25,
-                                // The figure stays where an unopenable one sits,
-                                // so a column of numbers still reads as a column.
-                                justifyContent: "flex-end",
-                                width: "100%",
-                              }}
-                            >
-                              {figure.text}
-                            </ButtonBase>
-                          ) : (
-                            figure.text
-                          )}
-                        </TableCell>
-                      );
-                    }),
-                  )}
+                  {figureColumns.map(({ group, sub: subColumn }, figureIndex) => {
+                    // Which Period this column belongs to, and where it sits
+                    // inside it. Both are what `groupEdgeSx` needs to draw the
+                    // divider on the FIRST column of each Period and nowhere
+                    // else; undivided, every column is the first of its own.
+                    const groupIndex = undivided
+                      ? figureIndex
+                      : Math.floor(figureIndex / subColumns.length);
+                    const subIndex = undivided ? 0 : figureIndex % subColumns.length;
+                    const figure = cell(row, group, subColumn);
+                    return (
+                      <TableCell
+                        key={`${group.key}:${subColumn.key}`}
+                        headers={
+                          undivided
+                            ? `${ids.rowHeader(row.id)} ${ids.groupHeader(group.key)}`
+                            : ids.cellHeaders(row.id, group.key, subColumn.key)
+                        }
+                        style={{ width: subColumn.width, minWidth: subColumn.width }}
+                        sx={{
+                          ...NUMERIC_CELL_SX,
+                          ...(subIndex === 0 ? groupEdgeSx(groupIndex) : {}),
+                          ...(figure.negative
+                            ? { color: "error.main" }
+                            : figure.muted
+                              ? { color: "text.secondary" }
+                              : {}),
+                        }}
+                      >
+                        {figure.onActivate ? (
+                          // A real button inside the cell, not a click handler
+                          // on the cell. A `<td onClick>` is invisible to the
+                          // keyboard and announces nothing, and a drill-down
+                          // only a mouse can reach is one half the readers of a
+                          // finance report cannot use. Inside rather than
+                          // instead, so the cell keeps its `headers` wiring.
+                          <ButtonBase
+                            onClick={figure.onActivate}
+                            sx={{
+                              font: "inherit",
+                              color: "inherit",
+                              textDecoration: "underline",
+                              textDecorationStyle: "dotted",
+                              textUnderlineOffset: 3,
+                              borderRadius: 0.5,
+                              px: 0.25,
+                              // The figure stays where an unopenable one sits,
+                              // so a column of numbers still reads as a column.
+                              justifyContent: "flex-end",
+                              width: "100%",
+                            }}
+                          >
+                            {figure.text}
+                          </ButtonBase>
+                        ) : (
+                          figure.text
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))}
               <RowSpacer height={rowsInView.bottomPad} columnCount={columnCount} />

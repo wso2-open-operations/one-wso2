@@ -90,4 +90,20 @@ describe("the three Finance MIS backends", () => {
       "https://apis-stg.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1.0/user-info",
     );
   });
+
+  // Ticket 15. The P&L and its two detail reads go to the FLASH service, and
+  // the mistake worth guarding is the tidy one: these four sit beside the ARR
+  // map in the same file, and a builder written against `misArrBackendUrl`
+  // would compile, would resolve, and would 404 at a gateway that has never
+  // heard of /balance-statement.
+  it("serve the Flash reads from the Flash backend, not the ARR one", async () => {
+    const c = await loadWith(STAGING);
+    const flash = "https://apis-stg.wso2.com/dvig/mis-flash-backend/endpoint-9090-803/v1.0";
+    expect(c.misFlashServiceUrls).toEqual({
+      balanceStatement: `${flash}/balance-statement`,
+      customerSummary: `${flash}/customer-summary`,
+      accountSummary: `${flash}/account-summary`,
+      subRegions: `${flash}/sub-regions`,
+    });
+  });
 });

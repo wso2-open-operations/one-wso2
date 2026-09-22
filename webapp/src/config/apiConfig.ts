@@ -1484,6 +1484,35 @@ export function isMisFlashConfigured(): boolean {
   return Boolean(misFlashBackendUrl);
 }
 
+// The Flash reads, ported by ticket 15. Every one of them is on the FLASH
+// service, which is the whole reason this map is separate from the ARR one
+// above rather than four more entries in it — the two are different gateways
+// behind different Choreo components, and a Flash path built on
+// `misArrBackendUrl` resolves perfectly and 404s.
+//
+// The writes — PATCH /income-accounts and /cost-of-sales-accounts — are not
+// here yet. Ticket 16 adds them with the screen that calls them, so this file
+// never lists a URL nothing calls.
+export const misFlashServiceUrls = {
+  // The P&L itself: one GET, one date range, fourteen sections back. The only
+  // MIS read that is a GET with query parameters besides /opportunities — and
+  // like it, the URL is therefore its own cache key. `subRegions` REPEATS
+  // rather than joining with commas; the Ballerina resource declares
+  // `string[]?` and reads it as repeated parameters.
+  balanceStatement: `${misFlashBackendUrl}/balance-statement`,
+  // ARR and Booking for ONE business unit over a list of months. A read that
+  // takes a body, so it is a POST and the body is its React Query key — §6.
+  customerSummary: `${misFlashBackendUrl}/customer-summary`,
+  // The financial accounts for the same business unit and the same months,
+  // asked separately because they come from a different half of the backend.
+  // A detail view makes both calls and stitches the answers together.
+  accountSummary: `${misFlashBackendUrl}/account-summary`,
+  // The sub-regions present in a date range, which is what the Sub Region
+  // filter is made of. A GET, and keyed by its dates — the list narrows with
+  // the range rather than being a fixed reference list like /app-configs.
+  subRegions: `${misFlashBackendUrl}/sub-regions`,
+};
+
 export const misAdminBackendUrl: string = stripTrailingSlashes(
   window.config?.ONE_WSO2_MIS_ADMIN_BACKEND_URL ?? "",
 );

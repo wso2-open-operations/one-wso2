@@ -60,6 +60,16 @@ vi.mock("@config/apiConfig", () => ({
     buExit: "https://mis.example/arr-summary/bu-exit",
     regionMetrics: "https://mis.example/arr-summary/region-metrics",
   },
+  // The Flash screen became real in ticket 15, so this suite now renders a P&L
+  // as well as a Build — and that screen reads the FLASH service's URLs, which
+  // are a separate map for a separate backend (§6).
+  isMisFlashConfigured: () => true,
+  misFlashServiceUrls: {
+    balanceStatement: "https://flash.example/balance-statement",
+    customerSummary: "https://flash.example/customer-summary",
+    accountSummary: "https://flash.example/account-summary",
+    subRegions: "https://flash.example/sub-regions",
+  },
 }));
 
 vi.mock("../api/useMisGate", () => ({

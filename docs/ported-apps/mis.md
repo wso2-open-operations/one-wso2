@@ -417,6 +417,37 @@ period sees no disagreement it has to explain. Each is also a defect that would 
 preserved in a file outliving the parallel period: an export filed under tomorrow's date, and a
 column of figures that cannot be summed.
 
+**The Flash's two dialogs become one, and the P&L's own rows (ticket 15).** The source reaches its
+sub-levels through a separate `MultiLevelViewDialog` opened from the Cost of Sales and Expense
+headings, and reaches a business unit's monthly view through `MonthlyViewDialog` on each column
+header — and the monthly view it opens depends on which of the two you came from, because the first
+passes `isSubLevel: true` and the P&L passes `false`. Here the sub-levels are the collapsible rows
+`BuildTable` already provides, so there is one monthly view rather than two and it asks the richer
+question (`isSubLevel: true`, which is purely additive at the backend —
+`balance_statement.bal:312-325` attaches `subLevel` to the Cost of Sales and Expense lines and
+changes nothing else).
+
+**Gross Margin renders `77.50` where the source renders `78 %` (ticket 15).** `DataTable.js:83-88`
+does `` `${Math.round(params.value)} %` ``. The port routes every percentage through ticket 05's
+`formatMisValue`, which gives two decimals and no unit marker — the same as the Build's own retention
+rows, so this is a port-wide convention rather than a Flash decision. More precision than the source,
+not a different figure, and the section heading plus the units caption carry the meaning. Worth
+knowing for §10.37 because a reconciler diffing the two screens sees both a different rounding and a
+different string on those rows; adding the marker would mean changing the shared formatter and every
+Build percentage with it, which is a decision for after the parallel period.
+
+**The Flash's month pickers are native inputs (ticket 15).** The source uses
+`@mui/x-date-pickers`, which this repo does not ship; `<input type="month">` is the browser's own
+picker, holds `yyyy-MM`, and never puts a month through a `Date` — which is most of §3's rule on this
+screen. Same reasoning as the ag-Grid and DataGrid decisions above: a dependency is not added for one
+control.
+
+**The Flash shares the Scale preference rather than defaulting to thousands (ticket 15).**
+`TableView.js` opens this one screen at `useState(true)` — thousands — where every other MIS screen
+opens at units. The port carries the one cross-screen `ScalePreferenceContext` §4 settled, so
+switching to the Flash does not switch units under the reader. The caption beside the table says
+which magnitude is on screen either way.
+
 **Routes.** `/finance-mis/*` becomes `/finance/mis/*`. Keeping the old prefix would break the shell:
 `findPerspectiveByPath` matches with a bare `pathname.startsWith`, so `/finance-mis` resolves to the
 `finance` perspective and renders the wrong rail.
@@ -1082,6 +1113,90 @@ reset and nowhere else. It reads like a leftover — every other Table carries t
 — and it is reproduced anyway, because a custom book on that screen would put a different customer
 list on screen from the app Finance is reconciling against.
 
+### The Flash's date range depends on which picker the reader moved (ticket 15)
+
+**The date each end of the range sends depends on whether THAT PICKER was moved — decided per
+picker, not per Search.** `FlashConsole.js`'s mount seeds `startMonthFilter` and `endMonthFilter`
+with first-of-month strings. `DateFilter.js` calls `onDateChange` from its two change handlers and
+**from nowhere else**, and each writes the LAST day of the month it was handed into its own half of
+the pair. `handleFilter` then sends whatever the two hold, unmodified. So one screen has several
+paths and only some of them agree:
+
+| How the screen got there | What it asks for |
+|---|---|
+| First load | the **first** of each month, `[M-12, M0]` |
+| Search, neither picker moved | **exactly what the load asked** — nothing rewrote either half |
+| Search, only Start moved | the **last** of the chosen month, and the **first** of the end month |
+| Search, only End moved | the **first** of the start month, and the **last** of the chosen one |
+| Search, both moved | the **last** of each |
+| Reset | the **last** of each, `[M-13, M-1]` — `handleReset` writes both halves itself |
+
+So Search on a freshly loaded screen changes nothing, moving one picker converts only that end, and
+Reset does not restore the view the reader arrived on: it goes back a further month (its two
+`setDate(0)` calls land on the day BEFORE the first of a month) and writes two month ends.
+
+All of it is reproduced under
+[ADR 0003](../adr/0003-bug-for-bug-parity-during-the-parallel-period.md): Finance reconciles the two
+apps path by path, and a port that asked one question where the source asks several would disagree
+with it on most of them. `FlashMonthFilter` in `util/misFlashPeriods.ts` is what makes the
+distinction expressible — it carries the month a picker SHOWS beside the date that end SENDS, which
+are two facts rather than one.
+
+The monthly ranges behind the detail views are unaffected, and that is worth stating because it looks
+as though they would be: `getMonthlyRangeObject` derives them from those date strings but reads only
+the MONTH off each, so first-of-month and last-of-month produce the same list. The port takes the
+months directly rather than re-deriving them, which says so.
+
+### Five of the Flash's six monthly views ignore the sub-region filter (ticket 15)
+
+`DataTable.js` hands the Integration column's `MonthlyViewDialog` the prop `subRegions={subRegions}`
+(`:175`) and hands the other five **`subregions=`**, with a lower-case r — `:226` (IAM), `:251`
+(APIM), `:276` (Choreo), `:301` (Corporate), `:326` (WSO2). `MonthlyViewDialog` destructures
+`subRegions = []` (`:55`), so for those five the prop is `undefined`, the default empty list reaches
+the request body, and the reader's sub-region selection is silently dropped.
+
+So with a sub-region applied, a narrowed P&L opens an **unnarrowed** monthly view on five of its six
+columns — fourteen sections across twelve months, all company-wide, under a screen that says it is
+filtered.
+
+**Reproduced**, because this is a figures disagreement and therefore squarely
+[ADR 0003](../adr/0003-bug-for-bug-parity-during-the-parallel-period.md)'s subject: correcting it
+would make the port and the source disagree on five of six units for every figure in the dialog,
+which is precisely what the parallel period exists to prevent. Carried as
+`FlashUnitColumn.sendsSubRegions`, true for Integration alone, and pinned by tests in
+`flashPnlRows.test.ts` and `MisFlashPage.test.tsx` — a typo is exactly the kind of reproduction a
+later reader would "fix" without one. See §11.16.
+
+### Two things about the Flash that are NOT reproduced, and why (ticket 15)
+
+Both are month boundaries computed wrongly rather than figures disagreeing, so ADR 0003 does not
+reach them — a column of figures under the wrong month is the two apps describing different periods
+while appearing to describe the same one, which is exactly what that ADR exists to prevent.
+
+1. **The source's monthly ranges shift with the VIEWER'S ZONE.** `getMonthlyRangeObject` does
+   `new Date("2026-09-01")` — UTC midnight — and then reads `.getMonth()` off it, which is local. In
+   California that is 31 August, so every range in the list lands a month early; east of UTC the
+   default range's own dates land a day early instead (`date.toISOString().split("T")[0]` over a
+   local-midnight `Date`). §3 makes Pacific canonical and §10.8 requires the boundaries to be
+   identical under any `TZ`, so the port computes months as integer arithmetic on `{year, month}` and
+   never puts one through a `Date`.
+2. **The detail view's column headers name the wrong month.** `MonthlyViewTable.js`'s `formatHeader`
+   reads `period.endDate`, and a range runs from the first of its month to the first of the NEXT — so
+   September's figures are headed `Oct 2025`. The port heads a column with the month it covers.
+
+### The Flash's Sub Region chips cannot be cleared (ticket 15)
+
+`SubRegionFilter.js` holds the EXPANDED sub-region list as its state and derives which region chips
+are showing from it — a region counts as picked when every one of its sub-regions is in the list. Its
+chip delete then removes ONE STRING from that list, the region's own name: deleting the `EU` chip
+removes a sub-region literally called `"EU"` and leaves `"EU : EU 1"`, `"EU : EU 2"` and `"EU : EU 3"`
+filtering the P&L, with the chip still on screen.
+
+The port holds the REGIONS as its state and expands them on the way into the request, so every
+selection a reader can reach sends exactly what the source sends and the states its broken delete
+could reach are not reachable. A **deviation** rather than a reproduction, on the same reading as
+above: this is a filter that cannot be cleared, not a figure the two apps disagree about.
+
 ## 9. Dead code in the source — do not port
 
 `APP_CONFIG.PAGES` entries `HOME`, `MANAGE`, `PROFILE`, `PREFERENCES` (never routed);
@@ -1135,6 +1250,22 @@ per-customer, and not about this one. The count is pinned by a test in `arrBuild
 Ticket 07 acted on that: `BuildTable` windows only above `ROW_WINDOW_THRESHOLD` (150 rows), so the
 Subscription Build takes the plain path and pays nothing for a mechanism it will never need, while the
 per-customer tables in tickets 10 and 13 get it for free the moment they arrive.
+
+**The oldest monthly range, on the Flash's detail views.** The screen asks for THIRTEEN months and
+draws twelve: `MonthlyViewTable.js` declares numeric columns `"1"` through `"12"`, each reading
+`summary[<its own field>]`, so `summary[0]` is fetched on every open and rendered by nothing. Its tab
+label agrees, spanning `dateRangeArr[1]` to the last range.
+
+The port keeps the distinction where the source puts it. The range is still REQUESTED — the backend
+walks the list it is given in order and a month's opening figures are the previous month's closing
+ones, so dropping it from the body could change the figures in the columns that ARE drawn, and
+ADR 0001 does not second-guess what a backend does with a request. `flashDetailColumns` is what takes
+the last twelve, and it carries each column's index into the response so a figure cannot shift by a
+month. The same shape as the sixth Annual Period above.
+
+**`integrationCloud`, on the Flash's P&L.** `DataTable.js:183-207` carries a complete column
+definition for it, commented out, and `BusinessUnitSummary` has no such field for it to read. Not
+ported — the six columns in `FLASH_UNIT_COLUMNS` are the six the backend sends.
 
 `isAllowedTtmEndingMonth`'s second parameter. `viewState.js:173` and `:245` both pass `asOf` to it and
 `ttmPeriods.js:58` declares no second parameter, so it has never been read. The ported signature takes
@@ -1545,3 +1676,20 @@ or a live session at `https://one.wso2.com`.
     through a different client and §11.1's token path is still unproven, so it is worth watching on
     the first live visit rather than assuming. The one place to change it for every table at once is
     `useColumnQueries`, which already carries this note for the Build's columns (§7).
+
+15. **Should the Flash's filters reach the URL?** Ticket 15. The same question as item 12 asks of ARR
+    Analysis, and it has the same answer for now: the source keeps the two months and the sub-region
+    selection in component state, so a shared Flash link opens on defaults in both apps, and the port
+    reproduces that rather than extending the contract ticket 02 pinned. It is a milder case than ARR
+    Analysis's — a Flash link loses a date range rather than an entire question, and the range is
+    visible in the pickers the moment the screen loads — but it is the same decision and should be
+    taken once, for both screens, with Finance.
+
+16. **Do Finance want the Flash's sub-region typo fixed in the source?** Ticket 15, §8. Five of the
+    six monthly views drop the sub-region filter because of a lower-case `r` in a prop name, so a
+    narrowed P&L opens an unnarrowed detail view on every column but Integration. The port
+    reproduces it under ADR 0003 rather than silently disagreeing with the app Finance is
+    reconciling against, but it is a one-character fix in `DataTable.js` and the port would follow it
+    the same day. **Worth raising**, because unlike the other reproductions this one is not a
+    judgement call anybody made — and a reader comparing Integration's detail view against IAM's
+    today is comparing a filtered figure with an unfiltered one.

@@ -21,6 +21,7 @@ import type { MisAppliedFilters, MisDateRange } from "../util/misViewVocabulary"
 import type { BuFigures, RegionExitResponse } from "../components/exitArrRows";
 import type { RegionMetricsResponse } from "../components/regionMetricsRows";
 import { buExitRequests, regionExitRequests, regionMetricsRequests } from "./misExitArrRequest";
+import { recordIn } from "./misResponseArray";
 import { useColumnQueries } from "./useColumnQueries";
 
 // `POST /arr-summary/region-exit`, `/bu-exit` and `/region-metrics` — the
@@ -173,7 +174,12 @@ function useSummaryColumns<TResponse>({
     url,
     bodies,
     labels,
-    parse: objectIn<TResponse>,
+    // All three endpoints answer with an object — a `BuType`, a map of them
+    // keyed by region, or a map of `RegionMetrics` keyed the same way — so an
+    // array or a string is a body that is not the one it claims to be. The same
+    // distinction `useArrSummary` makes with `?? {}`: a column that answered
+    // with nothing is a column that ANSWERED.
+    parse: recordIn<TResponse>,
     enabled,
   });
 
@@ -181,23 +187,4 @@ function useSummaryColumns<TResponse>({
     ...state,
     columns: state.columns.map(({ label, data, isError }) => ({ label, response: data, isError })),
   };
-}
-
-/**
- * The record in a response, whatever shape it arrived in.
- *
- * All three endpoints answer with an object — a `BuType`, a map of them keyed by
- * region, or a map of `RegionMetrics` keyed the same way — so an ARRAY is the
- * shape worth naming: reaching the row builder, its
- * indices would become regions and the table would grow rows called "0" and
- * "1". An empty object instead, which reads everywhere as a column that
- * answered with nothing.
- *
- * That is the same distinction `useArrSummary` makes with `?? {}` and for the
- * same reason: a column that answered with nothing is a column that ANSWERED,
- * and every lookup on it should read as absent rather than as still loading.
- */
-function objectIn<T>(payload: unknown): T {
-  const isRecord = typeof payload === "object" && payload !== null && !Array.isArray(payload);
-  return (isRecord ? payload : {}) as T;
 }
