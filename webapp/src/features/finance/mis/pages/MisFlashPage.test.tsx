@@ -19,7 +19,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import ExcelJS from "exceljs";
+import { bytesOf, captureDownloads } from "@/test/downloads";
 import type { FlashBalanceStatement } from "../api/misFlashTypes";
+import type { FlashDetailAnswer, FlashDetailRequest } from "../api/flashDetailQueries";
 
 // Vitest's 5s default is the wrong one for this file: every test mounts the
 // whole screen, which is a hand-rolled table of fourteen sections under a panel
@@ -136,6 +139,21 @@ vi.mock("../api/useFlashDetail", () => ({
   },
 }));
 
+/**
+ * The Full Report's read of all six units. Each unit answers with thirteen
+ * months of one ARR line and one Gross Margin line, month N holding N.
+ */
+const monthsOf = (scale: number) =>
+  Array.from({ length: 13 }, (_, index) => ({ value: index * scale }));
+const readDetails = vi.fn(
+  async (requests: readonly FlashDetailRequest[]): Promise<FlashDetailAnswer[]> =>
+    requests.map((request) => ({
+      sales: { arr: [{ id: "1", title: `${request.businessUnit} ARR`, summary: monthsOf(1_000) }] },
+      accounts: { grossMargin: [{ id: "1", title: "Monthly Margin", summary: monthsOf(10) }] },
+    })),
+);
+vi.mock("../api/useFlashDetailReader", () => ({ useFlashDetailReader: () => readDetails }));
+
 const { default: MisFlashPage } = await import("./MisFlashPage");
 
 /** A statement with one currency line and one percentage line. */
@@ -183,6 +201,7 @@ beforeEach(() => {
   state.statementError = false;
   statementReads.length = 0;
   detailReads.length = 0;
+  readDetails.mockClear();
   localStorage.clear();
 });
 
@@ -484,5 +503,132 @@ describe("someone without the Flash privilege", () => {
     show();
     expect(screen.queryByRole("table", { name: "Monthly P&L flash" })).not.toBeInTheDocument();
     expect(statementReads).toHaveLength(0);
+  });
+});
+
+/** The workbook the page wrote, loaded back the way Excel would. */
+async function exported(report: "Full Report" | "Annual Report") {
+  const { blobs, filenames } = captureDownloads();
+  await userEvent.click(screen.getByRole("button", { name: /export/i }));
+  await userEvent.click(screen.getByRole("menuitem", { name: report }));
+  await waitFor(() => expect(blobs).toHaveLength(1));
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await bytesOf(blobs[0]));
+  return { workbook, filename: filenames[0] };
+}
+
+/** The first row of a sheet whose label, less its indent, is `label`. */
+function sheetRow(sheet: ExcelJS.Worksheet, label: string): ExcelJS.Row {
+  let found: ExcelJS.Row | undefined;
+  sheet.eachRow((row) => {
+    if (String(row.getCell(1).value ?? "").trim() === label) found ??= row;
+  });
+  expect(found, `no row "${label}"`).toBeDefined();
+  return found!;
+}
+
+// Ticket 18. The source's Export menu, both items: the P&L alone, or the P&L
+// and every unit's monthly view in one workbook.
+describe("taking the Flash out of the browser", () => {
+  const thousands = () => screen.getByRole("checkbox", { name: /Values in/ });
+
+  it("exports the P&L at units while the screen is showing thousands", async () => {
+    // Spec §10.18, at this table's own call site: the sheet reads through the
+    // same raw reader as the cell, and the cell's division is downstream of it.
+    show();
+    await userEvent.click(thousands());
+    expect(figuresOf("Recurring Revenue")[0]).toBe("1,234.57");
+
+    const { workbook, filename } = await exported("Annual Report");
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Annual Summary"]);
+    const annual = workbook.getWorksheet("Annual Summary")!;
+    expect(sheetRow(annual, "Recurring Revenue").getCell(2).value).toBe(1_234_567);
+    expect(sheetRow(annual, "All amounts in USD")).toBeDefined();
+    expect(filename).toMatch(/^flash_annual_report_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  });
+
+  it("writes Gross Margin as a percentage, not a bare decimal", async () => {
+    show();
+    const { workbook } = await exported("Annual Report");
+    const margin = sheetRow(workbook.getWorksheet("Annual Summary")!, "Recurring Margin");
+    expect(margin.getCell(2).value).toBe(0.775);
+    expect(margin.getCell(2).numFmt).toBe("0.00%");
+  });
+
+  it("titles the file with the range the screen shows", async () => {
+    show();
+    const { workbook } = await exported("Annual Report");
+    const [shown] = statementReads;
+    expect(workbook.getWorksheet("Annual Summary")!.getCell("A1").value).toBe(
+      `Finance MIS Flash Report – Annual Overview (${shown.startDate} to ${shown.endDate})`,
+    );
+  });
+
+  it("reads every unit for the Full Report, narrowed by the reader's sub regions", async () => {
+    show();
+    await userEvent.click(screen.getByRole("combobox", { name: /Sub Region/ }));
+    await userEvent.click(screen.getByRole("option", { name: "EU" }));
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    const { workbook, filename } = await exported("Full Report");
+    const [requests] = readDetails.mock.calls[0];
+    // By the name the backend knows, all six — and every one narrowed, which
+    // is the source's Full Report and NOT its dialogs (spec §8).
+    expect(requests.map((request) => request.businessUnit)).toEqual([
+      "Integration-Software",
+      "IAM",
+      "APIM-Software",
+      "Choreo",
+      "Corporate",
+      "All",
+    ]);
+    for (const request of requests) {
+      expect(request.subRegions).toEqual(["EU : EU 1", "EU : EU 2"]);
+      // The thirteen months a dialog asks for.
+      expect(request.ranges).toHaveLength(13);
+    }
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
+      "Annual Summary",
+      "Integration",
+      "IAM",
+      "APIM",
+      "Choreo",
+      "Corporate",
+      "WSO2",
+    ]);
+    expect(workbook.getWorksheet("Annual Summary")!.getCell("A1").value).toMatch(
+      /^Finance MIS Flash Report – Full Overview \| EU : EU 1, EU : EU 2 \(/,
+    );
+    expect(filename).toMatch(/^flash_full_report_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  });
+
+  it("exports every unit's months at units, while the screen is showing thousands", async () => {
+    // §10.18 at the monthly sheets' call site, which reads the Full Report's
+    // answers rather than anything on screen.
+    show();
+    await userEvent.click(thousands());
+    const { workbook } = await exported("Full Report");
+    const iam = workbook.getWorksheet("IAM")!;
+    // The first DRAWN month is response index 1: the oldest is not exported.
+    expect(sheetRow(iam, "IAM ARR").getCell(2).value).toBe(1_000);
+    expect(sheetRow(iam, "Monthly Margin").getCell(2).numFmt).toBe("0.00%");
+    expect(sheetRow(iam, "All amounts in USD")).toBeDefined();
+  });
+
+  it("says so, and writes nothing, when a unit could not be read", async () => {
+    readDetails.mockRejectedValueOnce(new Error("Gateway timed out."));
+    const { blobs } = captureDownloads();
+    show();
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Full Report" }));
+    // Announced, not merely printed: the failure lands long after the click.
+    expect(await screen.findByText(/couldn't write the file/i)).toHaveAttribute("role", "alert");
+    expect(blobs).toHaveLength(0);
+  });
+
+  it("offers no export until there is a P&L to export", () => {
+    state.statementLoading = true;
+    show();
+    expect(screen.queryByRole("button", { name: /export/i })).not.toBeInTheDocument();
   });
 });

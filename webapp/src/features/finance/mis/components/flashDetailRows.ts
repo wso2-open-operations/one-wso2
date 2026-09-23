@@ -32,7 +32,13 @@
 // component, so it keeps the tree.
 
 import { MIS_VALUE_TYPES, type MisValueType } from "../util/misMoney";
-import { monthInputValue, type MisMonth } from "../util/misFlashPeriods";
+import {
+  flashDetailColumns,
+  flashMonthLabel,
+  monthInputValue,
+  type FlashMonthlyRange,
+  type MisMonth,
+} from "../util/misFlashPeriods";
 import {
   flashAmount,
   flashRowsIn,
@@ -42,7 +48,7 @@ import {
   type FlashRangeSummary,
   type FlashSalesStatistics,
 } from "../api/misFlashTypes";
-import type { BuildRow } from "./buildTableModel";
+import type { BuildColumnGroup, BuildRow } from "./buildTableModel";
 import type { FlashUnitColumn } from "./flashPnlRows";
 import { flashRowId } from "./flashRowIds";
 
@@ -261,6 +267,43 @@ export function flashDetailRows(
   });
 
   return { rows, figures };
+}
+
+/** How wide a detail view's month column and label column are, on screen and in its sheet. */
+export const FLASH_DETAIL_COLUMN_WIDTH = 116;
+export const FLASH_DETAIL_ROW_LABEL_WIDTH = 240;
+
+/**
+ * A detail view's columns: the months it DRAWS, headed by the month each
+ * covers, and keyed by the response index each reads.
+ *
+ * Keyed by index because that is exactly what identifies a column — a month
+ * label is not unique enough to key on in principle. `flashDetailFigure` reads
+ * the key back as that index; the two are one contract, so they sit together.
+ * Shared by the dialog and the sheet, so the file cannot hold a month the
+ * screen does not show — the oldest, fetched and never drawn
+ * (`flashDetailColumns`).
+ */
+export function flashDetailColumnGroups(ranges: readonly FlashMonthlyRange[]): BuildColumnGroup[] {
+  return flashDetailColumns(ranges).map((column) => ({
+    key: String(column.index),
+    label: flashMonthLabel(column.range.month),
+    width: FLASH_DETAIL_COLUMN_WIDTH,
+  }));
+}
+
+/**
+ * The figure behind one cell of a detail view, before any formatter.
+ *
+ * The same function the dialog's cell and the sheet both read — spec §10.18's
+ * guarantee for this table, as `flashPnlFigure` is for the P&L.
+ */
+export function flashDetailFigure(
+  figures: FlashDetail["figures"],
+  row: Pick<BuildRow, "id">,
+  group: Pick<BuildColumnGroup, "key">,
+): number | null {
+  return figures.get(row.id)?.values[Number(group.key)] ?? null;
 }
 
 /**

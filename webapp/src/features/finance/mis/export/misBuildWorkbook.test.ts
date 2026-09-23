@@ -105,8 +105,18 @@ describe("a Build, as a sheet", () => {
     const sheet = misBuildSheet(INPUT);
     expect(at(sheet, 9, 2).value).toBe(412);
     expect(at(sheet, 9, 2).numFmt).toBe(MIS_NUMBER_FORMATS.COUNT);
-    expect(at(sheet, 11, 2).value).toBe(98.25);
     expect(at(sheet, 11, 2).numFmt).toBe(MIS_NUMBER_FORMATS.PERCENTAGE);
+  });
+
+  it("writes a percentage as the fraction Excel's percent format shows as one", () => {
+    // The ARR backend sends 98.25 to mean 98.25%, and Excel's "0.00%" shows a
+    // cell holding 0.9825 as "98.25%". So the figure is divided on the way in,
+    // here and nowhere else — and ONLY a percentage is: the Opening ARR in the
+    // same column is not.
+    const sheet = misBuildSheet(INPUT);
+    expect(at(sheet, 11, 2).value).toBe(0.9825);
+    expect(at(sheet, 11, 3).value).toBe(1.014);
+    expect(at(sheet, 6, 2).value).toBe(1_234_567.5);
   });
 
   it("indents the tree and hands Excel its own outline to fold", () => {
@@ -134,5 +144,99 @@ describe("a Build, as a sheet", () => {
     const sheet = misBuildSheet({ ...INPUT, value: () => "N/A" });
     expect(at(sheet, 6, 2).value).toBe("N/A");
     expect(at(sheet, 6, 2).numFmt).toBeUndefined();
+  });
+});
+
+// Ticket 18. The Flash P&L's columns are business units with nothing under
+// them — `BuildTable`'s undivided case, which ticket 15 taught the table and
+// nobody taught this. Before it, `subColumns: []` wrote a sheet with NO figure
+// columns at all: every row label and not one number.
+describe("a table whose columns have no sub-columns, as a sheet", () => {
+  const UNDIVIDED: MisBuildSheetInput = {
+    name: "Annual Summary",
+    rowLabelHeader: "Line",
+    columnGroups: [
+      { key: "iam", label: "IAM", width: 140 },
+      { key: "wso2", label: "WSO2" },
+    ],
+    subColumns: [],
+    rows: [
+      { id: "revenue", label: "Revenue", children: [{ id: "recurring", label: "Recurring" }] },
+    ],
+    value: (row, _group, subColumnKey) =>
+      row.id === "recurring" ? { iam: 1_000, wso2: 2_500.5 }[subColumnKey] : undefined,
+  };
+
+  it("writes one figure column per group, under ONE header row", () => {
+    const sheet = misBuildSheet(UNDIVIDED);
+    // Caption, blank, then the header — no Period row above it, because there
+    // is nothing for one to span. `BuildTable` draws one header row here too.
+    expect(sheet.rows[2].cells.map((cell) => cell.value)).toEqual(["Line", "IAM", "WSO2"]);
+    expect(sheet.rows[4].cells.map((cell) => cell.value)).toEqual(["  Recurring", 1_000, 2_500.5]);
+  });
+
+  it("hands the value reader the group's own key, as the table hands its cell", () => {
+    // `undividedSubColumn`: with no sub-division the column IS the group. The
+    // reader above keys on `subColumnKey`, so a figure lands only if the sheet
+    // passes the group's key there, the way `BuildTable` does.
+    const sheet = misBuildSheet(UNDIVIDED);
+    expect(at(sheet, 5, 3).value).toBe(2_500.5);
+  });
+
+  it("sizes each column by its group, since there is no sub-column to ask", () => {
+    const sheet = misBuildSheet(UNDIVIDED);
+    // 140px is 20 of Excel's; a group stating no width gets the table's own
+    // default figure column rather than nothing.
+    expect(sheet.columns.map((column) => column.width)).toEqual([37, 20, 19]);
+  });
+});
+
+// Ticket 18 again. Flash's workbook opens each sheet with a report title and
+// fills its header cells. Both are said to `misBuildSheet` rather than done to
+// its output afterwards: a caller patching rows by index would be coupled to
+// how many rows the caption takes, which is this builder's business.
+describe("a sheet with a heading and filled headers", () => {
+  const HEADED: MisBuildSheetInput = {
+    ...INPUT,
+    heading: [
+      { text: "Finance MIS Flash Report", bold: true, fontSize: 16 },
+      { text: "Generated" },
+    ],
+    headerFill: (group) => (group ? `FF00${group.key}` : "FFBBDEFB"),
+  };
+
+  it("puts the heading above the caption, each line across the whole sheet", () => {
+    const sheet = misBuildSheet(HEADED);
+    expect(sheet.rows[0]).toMatchObject({ bold: true, fontSize: 16 });
+    expect(at(sheet, 1, 1).value).toBe("Finance MIS Flash Report");
+    expect(at(sheet, 2, 1).value).toBe("Generated");
+    // The caption is still said, and still before any figure.
+    expect(at(sheet, 3, 1).value).toBe("All amounts in USD");
+    // Three columns: the label and one per Period.
+    expect(sheet.merges).toEqual([
+      { top: 1, left: 1, bottom: 1, right: 3 },
+      { top: 2, left: 1, bottom: 2, right: 3 },
+    ]);
+  });
+
+  it("merges nothing when it has no heading", () => {
+    expect(misBuildSheet(INPUT).merges ?? []).toEqual([]);
+  });
+
+  it("fills each header cell by the column it heads", () => {
+    const sheet = misBuildSheet(HEADED);
+    // Period row, then the sub-column row, both under the two lines of heading.
+    expect(sheet.rows[4].cells.map((cell) => cell.fill)).toEqual([
+      "FFBBDEFB",
+      "FF002024",
+      "FF002025",
+    ]);
+    expect(sheet.rows[5].cells.map((cell) => cell.fill)).toEqual([
+      "FFBBDEFB",
+      "FF002024",
+      "FF002025",
+    ]);
+    // And no figure cell.
+    expect(sheet.rows[7].cells.some((cell) => cell.fill)).toBe(false);
   });
 });

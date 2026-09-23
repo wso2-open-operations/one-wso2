@@ -28,21 +28,31 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import MisShell from "../components/MisShell";
 import MisFlashFilters from "../components/MisFlashFilters";
 import MisFlashDetailDialog from "../components/MisFlashDetailDialog";
+import MisExportButton, { type MisExportChoice } from "../components/MisExportButton";
 import BuildTable, { type BuildCellFor } from "../components/BuildTable";
 import {
   FLASH_UNIT_COLUMNS,
+  flashPnlFigure,
   flashPnlRows,
   type FlashUnitColumn,
-  type FlashUnitKey,
 } from "../components/flashPnlRows";
 import { flashSectionIds } from "../components/flashRowIds";
+import { flashDetailRows } from "../components/flashDetailRows";
 import { useFlashBalanceStatement } from "../api/useFlashBalanceStatement";
 import { useFlashSubRegions } from "../api/useFlashSubRegions";
 import { useFlashDetail } from "../api/useFlashDetail";
+import { useFlashDetailReader } from "../api/useFlashDetailReader";
+import {
+  misFlashAnnualSheet,
+  misFlashFilename,
+  misFlashMonthlySheet,
+  type MisFlashReportContext,
+} from "../export/misFlashWorkbook";
 import {
   chosenMonth,
   defaultFlashMonths,
   flashMonthlyRanges,
+  flashRangeLabel,
   flashRangeOf,
   loadedMonth,
   pacificMonth,
@@ -69,10 +79,12 @@ import { MIS_SCALES } from "../util/misViewVocabulary";
 // This is the only MIS surface where users WRITE. Forecasts are written from
 // the detail dialog, against the GL accounts behind a figure rather than on the
 // P&L itself (ticket 16 — see `MisFlashAccountsDialog`).
-// Still ahead: comments against the admin backend (ticket 17, blocked on ticket
-// 04 establishing whether that backend is alive at all), and the ExcelJS export
-// (ticket 18). Each extends this screen and the detail dialog behind it rather
-// than replacing them.
+// The ExcelJS export is ticket 18's: the source's Export menu, whose Full
+// Report is this P&L plus all six units' monthly views, and whose Annual Report
+// is the P&L alone (`misFlashWorkbook`). Still ahead: comments against the
+// admin backend (ticket 17, blocked on ticket 04 establishing whether that
+// backend is alive at all), which extends this screen and the detail dialog
+// behind it rather than replacing them.
 //
 // ---- three date computations in one screen ---------------------------------
 //
@@ -160,10 +172,11 @@ function Flash() {
   const subRegions = useFlashSubRegions(settled.range);
   const statement = useFlashBalanceStatement(settled.range, settled.subRegions);
 
-  const { rows, figures } = useMemo(
-    () => flashPnlRows(statement.statement),
-    [statement.statement],
-  );
+  const pnl = useMemo(() => flashPnlRows(statement.statement), [statement.statement]);
+  const { rows, figures } = pnl;
+  // In the words the status line above the table uses, so the file's title and
+  // the screen describe one range one way.
+  const rangeLabel = `${settled.range.startDate} to ${settled.range.endDate}`;
 
   const { preference: scale, setPreference: setScale } = useScalePreference();
 
@@ -191,6 +204,56 @@ function Flash() {
     [openUnit, detailRanges, settled.subRegions],
   );
   const detail = useFlashDetail(detailRequest);
+  const readDetails = useFlashDetailReader();
+
+  /** What the P&L was asked under, stamped at the moment of the export. */
+  const reportContext = (): MisFlashReportContext => ({
+    subRegions: settled.subRegions,
+    rangeLabel,
+    instant: new Date(),
+  });
+
+  // The source's Export menu, both items (`FlashConsole.js`). The Full Report
+  // reads every unit's monthly view first — the source warns it "may take a few
+  // minutes" — and narrows EVERY unit by the reader's sub-regions, which its
+  // own dialogs do not (spec §8). So with a sub-region applied, five of its
+  // sheets differ from those units' dialogs, in both apps.
+  const exportChoices: readonly MisExportChoice[] = [
+    {
+      label: "Full Report",
+      workbook: async () => {
+        const context = reportContext();
+        const answers = await readDetails(
+          FLASH_UNIT_COLUMNS.map((unit) => ({
+            businessUnit: unit.businessUnit,
+            ranges: detailRanges,
+            subRegions: settled.subRegions,
+          })),
+        );
+        // Each monthly sheet is titled with the span its dialog shows.
+        const monthly = { ...context, rangeLabel: flashRangeLabel(detailRanges) };
+        return {
+          sheets: [
+            misFlashAnnualSheet(pnl, "full", context),
+            ...FLASH_UNIT_COLUMNS.map((unit, index) =>
+              misFlashMonthlySheet(
+                unit,
+                flashDetailRows(answers[index].sales, answers[index].accounts),
+                detailRanges,
+                monthly,
+              ),
+            ),
+          ],
+        };
+      },
+      filename: () => misFlashFilename("full"),
+    },
+    {
+      label: "Annual Report",
+      workbook: () => ({ sheets: [misFlashAnnualSheet(pnl, "annual", reportContext())] }),
+      filename: () => misFlashFilename("annual"),
+    },
+  ];
 
   const columnGroups = useMemo(
     () =>
@@ -209,7 +272,8 @@ function Flash() {
     // A section heading carries no figures of its own — the source's does not
     // either. Blank, not nought.
     if (!held) return { text: "" };
-    const raw = held.amounts[group.key as FlashUnitKey];
+    // The export's sheet reads through this same function — spec §10.18.
+    const raw = flashPnlFigure(figures, row, group);
     return {
       // Ticket 05. `formatMisValue` reads `scale` in the currency branch and
       // nowhere else, so Gross Margin — the one percentage section — cannot be
@@ -290,11 +354,7 @@ function Flash() {
           color="text.secondary"
           sx={{ minHeight: 18 }}
         >
-          {statement.isLoading
-            ? "Loading the P&L…"
-            : statement.isError
-              ? ""
-              : `${settled.range.startDate} to ${settled.range.endDate}`}
+          {statement.isLoading ? "Loading the P&L…" : statement.isError ? "" : rangeLabel}
         </Typography>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap" }}>
           {/* The caption travels with the TABLE rather than with the control,
@@ -320,6 +380,12 @@ function Flash() {
             }
             label={<Typography variant="body2">Values in &apos;000</Typography>}
           />
+          {/* Only once there is a P&L to write — the source disables its menu
+              until then. Always at units whatever the box beside it says, and
+              the file says so. */}
+          {!statement.isLoading && !statement.isError && (
+            <MisExportButton choices={exportChoices} />
+          )}
         </Stack>
       </Stack>
 
@@ -360,6 +426,7 @@ function Flash() {
         onClose={() => setOpenUnit(null)}
         unit={openUnit}
         ranges={detailRanges}
+        subRegions={detailRequest?.subRegions ?? []}
         state={detail}
         scale={scale}
       />

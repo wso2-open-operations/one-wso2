@@ -15,11 +15,13 @@
 // under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import ExcelJS from "exceljs";
+import { bytesOf, captureDownloads } from "@/test/downloads";
 import { FLASH_UNIT_COLUMNS } from "./flashPnlRows";
 import { flashMonthlyRanges } from "../util/misFlashPeriods";
-import { MIS_SCALES } from "../util/misViewVocabulary";
+import { MIS_SCALES, type MisScale } from "../util/misViewVocabulary";
 import type { FlashDetailState } from "../api/useFlashDetail";
 import type { MisFlashAccountsDialogProps } from "./MisFlashAccountsDialog";
 
@@ -83,15 +85,21 @@ const FAILED: FlashDetailState = {
   retry,
 };
 
-function show(state: FlashDetailState = ANSWERED, ranges = RANGES, unit = IAM) {
+function show(
+  state: FlashDetailState = ANSWERED,
+  ranges = RANGES,
+  unit = IAM,
+  { scale = MIS_SCALES.UNITS as MisScale, subRegions = [] as readonly string[] } = {},
+) {
   return render(
     <MisFlashDetailDialog
       open
       onClose={() => {}}
       unit={unit}
       ranges={ranges}
+      subRegions={subRegions}
       state={state}
-      scale={MIS_SCALES.UNITS}
+      scale={scale}
     />,
   );
 }
@@ -251,5 +259,69 @@ describe("the accounts behind a figure (ticket 16)", () => {
   it("is shut until a figure is opened", () => {
     show(WITH_REVENUE);
     expect(screen.queryByRole("dialog", { name: "Account View" })).not.toBeInTheDocument();
+  });
+});
+
+// Ticket 18. The source's monthly view has its own Export button, which writes
+// that one unit's sheet (`MonthlyViewDialog.js`'s `handleExport`).
+describe("exporting one unit's months", () => {
+  async function exported() {
+    const { blobs, filenames } = captureDownloads();
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await waitFor(() => expect(blobs).toHaveLength(1));
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await bytesOf(blobs[0]));
+    return { workbook, filename: filenames[0] };
+  }
+
+  it("writes the figures the dialog shows, at units while it shows thousands", async () => {
+    // Spec §10.18 at this call site: the sheet reads `flashDetailFigure`, the
+    // cell's own reader, upstream of the division.
+    show(ANSWERED, RANGES, IAM, { scale: MIS_SCALES.THOUSANDS });
+    expect(rowLabelled("Recurring Revenue").querySelectorAll("td")[0].textContent).toBe(
+      "1,234.57",
+    );
+
+    const { workbook, filename } = await exported();
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["IAM"]);
+    const iam = workbook.getWorksheet("IAM")!;
+    expect(iam.getCell("A2").value).toBe("All amounts in USD");
+    // Row 4 is the months; the Revenue section follows ARR's two rows.
+    expect(iam.getRow(4).getCell(2).value).toBe("Oct 2025");
+    let revenue: ExcelJS.Row | undefined;
+    iam.eachRow((row) => {
+      if (String(row.getCell(1).value).trim() === "Recurring Revenue") revenue = row;
+    });
+    expect(revenue!.getCell(2).value).toBe(1_234_567);
+    expect(filename).toMatch(/^flash_monthly_iam_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  });
+
+  it("titles the sheet with the span it drew and the sub regions it was asked under", async () => {
+    show(ANSWERED, RANGES, IAM, { subRegions: ["EU : EU 1"] });
+    const { workbook } = await exported();
+    expect(workbook.getWorksheet("IAM")!.getCell("A1").value).toBe(
+      "Finance MIS Flash Report Monthly Details - IAM | EU : EU 1 (2025-09-30 to 2026-09-30)",
+    );
+  });
+
+  it("writes Gross Margin as a percentage", async () => {
+    show();
+    const { workbook } = await exported();
+    let margin: ExcelJS.Row | undefined;
+    workbook.getWorksheet("IAM")!.eachRow((row) => {
+      if (String(row.getCell(1).value).trim() === "Recurring Margin") margin = row;
+    });
+    expect(margin!.getCell(2).value).toBe(0.775);
+    expect(margin!.getCell(2).numFmt).toBe("0.00%");
+  });
+
+  it("offers no export while there is nothing drawn to write", () => {
+    show({ ...ANSWERED, isLoading: true });
+    expect(screen.queryByRole("button", { name: /export/i })).not.toBeInTheDocument();
+  });
+
+  it("offers no export when the view could not be read", () => {
+    show(FAILED);
+    expect(screen.queryByRole("button", { name: /export/i })).not.toBeInTheDocument();
   });
 });

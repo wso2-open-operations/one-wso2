@@ -28,13 +28,20 @@ import {
 import { XIcon } from "@wso2/oxygen-ui-icons-react";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import BuildTable, { type BuildCellFor } from "./BuildTable";
+import MisExportButton from "./MisExportButton";
 import MisFlashAccountsDialog from "./MisFlashAccountsDialog";
-import { flashAccountsQuery, flashDetailRows } from "./flashDetailRows";
+import {
+  FLASH_DETAIL_ROW_LABEL_WIDTH,
+  flashAccountsQuery,
+  flashDetailColumnGroups,
+  flashDetailFigure,
+  flashDetailRows,
+  type FlashDetail,
+} from "./flashDetailRows";
 import { flashSectionIds } from "./flashRowIds";
 import type { FlashUnitColumn } from "./flashPnlRows";
 import {
   flashDetailColumns,
-  flashMonthLabel,
   flashRangeLabel,
   type FlashMonthlyRange,
 } from "../util/misFlashPeriods";
@@ -42,6 +49,7 @@ import { amountUnitCaption, formatMisValue } from "../util/misMoney";
 import type { MisScale } from "../util/misViewVocabulary";
 import type { FlashDetailState } from "../api/useFlashDetail";
 import type { FlashAccountsQuery } from "../api/misFlashTypes";
+import { misFlashFilename, misFlashMonthlySheet } from "../export/misFlashWorkbook";
 
 // One business unit's P&L, month by month.
 //
@@ -56,8 +64,11 @@ import type { FlashAccountsQuery } from "../api/misFlashTypes";
 // accounts, and its figures open the list of them — `MisFlashAccountsDialog`,
 // where forecasts are written. Which figures, and what each asks, is
 // `flashDetailRows`' to say; this dialog only puts the question on the cell.
-// Comments (ticket 17) and the Export button (ticket 18) are still to come, and
-// each adds to this dialog rather than replacing it.
+//
+// Ticket 18: an Export button writes this unit's months as one sheet — the
+// same rows and columns as the table, through `misFlashMonthlySheet`, which is
+// also what each of the Full Report's six monthly sheets is. Comments (ticket
+// 17) are still to come, and add to this dialog rather than replacing it.
 //
 // ---- which month a column is ----------------------------------------------
 //
@@ -77,9 +88,6 @@ import type { FlashAccountsQuery } from "../api/misFlashTypes";
 // The oldest month IS reproduced as the source has it: **fetched and not
 // drawn**. See `flashDetailColumns`.
 
-const COLUMN_WIDTH = 116;
-const ROW_LABEL_WIDTH = 240;
-
 export interface MisFlashDetailDialogProps {
   open: boolean;
   onClose: () => void;
@@ -87,6 +95,12 @@ export interface MisFlashDetailDialogProps {
   unit: FlashUnitColumn | null;
   /** Every month asked for, oldest first. All but the first are drawn. */
   ranges: readonly FlashMonthlyRange[];
+  /**
+   * The sub-regions this unit's reads were SENT — for five of the six units,
+   * none, whatever the reader chose (spec §8). Named in the export's title so
+   * the file says what its figures were asked under.
+   */
+  subRegions: readonly string[];
   state: FlashDetailState;
   scale: MisScale;
 }
@@ -96,10 +110,21 @@ export default function MisFlashDetailDialog({
   onClose,
   unit,
   ranges,
+  subRegions,
   state,
   scale,
 }: MisFlashDetailDialogProps) {
   const title = unit ? `Monthly View — ${unit.label}` : "Monthly View";
+  // Here rather than in the body, so the table and its export are handed the
+  // one `detail` — they cannot disagree about which lines there are.
+  const detail = useMemo(
+    () => flashDetailRows(state.sales, state.accounts),
+    [state.sales, state.accounts],
+  );
+  // Only what is drawn can be written: not while it loads, not after it failed,
+  // and not for a range with no months in it.
+  const exportable =
+    unit && !state.isLoading && !state.isError && flashDetailColumnGroups(ranges).length > 0;
   // The figure whose accounts are open, if any. Nothing resets it when this
   // dialog shuts, and nothing needs to: the account view is modal over this
   // one, so this one cannot be shut while it is open.
@@ -133,15 +158,32 @@ export default function MisFlashDetailDialog({
           <Typography variant="body2" color="text.secondary">
             {flashRangeLabel(ranges)}
           </Typography>
-          {/* The caption travels with the table, not with the control that set
-              it — Finance crops these into decks. */}
-          <Typography variant="caption" color="text.secondary">
-            {amountUnitCaption(scale)}
-          </Typography>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+            {/* The caption travels with the table, not with the control that
+                set it — Finance crops these into decks. */}
+            <Typography variant="caption" color="text.secondary">
+              {amountUnitCaption(scale)}
+            </Typography>
+            {exportable && (
+              <MisExportButton
+                workbook={() => ({
+                  sheets: [
+                    misFlashMonthlySheet(unit, detail, ranges, {
+                      subRegions,
+                      rangeLabel: flashRangeLabel(ranges),
+                      instant: new Date(),
+                    }),
+                  ],
+                })}
+                filename={() => misFlashFilename(unit)}
+              />
+            )}
+          </Stack>
         </Stack>
         <DetailBody
           ranges={ranges}
           state={state}
+          detail={detail}
           scale={scale}
           unit={unit}
           onOpenAccounts={setAccountsQuery}
@@ -164,47 +206,33 @@ export default function MisFlashDetailDialog({
 function DetailBody({
   ranges,
   state,
+  detail: { rows, figures },
   scale,
   unit,
   onOpenAccounts,
 }: {
   ranges: readonly FlashMonthlyRange[];
   state: FlashDetailState;
+  detail: FlashDetail;
   scale: MisScale;
   unit: FlashUnitColumn | null;
   onOpenAccounts: (query: FlashAccountsQuery) => void;
 }) {
   const unitLabel = unit?.label ?? "";
-  const { rows, figures } = useMemo(
-    () => flashDetailRows(state.sales, state.accounts),
-    [state.sales, state.accounts],
-  );
-  const columns = useMemo(() => flashDetailColumns(ranges), [ranges]);
-  const columnGroups = useMemo(
-    () =>
-      columns.map((column) => ({
-        // Keyed by the response index, which is what the cell reads. The month
-        // label is not unique enough to key on in principle and the index is
-        // exactly what identifies the column.
-        key: String(column.index),
-        // Headed by the month its figures cover. See the note above.
-        label: flashMonthLabel(column.range.month),
-        width: COLUMN_WIDTH,
-      })),
-    [columns],
-  );
+  // Keyed by the response index each reads and headed by the month its
+  // figures cover — see the note above, and `flashDetailColumnGroups`.
+  const columnGroups = useMemo(() => flashDetailColumnGroups(ranges), [ranges]);
   /** Each drawn column's month, by the response index its key carries. */
   const monthAt = useMemo(
-    () => new Map(columns.map((column) => [column.index, column.range.month])),
-    [columns],
+    () => new Map(flashDetailColumns(ranges).map((column) => [column.index, column.range.month])),
+    [ranges],
   );
   const cell: BuildCellFor = (row, group) => {
     const held = figures.get(row.id);
-    // The column's key IS the index it reads — see `columnGroups` above.
-    const index = Number(group.key);
-    const month = monthAt.get(index);
+    const month = monthAt.get(Number(group.key));
     if (!held || !month) return { text: "" };
-    const raw = held.values[index] ?? null;
+    // The export's sheet reads through this same function — spec §10.18.
+    const raw = flashDetailFigure(figures, row, group);
     // The month on the header, which is the month the backend summed here —
     // so the accounts listed are the ones this figure is the sum of.
     const accounts = unit ? flashAccountsQuery(held.accounts, unit, month) : null;
@@ -256,7 +284,7 @@ function DetailBody({
       rows={rows}
       cell={cell}
       defaultExpandedIds={flashSectionIds(rows)}
-      rowLabelWidth={ROW_LABEL_WIDTH}
+      rowLabelWidth={FLASH_DETAIL_ROW_LABEL_WIDTH}
       maxBodyHeight={460}
     />
   );

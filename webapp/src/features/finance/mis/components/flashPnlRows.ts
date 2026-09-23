@@ -315,6 +315,23 @@ export function flashPnlRows(statement: FlashBalanceStatement): FlashPnl {
   return { rows, figures };
 }
 
+/**
+ * The figure behind one cell of the P&L, before any formatter has seen it.
+ *
+ * The SAME function the screen's cell and the export's sheet both read, which
+ * is spec §10.18's guarantee for this table: the division by a thousand happens
+ * after this, inside `formatMisValue`, so a sheet reading through here cannot
+ * be handed a figure the screen has already scaled. `group` is one of
+ * `FLASH_UNIT_COLUMNS`, or a column built from one.
+ */
+export function flashPnlFigure(
+  figures: FlashPnl["figures"],
+  row: Pick<BuildRow, "id">,
+  group: Pick<BuildColumnGroup, "key">,
+): number | null {
+  return figures.get(row.id)?.amounts[group.key as FlashUnitKey] ?? null;
+}
+
 const amountsOf = (line: FlashBusinessUnitSummary): Record<FlashUnitKey, number | null> =>
   Object.fromEntries(
     FLASH_UNIT_COLUMNS.map((column) => [column.key, flashAmount(line[column.key])]),

@@ -17,19 +17,17 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
-import { authedPost, humanizeHttpError } from "@api/http";
-import { httpRetry } from "@api/errors";
+import { humanizeHttpError } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { useAsgardeoSub } from "@hooks/useAsgardeoSub";
-import { isMisFlashConfigured, misFlashServiceUrls } from "@config/apiConfig";
-import type { MisFlashRange } from "../util/misFlashPeriods";
-import { recordIn } from "./misResponseArray";
-import { FLASH_ACCOUNT_SUMMARY_KEY } from "./misFlashQueryKeys";
-import type {
-  FlashFinancialAccountStatistics,
-  FlashSalesStatistics,
-  FlashSummaryRequest,
-} from "./misFlashTypes";
+import { isMisFlashConfigured } from "@config/apiConfig";
+import {
+  flashAccountSummaryQuery,
+  flashDetailBody,
+  flashSalesQuery,
+  type FlashDetailRequest,
+} from "./flashDetailQueries";
+import type { FlashFinancialAccountStatistics, FlashSalesStatistics } from "./misFlashTypes";
 
 // `POST /customer-summary` and `POST /account-summary` — one business unit's
 // P&L, month by month.
@@ -38,7 +36,9 @@ import type {
 // and the whole reason the body is in the React Query key rather than the URL:
 // the URL is the same for every business unit, so keying on it would serve
 // Integration's figures under Choreo's heading. Spec §6 states the rule; this
-// is one of the three places in the port that has to obey it.
+// is one of the three places in the port that has to obey it. The keys, the
+// body and the calls live in `flashDetailQueries`, shared with the Full
+// Report's reader so that the two cache under one key.
 //
 // ---- two calls and one table -----------------------------------------------
 //
@@ -55,15 +55,6 @@ import type {
 // too, by accident of its `.catch`; here it falls out of the shape, and
 // `flashDetailRows` draws every heading with the answered sections filled.
 
-/** What one detail view is for. `null` means the dialog is shut. */
-export interface FlashDetailRequest {
-  /** `BU_LIST`'s name for the unit, NOT the column header — see `FLASH_UNIT_COLUMNS`. */
-  businessUnit: string;
-  /** Every month asked for, oldest first. The view draws all but the first. */
-  ranges: readonly MisFlashRange[];
-  subRegions: readonly string[];
-}
-
 export interface FlashDetailState {
   sales: FlashSalesStatistics;
   accounts: FlashFinancialAccountStatistics;
@@ -75,32 +66,7 @@ export interface FlashDetailState {
   retry: () => void;
 }
 
-const FIVE_MINUTES = 5 * 60 * 1000;
-
-/**
- * The body both calls take.
- *
- * `isSubLevel: true` — **a deviation, and the one place this dialog differs
- * from the source's.** The source's monthly view is reached from the P&L with
- * `isSubLevel: false` (a flat Cost of Sales and Expense) and from its SEPARATE
- * sub-level dialog with `true`. Ticket 15 folds that second dialog into the
- * P&L's own collapsible rows, so there is one monthly view rather than two, and
- * it asks the richer question. The flag is purely additive at the backend: it
- * attaches `subLevel` to the Cost of Sales and Expense lines and changes
- * nothing else (`balance_statement.bal:312-325`). Spec §7.
- */
-export function flashDetailBody(request: FlashDetailRequest): FlashSummaryRequest {
-  return {
-    businessUnit: request.businessUnit,
-    isSubLevel: true,
-    dateRange: request.ranges.map((range) => ({
-      startDate: range.startDate,
-      endDate: range.endDate,
-    })),
-    subRegions: [...request.subRegions],
-  };
-}
-
+/** `request` is what the open dialog is for; `null` means it is shut, and nothing is asked. */
 export function useFlashDetail(request: FlashDetailRequest | null): FlashDetailState {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
@@ -110,27 +76,14 @@ export function useFlashDetail(request: FlashDetailRequest | null): FlashDetailS
 
   const body = useMemo(() => (request ? flashDetailBody(request) : null), [request]);
 
+  // The BODY, not the URL, is the key. See the note above.
   const sales = useQuery<FlashSalesStatistics, Error>({
-    // The BODY, not the URL. See the note above.
-    queryKey: ["mis", "customer-summary", userSub, body],
+    ...flashSalesQuery(userSub, body, getAccessToken),
     enabled: ready,
-    queryFn: async () =>
-      recordIn<FlashSalesStatistics>(
-        await authedPost<unknown>(misFlashServiceUrls.customerSummary, await getAccessToken(), body),
-      ),
-    staleTime: FIVE_MINUTES,
-    retry: httpRetry,
   });
-
   const accounts = useQuery<FlashFinancialAccountStatistics, Error>({
-    queryKey: [...FLASH_ACCOUNT_SUMMARY_KEY, userSub, body],
+    ...flashAccountSummaryQuery(userSub, body, getAccessToken),
     enabled: ready,
-    queryFn: async () =>
-      recordIn<FlashFinancialAccountStatistics>(
-        await authedPost<unknown>(misFlashServiceUrls.accountSummary, await getAccessToken(), body),
-      ),
-    staleTime: FIVE_MINUTES,
-    retry: httpRetry,
   });
 
   // The same fold every sub-keyed query here performs, applied by hand because

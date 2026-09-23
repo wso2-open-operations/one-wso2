@@ -72,7 +72,8 @@ vi.mock("@api/http", async () => {
   };
 });
 
-const { flashDetailBody, useFlashDetail } = await import("./useFlashDetail");
+const { useFlashDetail } = await import("./useFlashDetail");
+const { flashDetailBody } = await import("./flashDetailQueries");
 
 const CUSTOMER_URL = "https://flash.example/customer-summary";
 const ACCOUNT_URL = "https://flash.example/account-summary";
