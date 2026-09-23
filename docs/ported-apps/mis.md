@@ -1810,6 +1810,33 @@ or a live session at `https://one.wso2.com`.
    Unauthenticated probes return `401` on all three, identical to those known-good backends, so DNS,
    TLS, gateway and paths are all correct and only the token is untested. **One authenticated call
    still settles it**, and One WSO2 is live at `https://one.wso2.com` to get a token from.
+
+   **First authenticated call, 2026-09-23, staging: the gateway refuses it, and not for the token.**
+   Signed in to One WSO2 on `localhost:3000` against stage, both `GET /user-info` and
+   `GET /app-configs` on `apis-stg.wso2.com/dvig/mis-arr-backend/…/v1.0` answer **`403`** with
+   code **`900908`**: *"User is NOT authorized to access the Resource. API Subscription validation
+   failed."* That code is the Choreo/API Manager gateway's, raised after the token has validated. A
+   bad or foreign token would be a `401` with `900901`. So the gateway accepted One WSO2's token and
+   identified its application, then found **no subscription from that application to the MIS ARR
+   API**. The same page load reached the OPD backend itself (its own `403`, "You are not authorized to
+   access opd claims app", for an account outside OPD's roles). So One WSO2's application is
+   subscribed to OPD in the same Finance Web project, and not to MIS.
+
+   What that settles and what it leaves:
+   - **Settled:** tenant, token format and gateway routing all work. Nothing in the port's code is
+     wrong, and ADR 0001 is not in play: the fix is a subscription on the consuming application, not
+     a change to any MIS service.
+   - **Needed:** in Choreo, subscribe One WSO2's application to `mis-arr-backend` and
+     `mis-flash-backend`, the way it is already subscribed to OPD, CC and expense claims. Do it per
+     environment; stage first. (The Flash service was not called on this visit; expect the same
+     answer until it is subscribed.)
+   - **Still open behind it:** whether the MIS services accept the `x-jwt-assertion` the gateway
+     forwards, and their email-domain regex. That is the next hop and needs the subscription to
+     exist first. It also leaves §11.4 unanswered: the gateway answered before the service could.
+   - **On screen:** the gate treats this as a failed check, not a denial. MIS stays out of the rail,
+     and a direct URL shows *"Couldn't check your MIS access. Something went wrong (HTTP 403)."* with
+     Retry. The generic text is because the gateway's body has no `message` field, which is the only
+     field `describeError` reads.
 2. ~~**Are the three gateway hostnames under `*.wso2.com`?**~~ **ANSWERED, and the answer differs by
    environment.**
 
