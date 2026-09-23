@@ -122,6 +122,8 @@ import CcApprovePage from "@features/finance/cc/pages/CcApprovePage";
 import CcHistoryPage from "@features/finance/cc/pages/CcHistoryPage";
 import CcSettingsPage from "@features/finance/cc/pages/CcSettingsPage";
 import ExpenseNewClaimPage from "@features/finance/expense/pages/ExpenseNewClaimPage";
+import MisArrBuildPage from "@features/finance/mis/pages/MisArrBuildPage";
+import MisFlashPage from "@features/finance/mis/pages/MisFlashPage";
 import ExpenseClaimsTab from "@features/finance/expense/pages/ExpenseHistoryPage";
 import ClaimApprovalPage, {
   ClaimApprovalIndex,
@@ -327,6 +329,21 @@ export default function App() {
           <Route path="finance/cc/history" element={<CcHistoryPage />} />
           <Route path="finance/cc/settings" element={<CcSettingsPage />} />
           <Route path="finance/opd/dashboard" element={<OpdDashboardScreen />} />
+          {/* Finance MIS. Nested under /finance/ rather than the source app's
+              /finance-mis/, because findPerspectiveByPath matches with a bare
+              pathname.startsWith — "/finance-mis" resolves to the finance
+              perspective and would render its rail around a MIS screen.
+              See docs/ported-apps/mis.md §7.
+
+              Only the two screens that exist are routed. QRR, MRR and ARR
+              Analysis are listed in the registry without a path until their own
+              tickets add both together, so the rail never offers a dead link.
+
+              Access is NOT enforced here: MisShell asks useMisGate, so typing
+              either URL gives a legible locked state rather than a redirect
+              that leaves the reader guessing. */}
+          <Route path="finance/mis/arr-build" element={<MisArrBuildPage />} />
+          <Route path="finance/mis/flash" element={<MisFlashPage />} />
           <Route path="people-ops" element={<PerspectiveLanding />} />
           {/* People Ops → Org Chart: the company's reporting hierarchy, ported
               from the standalone org-chart app. Unlike every other People Ops

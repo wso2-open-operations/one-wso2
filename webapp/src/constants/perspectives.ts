@@ -51,6 +51,7 @@ import {
   FINANCE_PERSPECTIVE_APPS,
   ME_FINANCE_APPS,
 } from "@constants/financeApps";
+import { MIS_APPS } from "@constants/misApps";
 import { CLAIM_APPROVAL_PATH } from "@features/finance/approvals/claimApprovalTabs";
 import { MARKETING_OPS_APPS } from "@constants/marketingOpsApps";
 import { DUE_DILIGENCE_APPS } from "@constants/dueDiligenceApps";
@@ -470,6 +471,19 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
       // roles, not the coarse capability model — see useDueDiligenceGate and
       // its dispatch in SideRail.
       ...appsToSections(DUE_DILIGENCE_APPS),
+      // Finance MIS — company revenue reporting and the P&L flash, ported from
+      // digiops-finance/apps/mis. It sits under Finance rather than becoming a
+      // sixth perspective because the audience that would justify one —
+      // leadership — has no home to split into yet; the vision doc's Leadership
+      // view is unnamed and unbuilt. When it ships, surfacing ARR into it is
+      // additive. The cost is acknowledged and accepted: this rail now carries
+      // "company ARR" next to "file a claim". See docs/ported-apps/mis.md.
+      //
+      // Gated on the MIS ARR backend's own privileges, NOT on `requires` — see
+      // useMisGate and the note in misApps.ts. Its 987 is this app's
+      // PRIVILEGE.EMPLOYEE, so reading one for the other publishes company
+      // revenue to everyone.
+      ...appsToSections(MIS_APPS),
     ],
   },
   // Legal. Currently just a second entry point into Due Diligence (see the

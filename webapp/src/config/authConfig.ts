@@ -110,6 +110,18 @@ declare global {
       // absent, UmtShell shows a not-connected state and makes no UMT requests.
       // Its /update/user-info roles are local to UMT, not People capabilities.
       ONE_WSO2_UMT_BACKEND_URL?: string;
+      // Finance MIS — the first app here with more than one backend, so the
+      // first that can be partly configured. Each is checked on its own: the
+      // ARR screens work while Admin is unset, which is the correct
+      // configuration today (that service is deprecated and its Production
+      // deployment suspended). Take the *.wso2.com gateway URL, never the
+      // *.choreoapis.dev one Choreo advertises beside it — the CSP blocks the
+      // latter and the failure is silent in a production build. The version
+      // segment is part of the URL and differs by environment: /v1 in
+      // production, /v1.0 in staging. See docs/ported-apps/mis.md §6.
+      ONE_WSO2_MIS_ARR_BACKEND_URL?: string; // mis-arr-backend, also serves /user-info
+      ONE_WSO2_MIS_FLASH_BACKEND_URL?: string; // mis-flash-backend
+      ONE_WSO2_MIS_ADMIN_BACKEND_URL?: string; // mis-admin-backend (Flash comments)
       // Base URL of the leave-app frontend itself (not its backend) —
       // used to deep-link into flows this webapp doesn't replicate, like
       // sabbatical requests. Optional — when absent, that link is hidden.

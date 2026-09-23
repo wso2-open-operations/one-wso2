@@ -98,6 +98,28 @@ window.config = {
   // the access check is GET <base-url>/update/user-info.
   // ONE_WSO2_UMT_BACKEND_URL: "<your-updates-manager-backend-url>",
 
+  // Finance MIS (digiops-finance/apps/mis) — THREE services, unlike every
+  // other app here. Each screen checks only the one it uses, so the ARR
+  // screens keep working while another URL is unset.
+  //
+  // Three things to get right, each of which fails silently if you don't:
+  //
+  //  1. Take the *.wso2.com gateway URL, NOT the *.choreoapis.dev one Choreo
+  //     advertises next to it. The production CSP allows only *.wso2.com and
+  //     *.asgardeo.io, so a choreoapis.dev URL fails every call in a
+  //     production build with nothing in the console. It is a defect here,
+  //     not an alternative.
+  //  2. The version segment is part of the URL and differs by environment —
+  //     production ends /v1, staging ends /v1.0. Don't normalise them.
+  //  3. Leave ADMIN empty unless you have established it is alive. That
+  //     service is named "DEPRECATED", its Production deployment is
+  //     suspended, and only Flash comments use it — which then report "not
+  //     connected" rather than failing. See docs/ported-apps/mis.md §2.5.
+  //
+  // ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1",
+  // ONE_WSO2_MIS_FLASH_BACKEND_URL: "https://apis.wso2.com/dvig/mis-flash-backend/endpoint-9090-803/v1",
+  // ONE_WSO2_MIS_ADMIN_BACKEND_URL: "",
+
   // leave-app frontend base URL (not its backend) — used to deep-link into
   // flows this webapp doesn't replicate (e.g. sabbatical requests).
   // Optional — when absent, that link is hidden.

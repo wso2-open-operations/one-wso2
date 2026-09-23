@@ -1389,3 +1389,69 @@ export function buildMeetingsUrl(params: {
   qs.set("offset", String(params.offset));
   return `${revOpsServiceUrls.meetings}?${qs.toString()}`;
 }
+
+// Finance MIS backends (digiops-finance/apps/mis). THREE services, not one —
+// the first entry in this file with more than one base URL. The port replaces
+// the MIS frontend only; the Ballerina services are untouched. See
+// docs/adr/0001-mis-backends-untouched.md and docs/ported-apps/mis.md.
+//
+// Four things differ from every sibling above, all of them load-bearing:
+//
+//  1. Each service gets its OWN guard. Never one combined isMisConfigured():
+//     the Admin service is deprecated with its Production deployment
+//     SUSPENDED, so an empty ONE_WSO2_MIS_ADMIN_BACKEND_URL is the correct
+//     configuration today, and it must not take the ARR screens down with it.
+//     mis.md §2.5, §6.
+//
+//  2. /user-info lives on the ARR service and answers for BOTH dashboards —
+//     one call returns 987 (ARR) and/or 789 (Flash) in a single array
+//     (arr-backend service.bal:55-69). Flash has no /user-info of its own.
+//
+//  3. The version segment belongs to the configured URL, not to the builders,
+//     because it differs by environment: production ends /v1, staging ends
+//     /v1.0. mis.md §11.2.
+//
+//  4. Trailing slashes are stripped, as they are for marketing-ops. The
+//     configured value ends in a path-like version segment, which is exactly
+//     the kind of value an operator pastes with a slash on the end; unstripped
+//     it yields `//user-info` and whether that 404s is up to the gateway.
+//
+// A *.choreoapis.dev URL here is a DEFECT, not an alternative. Choreo
+// advertises one for every endpoint beside the vanity URL, and the CSP in
+// vite.config.ts allows only *.wso2.com and *.asgardeo.io — so a production
+// build fails those calls with nothing in the console. mis.md §11.2.
+const stripTrailingSlashes = (url: string): string => url.replace(/\/+$/, "");
+
+export const misArrBackendUrl: string = stripTrailingSlashes(
+  window.config?.ONE_WSO2_MIS_ARR_BACKEND_URL ?? "",
+);
+
+export function isMisArrConfigured(): boolean {
+  return Boolean(misArrBackendUrl);
+}
+
+export const misArrServiceUrls = {
+  // Privileges for both dashboards, plus the employee's display fields.
+  // Drives useMisGate.
+  userInfo: `${misArrBackendUrl}/user-info`,
+};
+
+export const misFlashBackendUrl: string = stripTrailingSlashes(
+  window.config?.ONE_WSO2_MIS_FLASH_BACKEND_URL ?? "",
+);
+
+export function isMisFlashConfigured(): boolean {
+  return Boolean(misFlashBackendUrl);
+}
+
+export const misAdminBackendUrl: string = stripTrailingSlashes(
+  window.config?.ONE_WSO2_MIS_ADMIN_BACKEND_URL ?? "",
+);
+
+export function isMisAdminConfigured(): boolean {
+  return Boolean(misAdminBackendUrl);
+}
+
+// The Flash and Admin service-URL maps are added by the tickets that port
+// those screens (15 and 17), so this file never lists a URL nothing calls —
+// the same rule marketingOpsServiceUrls states for its un-ported operations.
