@@ -269,8 +269,9 @@ export function flashDetailRows(
   return { rows, figures };
 }
 
-/** How wide a detail view's month column and label column are, on screen and in its sheet. */
-export const FLASH_DETAIL_COLUMN_WIDTH = 116;
+/** How wide a detail view's month columns are, on screen and in its sheet. */
+const FLASH_DETAIL_COLUMN_WIDTH = 116;
+/** How wide its label column is, likewise. */
 export const FLASH_DETAIL_ROW_LABEL_WIDTH = 240;
 
 /**

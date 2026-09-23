@@ -62,6 +62,13 @@ export interface FlashDetailState {
   isLoading: boolean;
   /** BOTH failed. One failure alone leaves a table still worth reading. */
   isError: boolean;
+  /**
+   * ONE failed and the other answered: the table draws the answered sections
+   * and leaves the rest blank. Worth reading on screen, but not worth writing
+   * to a file, where blank sections would read as a unit with nothing to say —
+   * so the monthly view's Export is withheld (ticket 18).
+   */
+  isPartial: boolean;
   errorMessage: string;
   retry: () => void;
 }
@@ -97,6 +104,7 @@ export function useFlashDetail(request: FlashDetailRequest | null): FlashDetailS
       accounts: {},
       isLoading: false,
       isError: true,
+      isPartial: false,
       errorMessage: subState.message,
       retry: retryIdentity,
     };
@@ -113,6 +121,7 @@ export function useFlashDetail(request: FlashDetailRequest | null): FlashDetailS
     // as pending-but-idle.
     isLoading: Boolean(request) && (!ready || pending(sales) || pending(accounts)),
     isError: sales.isError && accounts.isError,
+    isPartial: sales.isError !== accounts.isError,
     errorMessage: humanizeFirst(sales.error, accounts.error),
     retry: () => {
       if (sales.isError) void sales.refetch();

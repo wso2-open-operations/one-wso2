@@ -23,8 +23,9 @@ import type { FlashBalanceStatement, FlashRangeRow } from "../api/misFlashTypes"
 import { writeMisWorkbook, type MisWorkbookSheet } from "./misWorkbook";
 import {
   misFlashAnnualSheet,
-  misFlashFilename,
+  misFlashMonthlyFilename,
   misFlashMonthlySheet,
+  misFlashReportFilename,
   type MisFlashReportContext,
 } from "./misFlashWorkbook";
 
@@ -91,7 +92,7 @@ const CONTEXT: MisFlashReportContext = {
 describe("the Flash P&L, as the Annual Summary sheet", () => {
   const sheet = () => roundTrip(misFlashAnnualSheet(flashPnlRows(STATEMENT), "full", CONTEXT));
 
-  it("is titled as the source titles it, with what the figures were asked under", async () => {
+  it("is titled in the source's words, with what the figures were asked under", async () => {
     const annual = await sheet();
     expect(annual.name).toBe("Annual Summary");
     expect(annual.getCell("A1").value).toBe(
@@ -104,6 +105,10 @@ describe("the Flash P&L, as the Annual Summary sheet", () => {
     // In Pacific Time: the source's `toLocaleDateString()` would say the 24th
     // from UTC and the 24th from Colombo.
     expect(annual.getCell("A2").value).toBe("Generated on: 2026-09-23");
+    // And the source's one section heading, bold and merged across.
+    expect(annual.getCell("A3").value).toBe("ANNUAL DATA SUMMARY");
+    expect(annual.getCell("A3").font?.bold).toBe(true);
+    expect(annual.getCell("G3").master.address).toBe("A3");
   });
 
   it("says Annual Overview for the one-sheet report, and no clause for no sub-region", async () => {
@@ -115,13 +120,13 @@ describe("the Flash P&L, as the Annual Summary sheet", () => {
     );
   });
 
-  it("says its figures are at units, and heads the units in the screen's order", async () => {
+  it("says its figures are in dollars, and orders business units as on screen", async () => {
     const annual = await sheet();
     // Spec §10.18, taken both ways as ticket 11 takes it for the Build.
-    expect(annual.getCell("A3").value).toBe("All amounts in USD");
+    expect(annual.getCell("A4").value).toBe("All amounts in USD");
     // The SCREEN's order, where the source's sheet puts Corporate in its fourth
     // column — the file is the table the reader was looking at.
-    expect(annual.getRow(5).values).toEqual([
+    expect(annual.getRow(6).values).toEqual([
       undefined,
       "Line",
       "Integration",
@@ -134,7 +139,7 @@ describe("the Flash P&L, as the Annual Summary sheet", () => {
   });
 
   it("colours each unit's heading with that unit's colour from the source", async () => {
-    const header = (await sheet()).getRow(5);
+    const header = (await sheet()).getRow(6);
     // By UNIT, not by position: the source's Corporate is `#D7CCC8` in its
     // fourth column, and it keeps that colour in the port's sixth.
     expect(argbOf(header.getCell(1))).toBe("FFBBDEFB");
@@ -195,17 +200,12 @@ const DETAIL = flashDetailRows(
 
 describe("one business unit, month by month, as a sheet", () => {
   const sheet = () =>
-    roundTrip(
-      misFlashMonthlySheet(IAM, DETAIL, RANGES, {
-        ...CONTEXT,
-        subRegions: [],
-        rangeLabel: "2025-09-30 to 2026-09-30",
-      }),
-    );
+    roundTrip(misFlashMonthlySheet(IAM, DETAIL, RANGES, []));
 
-  it("is named as the screen names the unit, and titled as the source titles it", async () => {
+  it("is named as the screen names the unit, and titled in the source's words", async () => {
     const iam = await sheet();
     expect(iam.name).toBe("IAM");
+    // The span the dialog heads itself with — the months it DRAWS.
     expect(iam.getCell("A1").value).toBe(
       "Finance MIS Flash Report Monthly Details - IAM (2025-09-30 to 2026-09-30)",
     );
@@ -240,15 +240,14 @@ describe("one business unit, month by month, as a sheet", () => {
 
   it("puts each section under its own heading, in the dialog's order", async () => {
     const iam = await sheet();
-    // The source heads Other Income's figures "Other Expenses" and never writes
-    // the real ones. Here each figure is under its own heading, and the two
-    // sit in the order the dialog draws them.
-    expect(rowLabelled(iam, "Other Expenses").number).toBeLessThan(
-      rowLabelled(iam, "Other Income").number,
-    );
-    expect(rowLabelled(iam, "Interest paid").number).toBeLessThan(
-      rowLabelled(iam, "Other Income").number,
-    );
+    // The source reads Other Income from `netProfit`, which the backend does
+    // not send, so has no Other Income section; and it heads Other Income's
+    // figures "Other Expenses", so never writes the real ones. Here each line
+    // is under its own heading, the two in the order the dialog draws them.
+    const otherIncome = rowLabelled(iam, "Other Income").number;
+    expect(rowLabelled(iam, "Other Expenses").number).toBeLessThan(otherIncome);
+    expect(rowLabelled(iam, "Interest paid").number).toBeLessThan(otherIncome);
+    expect(rowLabelled(iam, "Interest earned").number).toBeGreaterThan(otherIncome);
   });
 
   it("writes Gross Margin as a percentage here too", async () => {
@@ -259,23 +258,28 @@ describe("one business unit, month by month, as a sheet", () => {
 
   it("names the sub-regions its figures were asked under", async () => {
     const narrowed = await roundTrip(
-      misFlashMonthlySheet(IAM, DETAIL, RANGES, { ...CONTEXT, rangeLabel: "r" }),
+      misFlashMonthlySheet(IAM, DETAIL, RANGES, ["EU : EU 1", "NA - WEST"]),
     );
     expect(narrowed.getCell("A1").value).toBe(
-      "Finance MIS Flash Report Monthly Details - IAM | EU : EU 1, NA - WEST (r)",
+      "Finance MIS Flash Report Monthly Details - IAM | EU : EU 1, NA - WEST " +
+        "(2025-09-30 to 2026-09-30)",
     );
   });
 });
 
 describe("what a Flash export is called", () => {
   it("names the report and the Pacific day it was taken", () => {
-    expect(misFlashFilename("full", PACIFIC_EVENING)).toBe("flash_full_report_2026-09-23.xlsx");
-    expect(misFlashFilename("annual", PACIFIC_EVENING)).toBe(
+    expect(misFlashReportFilename("full", PACIFIC_EVENING)).toBe(
+      "flash_full_report_2026-09-23.xlsx",
+    );
+    expect(misFlashReportFilename("annual", PACIFIC_EVENING)).toBe(
       "flash_annual_report_2026-09-23.xlsx",
     );
   });
 
   it("names the unit for a monthly view", () => {
-    expect(misFlashFilename(IAM, PACIFIC_EVENING)).toBe("flash_monthly_iam_2026-09-23.xlsx");
+    expect(misFlashMonthlyFilename(IAM, PACIFIC_EVENING)).toBe(
+      "flash_monthly_iam_2026-09-23.xlsx",
+    );
   });
 });

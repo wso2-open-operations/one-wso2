@@ -233,10 +233,10 @@ Booking per business unit. **The only screen in MIS that writes.** Two write pat
   Recurring, Non-Recurring/PSO and Public Cloud; never the WSO2 column. Edit is offered on the account
   views of one month only — see §3. Built as `MisFlashAccountsDialog` (ticket 16).
 
-Excel export is a hand-built ExcelJS workbook, ported as pure functions (§7). The source's Export menu
-is kept whole: **Full Report** (an Annual Summary sheet plus one monthly sheet per business unit) and
-**Annual Report** (the Annual Summary alone), and a monthly view's own Export writes that unit's sheet.
-Built in ticket 18, on ticket 11's builders — §7, "The Flash's Excel export".
+Excel export is a hand-built ExcelJS workbook, ported as pure functions (§7). The source's Export
+menu is kept whole: **Full Report** (an Annual Summary sheet plus one monthly sheet per business
+unit) and **Annual Report** (the Annual Summary alone), and a monthly view's own Export writes that
+unit's sheet. Built in ticket 18, on ticket 11's builders — §7, "The Flash's Excel export".
 
 ## 3. Business rules
 
@@ -1124,78 +1124,101 @@ in `CONTEXT.md`.
 
 ### The Flash's Excel export (ticket 18)
 
-The source's three exports are all kept — its Export menu's **Full Report** and **Annual Report**, and
-the monthly view's **Export** — and so is the workbook's shape: an "Annual Summary" sheet, one sheet
-per business unit, the titles word for word (sub-regions and range included), "Generated on", the
-title sizes, the merged title rows and the header colours. Every sheet is a `misBuildSheet`
-(`export/misFlashWorkbook.ts`); nothing is a second implementation. Ticket 18 found the builders one
-case short — given `subColumns: []`, the shape of every Flash table, `misBuildSheet` wrote no figure
-column at all — and fixed them rather than forking, as the ticket required. It also added the three
-fields ticket 11 listed as additive (a row's `fontSize`, a cell's `fill`, a sheet's `merges`), and a
-`heading` and `headerFill` on `misBuildSheet`, so the builder that knows the sheet's width is the one
-that merges across it.
+All three of the source's exports are kept: its Export menu's **Full Report** and **Annual Report**,
+and the monthly view's **Export**. So is the workbook's shape: an "Annual Summary" sheet, one sheet
+per business unit, the titles in the source's words with the sub-regions they were asked under,
+"Generated on", the "ANNUAL DATA SUMMARY" line, the title sizes, the merged title rows and the
+header colours. Every sheet is a `misBuildSheet` (`export/misFlashWorkbook.ts`); nothing is a second
+implementation. Ticket 18 found the builders one case short. Given `subColumns: []`, which is the
+shape of every Flash table, `misBuildSheet` wrote no figure column at all, so the ticket fixed the
+builder rather than forking it, as it required. It also added the three fields ticket 11 listed as
+additive (a row's `fontSize`, a cell's `fill`, a sheet's `merges`), plus a `heading` and a
+`headerFill` on `misBuildSheet`, so the builder that knows the sheet's width is the one that merges
+across it.
 
 What the file contains is decided differently from the source's, and six things follow. All are
 **knowing exceptions to [ADR 0003](../adr/0003-bug-for-bug-parity-during-the-parallel-period.md)**
-of the kind ticket 11 took — a file's layout and a cell's type, not a figure on a screen.
+of the kind ticket 11 took: a file's layout and a cell's type, not a figure on a screen. The first
+also moves figures, and Finance "know figures by position", so it is a re-think
+[ADR 0002](../adr/0002-rethink-ia-rather-than-transcribe.md) wants signed off by a named finance
+stakeholder. It is argued here and put to Finance as §11.19. Undoing it is one argument: the column
+order `misFlashAnnualSheet` hands the builder.
 
-- **The rows are the screen's.** Each sheet is built from the tree its screen draws (`flashPnlRows`,
-  `flashDetailRows`) — its sections, order and labels, and the P&L's business units in the screen's
-  order — read through the SAME raw-figure function the screen's cell calls (`flashPnlFigure`,
-  `flashDetailFigure`). The source's sheets were written from a third list of their own, and it had
-  drifted, which is the defect this fixes by construction:
-  - `generateMonthlySheet.js` reads Revenue from `bu.financialAccountStatistics`, and both of its
-    callers pass `financialStatistics` — so **no monthly sheet the source has ever written contains
-    Revenue**;
-  - it heads the `otherIncome` figures "Other Expenses", and never writes `otherExpenses` at all;
-  - the monthly view's export hands it no Other Income, Other Expenses, Net Other Income or Net
-    Profit/Loss, so those four are absent from that file entirely.
+- **The rows and the names are the screen's.** Each sheet is built from the tree its screen draws
+  (`flashPnlRows`, `flashDetailRows`), with its sections, order and labels. Figures are read through
+  the SAME raw-figure function the screen's cell calls (`flashPnlFigure`, `flashDetailFigure`). The
+  source's sheets were written from a third list of their own, and that list had drifted. This
+  fixes three defects by construction, all in `generateMonthlySheet.js`:
+  - It reads Revenue from `bu.financialAccountStatistics`, and both of its callers pass
+    `financialStatistics`. So **no monthly sheet the source has ever written contains Revenue**.
+  - It reads Other Income from `netProfit`, a field the backend does not send
+    (`FinancialAccountStatistics`, `types.bal:209-231`). So there is no Other Income section.
+  - It heads the `otherIncome` figures "Other Expenses", so the real `otherExpenses` are never
+    written either.
 
-  The cost is that the file no longer matches today's layout where the source's own screen and file
-  disagree: the Annual Summary's units run Integration, IAM, APIM, Choreo, Corporate, WSO2 as the
-  screen does (the source's file puts Corporate fourth), the label column is headed "Line" rather
-  than "Title", the monthly sheets carry the dialog's section order and labels ("Expense",
-  "Stock Compensation/Gratuity"), and the sheet for the WSO2 column is named "WSO2" rather than the
-  source's `BU_LIST` name "All". A colour stays with its unit rather than its position. §11.19 asks
-  whether anything downstream reads the file by position.
-- **Every figure is a number**, as in the Build's export — the source writes `formatNumber(value)`,
-  text, into every cell.
-- **Every percentage is Excel's own.** Gross Margin — the backend's `HUNDRED_PERCENT * (rev − cos) /
-  rev`, so 77.5 means 77.5% — goes in as 0.775 under `0.00%` and shows "77.50%". The source's file
-  carried the text "77.50". The rule lives in `misBuildSheet`'s `figureCell`, keyed on the kind of
-  number, so it **reaches the Build's percentage rows too** (Net Dollar Retention, y/y growth, the %
-  rows): ticket 11 had written those as a bare 98.25 under money's format. One rule, chosen so that a
-  formula multiplying by the cell is right; `MIS_NUMBER_FORMATS.PERCENTAGE` says why.
+  Separately, the monthly view's own export hands it no Other Income, Other Expenses, Net Other
+  Income or Net Profit/Loss, so those four are missing from that file entirely.
+
+  The cost is that the file no longer matches today's layout wherever the source's own screen and
+  file disagree:
+  - The Annual Summary's units run Integration, IAM, APIM, Choreo, Corporate, WSO2, as the screen's
+    do. The source's file puts Corporate in its fourth column.
+  - A unit is called what its column is called, in its heading, sheet name and title. The source's
+    Annual header says "Integration Software", and its monthly sheets and titles use the name the
+    backend is asked by (`BU_LIST`): `Integration-Software`, `APIM-Software`, and `All` for WSO2.
+  - The label column is headed "Line", where the source's says "Title".
+  - The monthly sheets carry the dialog's section order and labels, such as "Expense" and
+    "Stock Compensation/Gratuity".
+
+  A colour stays with its unit rather than its position.
+- **Every figure is a number**, as in the Build's export. The source writes `formatNumber(value)`,
+  which is text, into every cell.
+- **Every percentage is Excel's own.** The backend computes Gross Margin as
+  `HUNDRED_PERCENT * (rev − cos) / rev`, so 77.5 means 77.5%. It goes in as 0.775 under `0.00%` and
+  shows as "77.50%"; the source's file carried the text "77.50". The rule lives in `misBuildSheet`'s
+  `figureCell`, keyed on the kind of number, so it **reaches the Build's percentage rows too** (Net
+  Dollar Retention, y/y growth, the % rows). Ticket 11 had written those as a bare 98.25 under
+  money's format. One rule, chosen so that a formula multiplying by the cell is right;
+  `MIS_NUMBER_FORMATS.PERCENTAGE` says why.
 - **A monthly sheet has the dialog's twelve months**, not the thirteen fetched. The source's sheet
   writes all thirteen, and the oldest lies outside the P&L's own range (§8, "What a Flash detail
-  column asks for"); the dialog does not draw it either.
-- **The order of the sheets is fixed.** The source collects the Full Report's six answers in the order
-  they RESOLVE (`results[bu] = …` inside `.then`), so within each batch of three its sheets can come
-  out in a different order from one export to the next — and its filename is taken from whichever unit's sheet was written last,
-  because `downloadExcel.js` overwrites `reportTitle` per sheet. Here the sheets follow the screen's
-  columns, and the name is the report and the day: `flash_full_report_2026-09-23.xlsx`,
-  `flash_annual_report_…`, `flash_monthly_iam_…`.
-- **Dates are Pacific.** "Generated on" and the filename share `misExportDate`, where the source
-  writes a local `toLocaleDateString()` inside. The range in each title is written as the screen
-  writes it — the P&L's status line, and the dialog's span — rather than as a third description of
-  the same range.
+  column asks for"). The dialog does not draw it either.
+- **The order of the sheets is fixed.** The source collects the Full Report's six answers in the
+  order they RESOLVE (`results[bu] = …` inside `.then`), so within each batch of three its sheets
+  can come out in a different order from one export to the next. Its filename is taken from whichever
+  unit's sheet was written last, because `downloadExcel.js` overwrites `reportTitle` per sheet. Here
+  the sheets follow the screen's columns, and the name is the report and the day:
+  `flash_full_report_2026-09-23.xlsx`, `flash_annual_report_…`, `flash_monthly_iam_…`.
+- **Dates are Pacific, and a title's range is the screen's.** "Generated on" and the filename both
+  go through `misExportDate`, and `MisExportButton` hands both ONE instant taken at the click. A
+  shared function alone would not be enough: a Full Report's reads can straddle Pacific midnight.
+  The source writes a local `toLocaleDateString()` inside. Its title gives the range as picker
+  months ("Sep 2025 - Sep 2026"); here it is written as the screen writes it (the P&L's status
+  line, the dialog's span) rather than as a third description of the same range.
 
-**The Full Report fails whole, and says so.** The source's never finishes at all: each read is
+**The Full Report fails whole, and says so.** The source's never finishes at all. Each read is
 wrapped as `new Promise((res) => handleRequest(url, "POST", body, res))` with no failure callback,
-and `useHttp`'s `handleRequest` calls only the callbacks it is given (`utils/http.js:61-72`) — so one
+and `useHttp`'s `handleRequest` calls only the callbacks it is given (`utils/http.js:61-72`). So one
 failed read leaves its promise unsettled, `Promise.all` waits on it for good, and the `finally` that
-lowers the full-screen "Preparing download... This may take a few minutes" backdrop (`zIndex: 9999`)
-never runs. No file, and a screen that has to be reloaded. (Its `results[bu] = { error: true }`
-branch, which reads like dropping a failed unit, is reached only when both answers are falsy, and
-`handleRequest` answers `{}` rather than nothing.) Here any failed read, after the one retry every
-Flash read gets, fails the export and the reader is told ("Couldn't write the file."); the button is
-usable again at once. Writing the rest instead — a workbook read as complete with a unit missing —
-would be the believed-but-wrong kind of export §10.18 exists for. The six
-units are read three at a time, as the source reads them (`CONCURRENCY_LIMIT`), and through the query
-cache under the dialog's own keys (`api/flashDetailQueries.ts`), so a unit whose dialog was opened is
-not asked for again.
+lowers the full-screen "Preparing download... This may take a few minutes" backdrop
+(`zIndex: 9999`) never runs: no file, and a screen that has to be reloaded. (Its
+`results[bu] = { error: true }` branch looks like it drops a failed unit, but it is reached only
+when both answers are falsy, and `handleRequest` answers `{}` rather than nothing.)
 
-**The Full Report narrows every unit**, and that is reproduced — §8.
+Here, any failed read fails the export after the one retry every Flash read gets, and the reader is
+told "Couldn't write the file."; the button works again at once. Writing the rest instead would
+produce a workbook read as complete with a unit missing, which is the believed-but-wrong export
+§10.18 exists for. **A monthly view's own Export is withheld for the same reason** when only one of
+its two reads answered (`FlashDetailState.isPartial`). The table still draws the half that answered,
+which is worth reading; a file with the other half blank reads as a unit that earned nothing.
+
+The six units are read three at a time, as the source reads them (`CONCURRENCY_LIMIT`), and through
+the query cache under the dialog's own keys (`api/flashDetailQueries.ts`). So a unit its dialog
+already read under the same body is not asked for again. That covers every unit while no sub-region
+is applied, and only Integration while one is, because the other five dialogs send none (§8).
+
+**The Full Report narrows every unit**, and that is reproduced. It is also the one place the port
+reads sub-regions differently from the source's Full Report. Both are in §8.
 
 ## 8. Source behaviour reproduced deliberately, though it looks wrong
 
@@ -1344,12 +1367,28 @@ which is precisely what the parallel period exists to prevent. Carried as
 `flashPnlRows.test.ts` and `MisFlashPage.test.tsx` — a typo is exactly the kind of reproduction a
 later reader would "fix" without one. See §11.16.
 
-**The Full Report does not have the typo** (ticket 18). `fetchMonthlySummary` builds its six bodies
-from the page's own `subRegion` state, so all six units' monthly sheets ARE narrowed — and so, with a
-sub-region applied, five of the Full Report's six monthly sheets differ from what those units' own
-dialogs show, in the source and therefore in the port. Reproduced for the same reason as the typo: it
-is what the source's file contains. Each sheet's title names the sub-regions its reads were sent, so
-the two can be told apart. A monthly view's own Export writes what its dialog shows, typo included.
+**The Full Report does not have the typo** (ticket 18). `fetchMonthlySummary` builds all six bodies
+from the page's `subRegion` state, so all six units' monthly sheets ARE narrowed. With a sub-region
+applied, five of the Full Report's six monthly sheets therefore differ from what those units' own
+dialogs show, in the source and in the port. Reproduced for the same reason as the typo: it is what
+the source's file contains. Each sheet's title names the sub-regions its reads were sent, so the two
+can be told apart. A monthly view's own Export writes what its dialog shows, typo included.
+
+**Which selection it narrows by is NOT reproduced.** The source's `subRegion` is the picker's LIVE
+state: `setSubRegion` runs on every change, while the P&L is re-read only on Search. So a reader
+who changes the picker and exports without pressing Search gets a Full Report whose six monthly
+sheets are narrowed by the new selection, beside an Annual Summary read under the old one, under a
+title naming the new one (`FlashConsole.js:168`, `:224`). The title's months come from the pickers
+too (`filterState`), not from the range the P&L was read under. The port reads, narrows and titles
+every sheet by the SEARCHED filters, the ones the P&L on screen was read under, so the file cannot
+disagree with itself. It is a knowing exception to ADR 0003 of the file-layout kind above, since
+once Search is pressed the two apps' files agree.
+
+The same live state reaches the source's dialogs (`FlashConsole.js:518`, then `TableView` and
+`DataTable`). So between a change to the picker and Search, the source's Integration view is
+narrowed by a selection its P&L was never read under. The port's has used the searched selection
+since ticket 15, and this is the first record of that difference. It affects figures on a screen, so
+it is left for ticket 19's parity check to judge, not decided here.
 
 ### What a Flash detail column asks for, and the month ticket 15 got wrong (tickets 15, 16)
 
@@ -1571,9 +1610,9 @@ the first two branches are dead. Ported as the one real field.
     number formats. Nothing else in this repo asserts workbook formatting; this test is the only guard.
     **Closed by ticket 11** (`misWorkbook.test.ts`), and deliberately asserted on the FILE rather than
     on the spec that produced it: a spec is the builders' own vocabulary and a test over it would agree
-    with them by construction, where the bytes are what Finance opens. **Extended by ticket 18** to the
-    Flash's workbook (`misFlashWorkbook.test.ts`): sheet names, titles, merges, header fills, and a
-    Gross Margin read back as 0.775 under `0.00%`.
+    with them by construction, where the bytes are what Finance opens. **Extended by ticket 18**
+    to the Flash's workbook (`misFlashWorkbook.test.ts`): sheet names, titles, merges, header
+    fills, and a Gross Margin read back as 0.775 under `0.00%`.
 18. An export taken while Scale is "Values in '000" is either exported in units, or carries the scale in
     the file. The prototype found this exact foot-gun in the DataGrid's CSV, which silently inherits the
     display formatter — a finance export that is 1000x off with nothing in it saying so.
@@ -1585,10 +1624,10 @@ the first two branches are dead. Ported as the one real field.
     rather than the dialog's formatted string, which is the same guarantee arrived at differently.
     Worth knowing that the source has the same defect in a second form: its Flash workbook writes every
     figure as a formatted STRING, so the file cannot be computed on at all.
-    **Asked again by ticket 18 at the Flash's three call sites**, for the same reason: the P&L's Annual
-    Summary, the Full Report's monthly sheets, and a monthly view's own Export each read through their
-    screen's raw-figure function, and each is exported with the screen at `'000` and the cell holding
-    the unscaled figure (`MisFlashPage.test.tsx`, `MisFlashDetailDialog.test.tsx`).
+    **Asked again by ticket 18 at the Flash's three call sites**, for the same reason: the P&L's
+    Annual Summary, the Full Report's monthly sheets, and a monthly view's own Export each read
+    through their screen's raw-figure function, and each is exported with the screen at `'000` and
+    the cell holding the unscaled figure (`MisFlashPage.test.tsx`, `MisFlashDetailDialog.test.tsx`).
 
 ### The hand-rolled Build table
 19. The Build renders at 5, 8 and 12 Period groups without the layout collapsing, and the row-label
@@ -1945,11 +1984,19 @@ or a live session at `https://one.wso2.com`.
     own wire form for them, `useFlashAccounts.ts`). If Finance have been editing Cost of Sales some
     other way, that is worth knowing before the old frontend goes dark.
 
-19. **Does anything downstream read the Flash workbook by position?** Ticket 18, §7. The port's file
-    follows the screen: the Annual Summary's units run Integration, IAM, APIM, Choreo, Corporate, WSO2
-    where today's file puts Corporate fourth, the WSO2 sheet is named "WSO2" rather than "All", and the
-    monthly sheets gain the Revenue and Other Expenses sections the source's never had. Its figures are
-    numbers and its percentages true percentages, where today's are text. A person reading the file is
-    better served by all of it; a macro, a lookup or a template filled by copying columns in position
-    would not be, and nothing in either repo can say whether one exists. **Ask Finance once**, before
-    the parallel period ends.
+19. **Does anything downstream read the Flash workbook by position or by name?** Ticket 18, §7.
+    [ADR 0002](../adr/0002-rethink-ia-rather-than-transcribe.md) wants this answered by a named
+    finance stakeholder. The port's file follows the screen:
+    - the Annual Summary's units run Integration, IAM, APIM, Choreo, Corporate, WSO2, where today's
+      file puts Corporate in its fourth column;
+    - a unit is called what its column is called, so there are sheets named "Integration", "APIM"
+      and "WSO2" where today's are `Integration-Software`, `APIM-Software` and `All`, and the label
+      column is headed "Line" rather than "Title";
+    - each monthly sheet gains Revenue and Other Income sections the source's never had, and has the
+      real Other Expenses where the source put Other Income's figures under that heading;
+    - its figures are numbers and its percentages true percentages, where today's are text.
+
+    A person reading the file is better served by all of it. A macro, a lookup, or a template filled
+    by copying columns in position would not be, and nothing in either repo can say whether one
+    exists. **Ask Finance once**, before the parallel period ends. If the answer is to keep today's
+    order, it is one argument in `misFlashAnnualSheet`.

@@ -133,6 +133,7 @@ vi.mock("../api/useFlashDetail", () => ({
       accounts: {},
       isLoading: false,
       isError: false,
+      isPartial: false,
       errorMessage: "",
       retry: () => {},
     };
@@ -613,6 +614,27 @@ describe("taking the Flash out of the browser", () => {
     expect(sheetRow(iam, "IAM ARR").getCell(2).value).toBe(1_000);
     expect(sheetRow(iam, "Monthly Margin").getCell(2).numFmt).toBe("0.00%");
     expect(sheetRow(iam, "All amounts in USD")).toBeDefined();
+  });
+
+  it("names the file for the day it says it was generated, across Pacific midnight", async () => {
+    // The Full Report reads six units between describing its sheets and being
+    // named. A minute to midnight in California at the click, a minute past
+    // when the reads come back: the button takes ONE instant for both.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-24T06:59:00Z") });
+    try {
+      readDetails.mockImplementationOnce(async (requests) => {
+        vi.setSystemTime(new Date("2026-09-24T07:01:00Z"));
+        return requests.map(() => ({ sales: {}, accounts: {} }));
+      });
+      show();
+      const { workbook, filename } = await exported("Full Report");
+      expect(workbook.getWorksheet("Annual Summary")!.getCell("A2").value).toBe(
+        "Generated on: 2026-09-23",
+      );
+      expect(filename).toBe("flash_full_report_2026-09-23.xlsx");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says so, and writes nothing, when a unit could not be read", async () => {

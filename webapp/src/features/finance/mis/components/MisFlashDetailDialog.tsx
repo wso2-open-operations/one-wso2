@@ -49,7 +49,7 @@ import { amountUnitCaption, formatMisValue } from "../util/misMoney";
 import type { MisScale } from "../util/misViewVocabulary";
 import type { FlashDetailState } from "../api/useFlashDetail";
 import type { FlashAccountsQuery } from "../api/misFlashTypes";
-import { misFlashFilename, misFlashMonthlySheet } from "../export/misFlashWorkbook";
+import { misFlashMonthlyFilename, misFlashMonthlySheet } from "../export/misFlashWorkbook";
 
 // One business unit's P&L, month by month.
 //
@@ -121,10 +121,15 @@ export default function MisFlashDetailDialog({
     () => flashDetailRows(state.sales, state.accounts),
     [state.sales, state.accounts],
   );
-  // Only what is drawn can be written: not while it loads, not after it failed,
-  // and not for a range with no months in it.
+  // Only what is drawn WHOLE can be written: not while it loads, not after it
+  // failed, not with one of its two reads missing, and not for a range with no
+  // months in it.
   const exportable =
-    unit && !state.isLoading && !state.isError && flashDetailColumnGroups(ranges).length > 0;
+    unit &&
+    !state.isLoading &&
+    !state.isError &&
+    !state.isPartial &&
+    flashDetailColumnGroups(ranges).length > 0;
   // The figure whose accounts are open, if any. Nothing resets it when this
   // dialog shuts, and nothing needs to: the account view is modal over this
   // one, so this one cannot be shut while it is open.
@@ -167,15 +172,9 @@ export default function MisFlashDetailDialog({
             {exportable && (
               <MisExportButton
                 workbook={() => ({
-                  sheets: [
-                    misFlashMonthlySheet(unit, detail, ranges, {
-                      subRegions,
-                      rangeLabel: flashRangeLabel(ranges),
-                      instant: new Date(),
-                    }),
-                  ],
+                  sheets: [misFlashMonthlySheet(unit, detail, ranges, subRegions)],
                 })}
-                filename={() => misFlashFilename(unit)}
+                filename={(instant) => misFlashMonthlyFilename(unit, instant)}
               />
             )}
           </Stack>

@@ -47,7 +47,8 @@
 // `headerFill` per column; and the undivided case, one figure column per
 // group, which is how every Flash table is drawn. All three were added here
 // rather than done to this builder's output afterwards, and none changes a
-// sheet that does not ask for it.
+// sheet that does not ask for it. The name is `BuildTable`'s, whose sheet this
+// is — and `BuildTable` draws the Flash too.
 
 import {
   undividedSubColumn,

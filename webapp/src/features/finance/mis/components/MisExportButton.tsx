@@ -39,10 +39,14 @@ export interface MisExport {
    * is usually never clicked. And it may be ASYNC, because the Flash's Full
    * Report has to read all six units' monthly views before it has anything to
    * describe. A failed read rejects, and the reader is told.
+   *
+   * Both thunks are handed the SAME `instant`, taken at the click, so a sheet
+   * that says when it was generated and the name it is saved under cannot
+   * name two days — which a Full Report's reads could otherwise straddle.
    */
-  workbook: () => MisWorkbookSpec | Promise<MisWorkbookSpec>;
-  /** Likewise deferred — it carries today's date. */
-  filename: () => string;
+  workbook: (instant: Date) => MisWorkbookSpec | Promise<MisWorkbookSpec>;
+  /** Likewise deferred — it carries the date. */
+  filename: (instant: Date) => string;
 }
 
 /** One entry of a menu of exports — the Flash's "Full Report" and "Annual Report". */
@@ -74,7 +78,8 @@ export default function MisExportButton(props: MisExportButtonProps) {
       // screen freezes with the button still reading "Export", which is the
       // moment a reader clicks it a second time.
       await new Promise((resolve) => setTimeout(resolve, 0));
-      await saveMisWorkbook(await workbook(), filename());
+      const instant = new Date();
+      await saveMisWorkbook(await workbook(instant), filename(instant));
     } catch {
       // Said on screen rather than only in the console. The work happens after
       // the click returns — reads, a dynamic import, then a zip — so a failure
@@ -86,7 +91,9 @@ export default function MisExportButton(props: MisExportButtonProps) {
     }
   };
 
-  const label = working ? "Exporting…" : "Export";
+  // One of the two, narrowed once: a menu of reports, or the one export.
+  const menu = "choices" in props ? props.choices : null;
+  const single = "choices" in props ? null : props;
 
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
@@ -97,44 +104,32 @@ export default function MisExportButton(props: MisExportButtonProps) {
           Couldn&apos;t write the file.
         </Typography>
       )}
-      {"choices" in props ? (
-        <>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<Download size={15} />}
-            endIcon={<ChevronDownIcon size={15} />}
-            onClick={(event) => setAnchor(event.currentTarget)}
-            disabled={working}
-            aria-haspopup="menu"
-            aria-expanded={anchor ? true : undefined}
-          >
-            {label}
-          </Button>
-          <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-            {props.choices.map((choice) => (
-              <MenuItem
-                key={choice.label}
-                onClick={() => {
-                  setAnchor(null);
-                  void run(choice);
-                }}
-              >
-                {choice.label}
-              </MenuItem>
-            ))}
-          </Menu>
-        </>
-      ) : (
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<Download size={15} />}
-          onClick={() => void run(props)}
-          disabled={working}
-        >
-          {label}
-        </Button>
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<Download size={15} />}
+        endIcon={menu ? <ChevronDownIcon size={15} /> : undefined}
+        onClick={(event) => (single ? void run(single) : setAnchor(event.currentTarget))}
+        disabled={working}
+        aria-haspopup={menu ? "menu" : undefined}
+        aria-expanded={menu && anchor ? true : undefined}
+      >
+        {working ? "Exporting…" : "Export"}
+      </Button>
+      {menu && (
+        <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
+          {menu.map((choice) => (
+            <MenuItem
+              key={choice.label}
+              onClick={() => {
+                setAnchor(null);
+                void run(choice);
+              }}
+            >
+              {choice.label}
+            </MenuItem>
+          ))}
+        </Menu>
       )}
     </Stack>
   );

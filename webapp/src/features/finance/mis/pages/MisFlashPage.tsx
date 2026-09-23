@@ -44,15 +44,14 @@ import { useFlashDetail } from "../api/useFlashDetail";
 import { useFlashDetailReader } from "../api/useFlashDetailReader";
 import {
   misFlashAnnualSheet,
-  misFlashFilename,
   misFlashMonthlySheet,
+  misFlashReportFilename,
   type MisFlashReportContext,
 } from "../export/misFlashWorkbook";
 import {
   chosenMonth,
   defaultFlashMonths,
   flashMonthlyRanges,
-  flashRangeLabel,
   flashRangeOf,
   loadedMonth,
   pacificMonth,
@@ -206,11 +205,11 @@ function Flash() {
   const detail = useFlashDetail(detailRequest);
   const readDetails = useFlashDetailReader();
 
-  /** What the P&L was asked under, stamped at the moment of the export. */
-  const reportContext = (): MisFlashReportContext => ({
+  /** What the P&L was asked under, and the moment the export was taken. */
+  const reportContext = (instant: Date): MisFlashReportContext => ({
     subRegions: settled.subRegions,
     rangeLabel,
-    instant: new Date(),
+    instant,
   });
 
   // The source's Export menu, both items (`FlashConsole.js`). The Full Report
@@ -221,8 +220,7 @@ function Flash() {
   const exportChoices: readonly MisExportChoice[] = [
     {
       label: "Full Report",
-      workbook: async () => {
-        const context = reportContext();
+      workbook: async (instant) => {
         const answers = await readDetails(
           FLASH_UNIT_COLUMNS.map((unit) => ({
             businessUnit: unit.businessUnit,
@@ -230,28 +228,28 @@ function Flash() {
             subRegions: settled.subRegions,
           })),
         );
-        // Each monthly sheet is titled with the span its dialog shows.
-        const monthly = { ...context, rangeLabel: flashRangeLabel(detailRanges) };
         return {
           sheets: [
-            misFlashAnnualSheet(pnl, "full", context),
+            misFlashAnnualSheet(pnl, "full", reportContext(instant)),
             ...FLASH_UNIT_COLUMNS.map((unit, index) =>
               misFlashMonthlySheet(
                 unit,
                 flashDetailRows(answers[index].sales, answers[index].accounts),
                 detailRanges,
-                monthly,
+                settled.subRegions,
               ),
             ),
           ],
         };
       },
-      filename: () => misFlashFilename("full"),
+      filename: (instant) => misFlashReportFilename("full", instant),
     },
     {
       label: "Annual Report",
-      workbook: () => ({ sheets: [misFlashAnnualSheet(pnl, "annual", reportContext())] }),
-      filename: () => misFlashFilename("annual"),
+      workbook: (instant) => ({
+        sheets: [misFlashAnnualSheet(pnl, "annual", reportContext(instant))],
+      }),
+      filename: (instant) => misFlashReportFilename("annual", instant),
     },
   ];
 

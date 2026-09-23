@@ -73,12 +73,13 @@ export function misExportFilename(parts: readonly string[], instant: Date = new 
 /**
  * The day an export was taken, `yyyy-MM-dd`, in Pacific Time.
  *
- * Shared by the filename and by the "Generated on" line of Flash's workbook, so
- * a file cannot be named for one day and say inside that it was made on
- * another — which is what the source's pair would do on a Pacific evening,
- * `toISOString` outside and `toLocaleDateString` in.
+ * Shared by the filename and by the "Generated on" line of Flash's workbook,
+ * and `MisExportButton` hands both the SAME instant — so a file is never named
+ * for one day while saying inside that it was made on another. A shared
+ * function alone would not do it: a Full Report reads six units between
+ * describing its sheets and being named.
  */
-export function misExportDate(instant: Date = new Date()): string {
+export function misExportDate(instant: Date): string {
   const { year, month, day } = pacificCivilDate(instant);
   return `${year}-${pad(month)}-${pad(day)}`;
 }

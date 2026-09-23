@@ -201,6 +201,9 @@ describe("when one of the two fails", () => {
     expect(result.current.sales).toEqual(SALES);
     expect(result.current.accounts).toEqual({});
     expect(result.current.isError).toBe(false);
+    // But it says the view is PARTIAL, which is what withholds its Export: a
+    // file with its financial accounts blank reads as a unit that earned nothing.
+    expect(result.current.isPartial).toBe(true);
   });
 
   it("is an error only when neither answered", async () => {
@@ -210,6 +213,7 @@ describe("when one of the two fails", () => {
     const { result } = renderDetail();
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.errorMessage).toBe("No.");
+    expect(result.current.isPartial).toBe(false);
   });
 
   // Without the identity fold both queries stay disabled — neither erroring nor

@@ -71,6 +71,7 @@ const ANSWERED: FlashDetailState = {
   },
   isLoading: false,
   isError: false,
+  isPartial: false,
   errorMessage: "",
   retry: () => {},
 };
@@ -81,6 +82,7 @@ const FAILED: FlashDetailState = {
   accounts: {},
   isLoading: false,
   isError: true,
+  isPartial: false,
   errorMessage: "Gateway timed out.",
   retry,
 };
@@ -322,6 +324,15 @@ describe("exporting one unit's months", () => {
 
   it("offers no export when the view could not be read", () => {
     show(FAILED);
+    expect(screen.queryByRole("button", { name: /export/i })).not.toBeInTheDocument();
+  });
+
+  it("offers no export when only one of its two reads answered", () => {
+    // The table still draws the half that answered, which is worth reading;
+    // a FILE with the other half blank would read as a unit that earned
+    // nothing — the believed-but-wrong export the Full Report refuses too.
+    show({ ...ANSWERED, accounts: {}, isPartial: true });
+    expect(screen.getByText("Opening ARR")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /export/i })).not.toBeInTheDocument();
   });
 });

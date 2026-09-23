@@ -37,19 +37,21 @@ import {
 // workbook rather than onto a screen.
 //
 // Through the query cache rather than around it (`fetchQuery`, under the keys
-// `flashDetailQueries` shares with `useFlashDetail`), so a unit whose dialog
-// was opened is not asked for again, and a dialog opened afterwards is already
-// filled.
+// `flashDetailQueries` shares with `useFlashDetail`), so a unit its dialog
+// already read under the SAME body is not asked for again, and a dialog opened
+// afterwards under it is already filled. That is every unit while no
+// sub-region is applied, and Integration alone while one is: the other five
+// dialogs send none (spec §8), where the Full Report sends the reader's.
 
 /**
  * Three units at a time: the source's `CONCURRENCY_LIMIT`, kept. Each unit is
  * two reads of a year of P&L, from a backend last deployed from a 407-day-old
  * commit, and twelve at once is the load it was never asked to take.
  */
-const UNITS_AT_ONCE = 3;
+const BUSINESS_UNITS_AT_ONCE = 3;
 
 /** Reads each request's two answers, in the order asked. Rejects if any read fails. */
-export type ReadFlashDetails = (
+type ReadFlashDetails = (
   requests: readonly FlashDetailRequest[],
 ) => Promise<FlashDetailAnswer[]>;
 
@@ -79,9 +81,9 @@ export function useFlashDetailReader(): ReadFlashDetails {
     // In batches, and collected by POSITION. The source stores each answer as
     // it resolves, so its sheets come out in whichever order the reads landed —
     // which can be a different workbook each time for the same figures.
-    for (let start = 0; start < requests.length; start += UNITS_AT_ONCE) {
+    for (let start = 0; start < requests.length; start += BUSINESS_UNITS_AT_ONCE) {
       answers.push(
-        ...(await Promise.all(requests.slice(start, start + UNITS_AT_ONCE).map(readOne))),
+        ...(await Promise.all(requests.slice(start, start + BUSINESS_UNITS_AT_ONCE).map(readOne))),
       );
     }
     return answers;

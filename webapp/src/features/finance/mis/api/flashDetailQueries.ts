@@ -19,14 +19,13 @@
 // Report that reads all six (`useFlashDetailReader`).
 //
 // Shared so that the two ask under ONE key. A Full Report taken after opening
-// a dialog then reuses what the dialog read, and a dialog opened after a Full
-// Report opens without a round trip — neither of which holds if each built its
-// own key and the two drifted.
+// a dialog then reuses what the dialog read under the same body, and a dialog
+// opened after a Full Report opens without a round trip — neither of which
+// holds if each built its own key and the two drifted.
 //
-// In a module of its own because both hooks' suites, and the page's, replace
-// the hook modules wholesale with `vi.mock` factories, which would drop
-// anything else exported beside them (the reason `misFlashQueryKeys` is apart
-// too).
+// In a module of its own because the page's suite replaces both hook modules
+// wholesale with `vi.mock` factories, which would drop anything else exported
+// beside them — the reason `misFlashQueryKeys` is apart too.
 
 import { authedPost } from "@api/http";
 import { httpRetry } from "@api/errors";
