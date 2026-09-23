@@ -1837,6 +1837,29 @@ or a live session at `https://one.wso2.com`.
      and a direct URL shows *"Couldn't check your MIS access. Something went wrong (HTTP 403)."* with
      Retry. The generic text is because the gateway's body has no `message` field, which is the only
      field `describeError` reads.
+
+   **Second call, same day, after the subscription was added: the token path is proven, and the
+   stage service's own dependencies fail.** Through the gateway now, both calls reach the MIS ARR
+   service and are answered by it:
+   - `GET /user-info` → `500` *"Unable to retrieve employee information"*, after about 40s. The
+     service got past `decodeJwt` on the forwarded `x-jwt-assertion`, which would otherwise have
+     said *"Unable to decode JWT and retrieve user information"*. So the assertion arrives and
+     carries an email. What failed is `employee:getEmployee(email)`, a GraphQL call to the HR
+     entity service (`hrEntityBaseUrl`, `arr-backend/modules/employee`), and the 40s looks like
+     timeouts and retries rather than a missing employee.
+   - `GET /app-configs` → `500` *"An error occurred while retrieving application configurations."*
+     That is `entity:getMetadata()`, which takes nothing from the caller. So it fails the same way for
+     any client, the old MIS frontend included.
+
+   **So §11.1 is answered yes**: One WSO2's Asgardeo token reaches the MIS service and is accepted.
+   What stops the screens now is on the stage service's side: its calls to the HR entity service and
+   its own entity service both fail. That needs the MIS owners and the service's stage runtime logs
+   (both failures are logged with `log:printError`, beside the messages above). Worth checking first
+   whether the source MIS frontend works on stage at all today; if it doesn't, this is a stage outage,
+   not anything about One WSO2. §11.4 stays open until `/user-info` answers. The Flash screens can't
+   be tried yet, because every MIS screen asks `/user-info` first. On screen, the ARR Build settles on
+   *"Couldn't check your MIS access. Unable to retrieve employee information"* with Retry: an error,
+   not a denial.
 2. ~~**Are the three gateway hostnames under `*.wso2.com`?**~~ **ANSWERED, and the answer differs by
    environment.**
 
