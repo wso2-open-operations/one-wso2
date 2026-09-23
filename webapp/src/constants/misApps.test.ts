@@ -14,11 +14,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MIS_APPS, MIS_ITEM_IDS } from "./misApps";
 import { FINANCE_ITEM_IDS } from "./financeApps";
 import { LEAVE_ITEM_IDS } from "./meApps";
 import { PERSPECTIVES } from "./perspectives";
+
+// The MIS rail entries are behind the `mis` preview flag (previewFeatures.ts),
+// and the registry is read once, at import — so the flag has to be on before it
+// is. Its OFF half is pinned in perspectives.test.ts.
+vi.hoisted(() => {
+  window.config = {
+    ...(window.config ?? {}),
+    ONE_WSO2_PREVIEW_FEATURES: { mis: true },
+  } as Window["config"];
+});
 
 const items = MIS_APPS.flatMap((app) => app.items);
 

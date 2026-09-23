@@ -378,10 +378,13 @@ Base URLs differ by environment in both host *and* path — `apis.wso2.com/.../v
 `apis-stg.wso2.com/.../v1.0` in staging — so the version segment is part of the configured URL rather
 than something the client appends.
 
-**Rollout.** Both live One WSO2 configs carry an `ONE_WSO2_PREVIEW_FEATURES` object (currently
-`{ expenseSubmitter: true }`) that is absent from `public/config.js.example`. It is the established
-way to land a screen for some users before all of them, and is the mechanism to reach for if MIS ships
-to Finance ahead of general availability.
+**Rollout.** Every MIS screen is behind the `mis` preview flag, rail entries and routes alike
+(`config/previewFeatures.ts`), so a deployment shows MIS only when its config carries
+`ONE_WSO2_PREVIEW_FEATURES: { mis: true }` as well as the backend URLs. That is upstream's rule for
+a port that has not yet run against its live backends, and MIS has not: §11.1's signed-in visit is
+outstanding, and so is ticket 19's parity check. The flag comes out when both have happened. Added
+when this branch was rebased onto upstream's shell (2026-09-23), after the Finance perspective began
+forwarding its landing to the first visible item.
 
 ## 7. Deviations from the source, and why
 

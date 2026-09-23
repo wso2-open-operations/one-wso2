@@ -116,6 +116,10 @@ window.config = {
   //     suspended, and only Flash comments use it — which then report "not
   //     connected" rather than failing. See docs/ported-apps/mis.md §2.5.
   //
+  // Configuring the URLs is not enough to show MIS: every MIS screen is also
+  // behind the `mis` preview flag (ONE_WSO2_PREVIEW_FEATURES, below) until it
+  // has run against the live backends.
+  //
   // ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1",
   // ONE_WSO2_MIS_FLASH_BACKEND_URL: "https://apis.wso2.com/dvig/mis-flash-backend/endpoint-9090-803/v1",
   // ONE_WSO2_MIS_ADMIN_BACKEND_URL: "",
@@ -185,5 +189,5 @@ window.config = {
   // Each entry is deleted when its feature ships — a list that only grows
   // stops describing anything.
   //
-  // ONE_WSO2_PREVIEW_FEATURES: { umt: false, infra: false },
+  // ONE_WSO2_PREVIEW_FEATURES: { umt: false, infra: false, mis: false },
 };

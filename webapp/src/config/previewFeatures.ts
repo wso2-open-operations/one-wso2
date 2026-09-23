@@ -67,7 +67,18 @@ export type PreviewFeature =
   /* The whole Infra Portal perspective. Still being ported, so the waffle
    * tile, landing option, and `/infra` route stay hidden until this is on.
    */
-  | "infra";
+  | "infra"
+  /**
+   * Finance → Finance MIS, the whole app — the ARR, QRR and MRR Builds, ARR
+   * Analysis and the Flash Dashboard, rail entries and routes alike. Built,
+   * but it has never run against its live backends: the one signed-in visit
+   * that proves One WSO2's token reaches the MIS gateway is still outstanding
+   * (docs/ported-apps/mis.md §11.1, §11.4), and ticket 19's parity check —
+   * Finance comparing it with the running MIS, figure for figure — has not
+   * happened. Held back as a whole until both have. `useMisGate`'s own
+   * privilege check is unrelated and keeps working the same either way.
+   */
+  | "mis";
 
 /**
  * Whether a preview feature should be shown.

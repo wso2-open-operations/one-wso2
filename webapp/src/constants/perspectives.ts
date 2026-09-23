@@ -483,7 +483,11 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
       // useMisGate and the note in misApps.ts. Its 987 is this app's
       // PRIVILEGE.EMPLOYEE, so reading one for the other publishes company
       // revenue to everyone.
-      ...appsToSections(MIS_APPS),
+      //
+      // Behind the `mis` preview flag as a whole, like every port that has not
+      // yet run against its live backends — see previewFeatures.ts. The routes
+      // in App.tsx carry the same flag, so the URL is closed too.
+      ...(isPreviewEnabled("mis") ? appsToSections(MIS_APPS) : []),
     ],
   },
   // Legal. Currently just a second entry point into Due Diligence (see the

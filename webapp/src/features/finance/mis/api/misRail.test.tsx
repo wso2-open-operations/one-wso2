@@ -22,6 +22,16 @@ import { MemoryRouter } from "react-router";
 import { HouseIcon } from "@wso2/oxygen-ui-icons-react";
 import { PERSPECTIVES } from "@constants/perspectives";
 
+// The MIS rail entries are behind the `mis` preview flag (previewFeatures.ts),
+// and the registry is read once, at import — so the flag has to be on before it
+// is. Its OFF half is pinned in perspectives.test.ts.
+vi.hoisted(() => {
+  window.config = {
+    ...(window.config ?? {}),
+    ONE_WSO2_PREVIEW_FEATURES: { mis: true },
+  } as Window["config"];
+});
+
 // The half of §10.10 / §10.11 / §10.12 that says "in the rail".
 //
 // The gate suite proves the decision and the routing suite proves the screens
@@ -82,6 +92,23 @@ vi.mock("@features/finance/api/useFinanceGate", () => ({ useFinanceGate: () => o
 vi.mock("@features/leave/api/useLeaveGate", () => ({ useLeaveGate: () => other }));
 vi.mock("@features/marketing-ops/api/useMarketingOpsGate", () => ({
   useMarketingOpsGate: () => ({ ...other, isAuthorized: false, isAdmin: false }),
+}));
+// The gates upstream's usePerspectiveVisibility asks as well. Mocked for this
+// file's own reason — an unmocked gate reaches its real useQuery and fails the
+// file for want of a QueryClient — and closed, so nothing but MIS is offered.
+const noFailure = { isError: false, retry: () => {} };
+vi.mock("@features/due-diligence/api/useDueDiligenceGate", () => ({
+  useDueDiligenceGate: () => ({ ...other, ...noFailure }),
+}));
+vi.mock("@features/security/api/useSecurityGate", () => ({ useSecurityGate: () => other }));
+vi.mock("@features/subscriptions/api/useSubscriptionGate", () => ({
+  useSubscriptionGate: () => ({ ...other, ...noFailure, isAdmin: false }),
+}));
+vi.mock("@features/par/api/useParData", () => ({
+  useParCanSeeLeadPortal: () => ({ canSee: false, isLoading: false }),
+}));
+vi.mock("@features/par/api/useParIsAdmin", () => ({
+  useParIsAdmin: () => ({ isAdmin: false, isLoading: false }),
 }));
 
 const { default: SideRail } = await import("@components/side-rail/SideRail");
