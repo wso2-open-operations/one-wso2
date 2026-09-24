@@ -98,11 +98,9 @@ window.config = {
   // the access check is GET <base-url>/update/user-info.
   // ONE_WSO2_UMT_BACKEND_URL: "<your-updates-manager-backend-url>",
 
-  // Finance MIS (digiops-finance/apps/mis) — THREE services, unlike every
-  // other app here. Each screen checks only the one it uses, so the ARR
-  // screens keep working while another URL is unset.
+  // Finance MIS (digiops-finance/apps/mis) — its ARR service.
   //
-  // Three things to get right, each of which fails silently if you don't:
+  // Two things to get right, each of which fails silently if you don't:
   //
   //  1. Take the *.wso2.com gateway URL, NOT the *.choreoapis.dev one Choreo
   //     advertises next to it. The production CSP allows only *.wso2.com and
@@ -111,18 +109,16 @@ window.config = {
   //     not an alternative.
   //  2. The version segment is part of the URL and differs by environment —
   //     production ends /v1, staging ends /v1.0. Don't normalise them.
-  //  3. Leave ADMIN empty unless you have established it is alive. That
-  //     service is named "DEPRECATED", its Production deployment is
-  //     suspended, and only Flash comments use it — which then report "not
-  //     connected" rather than failing. See docs/ported-apps/mis.md §2.5.
+  //
+  // Only the ARR service is configured here. MIS's Flash and Admin services
+  // serve only the Flash Dashboard, which stays in the MIS app
+  // (docs/adr/0005-flash-dashboard-stays-in-mis.md), so they have no key.
   //
   // Configuring the URLs is not enough to show MIS: every MIS screen is also
   // behind the `mis` preview flag (ONE_WSO2_PREVIEW_FEATURES, below) until it
   // has run against the live backends.
   //
   // ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1",
-  // ONE_WSO2_MIS_FLASH_BACKEND_URL: "https://apis.wso2.com/dvig/mis-flash-backend/endpoint-9090-803/v1",
-  // ONE_WSO2_MIS_ADMIN_BACKEND_URL: "",
 
   // leave-app frontend base URL (not its backend) — used to deep-link into
   // flows this webapp doesn't replicate (e.g. sabbatical requests).

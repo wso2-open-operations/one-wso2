@@ -126,7 +126,6 @@ import MisArrBuildPage from "@features/finance/mis/pages/MisArrBuildPage";
 import MisSession from "@features/finance/mis/components/MisSession";
 import { MIS_PERIODS } from "@features/finance/mis/util/misViewVocabulary";
 import MisArrAnalysisPage from "@features/finance/mis/pages/MisArrAnalysisPage";
-import MisFlashPage from "@features/finance/mis/pages/MisFlashPage";
 import ExpenseClaimsTab from "@features/finance/expense/pages/ExpenseHistoryPage";
 import ClaimApprovalPage, {
   ClaimApprovalIndex,
@@ -384,7 +383,6 @@ export default function App() {
                   element={<MisArrBuildPage period={MIS_PERIODS.MONTHLY} />}
                 />
                 <Route path="finance/mis/analysis" element={<MisArrAnalysisPage />} />
-                <Route path="finance/mis/flash" element={<MisFlashPage />} />
               </Route>
             </>
           )}

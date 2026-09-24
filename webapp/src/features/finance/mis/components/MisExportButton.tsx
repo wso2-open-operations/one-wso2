@@ -21,54 +21,32 @@
 // paste is Finance's existing workflow.
 
 import { useState } from "react";
-import { Button, Menu, MenuItem, Stack, Typography } from "@wso2/oxygen-ui";
-import { ChevronDownIcon, Download } from "@wso2/oxygen-ui-icons-react";
+import { Button, Stack, Typography } from "@wso2/oxygen-ui";
+import { Download } from "@wso2/oxygen-ui-icons-react";
 import { saveMisWorkbook, type MisWorkbookSpec } from "../export/misWorkbook";
 
-/** One file this control can write. */
-export interface MisExport {
+export interface MisExportButtonProps {
   /**
    * The workbook to write, described when the reader asks for it.
    *
-   * A whole SPEC rather than one sheet, because Flash is multi-sheet by
-   * construction — `downloadExcel.js` writes an annual summary plus one sheet
-   * per business unit.
+   * A whole SPEC rather than one sheet: a workbook is the thing written, even
+   * though every caller today writes a single sheet (the Build page's
+   * `oneSheet`, the drill-down's).
    *
    * A thunk rather than a value: a per-customer Build is thousands of rows and
    * every one of them would be walked on every render of a screen whose export
-   * is usually never clicked. And it may be ASYNC, because the Flash's Full
-   * Report has to read all six units' monthly views before it has anything to
-   * describe. A failed read rejects, and the reader is told.
-   *
-   * Both thunks are handed the SAME `instant`, taken at the click, so a sheet
-   * that says when it was generated and the name it is saved under cannot
-   * name two days — which a Full Report's reads could otherwise straddle.
+   * is usually never clicked.
    */
-  workbook: (instant: Date) => MisWorkbookSpec | Promise<MisWorkbookSpec>;
-  /** Likewise deferred — it carries the date. */
-  filename: (instant: Date) => string;
+  workbook: () => MisWorkbookSpec;
+  /** Likewise deferred — it carries today's date. */
+  filename: () => string;
 }
 
-/** One entry of a menu of exports — the Flash's "Full Report" and "Annual Report". */
-export interface MisExportChoice extends MisExport {
-  label: string;
-}
-
-/**
- * One export, or a menu of them.
- *
- * A menu rather than a second button because the source's Flash has exactly
- * that — one Export, with its two reports under it — and two controls both
- * reading "Export" beside one table would ask the reader to guess.
- */
-export type MisExportButtonProps = MisExport | { choices: readonly MisExportChoice[] };
-
-export default function MisExportButton(props: MisExportButtonProps) {
+export default function MisExportButton({ workbook, filename }: MisExportButtonProps) {
   const [working, setWorking] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
-  const run = async ({ workbook, filename }: MisExport) => {
+  const run = async () => {
     setWorking(true);
     setFailed(false);
     try {
@@ -78,22 +56,17 @@ export default function MisExportButton(props: MisExportButtonProps) {
       // screen freezes with the button still reading "Export", which is the
       // moment a reader clicks it a second time.
       await new Promise((resolve) => setTimeout(resolve, 0));
-      const instant = new Date();
-      await saveMisWorkbook(await workbook(instant), filename(instant));
+      await saveMisWorkbook(workbook(), filename());
     } catch {
       // Said on screen rather than only in the console. The work happens after
-      // the click returns — reads, a dynamic import, then a zip — so a failure
-      // is silent by default, and a reader who saw nothing happen would click
+      // the click returns — a dynamic import, then a zip — so a failure is
+      // silent by default, and a reader who saw nothing happen would click
       // again rather than know.
       setFailed(true);
     } finally {
       setWorking(false);
     }
   };
-
-  // One of the two, narrowed once: a menu of reports, or the one export.
-  const menu = "choices" in props ? props.choices : null;
-  const single = "choices" in props ? null : props;
 
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
@@ -108,29 +81,11 @@ export default function MisExportButton(props: MisExportButtonProps) {
         size="small"
         variant="outlined"
         startIcon={<Download size={15} />}
-        endIcon={menu ? <ChevronDownIcon size={15} /> : undefined}
-        onClick={(event) => (single ? void run(single) : setAnchor(event.currentTarget))}
+        onClick={run}
         disabled={working}
-        aria-haspopup={menu ? "menu" : undefined}
-        aria-expanded={menu && anchor ? true : undefined}
       >
         {working ? "Exporting…" : "Export"}
       </Button>
-      {menu && (
-        <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-          {menu.map((choice) => (
-            <MenuItem
-              key={choice.label}
-              onClick={() => {
-                setAnchor(null);
-                void run(choice);
-              }}
-            >
-              {choice.label}
-            </MenuItem>
-          ))}
-        </Menu>
-      )}
     </Stack>
   );
 }

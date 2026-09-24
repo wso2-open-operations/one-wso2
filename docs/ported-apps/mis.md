@@ -10,8 +10,13 @@ JavaScript, plus 3,602 lines of tests) and the three Ballerina services under
 divergence is recorded in §8.
 
 **In One WSO2:** one `MenuApp` under the existing **Finance** perspective, at `/finance/mis/*`. Its
-module is `src/features/finance/mis/`. Three backend URLs — `ONE_WSO2_MIS_ARR_BACKEND_URL`,
-`ONE_WSO2_MIS_FLASH_BACKEND_URL`, `ONE_WSO2_MIS_ADMIN_BACKEND_URL`.
+module is `src/features/finance/mis/`. One backend URL, `ONE_WSO2_MIS_ARR_BACKEND_URL`.
+
+> **Scope amended 2026-09-24: the Flash Dashboard is not ported.** It stays in the MIS app
+> ([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). One WSO2's Finance MIS is the three
+> Builds and ARR Analysis, on MIS's ARR service alone. The Flash sections below are kept as the record
+> of the source's behaviour, each marked **Not ported**; the code tickets 15, 16 and 18 built for it
+> was removed.
 
 > **Amended during ticket 01.** This section originally said the `MenuApp` goes *in*
 > `FINANCE_PERSPECTIVE_APPS`. It cannot: that constant feeds `FINANCE_ITEM_IDS`, which is how
@@ -44,8 +49,8 @@ business timezone for every Period boundary.
 | Who | What they see |
 |---|---|
 | ARR privilege (`987` from the ARR backend) | ARR Build, QRR Build, MRR Build, and ARR Analysis when its flag is on |
-| Flash privilege (`789` from the ARR backend) | Flash Dashboard, including comment and budget/forecast editing |
-| Both | All five screens |
+| Flash privilege (`789` from the ARR backend) | Nothing here — the Flash stays in the MIS app (ADR 0005) |
+| Both | The four revenue screens |
 | Signed in, neither privilege | No MIS entries in the Finance rail, no MIS overview card, and a direct URL renders the module's not-authorized state |
 | Not signed in | `AuthGuard` redirects to Asgardeo before any MIS code runs |
 
@@ -211,7 +216,12 @@ and the number of accounts, which is the row count rather than a figure from the
 source's behaviour and there is no alternative: `fetchSummaryMetrics` asks for `logoCount` and
 hard-codes the answer to `0` (§9).
 
-### 2.5 Flash Dashboard — `/finance/mis/flash`
+### 2.5 Flash Dashboard — not ported
+
+**Not ported** — the Flash Dashboard stays in the MIS app
+([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). Kept as the record of the
+source's behaviour.
+
 
 The monthly P&L flash: Revenue, Cost of Sales with sub-levels, Gross Profit, Gross Margin, and ARR and
 Booking per business unit. **The only screen in MIS that writes.** Two write paths:
@@ -341,8 +351,9 @@ renders as the sender saw it without permanently changing the recipient's prefer
 | Both | Yes | Yes, when the flag is on | Yes | Yes, before the cutoff |
 | Neither | Not in the rail; direct URL shows not-authorized | Same | Same | — |
 
-The real LDAP groups behind `987` and `789` are `configurable` values in the ARR backend and are not
-in either repo — see §11.
+The two Flash columns describe the MIS app: One WSO2 has neither screen (ADR 0005), so the Flash
+privilege opens nothing here. The real LDAP groups behind `987` and `789` are `configurable` values in
+the ARR backend and are not in either repo — see §11.
 
 ## 6. API contract
 
@@ -368,11 +379,10 @@ key construction: the key must include the serialised body, not just the URL.
 | `GET`, `PATCH /cost-of-sales-accounts` | Flash | Cost-of-sales budget/forecast. **Write.** The GET also REQUIRES `accountSubCategory`, which the source does not send — §7, §11.18. Every failure the service itself reports on either PATCH, the cutoff's included, arrives as a bare 500 with no body; a body that does not bind is a 400 and a bad token a 401, both before the service runs. |
 | `GET /comments/all`, `GET`/`POST`/`PATCH`/`DELETE /comments` | Admin | Flash comments. **Write.** ⚠ The Admin component is named "DEPRECATED" and its Production deployment is **suspended** — see §2.5. |
 
-Each service gets its own `isMisArrConfigured()` / `isMisFlashConfigured()` / `isMisAdminConfigured()`
-guard rather than one combined check, so the ARR screens still work when the Admin comments URL is
-unset. That is not hypothetical: the Admin backend is deprecated and suspended in Production (§2.5),
-and its staging URL is on a CSP-blocked domain (§11.2), so leaving `ONE_WSO2_MIS_ADMIN_BACKEND_URL`
-empty and letting the comments screens report "not connected" is the correct configuration today.
+The Flash and Admin rows describe the MIS app's contract: One WSO2 calls the ARR service alone
+(ADR 0005), so only `isMisArrConfigured()` exists here. While the Flash was being ported each service
+had its own guard, so an unset Admin URL (deprecated, suspended in Production, §2.5) could not take
+the ARR screens down.
 
 Base URLs differ by environment in both host *and* path — `apis.wso2.com/.../v1` in production,
 `apis-stg.wso2.com/.../v1.0` in staging — so the version segment is part of the configured URL rather
@@ -455,6 +465,8 @@ period sees no disagreement it has to explain. Each is also a defect that would 
 preserved in a file outliving the parallel period: an export filed under tomorrow's date, and a
 column of figures that cannot be summed.
 
+*Not ported — ADR 0005.*
+
 **The Flash's two dialogs become one, and the P&L's own rows (ticket 15).** The source reaches its
 sub-levels through a separate `MultiLevelViewDialog` opened from the Cost of Sales and Expense
 headings, and reaches a business unit's monthly view through `MonthlyViewDialog` on each column
@@ -474,11 +486,15 @@ knowing for §10.37 because a reconciler diffing the two screens sees both a dif
 different string on those rows; adding the marker would mean changing the shared formatter and every
 Build percentage with it, which is a decision for after the parallel period.
 
+*Not ported — ADR 0005.*
+
 **The Flash's month pickers are native inputs (ticket 15).** The source uses
 `@mui/x-date-pickers`, which this repo does not ship; `<input type="month">` is the browser's own
 picker, holds `yyyy-MM`, and never puts a month through a `Date` — which is most of §3's rule on this
 screen. Same reasoning as the ag-Grid and DataGrid decisions above: a dependency is not added for one
 control.
+
+*Not ported — ADR 0005.*
 
 **The Flash shares the Scale preference rather than defaulting to thousands (ticket 15).**
 `TableView.js` opens this one screen at `useState(true)` — thousands — where every other MIS screen
@@ -1063,6 +1079,10 @@ rather than only asserted.
 
 ### Flash budget and forecast editing (ticket 16)
 
+**Not ported** — the Flash Dashboard stays in the MIS app
+([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). Kept as the record of the
+source's behaviour.
+
 **Cost of Sales account views ask for the sub-category by the name the backend declares.** The flash
 backend renamed its required parameter `expenseType` → `accountSubCategory` on 2023-11-20
 (`ec5cfa857`, `service.bal:95-96`), and the source's `MonthlyViewTable.js:440-445` still sends
@@ -1126,6 +1146,12 @@ account view ignores its thousands toggle too. The one MIS grid that does not fo
 in `CONTEXT.md`.
 
 ### The Flash's Excel export (ticket 18)
+
+**Not ported** — the Flash Dashboard stays in the MIS app
+([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). Kept as the record of the
+source's behaviour. The builder extensions below (the
+one-column-per-group sheet, headings, fills, merges, the Export menu) went with it; the percentage
+rule stayed, because the Build's own percentage rows use it.
 
 All three of the source's exports are kept: its Export menu's **Full Report** and **Annual Report**,
 and the monthly view's **Export**. So is the workbook's shape: an "Annual Summary" sheet, one sheet
@@ -1318,6 +1344,10 @@ list on screen from the app Finance is reconciling against.
 
 ### The Flash's date range depends on which picker the reader moved (ticket 15)
 
+**Not ported** — the Flash Dashboard stays in the MIS app
+([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). Kept as the record of the
+source's behaviour.
+
 **The date each end of the range sends depends on whether THAT PICKER was moved — decided per
 picker, not per Search.** `FlashConsole.js`'s mount seeds `startMonthFilter` and `endMonthFilter`
 with first-of-month strings. `DateFilter.js` calls `onDateChange` from its two change handlers and
@@ -1351,6 +1381,10 @@ the MONTH off each, so first-of-month and last-of-month produce the same list. T
 months directly rather than re-deriving them, which says so.
 
 ### Five of the Flash's six monthly views ignore the sub-region filter (ticket 15)
+
+**Not ported** — the Flash Dashboard stays in the MIS app
+([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). Kept as the record of the
+source's behaviour.
 
 `DataTable.js` hands the Integration column's `MonthlyViewDialog` the prop `subRegions={subRegions}`
 (`:175`) and hands the other five **`subregions=`**, with a lower-case r — `:226` (IAM), `:251`
@@ -1394,6 +1428,10 @@ since ticket 15, and this is the first record of that difference. It affects fig
 it is left for ticket 19's parity check to judge, not decided here.
 
 ### What a Flash detail column asks for, and the month ticket 15 got wrong (tickets 15, 16)
+
+**Not ported** — the Flash Dashboard stays in the MIS app
+([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). Kept as the record of the
+source's behaviour.
 
 **The flash backend reads one range two ways**, and the dates a monthly range sends decide which
 month's figures come back:
@@ -1445,6 +1483,10 @@ and on Integration it is not. Reproduced by construction — there is no paramet
 knowing before anyone reports it as a port defect.
 
 ### The Flash's Sub Region chips cannot be cleared (ticket 15)
+
+**Not ported** — the Flash Dashboard stays in the MIS app
+([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). Kept as the record of the
+source's behaviour.
 
 `SubRegionFilter.js` holds the EXPANDED sub-region list as its state and derives which region chips
 are showing from it — a region counts as picked when every one of its sub-regions is in the list. Its
@@ -1595,12 +1637,18 @@ the first two branches are dead. Ported as the one real field.
 9. The PT/PDT chip label is derived from the same source as the boundaries, across a DST transition.
 
 ### Access
-10. ARR privilege only: no Flash entry in the rail, and `/finance/mis/flash` renders not-authorized.
-11. Flash privilege only: no Build entries, and `/finance/mis/arr-build` renders not-authorized.
+10. ARR privilege only: the four revenue screens, and no Flash entry anywhere — there is none
+    (ADR 0005).
+11. Flash privilege only: no MIS entry at all, and `/finance/mis/arr-build` renders the no-MIS-access
+    wording — the Flash privilege opens nothing in One WSO2 (ADR 0005).
 12. Neither privilege: no MIS entries and no MIS overview card.
 13. A new restricted rail item added without a gate mapping is hidden, not shown (fail-closed).
 
 ### Flash writes
+
+**Not ported** — the Flash Dashboard stays in the MIS app
+([ADR 0005](../adr/0005-flash-dashboard-stays-in-mis.md)). Kept as the record of the
+source's behaviour.
 14. A comment can be created, edited and deleted, and the list reflects each without a manual refresh.
 15. A budget edit after the cutoff surfaces the server's rejection and leaves the displayed value
     unchanged. **Ticket 16:** `MisFlashAccountsDialog.test.tsx`, "when the server refuses the edit".
@@ -1613,9 +1661,9 @@ the first two branches are dead. Ported as the one real field.
     number formats. Nothing else in this repo asserts workbook formatting; this test is the only guard.
     **Closed by ticket 11** (`misWorkbook.test.ts`), and deliberately asserted on the FILE rather than
     on the spec that produced it: a spec is the builders' own vocabulary and a test over it would agree
-    with them by construction, where the bytes are what Finance opens. **Extended by ticket 18**
-    to the Flash's workbook (`misFlashWorkbook.test.ts`): sheet names, titles, merges, header
-    fills, and a Gross Margin read back as 0.775 under `0.00%`.
+    with them by construction, where the bytes are what Finance opens. Ticket 18 extended it
+    to the Flash's workbook; that went with the Flash (ADR 0005). What stayed is the percentage
+    rule, read back as 0.9825 under `0.00%` (`misWorkbook.test.ts`).
 18. An export taken while Scale is "Values in '000" is either exported in units, or carries the scale in
     the file. The prototype found this exact foot-gun in the DataGrid's CSV, which silently inherits the
     display formatter — a finance export that is 1000x off with nothing in it saying so.
@@ -1627,10 +1675,7 @@ the first two branches are dead. Ported as the one real field.
     rather than the dialog's formatted string, which is the same guarantee arrived at differently.
     Worth knowing that the source has the same defect in a second form: its Flash workbook writes every
     figure as a formatted STRING, so the file cannot be computed on at all.
-    **Asked again by ticket 18 at the Flash's three call sites**, for the same reason: the P&L's
-    Annual Summary, the Full Report's monthly sheets, and a monthly view's own Export each read
-    through their screen's raw-figure function, and each is exported with the screen at `'000` and
-    the cell holding the unscaled figure (`MisFlashPage.test.tsx`, `MisFlashDetailDialog.test.tsx`).
+    (Ticket 18 asked it again at the Flash's three call sites; those went with the Flash, ADR 0005.)
 
 ### The hand-rolled Build table
 19. The Build renders at 5, 8 and 12 Period groups without the layout collapsing, and the row-label
@@ -1900,6 +1945,8 @@ or a live session at `https://one.wso2.com`.
    and the table still renders.** Decided in ticket 08 and built as
    `components/wide-table-notice/WideTableNotice.tsx`, shared rather than MIS-local.
 
+   *Moot — the Flash Dashboard is not ported (ADR 0005).*
+
    **What settled it was measuring the real tables rather than the prototype's seven fake
    customers.** Variant C — one Period at a time, rendered vertically — answers for ONE of the four:
 
@@ -2003,6 +2050,8 @@ or a live session at `https://one.wso2.com`.
     visible in the pickers the moment the screen loads — but it is the same decision and should be
     taken once, for both screens, with Finance.
 
+    *Moot — the Flash Dashboard is not ported (ADR 0005).*
+
 16. **Do Finance want the Flash's sub-region typo fixed in the source?** Ticket 15, §8. Five of the
     six monthly views drop the sub-region filter because of a lower-case `r` in a prop name, so a
     narrowed P&L opens an unnarrowed detail view on every column but Integration. The port
@@ -2011,6 +2060,8 @@ or a live session at `https://one.wso2.com`.
     the same day. **Worth raising**, because unlike the other reproductions this one is not a
     judgement call anybody made — and a reader comparing Integration's detail view against IAM's
     today is comparing a filtered figure with an unfiltered one.
+
+    *Moot — the Flash Dashboard is not ported (ADR 0005).*
 
 17. **Which twelve months does the source's P&L open on in Colombo?** Found by ticket 16, left for
     ticket 19's parity check. It reaches the detail view too: the source derives its monthly ranges
@@ -2027,6 +2078,8 @@ or a live session at `https://one.wso2.com`.
     §3 and ADR 0003 pull opposite ways and it is a decision for Finance — whose month the Flash opens
     on is not a port detail.
 
+    *Moot — the Flash Dashboard is not ported (ADR 0005).*
+
 18. **Can Cost of Sales forecasts be written from the source at all today?** Ticket 16, §7. On the
     code, no: the source's account view sends `expenseType`, and the flash backend has required
     `accountSubCategory` in its place since 2023-11-20, so the view should be refused with a 400
@@ -2036,6 +2089,8 @@ or a live session at `https://one.wso2.com`.
     also answers whether the gateway reads the `+` the account GETs send for a space (the source's
     own wire form for them, `useFlashAccounts.ts`). If Finance have been editing Cost of Sales some
     other way, that is worth knowing before the old frontend goes dark.
+
+    *Moot — the Flash Dashboard is not ported (ADR 0005).*
 
 19. **Does anything downstream read the Flash workbook by position or by name?** Ticket 18, §7.
     [ADR 0002](../adr/0002-rethink-ia-rather-than-transcribe.md) wants this answered by a named
@@ -2048,6 +2103,8 @@ or a live session at `https://one.wso2.com`.
     - each monthly sheet gains Revenue and Other Income sections the source's never had, and has the
       real Other Expenses where the source put Other Income's figures under that heading;
     - its figures are numbers and its percentages true percentages, where today's are text.
+
+    *Moot — the Flash Dashboard is not ported (ADR 0005).*
 
     A person reading the file is better served by all of it. A macro, a lookup, or a template filled
     by copying columns in position would not be, and nothing in either repo can say whether one

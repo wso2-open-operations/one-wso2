@@ -16,14 +16,12 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  FIGURE_COLUMN_WIDTH,
   ROW_WINDOW_OVERSCAN,
   buildTableIds,
   leadColumnOffsets,
   rowWindow,
   tableMinWidth,
   visibleRows,
-  type BuildColumnGroup,
   type BuildRow,
   type BuildSubColumn,
 } from "./buildTableModel";
@@ -129,49 +127,20 @@ describe("how wide the table has to be", () => {
     { key: "amount", label: "Amount", width: 104 },
     { key: "pct", label: "% Open", width: 68 },
   ];
-  const periods = (count: number): BuildColumnGroup[] =>
-    Array.from({ length: count }, (_, i) => ({ key: `fy${2020 + i}`, label: `FY${2020 + i}` }));
 
   // The explicit minWidth is what makes the columns keep their size and the
   // container scroll, instead of two dozen columns squeezing to illegible.
   it("is the pinned label column plus every sub-column of every Period", () => {
-    expect(tableMinWidth(periods(5), SUBS, 288)).toBe(288 + 5 * (104 + 68));
-    expect(tableMinWidth(periods(12), SUBS, 288)).toBe(288 + 12 * (104 + 68));
+    expect(tableMinWidth(5, SUBS, 288)).toBe(288 + 5 * (104 + 68));
+    expect(tableMinWidth(12, SUBS, 288)).toBe(288 + 12 * (104 + 68));
   });
 
   it("grows with the Periods on screen", () => {
-    expect(tableMinWidth(periods(12), SUBS, 288)).toBeGreaterThan(
-      tableMinWidth(periods(5), SUBS, 288),
-    );
+    expect(tableMinWidth(12, SUBS, 288)).toBeGreaterThan(tableMinWidth(5, SUBS, 288));
   });
 
   it("is the label column alone when there are no Periods to show", () => {
-    expect(tableMinWidth([], SUBS, 288)).toBe(288);
-  });
-
-  // The Flash P&L (ticket 15): one column per business unit, and nothing
-  // underneath them. With no sub-columns to add up, the group's own width is
-  // the only thing left saying how wide its column is.
-  it("takes each column group's own width when the table has no sub-columns", () => {
-    const units: BuildColumnGroup[] = [
-      { key: "iam", label: "IAM", width: 130 },
-      { key: "apim", label: "APIM", width: 130 },
-    ];
-    expect(tableMinWidth(units, [], 288)).toBe(288 + 260);
-  });
-
-  it("falls back to one figure column's width for a group that states none", () => {
-    expect(tableMinWidth([{ key: "iam", label: "IAM" }], [], 288)).toBe(
-      288 + FIGURE_COLUMN_WIDTH,
-    );
-  });
-
-  // A group's own width is for the undivided case ALONE. Where there are
-  // sub-columns they are what occupies the group, and adding both would leave
-  // the table asking for room it never draws in.
-  it("ignores a group's width when the group is divided into sub-columns", () => {
-    const units: BuildColumnGroup[] = [{ key: "fy2026", label: "FY2026", width: 999 }];
-    expect(tableMinWidth(units, SUBS, 288)).toBe(288 + 104 + 68);
+    expect(tableMinWidth(0, SUBS, 288)).toBe(288);
   });
 });
 
@@ -379,10 +348,6 @@ describe("the columns of row identity, left of the figures", () => {
     // The unfrozen ones still occupy width, and a minWidth that forgot them
     // would let the figure columns squeeze rather than the container scroll.
     const subColumns = [{ key: "amount", label: "Amount", width: 100 }];
-    const groups = [
-      { key: "fy2025", label: "FY2025" },
-      { key: "fy2026", label: "FY2026" },
-    ];
-    expect(tableMinWidth(groups, subColumns, 280 + 180)).toBe(280 + 180 + 200);
+    expect(tableMinWidth(2, subColumns, 280 + 180)).toBe(280 + 180 + 200);
   });
 });

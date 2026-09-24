@@ -26,7 +26,7 @@ import { YearsBackSessionProvider } from "../util/YearsBackSessionContext";
 // not notice, because it reads its value back out of `localStorage`. The session
 // Years Back is held in memory alone — deliberately, see
 // `YearsBackSessionContext` — so a remount would forget it, and a reader who set
-// three years on the Build would be back to five after a look at Flash.
+// three years on the Build would be back to five after a look at ARR Analysis.
 //
 // Only what actually needs the longer life belongs here. `Scale` stays in
 // `MisShell`, where ticket 05 put it, because the shell is the honest scope for

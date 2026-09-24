@@ -23,14 +23,13 @@ import { Link as RouterLink } from "react-router";
 // as a fault makes the screen read as broken. Same reasoning, and the same
 // shape, as MarketingOpsLocked.
 //
-// ---- why there are two messages ------------------------------------------
+// ---- why there is one message ----------------------------------------------
 //
-// MIS has two independent privileges — one for the ARR dashboards, one for the
-// Flash Dashboard — so "you have MIS access, just not to this screen" is an
-// ordinary situation rather than an edge case. Finance sees Flash; revenue
-// leadership sees ARR; few people see both. Telling a Flash user who opened ARR
-// Build that they have no MIS access would simply be false, and would send them
-// to ask for something they already hold.
+// There were two while the Flash Dashboard was being ported: MIS grants it on a
+// privilege of its own, so "you have MIS access, just not to this screen" was
+// an ordinary state. The Flash Dashboard stays in the MIS app (ADR 0005), so
+// One WSO2 reads the ARR privilege alone, every screen here opens on it, and
+// anyone locked out of one is locked out of all of them.
 //
 // ---- what it does not say -------------------------------------------------
 //
@@ -44,7 +43,7 @@ import { Link as RouterLink } from "react-router";
 // is also where App.tsx sends "/" and any unmatched route. Without it the only
 // exit is the browser's back button, which is what makes a locked door feel
 // like a wall.
-export default function MisLocked({ isAuthorized }: { isAuthorized: boolean }) {
+export default function MisLocked() {
   return (
     <Card variant="outlined" sx={{ mt: 1.5, p: 3, maxWidth: 620 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.75 }}>
@@ -75,14 +74,12 @@ export default function MisLocked({ isAuthorized }: { isAuthorized: boolean }) {
             component="h2"
             sx={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", mb: 0.6 }}
           >
-            {isAuthorized
-              ? "This is not one of the MIS screens you can open"
-              : "You don't have access to Finance MIS"}
+            You don&apos;t have access to Finance MIS
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: "60ch" }}>
-            {isAuthorized
-              ? "Finance MIS grants the revenue dashboards and the Flash Dashboard separately, and this screen belongs to the half you don't hold. The MIS screens you can open are in the Finance menu on the left."
-              : "Finance MIS reports company-wide recurring revenue and the monthly P&L, so access is granted to specific finance and leadership groups rather than to everyone. Ask a Finance MIS administrator if you need it."}
+            Finance MIS reports company-wide recurring revenue, so access is granted to
+            specific finance and leadership groups rather than to everyone. Ask a Finance MIS
+            administrator if you need it.
           </Typography>
           <Button
             component={RouterLink}

@@ -27,13 +27,16 @@
 //        leave-app (leaveTypes.ts LEAVE_PRIVILEGE.PEOPLE_OPS_TEAM): a People
 //        Ops team member.
 //
+// Only 987 is read here. The Flash Dashboard stays in the MIS app (ADR 0005),
+// so 789 arrives in the same array and opens nothing in One WSO2 — which is why
+// it has no constant below: a name for it would be one step from a check.
+//
 // Reading MIS access off the shared capability set would therefore hand
 // company-wide revenue reporting to every employee in the company. The numbers
 // are only meaningful next to the endpoint that issued them — see CONTEXT.md
 // and docs/adr/0001-mis-backends-untouched.md.
 export const MIS_PRIVILEGE = {
   ARR_DASHBOARD: 987,
-  FLASH_DASHBOARD: 789,
 } as const;
 
 // The /user-info body. The Ballerina record declares the five strings as

@@ -17,7 +17,7 @@
 import type { ReactNode } from "react";
 import { Alert, Box, Chip, CircularProgress, Stack, Typography } from "@wso2/oxygen-ui";
 import { ChartNoAxesCombinedIcon } from "@wso2/oxygen-ui-icons-react";
-import { isMisArrConfigured, isMisFlashConfigured } from "@config/apiConfig";
+import { isMisArrConfigured } from "@config/apiConfig";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useMisGate } from "../api/useMisGate";
 import MisLocked from "./MisLocked";
@@ -33,7 +33,7 @@ import { ScalePreferenceProvider } from "../util/ScalePreferenceContext";
 //   3. that prerequisite failed   → an error with a retry
 //   4. /user-info still in flight → spinner, never a premature denial
 //   5. /user-info failed          → an error with a retry, NOT a denial
-//   6. cannot open THIS screen    → a locked door, worded by which half they hold
+//   6. cannot open THIS screen    → a locked door
 //
 // Rungs 5 and 6 are the pair worth keeping apart; see MisGate.isError.
 //
@@ -55,37 +55,16 @@ import { ScalePreferenceProvider } from "../util/ScalePreferenceContext";
 // ---- how this differs from MarketingOpsShell ------------------------------
 //
 // That shell asks one question — are you authorized for this perspective — and
-// every screen behind it follows. MIS cannot: it has two independent privileges
-// over five screens, so authorization is per-screen and the shell takes a
-// `gateId`. A Flash-only user is authorized for MIS and still refused ARR
-// Build, which is an ordinary state here rather than an anomaly.
+// every screen behind it follows. This one takes a `gateId` and asks per screen,
+// because one screen has a condition of its own: ARR Analysis exists only while
+// its `productsUsageEnabled` flag is on. (It asked per screen for a second
+// reason while the Flash Dashboard was being ported, which MIS grants on a
+// privilege of its own; that screen stays in the MIS app — ADR 0005.)
 //
-// ---- and why it checks the ARR key, and then the screen's own -------------
+// ---- and why it checks the ARR key specifically ---------------------------
 //
-// All three MIS backends have their own config key, but /user-info lives on the
-// ARR service and answers for the Flash screens too. So an unset ARR URL means
-// no MIS screen can establish who you are — that one is checked for every
-// screen, first, because without it there is nobody to refuse or admit.
-//
-// A screen whose FIGURES come from another service then names it with
-// `backend`, and the rung reads that key once the reader is through the gate.
-// Two keys rather than one combined check, which is the rule apiConfig states:
-// the Flash screen must say "not connected" when its own backend is unset while
-// the ARR screens carry on, and an unset Admin URL must take neither down. It
-// lives here rather than in the page because this file exists to be the ONE
-// place a degraded state is worded — a page that wrote its own Alert would be a
-// second wording of the same sentence, drifting from this one.
-/**
- * Which MIS backend a screen's FIGURES come from, beside the ARR service that
- * answers for everyone's identity.
- *
- * `arr` for the Build screens and ARR Analysis; `flash` for the P&L. The Admin
- * service joins when ticket 17 ports the comments — and is the reason this is a
- * name rather than a boolean, because its correct configuration today is
- * *unset* and whichever screen depends on it has to say so on its own.
- */
-export type MisBackend = "arr" | "flash";
-
+// /user-info lives on the ARR service, so an unset ARR URL means no MIS screen
+// can establish who you are.
 /**
  * Something ONE screen must resolve before its gate can be read — the shape
  * every MIS query hook already returns. Optional: most screens have none.
@@ -103,7 +82,6 @@ export default function MisShell({
   gateId,
   title,
   subtitle,
-  backend = "arr",
   prerequisite,
   children,
 }: {
@@ -112,17 +90,12 @@ export default function MisShell({
   gateId: string;
   title: string;
   subtitle?: string;
-  /** Where this screen's figures come from. The ARR service unless stated. */
-  backend?: MisBackend;
   prerequisite?: MisPrerequisite;
   children: ReactNode;
 }) {
-  // /user-info is on the ARR service whatever screen this is, so an unset ARR
-  // URL means nobody can be identified at all — checked first, and separately
-  // from the screen's own backend below.
-  const identityConfigured = isMisArrConfigured();
+  const configured = isMisArrConfigured();
   // Only ask who we are once we know there is a backend to ask.
-  const gate = useMisGate(identityConfigured);
+  const gate = useMisGate(configured);
 
   // The header changes on the locked state, so the shell has to know which
   // branch the body will take. This mirrors the LAST rung of the ladder below —
@@ -130,7 +103,7 @@ export default function MisShell({
   // flight (or failed) reads as refused for one render.
   const pending = Boolean(prerequisite?.isLoading || prerequisite?.isError);
   const isLocked =
-    identityConfigured && !pending && !gate.isResolving && !gate.isError && !gate.canSee(gateId);
+    configured && !pending && !gate.isResolving && !gate.isError && !gate.canSee(gateId);
 
   return (
     // Scale is a cross-page preference, so it is provided once here rather than
@@ -183,8 +156,7 @@ export default function MisShell({
         )}
 
         <MisBody
-          identityConfigured={identityConfigured}
-          backend={backend}
+          configured={configured}
           gate={gate}
           gateId={gateId}
           prerequisite={prerequisite}
@@ -199,22 +171,25 @@ export default function MisShell({
 // Split out so the header stays readable — the ladder carries the logic, and it
 // reads better as a sequence of guards than as nested ternaries inside JSX.
 function MisBody({
-  identityConfigured,
-  backend,
+  configured,
   gate,
   gateId,
   prerequisite,
   children,
 }: {
-  identityConfigured: boolean;
-  backend: MisBackend;
+  configured: boolean;
   gate: ReturnType<typeof useMisGate>;
   gateId: string;
   prerequisite?: MisPrerequisite;
   children: ReactNode;
 }) {
-  if (!identityConfigured) {
-    return <NotConnected configKey="ONE_WSO2_MIS_ARR_BACKEND_URL" />;
+  if (!configured) {
+    return (
+      <Alert severity="info" sx={{ mt: 1.5 }}>
+        Finance MIS isn't connected yet. Set <code>ONE_WSO2_MIS_ARR_BACKEND_URL</code> in{" "}
+        <code>public/config.js</code> (the backend URL) and reload.
+      </Alert>
+    );
   }
 
   // Above the gate, because the gate's answer depends on this one — see the
@@ -262,25 +237,8 @@ function MisBody({
   }
 
   if (!gate.canSee(gateId)) {
-    return <MisLocked isAuthorized={gate.isAuthorized} />;
-  }
-
-  // BELOW the gate, unlike the ARR key above it. Which backends are configured
-  // is not a fact this reader is entitled to before they have been let in, and
-  // an unset Flash URL is a screen being unavailable rather than a refusal.
-  if (backend === "flash" && !isMisFlashConfigured()) {
-    return <NotConnected configKey="ONE_WSO2_MIS_FLASH_BACKEND_URL" />;
+    return <MisLocked />;
   }
 
   return <>{children}</>;
-}
-
-/** One wording of "this isn't wired up yet", whichever key is missing. */
-function NotConnected({ configKey }: { configKey: string }) {
-  return (
-    <Alert severity="info" sx={{ mt: 1.5 }}>
-      Finance MIS isn&apos;t connected yet. Set <code>{configKey}</code> in{" "}
-      <code>public/config.js</code> (the backend URL) and reload.
-    </Alert>
-  );
 }

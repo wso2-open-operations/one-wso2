@@ -1040,9 +1040,9 @@ const ALL_ARR_METRICS_LABEL =
 /**
  * One table, as a one-sheet workbook.
  *
- * `MisExportButton` takes a whole spec because Flash is multi-sheet; every
- * table on this page is one sheet, and this is where that difference is said
- * once instead of at each of the four call sites.
+ * `MisExportButton` takes a whole workbook; every table on this page is one
+ * sheet, and this is where that difference is said once instead of at each of
+ * the four call sites.
  */
 const oneSheet = <L extends MisLeadColumn>(sheet: MisBuildSheetInput<L>): MisWorkbookSpec => ({
   sheets: [misBuildSheet(sheet)],

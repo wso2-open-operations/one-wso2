@@ -64,24 +64,12 @@ export const misFilenameRange = (text: string): string =>
  * `instant` is a parameter so a test can hold an evening still.
  */
 export function misExportFilename(parts: readonly string[], instant: Date = new Date()): string {
+  const { year, month, day } = pacificCivilDate(instant);
+  const on = `${year}-${pad(month)}-${pad(day)}`;
   // Empty parts dropped, as the source's `if (rowLabel)` guards do — a Build
   // row can be MIS_ROW_LABELS.EMPTY, and an unguarded part doubles the
   // separator.
-  return [...parts.filter(Boolean), misExportDate(instant)].join("_") + ".xlsx";
-}
-
-/**
- * The day an export was taken, `yyyy-MM-dd`, in Pacific Time.
- *
- * Shared by the filename and by the "Generated on" line of Flash's workbook,
- * and `MisExportButton` hands both the SAME instant — so a file is never named
- * for one day while saying inside that it was made on another. A shared
- * function alone would not do it: a Full Report reads six units between
- * describing its sheets and being named.
- */
-export function misExportDate(instant: Date): string {
-  const { year, month, day } = pacificCivilDate(instant);
-  return `${year}-${pad(month)}-${pad(day)}`;
+  return [...parts.filter(Boolean), on].join("_") + ".xlsx";
 }
 
 const pad = (value: number): string => String(value).padStart(2, "0");

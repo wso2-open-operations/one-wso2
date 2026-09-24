@@ -31,9 +31,10 @@ vi.setConfig({ testTimeout: 20_000 });
 // Test checklist §10.10, §10.11 and §10.12 — what a person actually SEES at a
 // MIS URL they are and are not entitled to.
 //
-// The two privileges are independent, so there are three populations here, not
-// two: ARR-only, Flash-only, and neither. The gate suite proves the decision;
-// this proves the decision reaches the screen.
+// Two populations: the ARR privilege, and not. (A Flash-only holder is the
+// second — the Flash Dashboard stays in the MIS app, ADR 0005, and the gate
+// suite pins that its privilege opens nothing here.) The gate suite proves the
+// decision; this proves the decision reaches the screen.
 //
 // Typing a URL you cannot use gives a locked panel, NOT a redirect. A redirect
 // would bounce the reader somewhere without saying why, and a bookmarked link
@@ -59,16 +60,6 @@ vi.mock("@config/apiConfig", () => ({
     regionExit: "https://mis.example/arr-summary/region-exit",
     buExit: "https://mis.example/arr-summary/bu-exit",
     regionMetrics: "https://mis.example/arr-summary/region-metrics",
-  },
-  // The Flash screen became real in ticket 15, so this suite now renders a P&L
-  // as well as a Build — and that screen reads the FLASH service's URLs, which
-  // are a separate map for a separate backend (§6).
-  isMisFlashConfigured: () => true,
-  misFlashServiceUrls: {
-    balanceStatement: "https://flash.example/balance-statement",
-    customerSummary: "https://flash.example/customer-summary",
-    accountSummary: "https://flash.example/account-summary",
-    subRegions: "https://flash.example/sub-regions",
   },
 }));
 
@@ -126,7 +117,6 @@ vi.mock("../api/useMisAppConfigs", () => ({
 }));
 
 const { default: MisArrBuildPage } = await import("./MisArrBuildPage");
-const { default: MisFlashPage } = await import("./MisFlashPage");
 const { default: MisSession } = await import("../components/MisSession");
 const { MIS_PERIODS } = await import("../util/misViewVocabulary");
 
@@ -158,7 +148,6 @@ function show(initial: string) {
               path="/finance/mis/mrr-build"
               element={<MisArrBuildPage period={MIS_PERIODS.MONTHLY} />}
             />
-            <Route path="/finance/mis/flash" element={<MisFlashPage />} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -172,7 +161,7 @@ beforeEach(() => {
   state.isResolving = false;
 });
 
-describe("someone holding only the ARR privilege", () => {
+describe("someone holding the ARR privilege", () => {
   beforeEach(() => {
     state.allow = new Set(["mis-arr-build", "mis-qrr-build", "mis-mrr-build", "mis-analysis"]);
     state.isAuthorized = true;
@@ -182,48 +171,14 @@ describe("someone holding only the ARR privilege", () => {
     show("/finance/mis/arr-build");
     expect(screen.getByRole("heading", { name: "ARR Build" })).toBeInTheDocument();
   });
-
-  // §10.10. Not a redirect, and not the "no MIS access" copy either — they do
-  // have MIS access, just not this half of it.
-  it("is refused the Flash Dashboard, and told which half they hold", () => {
-    show("/finance/mis/flash");
-    expect(screen.getByText(/not one of the mis screens you can open/i)).toBeInTheDocument();
-    expect(screen.queryByText(/don't have access to finance mis/i)).not.toBeInTheDocument();
-  });
-});
-
-describe("someone holding only the Flash privilege", () => {
-  beforeEach(() => {
-    state.allow = new Set(["mis-flash"]);
-    state.isAuthorized = true;
-  });
-
-  it("gets the Flash Dashboard", () => {
-    show("/finance/mis/flash");
-    expect(screen.getByRole("heading", { name: "Flash Dashboard" })).toBeInTheDocument();
-  });
-
-  // §10.11. The mirror image, which is the case most likely to be got wrong:
-  // /user-info comes from the ARR backend, so it is tempting to treat any
-  // answer from it as ARR access.
-  it("is refused ARR Build", () => {
-    show("/finance/mis/arr-build");
-    expect(screen.getByText(/not one of the mis screens you can open/i)).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /what it returned for you/i })).not.toBeInTheDocument();
-  });
 });
 
 // §10.12. Being signed in is not a MIS privilege — which is precisely what 987
 // means everywhere else in this app, and why this is the case that would
 // regress silently.
-describe("someone holding neither privilege", () => {
-  it("is refused both screens, and told they have no MIS access at all", () => {
+describe("someone without the ARR privilege", () => {
+  it("is refused, and told they have no MIS access at all", () => {
     show("/finance/mis/arr-build");
-    expect(screen.getByText(/don't have access to finance mis/i)).toBeInTheDocument();
-  });
-
-  it("is refused the Flash Dashboard too", () => {
-    show("/finance/mis/flash");
     expect(screen.getByText(/don't have access to finance mis/i)).toBeInTheDocument();
   });
 });

@@ -16,12 +16,10 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Finance MIS is the first app here to speak to more than one backend, so it is
-// the first that can be PARTLY configured — and the partly-configured case is
-// not hypothetical, it is the correct configuration today. The Admin service is
-// deprecated and its Production deployment is suspended, and its staging URL is
-// on a choreoapis.dev host the CSP blocks, so the right value for it is empty
-// while ARR and Flash are live. See docs/ported-apps/mis.md §2.5 and §11.2.
+// Finance MIS's ARR service — the one MIS backend One WSO2 is configured for.
+// MIS has two more, Flash and Admin, which serve only the Flash Dashboard; it
+// stays in the MIS app (docs/adr/0005-flash-dashboard-stays-in-mis.md), so
+// nothing here reads their URLs.
 //
 // Every URL in apiConfig is read at MODULE LOAD, so window.config has to be in
 // place before the import — hence resetModules + dynamic import per case, the
@@ -39,7 +37,9 @@ afterEach(() => {
   delete (window as { config?: unknown }).config;
 });
 
-// The staging configuration, verbatim from public/config.js.
+// A staging configuration as deployments carried it while the Flash was being
+// ported, Flash and Admin keys included — which is what makes the last case
+// below able to fail.
 const STAGING = {
   ONE_WSO2_MIS_ARR_BACKEND_URL:
     "https://apis-stg.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1.0",
@@ -48,22 +48,15 @@ const STAGING = {
   ONE_WSO2_MIS_ADMIN_BACKEND_URL: "",
 };
 
-describe("the three Finance MIS backends", () => {
-  // The rule this file exists to protect. Collapsing these into one
-  // isMisConfigured() would read as a tidy-up and would take the ARR Build
-  // down with a backend that has been suspended since before the port began.
-  it("are configured independently, so an unset Admin URL does not disable ARR", async () => {
+describe("the Finance MIS backend", () => {
+  it("is configured once its ARR URL is set", async () => {
     const c = await loadWith(STAGING);
     expect(c.isMisArrConfigured()).toBe(true);
-    expect(c.isMisFlashConfigured()).toBe(true);
-    expect(c.isMisAdminConfigured()).toBe(false);
   });
 
-  it("each report unconfigured when nothing is set at all", async () => {
+  it("reports unconfigured when nothing is set at all", async () => {
     const c = await loadWith(undefined);
     expect(c.isMisArrConfigured()).toBe(false);
-    expect(c.isMisFlashConfigured()).toBe(false);
-    expect(c.isMisAdminConfigured()).toBe(false);
   });
 
   // The version segment belongs to the configured URL and differs by
@@ -71,7 +64,7 @@ describe("the three Finance MIS backends", () => {
   // operator is pasting a path-like tail, which is exactly the value someone
   // ends with a slash. Unstripped it produces `//user-info`, and whether that
   // 404s is up to the gateway. Same reasoning as marketingOpsBackendUrl.
-  it("tolerate a trailing slash on a pasted URL", async () => {
+  it("tolerates a trailing slash on a pasted URL", async () => {
     const c = await loadWith({
       ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1/",
     });
@@ -80,33 +73,27 @@ describe("the three Finance MIS backends", () => {
     );
   });
 
-  // /user-info is the call ticket 01 exists to make. It must go to the ARR
-  // service: the Flash and Admin services do not serve it, and privileges for
-  // BOTH dashboards come back from this one endpoint (arr-backend
-  // service.bal:55-69 pushes 987 and 789 into the same array).
-  it("serve /user-info from the ARR backend, which answers for Flash too", async () => {
+  // /user-info is the call ticket 01 exists to make, and it lives on the ARR
+  // service: arr-backend service.bal:55-69 pushes both of MIS's privilege
+  // numbers into one array there.
+  it("serves /user-info from the ARR backend", async () => {
     const c = await loadWith(STAGING);
     expect(c.misArrServiceUrls.userInfo).toBe(
       "https://apis-stg.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1.0/user-info",
     );
   });
 
-  // Tickets 15 and 16. The P&L, its two detail reads and the account books go
-  // to the FLASH service, and the mistake worth guarding is the tidy one: these
-  // sit beside the ARR map in the same file, and a builder written against
-  // `misArrBackendUrl` would compile, would resolve, and would 404 at a gateway
-  // that has never heard of /balance-statement — or, for a write, would 404 a
-  // forecast Finance believes they just saved.
-  it("serve the Flash reads and writes from the Flash backend, not the ARR one", async () => {
-    const c = await loadWith(STAGING);
-    const flash = "https://apis-stg.wso2.com/dvig/mis-flash-backend/endpoint-9090-803/v1.0";
-    expect(c.misFlashServiceUrls).toEqual({
-      balanceStatement: `${flash}/balance-statement`,
-      customerSummary: `${flash}/customer-summary`,
-      accountSummary: `${flash}/account-summary`,
-      subRegions: `${flash}/sub-regions`,
-      incomeAccounts: `${flash}/income-accounts`,
-      costOfSalesAccounts: `${flash}/cost-of-sales-accounts`,
-    });
+  // ADR 0005. A deployment still carrying the Flash and Admin keys configures
+  // nothing from them: no guard and no service map is built for either.
+  it("reads no Flash or Admin URL, even where a config still carries them", async () => {
+    const c = (await loadWith(STAGING)) as Record<string, unknown>;
+    for (const name of [
+      "isMisFlashConfigured",
+      "misFlashServiceUrls",
+      "isMisAdminConfigured",
+      "misAdminBackendUrl",
+    ]) {
+      expect(c[name], name).toBeUndefined();
+    }
   });
 });

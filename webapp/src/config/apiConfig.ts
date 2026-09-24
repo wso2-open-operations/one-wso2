@@ -1397,28 +1397,25 @@ export function buildMeetingsUrl(params: {
   return `${revOpsServiceUrls.meetings}?${qs.toString()}`;
 }
 
-// Finance MIS backends (digiops-finance/apps/mis). THREE services, not one —
-// the first entry in this file with more than one base URL. The port replaces
-// the MIS frontend only; the Ballerina services are untouched. See
+// Finance MIS backend (digiops-finance/apps/mis) — the ARR service. The port
+// replaces the MIS frontend only; the Ballerina services are untouched. See
 // docs/adr/0001-mis-backends-untouched.md and docs/ported-apps/mis.md.
 //
-// Four things differ from every sibling above, all of them load-bearing:
+// MIS has two more services, Flash and Admin, and neither is configured here:
+// they serve only the Flash Dashboard (its P&L, forecasts and comments), which
+// stays in the MIS app — docs/adr/0005-flash-dashboard-stays-in-mis.md.
 //
-//  1. Each service gets its OWN guard. Never one combined isMisConfigured():
-//     the Admin service is deprecated with its Production deployment
-//     SUSPENDED, so an empty ONE_WSO2_MIS_ADMIN_BACKEND_URL is the correct
-//     configuration today, and it must not take the ARR screens down with it.
-//     mis.md §2.5, §6.
+// Three things differ from every sibling above, all of them load-bearing:
 //
-//  2. /user-info lives on the ARR service and answers for BOTH dashboards —
-//     one call returns 987 (ARR) and/or 789 (Flash) in a single array
-//     (arr-backend service.bal:55-69). Flash has no /user-info of its own.
+//  1. /user-info lives on this service and answers with both of MIS's numbers
+//     in one array — 987 (ARR) and 789 (Flash) — of which only 987 means
+//     anything here (arr-backend service.bal:55-69; misTypes.ts).
 //
-//  3. The version segment belongs to the configured URL, not to the builders,
+//  2. The version segment belongs to the configured URL, not to the builders,
 //     because it differs by environment: production ends /v1, staging ends
 //     /v1.0. mis.md §11.2.
 //
-//  4. Trailing slashes are stripped, as they are for marketing-ops. The
+//  3. Trailing slashes are stripped, as they are for marketing-ops. The
 //     configured value ends in a path-like version segment, which is exactly
 //     the kind of value an operator pastes with a slash on the end; unstripped
 //     it yields `//user-info` and whether that 404s is up to the gateway.
@@ -1475,57 +1472,3 @@ export const misArrServiceUrls = {
   // cache key. Takes `accountId` and `endDate`, and nothing else.
   opportunities: `${misArrBackendUrl}/opportunities`,
 };
-
-export const misFlashBackendUrl: string = stripTrailingSlashes(
-  window.config?.ONE_WSO2_MIS_FLASH_BACKEND_URL ?? "",
-);
-
-export function isMisFlashConfigured(): boolean {
-  return Boolean(misFlashBackendUrl);
-}
-
-// The Flash reads, ported by ticket 15. Every one of them is on the FLASH
-// service, which is the whole reason this map is separate from the ARR one
-// above rather than four more entries in it — the two are different gateways
-// behind different Choreo components, and a Flash path built on
-// `misArrBackendUrl` resolves perfectly and 404s.
-//
-// Ticket 16 added the one pair of endpoints on this service that WRITES — the
-// last two below.
-export const misFlashServiceUrls = {
-  // The P&L itself: one GET, one date range, fourteen sections back. The only
-  // MIS read that is a GET with query parameters besides /opportunities — and
-  // like it, the URL is therefore its own cache key. `subRegions` REPEATS
-  // rather than joining with commas; the Ballerina resource declares
-  // `string[]?` and reads it as repeated parameters.
-  balanceStatement: `${misFlashBackendUrl}/balance-statement`,
-  // ARR and Booking for ONE business unit over a list of months. A read that
-  // takes a body, so it is a POST and the body is its React Query key — §6.
-  customerSummary: `${misFlashBackendUrl}/customer-summary`,
-  // The financial accounts for the same business unit and the same months,
-  // asked separately because they come from a different half of the backend.
-  // A detail view makes both calls and stitches the answers together.
-  accountSummary: `${misFlashBackendUrl}/account-summary`,
-  // The sub-regions present in a date range, which is what the Sub Region
-  // filter is made of. A GET, and keyed by its dates — the list narrows with
-  // the range rather than being a fixed reference list like /app-configs.
-  subRegions: `${misFlashBackendUrl}/sub-regions`,
-  // The GL accounts behind one Revenue figure (GET, by query parameters), and
-  // a forecast written against one of them (PATCH). Same path, both verbs.
-  incomeAccounts: `${misFlashBackendUrl}/income-accounts`,
-  // The same for one Cost of Sales sub-category. The GET needs an
-  // `accountSubCategory` the income one does not take.
-  costOfSalesAccounts: `${misFlashBackendUrl}/cost-of-sales-accounts`,
-};
-
-export const misAdminBackendUrl: string = stripTrailingSlashes(
-  window.config?.ONE_WSO2_MIS_ADMIN_BACKEND_URL ?? "",
-);
-
-export function isMisAdminConfigured(): boolean {
-  return Boolean(misAdminBackendUrl);
-}
-
-// The Flash and Admin service-URL maps are added by the tickets that port
-// those screens (15 and 17), so this file never lists a URL nothing calls —
-// the same rule marketingOpsServiceUrls states for its un-ported operations.

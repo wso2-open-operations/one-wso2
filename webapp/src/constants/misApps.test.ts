@@ -55,10 +55,15 @@ describe("the Finance MIS registry", () => {
     expect(routed.sort()).toEqual([
       "mis-analysis",
       "mis-arr-build",
-      "mis-flash",
       "mis-mrr-build",
       "mis-qrr-build",
     ]);
+  });
+
+  // ADR 0005. The Flash Dashboard stays in the MIS app, so it is not a screen of
+  // this registry — not a pathless row, not a row its privilege would open.
+  it("leaves the Flash Dashboard out", () => {
+    expect(items.map((item) => item.id)).not.toContain("mis-flash");
   });
 
   // ARR Analysis is in the registry unconditionally, and has to be: the

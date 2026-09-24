@@ -102,17 +102,6 @@ describe("the ladder above the page", () => {
     expect(screen.getByText(/don't have access to finance mis/i)).toBeInTheDocument();
     expect(screen.queryByText("the real page")).not.toBeInTheDocument();
   });
-
-  // The rung Marketing Ops has no equivalent of. MIS has two independent
-  // privileges, so "you have MIS access, just not to this screen" is an
-  // ordinary state — a Flash-only person opening ARR Build — and telling them
-  // they have no MIS access at all would be false.
-  it("tells someone with the other privilege that it is this screen they lack", () => {
-    renderShell({ isAuthorized: true, canSee: () => false });
-    expect(screen.getByText(/not one of the mis screens you can open/i)).toBeInTheDocument();
-    expect(screen.queryByText(/don't have access to finance mis/i)).not.toBeInTheDocument();
-    expect(screen.queryByText("the real page")).not.toBeInTheDocument();
-  });
 });
 
 describe("the subtitle", () => {

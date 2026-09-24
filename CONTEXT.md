@@ -26,7 +26,7 @@ for here, and neither collision is the safe kind:
 | Number | people-app / One WSO2 | leave-app | Finance MIS |
 |---|---|---|---|
 | `987` | every authenticated employee (`PRIVILEGE.EMPLOYEE`) | `LEAVE_PRIVILEGE.EMPLOYEE` | may see the ARR dashboards |
-| `789` | — | `LEAVE_PRIVILEGE.PEOPLE_OPS_TEAM` | may see the Flash Dashboard |
+| `789` | — | `LEAVE_PRIVILEGE.PEOPLE_OPS_TEAM` | may see the Flash Dashboard — which stays in the MIS app, so it opens nothing here (ADR 0005) |
 
 So reading MIS access off the shared capability set grants company-wide revenue reporting to
 everybody, and reading it off leave-app's array grants the P&L to People Ops. Each is only meaningful
@@ -106,7 +106,10 @@ _Avoid_: LTM, rolling year
 **Flash**:
 The monthly P&L reported ahead of a formal close — revenue, cost of sales, gross profit, gross
 margin, plus ARR and booking per business unit. The only MIS surface where users write data — a
-**Forecast**, from the **Account View** behind a figure, never on a figure itself.
+**Forecast**, from the **Account View** behind a figure, never on a figure itself. **Not ported:** the
+Flash Dashboard stays in the MIS app ([ADR 0005](docs/adr/0005-flash-dashboard-stays-in-mis.md)).
+The word stays here, with **Account View** and **Forecast**, because MIS still has all three and the
+spec's record of them uses them.
 _Avoid_: P&L, management accounts, monthly report
 
 **Account View**:
@@ -130,9 +133,8 @@ _Avoid_: timeframe, range, window
 
 **Scale**:
 The display control that shows currency in units or thousands. It scales currency rows only, and
-never counts or percentages — **and never a Headline**. Nor the Flash's **Account View**, the one
-grid that ignores it: a Forecast is typed there in units, and a list in thousands beside the form
-would invite one a thousand times off.
+never counts or percentages — **and never a Headline**. (In the MIS app, nor the Flash's **Account
+View**, which ignores it: a Forecast is typed there in units. Not ported — ADR 0005.)
 _Avoid_: units, format, magnitude
 
 **Headline**:

@@ -32,9 +32,8 @@
 // exists, it is the same nine lines whatever is being exported, and spec §10.17
 // pins it by loading its bytes back.
 //
-// The split is also what the Flash's workbook extends rather than forks
-// (ticket 18): it describes its own sheets and hands them to this same writer,
-// which gained a title's font size, cell fills and merged cells to carry it.
+// (The source's Flash workbook, where its ExcelJS work began, is not ported:
+// the Flash Dashboard stays in the MIS app — ADR 0005.)
 
 import { saveBlob } from "@utils/saveFile";
 
@@ -53,7 +52,7 @@ import { saveBlob } from "@utils/saveFile";
  */
 export type MisCellValue = number | string | null;
 
-/** Excel number formats, one per kind of figure MIS reports — the three of `MIS_VALUE_TYPES`. */
+/** Excel number formats, one per kind of figure MIS reports. */
 export const MIS_NUMBER_FORMATS = {
   /**
    * Two decimals and a thousands separator — `formatMisValue`'s currency
@@ -65,18 +64,16 @@ export const MIS_NUMBER_FORMATS = {
   COUNT: "#,##0",
   /**
    * A percentage, in Excel's own percent format — which multiplies by 100 on
-   * display, so the cell holds the FRACTION: the ARR backend's 98.25 and the
-   * flash backend's Gross Margin of 77.5 both mean per cent, and go in as
-   * 0.9825 and 0.775 (`misBuildSheet`'s `figureCell` divides, and nothing
-   * else does). The reader sees "98.25%", and a formula that multiplies by the
-   * cell gets the right answer.
+   * display, so the cell holds the FRACTION: the ARR backend's 98.25 means
+   * 98.25% and goes in as 0.9825 (`misBuildSheet`'s `figureCell` divides, and
+   * nothing else does). The reader sees "98.25%", and a formula that multiplies
+   * by the cell gets the right answer.
    *
    * Ticket 11 wrote these as a bare "98.25" under money's format instead, on
-   * the reasoning that the screen shows them bare. Ticket 18 reversed that: its
-   * criterion is a Gross Margin carrying "a percentage number format, not a
-   * bare decimal", and a percentage sitting in a column of money under money's
-   * format is a figure a reader has to be told the kind of. The screen can lean
-   * on its row label; a cell pasted out of the file cannot.
+   * the reasoning that the screen shows them bare. Ticket 18 reversed that: a
+   * percentage sitting in a column of money under money's format is a figure a
+   * reader has to be told the kind of. The screen can lean on its row label; a
+   * cell pasted out of the file cannot.
    */
   PERCENTAGE: "0.00%",
 } as const;
@@ -85,14 +82,6 @@ export interface MisWorkbookCell {
   value: MisCellValue;
   /** One of `MIS_NUMBER_FORMATS`. Omitted for text. */
   numFmt?: string;
-  /**
-   * A solid background, as eight hex digits of ARGB — `"FFC8E6C9"`. Flash's
-   * header rows carry these (`generateAnnualSheet.js`'s `applyColumnFills`).
-   *
-   * ARGB and not CSS: the source writes `"#C8E6C9"` into its annual sheet,
-   * which is not a value the file format's colour attribute takes.
-   */
-  fill?: string;
 }
 
 export interface MisWorkbookRow {
@@ -108,16 +97,6 @@ export interface MisWorkbookRow {
    * the tree says, because a per-customer Build nests deeper than one.
    */
   outlineLevel?: number;
-  /** In points. Flash's report titles are 16 and 14 (`generate*Sheet.js`). */
-  fontSize?: number;
-}
-
-/** A block of cells, 1-based and inclusive, as ExcelJS's `mergeCells` takes one. */
-export interface MisCellRange {
-  top: number;
-  left: number;
-  bottom: number;
-  right: number;
 }
 
 export interface MisWorkbookSheet {
@@ -125,8 +104,6 @@ export interface MisWorkbookSheet {
   name: string;
   columns: readonly { width: number }[];
   rows: readonly MisWorkbookRow[];
-  /** Cells shown as one — a title across the sheet. */
-  merges?: readonly MisCellRange[];
 }
 
 /** One workbook, as data. No ExcelJS, no DOM, nothing to mock. */
@@ -151,25 +128,15 @@ export async function writeMisWorkbook(spec: MisWorkbookSpec): Promise<ArrayBuff
 
     for (const row of sheet.rows) {
       const added = worksheet.addRow(row.cells.map((cell) => cell.value));
-      // Composed rather than assigned. `font` is one object in ExcelJS, so a
-      // bare `= { bold: true }` followed by `= { size: 16 }` would leave a
-      // title that is large and no longer bold.
+      // Composed rather than assigned: `font` is one object in ExcelJS, so a
+      // bare `= { bold: true }` would drop any other font setting a later field
+      // wanted beside it.
       if (row.bold) added.font = { ...added.font, bold: true };
-      if (row.fontSize) added.font = { ...added.font, size: row.fontSize };
       if (row.outlineLevel) added.outlineLevel = row.outlineLevel;
       row.cells.forEach((cell, index) => {
         // 1-based: ExcelJS counts columns from 1, as Excel does.
-        const written = added.getCell(index + 1);
-        if (cell.numFmt) written.numFmt = cell.numFmt;
-        if (cell.fill) {
-          written.fill = { type: "pattern", pattern: "solid", fgColor: { argb: cell.fill } };
-        }
+        if (cell.numFmt) added.getCell(index + 1).numFmt = cell.numFmt;
       });
-    }
-
-    // After the rows, so a merge never reaches over a cell not yet written.
-    for (const { top, left, bottom, right } of sheet.merges ?? []) {
-      worksheet.mergeCells(top, left, bottom, right);
     }
   }
 

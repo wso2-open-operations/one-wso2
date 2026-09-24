@@ -132,19 +132,21 @@ beforeEach(() => {
 
 describe("the Finance rail", () => {
   // §10.10
-  it("offers the ARR screens but not Flash to someone holding only the ARR privilege", () => {
+  it("offers the ARR screens to someone holding the ARR privilege, and no Flash Dashboard", () => {
     privileges.value = [987];
     showRail();
     expect(screen.getByText("ARR Build")).toBeInTheDocument();
     expect(screen.queryByText("Flash Dashboard")).not.toBeInTheDocument();
   });
 
-  // §10.11
-  it("offers Flash but not the ARR screens to someone holding only the Flash privilege", () => {
+  // ADR 0005: the Flash Dashboard stays in the MIS app, so its privilege has
+  // nothing to open here — not a Flash row, and not an empty MIS group either.
+  it("offers no MIS entry at all to someone holding only the Flash privilege", () => {
     privileges.value = [789];
-    showRail("/finance/mis/flash");
-    expect(screen.getByText("Flash Dashboard")).toBeInTheDocument();
+    showRail();
+    expect(screen.queryByText("Flash Dashboard")).not.toBeInTheDocument();
     expect(screen.queryByText("ARR Build")).not.toBeInTheDocument();
+    expect(screen.queryByText("MIS")).not.toBeInTheDocument();
   });
 
   // §10.12. The case the 987 collision makes dangerous: this person IS
@@ -154,7 +156,6 @@ describe("the Finance rail", () => {
     privileges.value = [];
     showRail();
     expect(screen.queryByText("ARR Build")).not.toBeInTheDocument();
-    expect(screen.queryByText("Flash Dashboard")).not.toBeInTheDocument();
     expect(screen.queryByText("MIS")).not.toBeInTheDocument();
   });
 
@@ -164,13 +165,13 @@ describe("the Finance rail", () => {
   // from the overview page. So the registry must not list a screen before its
   // route exists.
   it("offers no row that goes nowhere", () => {
-    privileges.value = [987, 789];
+    privileges.value = [987];
     showRail();
     // Every registered screen is routed now, so the rule this test guards has
-    // nothing left to hold back — what it asserts instead is that all five
+    // nothing left to hold back — what it asserts instead is that all four
     // rows are live. A screen added to the registry without a route would show
-    // up here as a sixth row that navigates nowhere.
-    for (const live of ["ARR Build", "QRR Build", "MRR Build", "ARR Analysis", "Flash Dashboard"]) {
+    // up here as a fifth row that navigates nowhere.
+    for (const live of ["ARR Build", "QRR Build", "MRR Build", "ARR Analysis"]) {
       expect(screen.getByText(live), `${live} is routed but not in the rail`).toBeInTheDocument();
     }
   });
@@ -180,20 +181,20 @@ describe("the Finance rail", () => {
   // gate — the routing suite's redirect could pass while the rail still
   // advertised a screen that bounces on click.
   it("drops the ARR Analysis row when the backend flag is off, and keeps the rest", () => {
-    privileges.value = [987, 789];
+    privileges.value = [987];
     analysisEnabled.value = false;
     showRail();
     expect(screen.queryByText("ARR Analysis")).not.toBeInTheDocument();
-    for (const live of ["ARR Build", "QRR Build", "MRR Build", "Flash Dashboard"]) {
+    for (const live of ["ARR Build", "QRR Build", "MRR Build"]) {
       expect(screen.getByText(live), `${live} was dropped by the ARR Analysis flag`).toBeInTheDocument();
     }
   });
 
   // The flag is not a second way in. It says the screen exists; the privilege
   // says who may read it.
-  it("does not let the flag alone put ARR Analysis in front of a Flash-only reader", () => {
+  it("does not let the flag alone put ARR Analysis in front of a reader without ARR", () => {
     privileges.value = [789];
-    showRail("/finance/mis/flash");
+    showRail();
     expect(screen.queryByText("ARR Analysis")).not.toBeInTheDocument();
   });
 });

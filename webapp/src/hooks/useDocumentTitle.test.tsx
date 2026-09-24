@@ -40,8 +40,8 @@ describe("a screen that names itself", () => {
     const { rerender } = renderHook(({ t }) => useDocumentTitle(t), {
       initialProps: { t: "ARR Build" },
     });
-    rerender({ t: "Flash Dashboard" });
-    expect(document.title).toBe("Flash Dashboard · One WSO2");
+    rerender({ t: "ARR Analysis" });
+    expect(document.title).toBe("ARR Analysis · One WSO2");
   });
 
   // Leaving the old name behind would put a stale screen's title above whatever

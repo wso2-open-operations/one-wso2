@@ -90,22 +90,21 @@ describe("the ARR privilege", () => {
   });
 });
 
+// The Flash Dashboard stays in the MIS app — ADR 0005 — so its privilege has
+// nothing to open here. It must not be read as "some MIS access" either: a
+// Flash-only reader told they hold MIS access "just not to this screen" would go
+// looking for a screen One WSO2 does not have.
 describe("the Flash privilege", () => {
-  it("opens the Flash Dashboard", () => {
-    state.privileges = [FLASH];
-    expect(gate().canSee("mis-flash")).toBe(true);
-  });
-
-  // Test checklist §10.11.
-  it("does not open the Build screens", () => {
+  it("opens no MIS screen here", () => {
     state.privileges = [FLASH];
     expect(gate().canSee("mis-arr-build")).toBe(false);
+    expect(gate().canSee("mis-flash")).toBe(false);
   });
 
-  it("is held alongside the ARR one by someone who has both", () => {
+  it("adds nothing to the ARR one for someone who holds both", () => {
     state.privileges = [ARR, FLASH];
     expect(gate().canSee("mis-arr-build")).toBe(true);
-    expect(gate().canSee("mis-flash")).toBe(true);
+    expect(gate().canSee("mis-flash")).toBe(false);
   });
 });
 
@@ -115,7 +114,7 @@ describe("the Flash privilege", () => {
 describe("someone holding neither privilege", () => {
   it("sees no MIS screen at all", () => {
     state.privileges = [];
-    for (const id of ["mis-arr-build", "mis-flash"]) {
+    for (const id of ["mis-arr-build", "mis-analysis"]) {
       expect(gate().canSee(id), `${id} is visible without a MIS privilege`).toBe(false);
     }
   });
@@ -125,7 +124,6 @@ describe("someone holding neither privilege", () => {
     // nothing about company revenue reporting.
     state.privileges = [993, 991, 999];
     expect(gate().canSee("mis-arr-build")).toBe(false);
-    expect(gate().canSee("mis-flash")).toBe(false);
   });
 });
 
@@ -151,7 +149,7 @@ describe("an id this gate has no mapping for", () => {
   // registry suite asserts that every item routes to this gate; this asserts
   // the gate actually has an answer for each of them.
   it("is not something any registered MIS screen quietly became", () => {
-    state.privileges = [ARR, FLASH];
+    state.privileges = [ARR];
     for (const id of MIS_ITEM_IDS) {
       expect(gate().canSee(id), `${id} is in the registry but unmapped in useMisGate`).toBe(true);
     }
@@ -186,12 +184,15 @@ describe("a failed authorization check", () => {
   });
 });
 
-describe("holding any MIS privilege at all", () => {
-  it("counts as authorized, whichever one it is", () => {
+describe("holding MIS access", () => {
+  it("means holding the ARR privilege", () => {
     state.privileges = [ARR];
     expect(gate().isAuthorized).toBe(true);
+  });
+
+  it("does not mean holding the Flash one alone", () => {
     state.privileges = [FLASH];
-    expect(gate().isAuthorized).toBe(true);
+    expect(gate().isAuthorized).toBe(false);
   });
 });
 
@@ -259,10 +260,10 @@ describe("ARR Analysis", () => {
 
   // The flag reaches this one screen and no other. A backend that turned ARR
   // Analysis off must not take the Builds down with it.
-  it("does not touch the Builds or the Flash Dashboard", () => {
-    state.privileges = [ARR, FLASH];
+  it("does not touch the Builds", () => {
+    state.privileges = [ARR];
     state.analysisEnabled = false;
-    for (const id of ["mis-arr-build", "mis-qrr-build", "mis-mrr-build", "mis-flash"]) {
+    for (const id of ["mis-arr-build", "mis-qrr-build", "mis-mrr-build"]) {
       expect(gate().canSee(id), `${id} was closed by the ARR Analysis flag`).toBe(true);
     }
   });

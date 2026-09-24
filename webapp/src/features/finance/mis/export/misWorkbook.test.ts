@@ -92,12 +92,11 @@ describe("the workbook that is written", () => {
   });
 
   it("writes a percentage in Excel's own percent format, which is not money's", () => {
-    // Ticket 18 split these, and this test is where ticket 11 said whoever did
-    // would have to decide what the sheet says instead. Until then a
-    // percentage went out as a bare "98.25" under money's format — the very
-    // "bare decimal" the ticket names — and Gross Margin, the one percentage on
-    // the Flash, was the one row of that workbook a reader could not read as
-    // what it is.
+    // Ticket 11 wrote these as a bare "98.25" under money's format, and pinned
+    // it here with a note that whoever split the two would have to decide what
+    // the sheet says instead. Ticket 18 split them: a percentage sitting in a
+    // column of money under money's format is a figure the reader has to be
+    // told the kind of.
     //
     // Excel's percent format multiplies by 100 on display, so the FIGURE is
     // what changes: `misBuildSheet` writes 98.25 as 0.9825, and the cell shows
@@ -105,62 +104,6 @@ describe("the workbook that is written", () => {
     // multiplies by it is right, where one over a 98.25 would be 100x out.
     expect(MIS_NUMBER_FORMATS.PERCENTAGE).toBe("0.00%");
     expect(MIS_NUMBER_FORMATS.PERCENTAGE).not.toBe(MIS_NUMBER_FORMATS.CURRENCY);
-  });
-});
-
-// Ticket 18. The three things Flash's bespoke workbook does that ticket 11's
-// types could not say — a larger title, merged title rows, filled headers —
-// each checked on the FILE, because a spec field the writer ignored would pass
-// any test over the spec.
-describe("the dressing Flash's workbook carries", () => {
-  const DRESSED: MisWorkbookSpec = {
-    sheets: [
-      {
-        name: "Annual Summary",
-        columns: [{ width: 37 }, { width: 19 }, { width: 19 }],
-        merges: [{ top: 1, left: 1, bottom: 1, right: 3 }],
-        rows: [
-          { cells: [{ value: "Finance MIS Flash Report" }], bold: true, fontSize: 16 },
-          {
-            bold: true,
-            cells: [
-              { value: "Line", fill: "FFBBDEFB" },
-              { value: "IAM", fill: "FFFFE0B2" },
-              { value: "WSO2" },
-            ],
-          },
-        ],
-      },
-    ],
-  };
-
-  it("sizes a title and keeps it bold", async () => {
-    const sheet = (await roundTrip(DRESSED)).getWorksheet("Annual Summary")!;
-    // Both, not one: `font` is ONE object in ExcelJS, so a size assigned after
-    // the bold would have replaced it.
-    expect(sheet.getCell("A1").font).toMatchObject({ bold: true, size: 16 });
-    expect(sheet.getCell("A2").font?.size).toBeUndefined();
-  });
-
-  it("merges a title across the sheet", async () => {
-    const sheet = (await roundTrip(DRESSED)).getWorksheet("Annual Summary")!;
-    expect(sheet.getCell("C1").isMerged).toBe(true);
-    expect(sheet.getCell("C1").master.address).toBe("A1");
-    // The row below is its own cells.
-    expect(sheet.getCell("B2").isMerged).toBe(false);
-  });
-
-  it("fills the header cells it is told to, and only those", async () => {
-    const sheet = (await roundTrip(DRESSED)).getWorksheet("Annual Summary")!;
-    expect(sheet.getCell("B2").fill).toMatchObject({
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFFFE0B2" },
-    });
-    // ExcelJS reads an unfilled cell back as `pattern: "none"`, where one never
-    // loaded has no fill at all; either says the same thing.
-    const unfilled = sheet.getCell("C2").fill as ExcelJS.FillPattern | undefined;
-    expect(unfilled?.pattern ?? "none").toBe("none");
   });
 });
 

@@ -471,8 +471,8 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
       // roles, not the coarse capability model — see useDueDiligenceGate and
       // its dispatch in SideRail.
       ...appsToSections(DUE_DILIGENCE_APPS),
-      // Finance MIS — company revenue reporting and the P&L flash, ported from
-      // digiops-finance/apps/mis. It sits under Finance rather than becoming a
+      // Finance MIS — company revenue reporting, ported from
+      // digiops-finance/apps/mis (its Flash Dashboard stays there: ADR 0005). It sits under Finance rather than becoming a
       // sixth perspective because the audience that would justify one —
       // leadership — has no home to split into yet; the vision doc's Leadership
       // view is unnamed and unbuilt. When it ships, surfacing ARR into it is

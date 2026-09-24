@@ -58,7 +58,6 @@ export const misPaths = {
   qrrBuild: `${MIS_PATH}/qrr-build`,
   mrrBuild: `${MIS_PATH}/mrr-build`,
   analysis: `${MIS_PATH}/analysis`,
-  flash: `${MIS_PATH}/flash`,
 } as const;
 
 /**
@@ -92,13 +91,11 @@ export const MIS_APPS: readonly MenuApp[] = [
     key: "mis",
     name: "MIS",
     icon: ChartNoAxesCombinedIcon,
-    purpose: "Company recurring revenue, how it moved over a period, and the monthly P&L flash.",
-    // Stay a group even while one privilege sees only one screen. Someone
-    // holding just the Flash privilege has exactly one MIS row, and someone
-    // holding just the ARR privilege has three or four depending on the ARR
-    // Analysis flag — so collapsing to a leaf for the first would teach a shape
-    // that changes under them the day their access widens. The case appMenu.ts
-    // names for this flag.
+    purpose: "Company recurring revenue, and how it moved over a period.",
+    // Stay a group: an ARR reader has three or four rows depending on the ARR
+    // Analysis flag, and a group that collapsed to a leaf for one of them would
+    // teach a shape that changes under them. The case appMenu.ts names for this
+    // flag. The Flash Dashboard is not here — it stays in the MIS app (ADR 0005).
     alwaysGroup: true,
     items: [
       {
@@ -134,13 +131,6 @@ export const MIS_APPS: readonly MenuApp[] = [
         desc: "Current ARR by partner model, region and industry, over an account-level table.",
         requires: ["admin"],
         path: misPaths.analysis,
-      },
-      {
-        id: "mis-flash",
-        label: "Flash Dashboard",
-        desc: "The monthly P&L flash: revenue, cost of sales, gross profit and margin.",
-        requires: ["admin"],
-        path: misPaths.flash,
       },
     ],
   },

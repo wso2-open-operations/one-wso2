@@ -56,16 +56,17 @@ const ITEM_PRIVILEGE: Record<string, number> = {
   "mis-qrr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
   "mis-mrr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
   [ANALYSIS_ITEM_ID]: MIS_PRIVILEGE.ARR_DASHBOARD,
-  "mis-flash": MIS_PRIVILEGE.FLASH_DASHBOARD,
 };
 
 export interface MisGate {
   // May this menu item be shown? Used by the rail and the pages alike, so a
   // visible item is always one whose screen the caller can actually open.
   canSee: (itemId: string) => boolean;
-  // Does the caller hold ANY MIS privilege. False for an authenticated WSO2
-  // employee who simply isn't in either MIS group — which is most of the
-  // company, so the screens say so plainly rather than rendering an empty rail.
+  // Does the caller hold the MIS privilege this app reads — the ARR one. False
+  // for an authenticated WSO2 employee who simply isn't in that group, which is
+  // most of the company, so the screens say so plainly rather than rendering an
+  // empty rail. False for a Flash-only holder too: the Flash Dashboard stays in
+  // the MIS app (ADR 0005), so their privilege opens nothing here.
   isAuthorized: boolean;
   // True while /user-info is in flight. Callers must hold off on rendering a
   // denial until this clears, or every cold load flashes one.
@@ -95,11 +96,9 @@ export function useMisGate(enabled = true): MisGate {
   // React Query dedupes this with the copy every MIS screen already asks for.
   const { analysisEnabled } = useMisAppConfigs(enabled);
 
-  // Independent, not nested. The backend pushes each number on its own group
-  // check, so holding one and not the other is the ordinary case: finance sees
-  // Flash, revenue leadership sees ARR, and few people see both.
+  // The backend answers with both of its numbers in one array; only the ARR one
+  // means anything here — see misTypes.ts.
   const hasArr = misHasPrivilege(userInfo.data, MIS_PRIVILEGE.ARR_DASHBOARD);
-  const hasFlash = misHasPrivilege(userInfo.data, MIS_PRIVILEGE.FLASH_DASHBOARD);
 
   const canSee = (itemId: string): boolean => {
     const required = ITEM_PRIVILEGE[itemId];
@@ -107,7 +106,6 @@ export function useMisGate(enabled = true): MisGate {
     // reader holds — and reaches this screen alone, never the Builds beside it.
     if (itemId === ANALYSIS_ITEM_ID) return hasArr && analysisEnabled;
     if (required === MIS_PRIVILEGE.ARR_DASHBOARD) return hasArr;
-    if (required === MIS_PRIVILEGE.FLASH_DASHBOARD) return hasFlash;
     // Unmapped: refused. A screen added to the registry without a line in
     // ITEM_PRIVILEGE is invisible rather than public.
     return false;
@@ -115,7 +113,7 @@ export function useMisGate(enabled = true): MisGate {
 
   return {
     canSee,
-    isAuthorized: hasArr || hasFlash,
+    isAuthorized: hasArr,
     // `isPending`, not `isLoading`: this query waits on the Asgardeo sub, and
     // during that window isLoading is already false. Callers reading it would
     // see a finished check with no privileges and flash a denial on every cold

@@ -31,24 +31,6 @@
 export interface BuildColumnGroup {
   key: string;
   label: string;
-  /**
-   * How wide this column is when the table has NO sub-columns — the Flash P&L,
-   * whose columns are business units with nothing underneath them.
-   *
-   * Ignored where there are sub-columns, because there the sub-columns are what
-   * occupies the group and a width here would be a second opinion about the
-   * same space. `FIGURE_COLUMN_WIDTH` when a group states none.
-   */
-  width?: number;
-  /**
-   * Opens whatever sits behind this whole COLUMN — the Flash's monthly detail,
-   * which the source also opens from its column headers.
-   *
-   * Per group, the same way `BuildCell.onActivate` is per cell and for the same
-   * reason: most columns have nothing behind them, and only the caller knows
-   * which do. Omitted, the header is plain text.
-   */
-  onActivate?: () => void;
 }
 
 /** A sub-column repeated under every Period — Amount, % of Opening. */
@@ -228,45 +210,19 @@ export function rowWindow({
 }
 
 /**
- * A figure column's width where nothing else says. The undivided case only —
- * every sub-column states its own.
- */
-export const FIGURE_COLUMN_WIDTH = 132;
-
-/**
  * How wide the table must be before the container starts scrolling.
  *
  * Stated explicitly because the alternative is two dozen numeric columns
  * sharing whatever width the page has, which at 12 Periods is illegible. The
  * columns keep their size and the horizontal scroll does the work.
- *
- * A group with no sub-columns is ONE column — see `undividedSubColumn`. So the
- * groups themselves are the parameter rather than a count of them: with nothing
- * underneath them, their own widths are the only thing left to add up.
  */
 export function tableMinWidth(
-  groups: readonly BuildColumnGroup[],
+  groupCount: number,
   subColumns: readonly BuildSubColumn[],
   leadWidth: number,
 ): number {
-  if (!subColumns.length) {
-    return groups.reduce((total, group) => total + (group.width ?? FIGURE_COLUMN_WIDTH), leadWidth);
-  }
   const groupWidth = subColumns.reduce((total, column) => total + column.width, 0);
-  return leadWidth + groups.length * groupWidth;
-}
-
-/**
- * The sub-column a table that has none hands its `cell` function.
- *
- * With no sub-division the column IS the group, so the group stands in for it.
- * That keeps `BuildCellFor`'s third argument a `BuildSubColumn` at every call
- * site rather than an optional one every Build screen would have to narrow —
- * four of them read `subColumn.key`, and none of them has a sub-column that can
- * be absent.
- */
-export function undividedSubColumn(group: BuildColumnGroup): BuildSubColumn {
-  return { key: group.key, label: group.label, width: group.width ?? FIGURE_COLUMN_WIDTH };
+  return leadWidth + groupCount * groupWidth;
 }
 
 /** A column of row identity, left of the figures. */
