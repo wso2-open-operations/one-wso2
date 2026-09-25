@@ -144,6 +144,10 @@ export const bankingServiceUrls = {
   // accounts. Backend allows self-lookup for non-admin callers.
   employeeAccounts: (workEmail: string) =>
     `${bankingBackendUrl}/employee/accounts?employeeWorkEmail=${encodeURIComponent(workEmail)}`,
+  // GET /employee-privileges — what the caller may do (employee / People Ops
+  // admin / Finance admin), decided by the backend from the same roles it
+  // enforces, so the frontend keeps no role names of its own.
+  employeePrivileges: `${bankingBackendUrl}/employee-privileges`,
   // GET /employee-info?employeeWorkEmail=<email> — the caller's own HR
   // record as the banking backend sees it (its `location` is what the
   // Reimbursement gate and Bank Location options key on). Backend answers

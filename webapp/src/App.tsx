@@ -59,6 +59,7 @@ const ParAdminHistoryTab = lazy(() => import("@features/par/pages/ParAdminHistor
 const ParAdminGlobalConfigTab = lazy(() => import("@features/par/pages/ParAdminGlobalConfigTab"));
 import EmailGroupsPage from "@features/my/email-groups/pages/EmailGroupsPage";
 import EmailSignaturePage from "@features/my/email-signature/pages/EmailSignaturePage";
+import BankingRoute from "@features/my/banking/components/BankingRoute";
 import BankingPage, { BankingIndex } from "@features/my/banking/pages/BankingPage";
 import MyAccountsTab from "@features/my/banking/pages/MyAccountsTab";
 import SummaryTab from "@features/my/banking/pages/SummaryTab";
@@ -768,7 +769,14 @@ export default function App() {
               fit in one. Tabbed like Claim Approval, so a later
               admin-facing tab is a new route here, not a reshape of
               BankingPage. */}
-          <Route path="me/banking" element={<BankingPage />}>
+          <Route
+            path="me/banking"
+            element={
+              <BankingRoute>
+                <BankingPage />
+              </BankingRoute>
+            }
+          >
             <Route index element={<BankingIndex />} />
             <Route path="my-accounts" element={<MyAccountsTab />} />
             <Route path="summary" element={<SummaryTab />} />

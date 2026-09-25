@@ -174,6 +174,14 @@ export interface BankingEmployeeInfo {
   location: string;
 }
 
+// GET /employee-privileges on the banking backend — what the caller may do,
+// decided server-side by the same roles the backend enforces.
+export interface BankingPrivileges {
+  isEmployee: boolean;
+  isPeopleOperationsAdmin: boolean;
+  isFinanceAdmin: boolean;
+}
+
 // One `customLocationMap` entry: for an employee whose work location is
 // `location`, the Consultancy Bank Location dropdown offers `customMap`.
 export interface CustomLocationMapEntry {

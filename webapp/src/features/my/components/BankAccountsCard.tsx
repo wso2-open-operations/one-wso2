@@ -22,6 +22,7 @@ import DetailRow from "@components/detail-row/DetailRow";
 import Pager from "@features/people-ops/components/Pager";
 import { ACCOUNT_TYPE_LABEL } from "../api/derive";
 import type { BankAccount } from "../api/types";
+import { useBankingAccess } from "../api/useBankingAccess";
 import {
   isBankingBackendConfigured,
   useBankAccounts,
@@ -36,6 +37,9 @@ const PAGE_SIZE = 2;
 export default function BankAccountsCard({ ownerEmail }: { ownerEmail?: string }) {
   const configured = isBankingBackendConfigured();
   const query = useBankAccounts(ownerEmail);
+  // The Banking page is closed to anyone outside the banking group, so its
+  // entry point here goes with it.
+  const bankingAccess = useBankingAccess();
   const [page, setPage] = useState(0);
 
   // Show ACTIVE accounts only — INACTIVE are historical, REQUESTED /
@@ -75,9 +79,11 @@ export default function BankAccountsCard({ ownerEmail }: { ownerEmail?: string }
             onNext={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
           />
         )}
-        <Button size="small" component={RouterLink} to="/me/banking">
-          Edit
-        </Button>
+        {bankingAccess.canSee && (
+          <Button size="small" component={RouterLink} to="/me/banking">
+            Edit
+          </Button>
+        )}
       </Stack>
 
       {!configured ? (
