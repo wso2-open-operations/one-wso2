@@ -225,6 +225,8 @@ export interface CreateBankAccountRequestPayload {
   branchName: string;
   branchCode: string;
   effectiveFrom: string;
+  /** Required by the backend's request record (note the plural); Consultancy also builds the vendor address from it. */
+  accountHoldersCountry: string;
 }
 
 export interface CreateBankAccountRequestResponse {

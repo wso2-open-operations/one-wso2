@@ -172,12 +172,22 @@ describe("buildCreateBankAccountRequestPayload", () => {
       branchName: "Head Office",
       branchCode: "001",
       effectiveFrom: "2026-09-25",
+      accountHoldersCountry: "Sri Lanka",
     });
   });
 
-  it("never sends accountHolderCountry — it's a UI-only field that only drives the Bank Location default, not part of the backend contract", () => {
-    const payload = buildCreateBankAccountRequestPayload(values(), "SALARY", "person@wso2.com");
-    expect(payload).not.toHaveProperty("accountHolderCountry");
+  it("sends the account holder's country under the backend's own key, for every account type", () => {
+    // The backend's request record requires `accountHoldersCountry` (note the
+    // plural) and, for Consultancy, uses it to build the vendor's address.
+    for (const type of ["SALARY", "CONSULTANCY", "REIMBURSEMENT"] as const) {
+      const payload = buildCreateBankAccountRequestPayload(
+        values({ accountHolderCountry: "Maldives" }),
+        type,
+        "person@wso2.com",
+      );
+      expect(payload.accountHoldersCountry).toBe("Maldives");
+      expect(payload).not.toHaveProperty("accountHolderCountry");
+    }
   });
 
   it("sends empty branch name/code for CONSULTANCY, never the source app's own placeholders", () => {

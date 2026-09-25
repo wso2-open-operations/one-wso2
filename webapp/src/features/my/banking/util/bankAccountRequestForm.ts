@@ -144,5 +144,6 @@ export function buildCreateBankAccountRequestPayload(
     branchName: accountType === "CONSULTANCY" ? "" : values.branchName,
     branchCode: accountType === "CONSULTANCY" ? "" : values.branchCode,
     effectiveFrom: todayIsoDate(),
+    accountHoldersCountry: values.accountHolderCountry,
   };
 }

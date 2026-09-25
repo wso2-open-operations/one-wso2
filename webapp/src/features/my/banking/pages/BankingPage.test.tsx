@@ -679,9 +679,9 @@ describe("Edit/Add popup", () => {
         branchCode: "001",
       }),
     );
-    // accountHolderCountry is UI-only — never part of the submitted payload.
+    // The backend's request record requires the account holder's country.
     expect(mutateAsyncMock).toHaveBeenCalledWith(
-      expect.not.objectContaining({ accountHolderCountry: expect.anything() }),
+      expect.objectContaining({ accountHoldersCountry: "Sri Lanka" }),
     );
     expect(await screen.findByText(/request/i)).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
