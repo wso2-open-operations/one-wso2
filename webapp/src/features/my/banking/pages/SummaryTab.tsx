@@ -28,14 +28,14 @@ import {
   TablePagination,
   TableRow,
   TableSortLabel,
-  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useAsgardeoUser } from "@hooks/useAsgardeoUser";
-import { isBankingBackendConfigured, useBankAccounts } from "../../api/useBankAccounts";
-import { display, formatDate } from "../../api/derive";
-import type { AccountStatus, AccountType, BankAccount } from "../../api/types";
+import { isBankingBackendConfigured, useBankAccounts } from "@features/my/api/useBankAccounts";
+import { display, formatDate } from "@features/my/api/derive";
+import type { AccountStatus, AccountType, BankAccount } from "@features/my/api/types";
+import BankingNotConfigured from "../components/BankingNotConfigured";
 
 type ChipColor = "default" | "success" | "warning" | "error";
 
@@ -83,20 +83,13 @@ const compareText = new Intl.Collator(undefined, { numeric: true, sensitivity: "
 export default function SummaryTab() {
   const asgardeoUser = useAsgardeoUser();
   const ownerEmail = asgardeoUser.email;
-  const accounts = useBankAccounts(ownerEmail);
+  // Refetched every time the tab is opened, as the source app does.
+  const accounts = useBankAccounts(ownerEmail, { refetchWhenOpened: true });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(ROWS_PER_PAGE_OPTIONS[0]);
   const [sort, setSort] = useState<SortState>(null);
 
-  if (!isBankingBackendConfigured()) {
-    return (
-      <Tooltip title="Set ONE_WSO2_BANKING_BACKEND_URL to enable this." placement="top">
-        <Typography sx={{ color: "text.disabled", fontStyle: "italic", cursor: "help" }}>
-          Not configured
-        </Typography>
-      </Tooltip>
-    );
-  }
+  if (!isBankingBackendConfigured()) return <BankingNotConfigured />;
 
   if (!asgardeoUser.ready || accounts.isLoading) {
     return <Skeleton variant="rectangular" height={280} sx={{ borderRadius: 1.5 }} />;

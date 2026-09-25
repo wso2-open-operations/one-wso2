@@ -14,15 +14,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type { AccountType } from "../../api/types";
-import type { CreateBankAccountRequestPayload } from "../../api/types";
+import type { AccountType } from "@features/my/api/types";
+import type { CreateBankAccountRequestPayload } from "@features/my/api/types";
 
 export interface BankAccountFormValues {
   accountName: string;
   beneficiaryAddress: string;
-  // UI-only — drives the Bank Location step's default, never sent to the
-  // backend (the source app's own request body has no country field
-  // either, only bankLocation).
+  // Sent to the backend as `accountHoldersCountry` (note the plural): its
+  // request record requires it, and for Consultancy it also builds the
+  // vendor's address. The dialog's own Bank Location default does not depend
+  // on it.
   accountHolderCountry: string;
   accountNumber: string;
   bankLocation: string;
@@ -59,7 +60,9 @@ export function banksLocationKey(location: string): string {
 export function validateAccountHolder(values: BankAccountFormValues): BankAccountFormErrors {
   const errors: BankAccountFormErrors = {};
 
-  if (!values.accountName.trim()) {
+  // "Required" means non-empty, exactly as the source's schema has it — a
+  // value that is only spaces gets through, and is not trimmed here.
+  if (!values.accountName) {
     errors.accountName = "Account Holder's Name is required";
   }
 
@@ -70,10 +73,10 @@ export function validateAccountHolder(values: BankAccountFormValues): BankAccoun
   }
 
   if (!values.accountHolderCountry) {
-    errors.accountHolderCountry = "Select a country to continue";
+    errors.accountHolderCountry = "Please select a country from the list";
   }
 
-  if (!values.accountNumber.trim()) {
+  if (!values.accountNumber) {
     errors.accountNumber = "Account No is required";
   } else if (values.accountNumber.length > 34) {
     errors.accountNumber = "Account Number must be at most 34 characters";
@@ -90,11 +93,20 @@ export function validateBankInfo(
   const errors: BankAccountFormErrors = {};
 
   if (!values.bankLocation) {
-    errors.bankLocation = "Select a bank location to continue";
+    errors.bankLocation = "Bank Location is required";
   }
 
   if (!values.bankName) {
-    errors.bankName = "Select a bank to continue";
+    errors.bankName = "Bank Name is required";
+  }
+
+  // Filled in by picking a bank, but the source's schema checks them too.
+  if (!values.bankSwiftCode) {
+    errors.bankSwiftCode = "Swift Code is required";
+  }
+
+  if (!values.bankCode) {
+    errors.bankCode = "Bank Code is required";
   }
 
   if (!values.bankAddress) {
@@ -107,8 +119,8 @@ export function validateBankInfo(
   // source app's Yup schema, which only requires these two for the other
   // Account Types.
   if (accountType !== "CONSULTANCY") {
-    if (!values.branchName.trim()) errors.branchName = "Branch Name is required";
-    if (!values.branchCode.trim()) errors.branchCode = "Branch Code is required";
+    if (!values.branchName) errors.branchName = "Branch Name is required";
+    if (!values.branchCode) errors.branchCode = "Branch Code is required";
   }
 
   return errors;

@@ -41,6 +41,14 @@ function values(overrides: Partial<BankAccountFormValues> = {}): BankAccountForm
 }
 
 describe("validateAccountHolder", () => {
+  // The source's Yup `required()` rejects only an empty string, so a value that
+  // is nothing but spaces gets through. Matched exactly, not "improved".
+  it("does not trim: spaces-only name and account number pass, like the source", () => {
+    const errors = validateAccountHolder(values({ accountName: "   ", accountNumber: "   " }));
+    expect(errors.accountName).toBeUndefined();
+    expect(errors.accountNumber).toBeUndefined();
+  });
+
   it("requires the account holder's name", () => {
     expect(validateAccountHolder(values({ accountName: "" })).accountName).toBe(
       "Account Holder's Name is required",
@@ -81,7 +89,7 @@ describe("validateAccountHolder", () => {
 
   it("requires the account holder's country", () => {
     expect(validateAccountHolder(values({ accountHolderCountry: "" })).accountHolderCountry).toBe(
-      "Select a country to continue",
+      "Please select a country from the list",
     );
   });
 
@@ -103,15 +111,27 @@ describe("validateAccountHolder", () => {
 });
 
 describe("validateBankInfo", () => {
+  it("does not trim: spaces-only branch name and code pass for SALARY, like the source", () => {
+    const errors = validateBankInfo(values({ branchName: "   ", branchCode: "   " }), "SALARY");
+    expect(errors.branchName).toBeUndefined();
+    expect(errors.branchCode).toBeUndefined();
+  });
+
+  it("requires the swift code and bank code too, as the source's schema does", () => {
+    const errors = validateBankInfo(values({ bankSwiftCode: "", bankCode: "" }), "SALARY");
+    expect(errors.bankSwiftCode).toBe("Swift Code is required");
+    expect(errors.bankCode).toBe("Bank Code is required");
+  });
+
   it("requires a bank location to have been selected", () => {
     expect(validateBankInfo(values({ bankLocation: "" }), "SALARY").bankLocation).toBe(
-      "Select a bank location to continue",
+      "Bank Location is required",
     );
   });
 
   it("requires a bank to have been selected", () => {
     expect(validateBankInfo(values({ bankName: "" }), "SALARY").bankName).toBe(
-      "Select a bank to continue",
+      "Bank Name is required",
     );
   });
 

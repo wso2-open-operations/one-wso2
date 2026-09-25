@@ -169,8 +169,6 @@ export interface BankAccountsResponse {
 // reads from it: the employee's HR location (drives the Reimbursement gate
 // and the Bank Location options).
 export interface BankingEmployeeInfo {
-  employeeId: string;
-  workEmail: string;
   location: string;
 }
 

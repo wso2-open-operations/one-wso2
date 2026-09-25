@@ -16,8 +16,8 @@
 
 import { Box, Card, IconButton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { EditIcon } from "@wso2/oxygen-ui-icons-react";
-import { ACCOUNT_TYPE_LABEL, display } from "../../api/derive";
-import type { AccountType, BankAccount } from "../../api/types";
+import { ACCOUNT_TYPE_LABEL, display } from "@features/my/api/derive";
+import type { AccountType, BankAccount } from "@features/my/api/types";
 
 // One field row's label + the BankAccount key it reads. Mirrors
 // digiops-hr's own per-Account-Type field configuration (bankAccount.tsx) —

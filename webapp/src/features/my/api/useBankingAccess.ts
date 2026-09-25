@@ -33,8 +33,11 @@ import { useBankingPrivileges } from "./useBankingPrivileges";
 // Two deliberate non-gating cases, both because hiding the page is the worse
 // mistake when the answer is simply unavailable:
 //  - no banking backend configured: the page itself says "not configured";
-//  - a 404 from the backend: it predates the endpoint, so there is nothing to
-//    gate on yet and a rollout order must not hide the page.
+//  - the backend has no such route yet (a 404, or — because a gateway answers
+//    an unknown route without CORS headers — a request that fails with no
+//    HTTP status at all): there is nothing to gate on yet, and a rollout
+//    order must not hide the page. A 5xx from a backend that does have the
+//    route is a real failure and shows a retry.
 export interface BankingAccess {
   /** May this caller see the Banking entry and page? Fails closed while resolving. */
   canSee: boolean;
@@ -64,7 +67,10 @@ export function useBankingAccess(enabled = true): BankingAccess {
     const status = privileges.error instanceof HttpError ? privileges.error.status : undefined;
     // The backend turns away a caller who holds no banking role at all.
     if (status === 403) return { canSee: false, isResolving: false, isError: false, retry };
-    if (status === 404) return { canSee: true, isResolving: false, isError: false, retry };
+    // No route to ask yet: no HTTP status at all, or a plain 404.
+    if (status === undefined || status === 404) {
+      return { canSee: true, isResolving: false, isError: false, retry };
+    }
     return {
       canSee: false,
       isResolving: false,

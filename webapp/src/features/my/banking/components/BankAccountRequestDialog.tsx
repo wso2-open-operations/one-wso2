@@ -32,14 +32,14 @@ import {
 } from "@wso2/oxygen-ui";
 import { describeError } from "@api/errors";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { ACCOUNT_TYPE_LABEL } from "../../api/derive";
-import { useBanks } from "../../api/useBanks";
-import { useCreateBankAccountRequest } from "../../api/useCreateBankAccountRequest";
+import { ACCOUNT_TYPE_LABEL } from "@features/my/api/derive";
+import { useBanks } from "@features/my/api/useBanks";
+import { useCreateBankAccountRequest } from "@features/my/api/useCreateBankAccountRequest";
 import {
   consultancyAllowedLocations,
   initialConsultancyBankLocation,
-} from "../../api/bankingRules";
-import type { AccountType, Bank, CustomLocationMapEntry } from "../../api/types";
+} from "@features/my/api/bankingRules";
+import type { AccountType, Bank, CustomLocationMapEntry } from "@features/my/api/types";
 import {
   banksLocationKey,
   buildCreateBankAccountRequestPayload,
@@ -131,7 +131,9 @@ export default function BankAccountRequestDialog({
     if (isConsultancy) return consultancyLocations;
     const set = new Set((banksQuery.data?.banks ?? []).map((b) => b.bankLocation));
     if (employeeWorkLocation) set.add(employeeWorkLocation);
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    // Backend order, then the employee's own location — not sorted, as in
+    // the source app.
+    return Array.from(set);
   }, [isConsultancy, consultancyLocations, banksQuery.data, employeeWorkLocation]);
 
   // The employee's own work location is missing from the Bank Location
@@ -297,12 +299,19 @@ export default function BankAccountRequestDialog({
                   <TextField
                     {...p}
                     label="Bank Name and Swift Code"
-                    error={Boolean(errors.bankName)}
-                    helperText={errors.bankName}
+                    error={Boolean(errors.bankName || errors.bankSwiftCode)}
+                    helperText={errors.bankName ?? errors.bankSwiftCode}
                   />
                 )}
               />
-              <TextField label="Bank Code" value={values.bankCode} fullWidth slotProps={{ input: { readOnly: true } }} />
+              <TextField
+                label="Bank Code"
+                value={values.bankCode}
+                error={Boolean(errors.bankCode)}
+                helperText={errors.bankCode}
+                fullWidth
+                slotProps={{ input: { readOnly: true } }}
+              />
               <TextField
                 label="Bank Address"
                 value={values.bankAddress}

@@ -27,7 +27,7 @@ const access = vi.hoisted(() => ({
     retry: () => void;
   },
 }));
-vi.mock("../../api/useBankingAccess", () => ({ useBankingAccess: () => access.value }));
+vi.mock("@features/my/api/useBankingAccess", () => ({ useBankingAccess: () => access.value }));
 
 import BankingRoute from "./BankingRoute";
 
@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 describe("BankingRoute", () => {
-  it("renders the page for a member of the banking group", () => {
+  it("renders the page for a caller the backend counts as an employee", () => {
     renderGuarded();
     expect(screen.getByText("the banking page")).toBeInTheDocument();
     expect(screen.getByTestId("url")).toHaveTextContent("/me/banking");
@@ -73,7 +73,7 @@ describe("BankingRoute", () => {
     expect(screen.getByTestId("url")).toHaveTextContent("/me");
   });
 
-  it("waits, rather than redirecting, while the token is still being read", () => {
+  it("waits, rather than redirecting, while the backend has not answered yet", () => {
     access.value = { ...access.value, canSee: false, isResolving: true };
     renderGuarded();
     expect(screen.queryByText("the banking page")).not.toBeInTheDocument();

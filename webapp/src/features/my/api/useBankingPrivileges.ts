@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
 import { authedGet, defaultQueryRetry } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
+import { useAsgardeoUser } from "@hooks/useAsgardeoUser";
 import { bankingBackendUrl, bankingServiceUrls } from "@config/apiConfig";
 import type { BankingPrivileges } from "./types";
 
@@ -34,10 +35,14 @@ import type { BankingPrivileges } from "./types";
 export function useBankingPrivileges(enabled = true) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
+  // The answer is about one person, so it is keyed by them: nothing cached for
+  // someone else can be served, whatever happens to the cache around a
+  // sign-in swap. Held until the token has been read so the key is settled.
+  const { ready, sub } = useAsgardeoUser();
   const backendConfigured = Boolean(bankingBackendUrl);
   return useQuery<BankingPrivileges>({
-    queryKey: ["banking-privileges"],
-    enabled: enabled && isSignedIn && backendConfigured,
+    queryKey: ["banking-privileges", sub ?? null],
+    enabled: enabled && isSignedIn && backendConfigured && ready,
     queryFn: async () => {
       const accessToken = await getAccessToken();
       return authedGet<BankingPrivileges>(bankingServiceUrls.employeePrivileges, accessToken);

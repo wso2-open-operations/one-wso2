@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 import { BANKING_ITEM_IDS, ME_APPS } from "./meApps";
 
 describe("BANKING_ITEM_IDS", () => {
-  it("covers every item of the Banking app, so the rail gates each of them on the banking group", () => {
+  it("covers every item of the Banking app, so the rail gates each of them on the banking gate", () => {
     const bankingItems = ME_APPS.find((app) => app.key === "banking")?.items ?? [];
     expect(bankingItems.length).toBeGreaterThan(0);
     expect([...BANKING_ITEM_IDS].sort()).toEqual(bankingItems.map((it) => it.id).sort());

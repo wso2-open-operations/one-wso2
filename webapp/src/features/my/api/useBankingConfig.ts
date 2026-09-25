@@ -24,9 +24,10 @@ import type { BankingAppConfig } from "./types";
 // GET /app-config on the banking backend — the Threshold, Reimbursement
 // Eligibility, and Consultancy Restriction values every Banking panel gates
 // on. Deployment configuration rather than per-employee state, so it's
-// cached generously; still per-user-keyed so a cached answer never outlives
-// a sign-out. Same shape as useBankAccounts — no useAsgardeoSub/
-// foldIdentityError here, matching that hook's simpler pattern.
+// cached generously. The whole query cache is cleared on sign-out, so a
+// cached answer never outlives the person it was fetched for. Same shape as
+// useBankAccounts — no useAsgardeoSub/foldIdentityError here, matching that
+// hook's simpler pattern.
 export function useBankingConfig() {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();

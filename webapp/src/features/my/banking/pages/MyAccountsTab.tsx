@@ -15,17 +15,21 @@
 // under the License.
 
 import { useState } from "react";
-import { Alert, Box, Skeleton, Snackbar, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Alert, Box, Skeleton, Snackbar } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useAsgardeoUser } from "@hooks/useAsgardeoUser";
-import { useBankingEmployee } from "../../api/useBankingEmployee";
-import { isBankingBackendConfigured, useBankAccounts } from "../../api/useBankAccounts";
-import { useBankingConfig } from "../../api/useBankingConfig";
-import { useBankingGate } from "../../api/useBankingGate";
-import { formatOrdinal, isPastThreshold, isReimbursementEligible } from "../../api/bankingRules";
-import type { AccountType } from "../../api/types";
+import { useBankingEmployee } from "@features/my/api/useBankingEmployee";
+import { isBankingBackendConfigured, useBankAccounts } from "@features/my/api/useBankAccounts";
+import { useBankingConfig } from "@features/my/api/useBankingConfig";
+import { useBankingGate } from "@features/my/api/useBankingGate";
+import { formatOrdinal, isPastThreshold, isReimbursementEligible } from "@features/my/api/bankingRules";
+import type { AccountType } from "@features/my/api/types";
+import BankingNotConfigured from "../components/BankingNotConfigured";
 import BankAccountPanel from "../components/BankAccountPanel";
 import BankAccountRequestDialog from "../components/BankAccountRequestDialog";
+
+// Left to right, as the source app lays its panels out.
+const PANEL_TYPES: readonly AccountType[] = ["SALARY", "CONSULTANCY", "REIMBURSEMENT"];
 
 // The first of BankingPage's tabs — ported from digiops-hr's banking
 // webapp "Change Bank Account" tab. Three Account Types, each with its own
@@ -41,7 +45,8 @@ export default function MyAccountsTab() {
   const asgardeoUser = useAsgardeoUser();
   const ownerEmail = asgardeoUser.email;
   const employee = useBankingEmployee(ownerEmail);
-  const accounts = useBankAccounts(ownerEmail);
+  // Refetched every time the tab is opened, as the source app does.
+  const accounts = useBankAccounts(ownerEmail, { refetchWhenOpened: true });
   const config = useBankingConfig();
   const gate = useBankingGate();
   const configured = isBankingBackendConfigured();
@@ -51,24 +56,19 @@ export default function MyAccountsTab() {
   );
 
   function handleSubmitted() {
+    // Still set here: the dialog reports success before anything clears it.
+    const submittedType = editingType;
     setEditingType(null);
     void accounts.refetch();
+    // The source app's own wording, naming the Account Type in lower case.
     setSnack({
       open: true,
       severity: "success",
-      message: "Your bank account change request has been submitted.",
+      message: `Successfully requested the ${submittedType?.toLowerCase()} bank account change!`,
     });
   }
 
-  if (!configured) {
-    return (
-      <Tooltip title="Set ONE_WSO2_BANKING_BACKEND_URL to enable this." placement="top">
-        <Typography sx={{ color: "text.disabled", fontStyle: "italic", cursor: "help" }}>
-          Not configured
-        </Typography>
-      </Tooltip>
-    );
-  }
+  if (!configured) return <BankingNotConfigured />;
 
   if (!asgardeoUser.ready || employee.isLoading || accounts.isLoading) {
     return <PanelsSkeleton />;
@@ -97,8 +97,13 @@ export default function MyAccountsTab() {
   const workLocation = employee.data?.location;
   const today = new Date();
 
+  // The last ACTIVE row of a type wins, because the source app assigns each
+  // ACTIVE row in turn as it walks the list. (Only matters if a type ever
+  // has two Active rows.)
   const activeAccountOf = (type: AccountType) =>
-    accounts.data?.bankAccounts.find((a) => a.accountType === type && a.accountStatus === "ACTIVE");
+    [...(accounts.data?.bankAccounts ?? [])]
+      .reverse()
+      .find((a) => a.accountType === type && a.accountStatus === "ACTIVE");
 
   // The Salary/Consultancy day-of-month cutoff and the Reimbursement
   // location allow-list both read the app-config directly; Consultancy's
@@ -127,6 +132,7 @@ export default function MyAccountsTab() {
   // resolved yet or failed) — Edit itself is what fails closed, via
   // disabledReasonFor above.
   const showConsultancy = gate.isResolving || gate.isError || !gate.isConsultancyRestricted;
+  const panelTypes = PANEL_TYPES.filter((type) => type !== "CONSULTANCY" || showConsultancy);
 
   return (
     <Box>
@@ -143,30 +149,19 @@ export default function MyAccountsTab() {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: `repeat(${showConsultancy ? 3 : 2}, 1fr)` },
+          gridTemplateColumns: { xs: "1fr", md: `repeat(${panelTypes.length}, 1fr)` },
           gap: 1.75,
         }}
       >
-        <BankAccountPanel
-          accountType="SALARY"
-          account={activeAccountOf("SALARY")}
-          disabledReason={disabledReasonFor("SALARY")}
-          onEdit={() => setEditingType("SALARY")}
-        />
-        {showConsultancy && (
+        {panelTypes.map((type) => (
           <BankAccountPanel
-            accountType="CONSULTANCY"
-            account={activeAccountOf("CONSULTANCY")}
-            disabledReason={disabledReasonFor("CONSULTANCY")}
-            onEdit={() => setEditingType("CONSULTANCY")}
+            key={type}
+            accountType={type}
+            account={activeAccountOf(type)}
+            disabledReason={disabledReasonFor(type)}
+            onEdit={() => setEditingType(type)}
           />
-        )}
-        <BankAccountPanel
-          accountType="REIMBURSEMENT"
-          account={activeAccountOf("REIMBURSEMENT")}
-          disabledReason={disabledReasonFor("REIMBURSEMENT")}
-          onEdit={() => setEditingType("REIMBURSEMENT")}
-        />
+        ))}
       </Box>
       {config.data && (
         <Alert severity="warning" sx={{ mt: 1.75 }}>

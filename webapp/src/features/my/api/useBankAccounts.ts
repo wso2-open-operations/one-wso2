@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
 import { authedGet, defaultQueryRetry } from "@api/http";
@@ -25,13 +26,26 @@ import type { BankAccountsResponse } from "./types";
 // Backend authorization allows self-lookup for non-admin callers, so no
 // extra guard needed here. Unlike par/promotion apps, this backend does
 // NOT require x-user-timezone-offset.
-export function useBankAccounts(workEmail: string | undefined) {
+//
+// The app-wide query client never refetches on mount, so a screen that must
+// show current data whenever it is opened — the Banking tabs, as in the
+// source app — asks for `refetchWhenOpened`. That is done here rather than
+// with React Query's `refetchOnMount: "always"`, because that only looks at
+// the moment of mounting, and a freshly opened tab has not yet read the
+// caller's email out of the sign-in token: the query is still disabled then,
+// and once it is enabled the cached list still counts as fresh. Left out, the
+// caller keeps the global behaviour (the overview card reads the cached list).
+export function useBankAccounts(
+  workEmail: string | undefined,
+  options?: { refetchWhenOpened?: boolean },
+) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const backendConfigured = Boolean(bankingBackendUrl);
-  return useQuery<BankAccountsResponse>({
+  const enabled = isSignedIn && backendConfigured && Boolean(workEmail);
+  const query = useQuery<BankAccountsResponse>({
     queryKey: ["bank-accounts", workEmail],
-    enabled: isSignedIn && backendConfigured && Boolean(workEmail),
+    enabled,
     queryFn: async () => {
       const accessToken = await getAccessToken();
       return authedGet<BankAccountsResponse>(
@@ -42,6 +56,20 @@ export function useBankAccounts(workEmail: string | undefined) {
     staleTime: 5 * 60 * 1000,
     retry: defaultQueryRetry,
   });
+
+  // Once per opening, as soon as the query can run. Not cancelling an
+  // in-flight fetch means a cold open — where enabling the query has just
+  // started one — makes a single request, not two.
+  const refetchWhenOpened = Boolean(options?.refetchWhenOpened);
+  const refetch = query.refetch;
+  const alreadyRefetched = useRef(false);
+  useEffect(() => {
+    if (!refetchWhenOpened || !enabled || alreadyRefetched.current) return;
+    alreadyRefetched.current = true;
+    void refetch({ cancelRefetch: false });
+  }, [refetchWhenOpened, enabled, refetch]);
+
+  return query;
 }
 
 export function isBankingBackendConfigured(): boolean {

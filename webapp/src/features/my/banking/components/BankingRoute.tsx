@@ -18,16 +18,16 @@ import type { JSX, ReactNode } from "react";
 import { Box } from "@wso2/oxygen-ui";
 import { Navigate } from "react-router";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { useBankingAccess } from "../../api/useBankingAccess";
+import { useBankingAccess } from "@features/my/api/useBankingAccess";
 
 /**
- * Closes the Banking routes to anyone outside the banking employee group.
+ * Closes the Banking routes to callers the banking backend does not count as employees.
  *
  * The rail entry is hidden for them, but a hidden entry alone leaves the URL
  * working; this is the route half. Same shape as SriLankaRoute: wait rather
- * than refuse while the token is still being read (an unresolved gate reads as
- * "not a member", and redirecting on that would bounce a real employee off the
- * page on every cold load), and treat a failed read as a failure with a retry,
+ * than refuse while the backend has not answered yet (an unresolved gate reads
+ * as "not an employee", and redirecting on that would bounce a real employee
+ * off the page on every cold load), and treat a failed read as a failure with a retry,
  * not as a refusal.
  */
 export default function BankingRoute({ children }: { children: ReactNode }): JSX.Element | null {

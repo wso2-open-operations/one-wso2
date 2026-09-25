@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import type { Bank, BankAccount, BankingAppConfig } from "../../api/types";
+import type { Bank, BankAccount, BankingAppConfig } from "@features/my/api/types";
 
 // BankingPage uses the real bankingRules.ts (deliberately not mocked — the
 // gating decisions are part of what this page test covers), which pulls in
@@ -77,33 +77,33 @@ vi.mock("@hooks/useAsgardeoUser", () => ({
 }));
 
 const useBankingEmployeeMock = vi.fn();
-vi.mock("../../api/useBankingEmployee", () => ({
+vi.mock("@features/my/api/useBankingEmployee", () => ({
   useBankingEmployee: (email: string | undefined) => useBankingEmployeeMock(email),
 }));
 
 const useBankAccountsMock = vi.fn();
-vi.mock("../../api/useBankAccounts", () => ({
+vi.mock("@features/my/api/useBankAccounts", () => ({
   isBankingBackendConfigured: () => true,
-  useBankAccounts: () => useBankAccountsMock(),
+  useBankAccounts: (email: string | undefined, options?: unknown) => useBankAccountsMock(email, options),
 }));
 
 const useBankingConfigMock = vi.fn();
-vi.mock("../../api/useBankingConfig", () => ({
+vi.mock("@features/my/api/useBankingConfig", () => ({
   useBankingConfig: () => useBankingConfigMock(),
 }));
 
 const useBankingGateMock = vi.fn();
-vi.mock("../../api/useBankingGate", () => ({
+vi.mock("@features/my/api/useBankingGate", () => ({
   useBankingGate: () => useBankingGateMock(),
 }));
 
 const useBanksMock = vi.fn();
-vi.mock("../../api/useBanks", () => ({
+vi.mock("@features/my/api/useBanks", () => ({
   useBanks: (enabled: boolean) => useBanksMock(enabled),
 }));
 
 const mutateAsyncMock = vi.fn();
-vi.mock("../../api/useCreateBankAccountRequest", () => ({
+vi.mock("@features/my/api/useCreateBankAccountRequest", () => ({
   useCreateBankAccountRequest: () => ({
     mutateAsync: mutateAsyncMock,
     isPending: false,
@@ -333,6 +333,53 @@ describe("Where the page gets its data", () => {
   });
 });
 
+describe("What the panels and tabs ask the data layer for", () => {
+  it("has each tab refetch the accounts every time it is opened, as the source's tabs do", () => {
+    renderPage();
+    expect(useBankAccountsMock).toHaveBeenCalledWith("person@wso2.com", { refetchWhenOpened: true });
+
+    useBankAccountsMock.mockClear();
+    renderSummary();
+    expect(useBankAccountsMock).toHaveBeenCalledWith("person@wso2.com", { refetchWhenOpened: true });
+  });
+
+  it("shows the last ACTIVE row of a type when there are several, like the source's assign-each-row loop", () => {
+    useBankAccountsMock.mockReturnValue(
+      accounts([
+        account({ accountId: 1, accountType: "SALARY", accountStatus: "ACTIVE", accountNumber: "1111111111" }),
+        account({ accountId: 2, accountType: "SALARY", accountStatus: "ACTIVE", accountNumber: "2222222222" }),
+      ]),
+    );
+    renderPage();
+    const salary = screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement;
+    expect(salary).toHaveTextContent("2222222222");
+    expect(salary).not.toHaveTextContent("1111111111");
+  });
+
+  it("lists Bank Location options in the order the backend returns banks, not alphabetically", async () => {
+    useBanksMock.mockReturnValue(
+      banks([
+        bank({ bankLocation: "Maldives", bankName: "MCB", swiftCode: "MCBLMVMV", bankCode: "9" }),
+        bank({ bankLocation: "Bhutan", bankName: "BOB", swiftCode: "BHBBBTBT", bankCode: "5" }),
+      ]),
+    );
+    renderPage();
+    const user = userEvent.setup();
+    await openDialogFor(user, "Salary");
+    await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
+    await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+    await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+    await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+    await user.type(screen.getByLabelText("Account No"), "1234567890");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("combobox", { name: "Bank Location" }));
+
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    // Backend order, then the employee's own work location appended.
+    expect(options).toEqual(["Maldives", "Bhutan", "Colombo"]);
+  });
+});
+
 describe("Edit/Add popup", () => {
   it("opens a dialog scoped to the clicked panel's Account Type", async () => {
     renderPage();
@@ -371,7 +418,7 @@ describe("Edit/Add popup", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(screen.getByText("Account Holder's Name is required")).toBeInTheDocument();
-    expect(screen.getByText("Select a country to continue")).toBeInTheDocument();
+    expect(screen.getByText("Please select a country from the list")).toBeInTheDocument();
     // Still on the Account Holder Info step, not advanced to Bank Info.
     expect(screen.queryByRole("combobox", { name: "Bank Location" })).not.toBeInTheDocument();
   });
@@ -620,7 +667,7 @@ describe("Edit/Add popup", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByText("Select a bank location to continue")).toBeInTheDocument();
+    expect(screen.getByText("Bank Location is required")).toBeInTheDocument();
     // Still on the Bank Info step, not advanced to Finish.
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
@@ -683,8 +730,24 @@ describe("Edit/Add popup", () => {
     expect(mutateAsyncMock).toHaveBeenCalledWith(
       expect.objectContaining({ accountHoldersCountry: "Sri Lanka" }),
     );
-    expect(await screen.findByText(/request/i)).toBeInTheDocument();
+    // The source's own success text, naming the account type in lower case.
+    expect(
+      await screen.findByText("Successfully requested the salary bank account change!"),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("names the account type in the success text, whichever type was submitted", async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await openDialogFor(user, "Consultancy");
+    await completeUpToReview(user, { consultancy: true });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(await screen.findByRole("button", { name: "Yes" }));
+
+    expect(
+      await screen.findByText("Successfully requested the consultancy bank account change!"),
+    ).toBeInTheDocument();
   });
 
   it("shows a specific error and stays open when the backend rejects the submission", async () => {

@@ -117,6 +117,20 @@ describe("useBankingAccess", () => {
     expect(result.current).toMatchObject({ canSee: true, isResolving: false, isError: false });
   });
 
+  // A gateway that has no such route answers without CORS headers, so the
+  // browser reports a network error and never shows the 404.
+  it("does not gate when the request fails without any HTTP status, which is how a missing route looks from a browser", () => {
+    query.value = {
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new TypeError("Failed to fetch"),
+      refetch: vi.fn(),
+    };
+    const { result } = renderHook(() => useBankingAccess());
+    expect(result.current).toMatchObject({ canSee: true, isResolving: false, isError: false });
+  });
+
   it("does not gate, or ask, when no banking backend is configured: the page itself says it is not configured", () => {
     backend.url = "";
     const { result } = renderHook(() => useBankingAccess());

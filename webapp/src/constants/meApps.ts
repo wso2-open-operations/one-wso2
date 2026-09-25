@@ -138,9 +138,9 @@ export const LEAVE_ITEM_IDS: ReadonlySet<string> = new Set(
   (ME_APPS.find((app) => app.key === "leave")?.items ?? []).map((it) => it.id),
 );
 
-// Item ids the rail must route to the banking group gate rather than
-// resolving `requires` against people-app capabilities — the banking backend
-// decides who may use it by an Asgardeo group of its own. See
+// Item ids the rail must route to the banking gate rather than resolving
+// `requires` against people-app capabilities — the banking backend itself
+// says who may use it (GET /employee-privileges). See
 // features/my/api/useBankingAccess.
 export const BANKING_ITEM_IDS: ReadonlySet<string> = new Set(
   (ME_APPS.find((app) => app.key === "banking")?.items ?? []).map((it) => it.id),
