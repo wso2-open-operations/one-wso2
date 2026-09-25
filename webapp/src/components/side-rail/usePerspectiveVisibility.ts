@@ -32,6 +32,7 @@ import { SECURITY_ITEM_IDS } from "@constants/securityApps";
 import { INFRA_ITEM_IDS } from "@constants/infraApps";
 import { useInfraGate } from "@features/infra/api/useInfraGate";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
+import { isPreviewEnabled } from "@config/previewFeatures";
 import { useUserInfo } from "@api/useUserInfo";
 import { useFinanceGate } from "@features/finance/api/useFinanceGate";
 import { useMisGate } from "@features/finance/mis/api/useMisGate";
@@ -126,7 +127,12 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   // and this app's PRIVILEGE.EMPLOYEE 987 are the same number meaning opposite
   // things, so a MIS id reaching the capability check would show company-wide
   // revenue reporting to every signed-in employee.
-  const misGate = useMisGate(active.key === "finance");
+  //
+  // And only while the `mis` preview flag is on. The flag holds MIS back as a
+  // whole, backend included: with the ARR URL set and the flag off, a gate that
+  // still asked would hold every Finance landing on /user-info, and report its
+  // failure as Finance's, for screens nobody can open.
+  const misGate = useMisGate(active.key === "finance" && isPreviewEnabled("mis"));
 
   // Leave is the same problem again: its backend numbers LEAD 879 /
   // PEOPLE_OPS_TEAM 789, unrelated to people-app's 993 / 999. Reading
