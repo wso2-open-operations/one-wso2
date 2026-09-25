@@ -133,25 +133,21 @@ describe("someone holding neither privilege", () => {
 // stranger may see — so the default here is closed outright, which is both
 // simpler and stricter. An id the gate has no opinion about is not a bug to be
 // discovered in production.
-describe("an id this gate has no mapping for", () => {
+describe("an id outside the MIS registry", () => {
   it("is hidden even from someone holding both privileges", () => {
     state.privileges = [ARR, FLASH];
-    // Every screen in the registry now has a mapping — QRR and MRR joined in
-    // ticket 12 and ARR Analysis in ticket 13 — so the example here has to be
-    // an id no registry entry carries. That is the case this test is about:
-    // the ABSENCE of a mapping, not any particular screen.
     expect(gate().canSee("mis-something-added-later")).toBe(false);
   });
 
-  // The other half of failing closed: a screen added to the registry but not
-  // to the switch above is SAFE, but it is also invisible to everyone, which
-  // is a bug nobody reports because the screen simply never appears. The
-  // registry suite asserts that every item routes to this gate; this asserts
-  // the gate actually has an answer for each of them.
+  // The other half of failing closed: a registered screen the gate refused
+  // would be SAFE, but also invisible to everyone, which is a bug nobody
+  // reports because the screen simply never appears. The registry suite asserts
+  // that every item routes to this gate; this asserts the gate opens each of
+  // them to the ARR privilege.
   it("is not something any registered MIS screen quietly became", () => {
     state.privileges = [ARR];
     for (const id of MIS_ITEM_IDS) {
-      expect(gate().canSee(id), `${id} is in the registry but unmapped in useMisGate`).toBe(true);
+      expect(gate().canSee(id), `${id} is in the registry but refused by useMisGate`).toBe(true);
     }
   });
 });
@@ -166,13 +162,12 @@ describe("a failed authorization check", () => {
   it("reports an error rather than a denial", () => {
     state.isError = true;
     expect(gate().isError).toBe(true);
-    expect(gate().isAuthorized).toBe(false);
     expect(gate().errorMessage).toBe("Gateway timed out.");
   });
 
   it("is distinguishable from an honest denial", () => {
     state.privileges = [];
-    expect(gate().isAuthorized).toBe(false);
+    expect(gate().canSee("mis-arr-build")).toBe(false);
     expect(gate().isError).toBe(false);
     expect(gate().errorMessage).toBeUndefined();
   });
@@ -181,18 +176,6 @@ describe("a failed authorization check", () => {
     state.isError = true;
     expect(gate().canSee("mis-arr-build")).toBe(false);
     expect(gate().canSee("mis-flash")).toBe(false);
-  });
-});
-
-describe("holding MIS access", () => {
-  it("means holding the ARR privilege", () => {
-    state.privileges = [ARR];
-    expect(gate().isAuthorized).toBe(true);
-  });
-
-  it("does not mean holding the Flash one alone", () => {
-    state.privileges = [FLASH];
-    expect(gate().isAuthorized).toBe(false);
   });
 });
 

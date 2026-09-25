@@ -278,8 +278,8 @@ pause
 
 # ── 2 ──────────────────────────────────────────────────────────────────────
 stage "Asgardeo: does the token carry group claims?"
-say "The three MIS services resolve privileges 987 and 789 from LDAP groups in"
-say "the JWT. If One WSO2's token has no groups claim, every MIS call fails"
+say "The MIS ARR service resolves privilege 987 from LDAP groups in the JWT."
+say "If One WSO2's token has no groups claim, every MIS call fails"
 say "authorization even when the network path is perfect."
 step "Same application → User Attributes (or Protocol → Scopes)."
 step "Check that 'groups' is a requested scope AND mapped into the token."
@@ -291,40 +291,35 @@ esac
 pause
 
 # ── 3 ──────────────────────────────────────────────────────────────────────
-stage "Choreo: the three MIS backend URLs"
-say "MIS is the first app in One WSO2 needing three backends rather than one."
-say "Find each component's invoke URL for the environment you'll point at."
+stage "Choreo: the MIS ARR backend URL"
+say "Finance MIS in One WSO2 reads the ARR service alone: the Flash Dashboard"
+say "stays in the MIS app (docs/adr/0005), so its Flash and Admin services are not needed."
+say "Find the ARR component's invoke URL for the environment you'll point at."
 open_url "https://console.choreo.dev/"
 step "Open the digiops-finance project."
-step "For each of app_mis_arr, app_mis_flash, app_mis_admin: open the component,"
-step "  go to Overview (or Deploy → endpoint), and copy the public invoke URL."
-note "Paste the base URL only — no trailing /user-info or /comments."
-ask ONE_WSO2_MIS_ARR_BACKEND_URL   "ARR backend base URL:"
-ask ONE_WSO2_MIS_FLASH_BACKEND_URL "Flash backend base URL:"
-ask ONE_WSO2_MIS_ADMIN_BACKEND_URL "Admin backend base URL:"
-write_env ONE_WSO2_MIS_ARR_BACKEND_URL   "$ONE_WSO2_MIS_ARR_BACKEND_URL"
-write_env ONE_WSO2_MIS_FLASH_BACKEND_URL "$ONE_WSO2_MIS_FLASH_BACKEND_URL"
-write_env ONE_WSO2_MIS_ADMIN_BACKEND_URL "$ONE_WSO2_MIS_ADMIN_BACKEND_URL"
+step "Open app_mis_arr, go to Overview (or Deploy → endpoint), and copy the"
+step "  public invoke URL."
+note "Paste the base URL only — no trailing /user-info."
+ask ONE_WSO2_MIS_ARR_BACKEND_URL "ARR backend base URL:"
+write_env ONE_WSO2_MIS_ARR_BACKEND_URL "$ONE_WSO2_MIS_ARR_BACKEND_URL"
 printf '\n'
-say "Checking each against the production Content-Security-Policy:"
-csp_verdict "$ONE_WSO2_MIS_ARR_BACKEND_URL"   "ARR"
-csp_verdict "$ONE_WSO2_MIS_FLASH_BACKEND_URL" "Flash"
-csp_verdict "$ONE_WSO2_MIS_ADMIN_BACKEND_URL" "Admin"
+say "Checking it against the production Content-Security-Policy:"
+csp_verdict "$ONE_WSO2_MIS_ARR_BACKEND_URL" "ARR"
 pause
 
 # ── 4 ──────────────────────────────────────────────────────────────────────
-stage "Choreo: network visibility of the three components"
-say "One WSO2 is a different Choreo component from these three. If an endpoint"
+stage "Choreo: network visibility of the ARR component"
+say "One WSO2 is a different Choreo component from app_mis_arr. If its endpoint"
 say "is Project-scoped, One WSO2 cannot call it however correct the token is."
 note "The sibling finance apps mostly declare Public; MIS has no committed"
 note ".choreo/component.yaml, so its visibility was set in the console."
-step "For each component: Deploy → endpoint → Network Visibility."
-ask MIS_VISIBILITY "Visibility of ARR / Flash / Admin (e.g. Public/Public/Organization):"
+step "app_mis_arr → Deploy → endpoint → Network Visibility."
+ask MIS_VISIBILITY "Visibility of the ARR endpoint (e.g. Public or Organization):"
 write_env MIS_VISIBILITY "$MIS_VISIBILITY"
 pause
 
 # ── 5 ──────────────────────────────────────────────────────────────────────
-stage "Choreo: the LDAP groups behind privileges 987 and 789"
+stage "Choreo: the LDAP groups behind privilege 987"
 say "arr-backend declares these as 'configurable string[] = ?' and the values"
 say "live only in Choreo config — they are in neither repo, and unlike its"
 say "sibling apps MIS has no git-secret entry either."
@@ -332,15 +327,13 @@ warn "987 also means 'every authenticated user' in One WSO2's own privilege"
 warn "table. Reading MIS access off One WSO2 capabilities hands company-wide"
 warn "revenue to every employee. The MIS gate must call the ARR backend itself."
 step "app_mis_arr → Deploy → Configs & Secrets (or the Config.toml mount)."
-step "Find arrDashboardUserRoles and flashDashboardUserRoles."
-ask MIS_ARR_ROLES   "arrDashboardUserRoles (comma separated):"
-ask MIS_FLASH_ROLES "flashDashboardUserRoles (comma separated):"
-write_env MIS_ARR_ROLES   "$MIS_ARR_ROLES"
-write_env MIS_FLASH_ROLES "$MIS_FLASH_ROLES"
+step "Find arrDashboardUserRoles."
+ask MIS_ARR_ROLES "arrDashboardUserRoles (comma separated):"
+write_env MIS_ARR_ROLES "$MIS_ARR_ROLES"
 pause
 
 # ── 6 ──────────────────────────────────────────────────────────────────────
-stage "The blocker: can a One WSO2 token actually call these services?"
+stage "The blocker: can a One WSO2 token actually call this service?"
 say "This is docs/ported-apps/mis.md §11.1, the one question no amount of code"
 say "reading settles. We need a live access token issued to the One WSO2 app."
 note "Get one from a browser session on a working One WSO2: DevTools → Network"
@@ -349,9 +342,7 @@ warn "The token is used for these probes only. It is never written to disk."
 ask_secret MIS_TOKEN "Paste the access token (input hidden, Enter to skip):"
 if [ -n "${MIS_TOKEN:-}" ]; then
   printf '\n'
-  probe "ARR   /user-info"   "$ONE_WSO2_MIS_ARR_BACKEND_URL"   "/user-info"
-  probe "Flash /sub-regions" "$ONE_WSO2_MIS_FLASH_BACKEND_URL" "/sub-regions"
-  probe "Admin /comments/all" "$ONE_WSO2_MIS_ADMIN_BACKEND_URL" "/comments/all"
+  probe "ARR /user-info" "$ONE_WSO2_MIS_ARR_BACKEND_URL" "/user-info"
   printf '\n'
   note "curl ignores CORS and CSP. A 200 here proves the GATEWAY accepts the"
   note "token; it does not prove a browser will allow the call. The CSP verdict"
@@ -388,12 +379,11 @@ window.config = {
   ONE_WSO2_AUTH_SIGN_IN_REDIRECT_URL: "http://localhost:3000",
   ONE_WSO2_AUTH_SIGN_OUT_REDIRECT_URL: "http://localhost:3000",
 
-  // Finance MIS — three services, unlike every other app here.
-  // Each screen checks only the service it uses, so ARR still works when the
-  // Admin comments URL is unset. See docs/ported-apps/mis.md §6.
+  // Finance MIS — the ARR service alone; the Flash Dashboard stays in the MIS
+  // app (docs/adr/0005). The URL is not enough to show MIS: every MIS screen is
+  // behind the "mis" preview flag too. See docs/ported-apps/mis.md §6.
   ONE_WSO2_MIS_ARR_BACKEND_URL: "${ONE_WSO2_MIS_ARR_BACKEND_URL}",
-  ONE_WSO2_MIS_FLASH_BACKEND_URL: "${ONE_WSO2_MIS_FLASH_BACKEND_URL}",
-  ONE_WSO2_MIS_ADMIN_BACKEND_URL: "${ONE_WSO2_MIS_ADMIN_BACKEND_URL}",
+  ONE_WSO2_PREVIEW_FEATURES: { mis: true },
 };
 CFG
 printf '  %s✓ wrote%s webapp/public/config.js\n' "$GREEN" "$RESET"
@@ -409,11 +399,8 @@ add_finding "| Asgardeo base URL | \`${ONE_WSO2_AUTH_BASE_URL}\` |"
 add_finding "| One WSO2 client id | \`${ONE_WSO2_AUTH_CLIENT_ID}\` |"
 add_finding "| groups claim in token | ${MIS_GROUPS_CLAIM} |"
 add_finding "| ARR backend | \`${ONE_WSO2_MIS_ARR_BACKEND_URL}\` |"
-add_finding "| Flash backend | \`${ONE_WSO2_MIS_FLASH_BACKEND_URL}\` |"
-add_finding "| Admin backend | \`${ONE_WSO2_MIS_ADMIN_BACKEND_URL}\` |"
-add_finding "| Network visibility (ARR/Flash/Admin) | ${MIS_VISIBILITY} |"
+add_finding "| Network visibility (ARR) | ${MIS_VISIBILITY} |"
 add_finding "| arrDashboardUserRoles (privilege 987) | ${MIS_ARR_ROLES} |"
-add_finding "| flashDashboardUserRoles (privilege 789) | ${MIS_FLASH_ROLES} |"
 add_finding "| /user-info for a non-MIS employee | ${MIS_NONUSER_BEHAVIOUR} |"
 add_finding "| Live probe result | ${REACH_SUMMARY} |"
 add_finding "| CSP problems | ${CSP_PROBLEMS:-none} |"

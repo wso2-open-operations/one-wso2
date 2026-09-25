@@ -68,7 +68,6 @@ vi.mock("@features/finance/mis/api/useMisUserInfo", () => ({
 vi.mock("@features/finance/mis/api/useMisGate", () => ({
   useMisGate: () => ({
     canSee: () => true,
-    isAuthorized: true,
     isResolving: false,
     isError: false,
     retry: () => {},

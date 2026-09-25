@@ -42,7 +42,6 @@ vi.setConfig({ testTimeout: 20_000 });
 
 const state = {
   allow: new Set<string>(),
-  isAuthorized: false,
   isResolving: false,
 };
 
@@ -66,7 +65,6 @@ vi.mock("@config/apiConfig", () => ({
 vi.mock("../api/useMisGate", () => ({
   useMisGate: () => ({
     canSee: (id: string) => state.allow.has(id),
-    isAuthorized: state.isAuthorized,
     isResolving: state.isResolving,
     isError: false,
     retry: () => {},
@@ -157,14 +155,12 @@ function show(initial: string) {
 
 beforeEach(() => {
   state.allow = new Set();
-  state.isAuthorized = false;
   state.isResolving = false;
 });
 
 describe("someone holding the ARR privilege", () => {
   beforeEach(() => {
     state.allow = new Set(["mis-arr-build", "mis-qrr-build", "mis-mrr-build", "mis-analysis"]);
-    state.isAuthorized = true;
   });
 
   it("gets ARR Build", () => {
@@ -195,7 +191,6 @@ describe("while the privilege check is still in flight", () => {
 describe("the browser tab", () => {
   it("is named after the screen, not just the app", () => {
     state.allow = new Set(["mis-arr-build"]);
-    state.isAuthorized = true;
     show("/finance/mis/arr-build");
     expect(document.title).toBe("ARR Build · One WSO2");
   });

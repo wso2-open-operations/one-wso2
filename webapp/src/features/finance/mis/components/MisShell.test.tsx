@@ -35,7 +35,6 @@ vi.mock("@features/finance/mis/api/useMisGate", () => ({
 
 const ALLOWED: MisGate = {
   canSee: () => true,
-  isAuthorized: true,
   isResolving: false,
   isError: false,
   retry: () => {},
@@ -77,7 +76,7 @@ describe("the ladder above the page", () => {
   // Rendering a denial first and correcting it a moment later flashes a lock at
   // people who do have access, on every single load.
   it("holds the page while the privilege check is in flight", () => {
-    renderShell({ isResolving: true, isAuthorized: false, canSee: () => false });
+    renderShell({ isResolving: true, canSee: () => false });
     expect(screen.getByText(/checking your mis access/i)).toBeInTheDocument();
     expect(screen.queryByText(/don't have access/i)).not.toBeInTheDocument();
   });
@@ -89,7 +88,6 @@ describe("the ladder above the page", () => {
     renderShell({
       isError: true,
       errorMessage: "Gateway timed out.",
-      isAuthorized: false,
       canSee: () => false,
     });
     expect(screen.getByText(/couldn't check your mis access/i)).toBeInTheDocument();
@@ -98,7 +96,7 @@ describe("the ladder above the page", () => {
   });
 
   it("locks someone holding no MIS privilege at all", () => {
-    renderShell({ isAuthorized: false, canSee: () => false });
+    renderShell({ canSee: () => false });
     expect(screen.getByText(/don't have access to finance mis/i)).toBeInTheDocument();
     expect(screen.queryByText("the real page")).not.toBeInTheDocument();
   });
@@ -106,7 +104,7 @@ describe("the ladder above the page", () => {
 
 describe("the subtitle", () => {
   it("is dropped on a locked screen, since it sells something withheld", () => {
-    renderShell({ isAuthorized: false, canSee: () => false });
+    renderShell({ canSee: () => false });
     expect(screen.queryByText(SUBTITLE)).not.toBeInTheDocument();
   });
 
@@ -131,7 +129,7 @@ describe("the Pacific Time chip", () => {
   // A timezone states a fact about MIS rather than advertising anything, so it
   // survives every rung the subtitle does not.
   it("survives a locked screen", () => {
-    renderShell({ isAuthorized: false, canSee: () => false });
+    renderShell({ canSee: () => false });
     expect(chip()).toBeInTheDocument();
   });
 

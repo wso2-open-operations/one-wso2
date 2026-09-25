@@ -76,7 +76,7 @@ export const MIS_BUILD_PATH_BY_PERIOD: Readonly<Record<MisPeriod, string>> = {
   [MIS_PERIODS.MONTHLY]: misPaths.mrrBuild,
 };
 
-// Only the screens that HAVE a route are listed, and all five now do. Listing
+// Only the screens that HAVE a route are listed, and all four do. Listing
 // one early is not harmless: the rail renders every visible child of a group
 // whether or not it carries a path, and a pathless one falls through SideRail's
 // onSelect to scrollToSection() — a no-op anywhere but the perspective's own
@@ -84,8 +84,9 @@ export const MIS_BUILD_PATH_BY_PERIOD: Readonly<Record<MisPeriod, string>> = {
 // nothing when clicked.
 //
 // A new screen joins this list in the ticket that ports it, together with its
-// route, its case in useMisGate, and its tests. misApps.test.ts and
-// misRail.test.ts both assert the registry and the routes stay in step.
+// route and its tests. useMisGate opens every id listed here to the ARR
+// privilege, so it needs no line of its own. misApps.test.ts and
+// misRail.test.tsx both assert the registry and the routes stay in step.
 export const MIS_APPS: readonly MenuApp[] = [
   {
     key: "mis",

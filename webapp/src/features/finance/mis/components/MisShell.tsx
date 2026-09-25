@@ -85,8 +85,8 @@ export default function MisShell({
   prerequisite,
   children,
 }: {
-  // Which MIS menu item this screen is. The gate answers per item because the
-  // two privileges do not imply one another — see useMisGate.
+  // Which MIS menu item this screen is. The gate answers per item because ARR
+  // Analysis has a condition of its own — see useMisGate.
   gateId: string;
   title: string;
   subtitle?: string;

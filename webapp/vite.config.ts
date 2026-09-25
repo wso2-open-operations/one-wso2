@@ -85,13 +85,6 @@ const viteConfig = defineConfig({
       "@hooks": path.resolve(__dirname, "./src/hooks"),
       "@layouts": path.resolve(__dirname, "./src/layouts"),
       "@utils": path.resolve(__dirname, "./src/utils"),
-      // `@asgardeo/browser` imports the bare specifier `buffer/`, a directory
-      // import Node's ESM resolver refuses ("Directory import ... is not
-      // supported"). The package is CJS-era — `main: index.js`, no `exports`
-      // map — so nothing downstream can resolve the trailing slash for it.
-      // Point that one specifier at the file it means. Exact-match only:
-      // rollup-alias matches `buffer/` itself, never `buffer/something`.
-      "buffer/": path.resolve(__dirname, "./node_modules/buffer/index.js"),
     },
   },
   envPrefix: ["ONE_WSO2_"],

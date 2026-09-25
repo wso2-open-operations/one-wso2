@@ -71,7 +71,7 @@ vi.mock("@features/subscriptions/api/useSubscriptionGate", () => ({
 // suite asserts on: an unmocked one reaches its real useQuery and throws for
 // want of a QueryClient, which fails the file rather than an assertion.
 vi.mock("@features/finance/mis/api/useMisGate", () => ({
-  useMisGate: () => ({ ...gate, isAuthorized: true, isError: false, retry: () => {} }),
+  useMisGate: () => ({ ...gate, isError: false, retry: () => {} }),
 }));
 
 /** The selector a named step carries, so a rename fails here rather than silently. */

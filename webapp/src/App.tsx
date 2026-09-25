@@ -337,7 +337,7 @@ export default function App() {
               perspective and would render its rail around a MIS screen.
               See docs/ported-apps/mis.md §7.
 
-              All five screens are routed, and each joined the registry in the
+              All four screens are routed, and each joined the registry in the
               same change that gave it a route — the rail renders every visible
               child of a group whether or not it carries a path, so an entry
               without one is a row that silently does nothing.

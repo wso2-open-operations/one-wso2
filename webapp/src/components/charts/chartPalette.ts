@@ -74,9 +74,6 @@ export const CHART_SERIES_1: ChartSeriesColor = { light: "#2a78d6", dark: "#3987
 /** Slot 2 — orange. The second of a pair. */
 export const CHART_SERIES_2: ChartSeriesColor = { light: "#eb6834", dark: "#d95926" };
 
-/** The chart surfaces these were validated against — `brandTheme.ts`'s paper. */
-export const CHART_SURFACE: ChartSeriesColor = { light: "#FFFFFF", dark: "#141417" };
-
 /** Which half of a slot this theme mode wants. */
 export const seriesColor = (slot: ChartSeriesColor, mode: "light" | "dark"): string =>
   mode === "dark" ? slot.dark : slot.light;

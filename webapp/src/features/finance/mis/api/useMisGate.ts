@@ -16,23 +16,22 @@
 
 import { describeError } from "@api/errors";
 import { isMisArrConfigured } from "@config/apiConfig";
+import { MIS_ITEM_IDS } from "@constants/misApps";
 import { useMisUserInfo } from "./useMisUserInfo";
 import { useMisAppConfigs } from "./useMisAppConfigs";
 import { MIS_PRIVILEGE, misHasPrivilege } from "./misTypes";
 
-// Which MIS privilege each menu item needs. The ONLY place a One WSO2 menu id
-// is tied to a MIS privilege number — same shape, and the same reason, as
-// useMarketingOpsGate's ITEM_CAPABILITY.
-//
-// One privilege covers ALL the ARR screens, not one per screen: the source app
-// gates ARR Build, QRR, MRR and ARR Analysis on a single ARR_DASHBOARD number
-// (Config.js:56). QRR and MRR joined in ticket 12 and ARR Analysis in ticket
-// 13, so the ARR privilege opens all four at once.
+// Which MIS privilege each menu item needs: the ARR one, for every screen in
+// the MIS registry. The source app gates ARR Build, QRR, MRR and ARR Analysis
+// on a single ARR_DASHBOARD number (Config.js:56), so one privilege opens all
+// four at once, and a screen joining MIS_APPS needs no line here. That is why
+// this is a set lookup rather than useMarketingOpsGate's per-item
+// ITEM_CAPABILITY map: a map whose every value is the same number says nothing.
 //
 // ARR Analysis needs a second condition on top, and it is not a privilege —
-// see ANALYSIS_ITEM_ID above.
+// see ANALYSIS_ITEM_ID below.
 //
-// An id missing from this map is refused. That is stricter than the sibling
+// An id outside the registry is refused. That is stricter than the sibling
 // gates, which fall through to an open default for their unrestricted items —
 // MIS has no unrestricted screen, so there is nothing for a default to open.
 /**
@@ -51,28 +50,15 @@ import { MIS_PRIVILEGE, misHasPrivilege } from "./misTypes";
  */
 const ANALYSIS_ITEM_ID = "mis-analysis";
 
-const ITEM_PRIVILEGE: Record<string, number> = {
-  "mis-arr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
-  "mis-qrr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
-  "mis-mrr-build": MIS_PRIVILEGE.ARR_DASHBOARD,
-  [ANALYSIS_ITEM_ID]: MIS_PRIVILEGE.ARR_DASHBOARD,
-};
-
 export interface MisGate {
   // May this menu item be shown? Used by the rail and the pages alike, so a
   // visible item is always one whose screen the caller can actually open.
   canSee: (itemId: string) => boolean;
-  // Does the caller hold the MIS privilege this app reads — the ARR one. False
-  // for an authenticated WSO2 employee who simply isn't in that group, which is
-  // most of the company, so the screens say so plainly rather than rendering an
-  // empty rail. False for a Flash-only holder too: the Flash Dashboard stays in
-  // the MIS app (ADR 0005), so their privilege opens nothing here.
-  isAuthorized: boolean;
   // True while /user-info is in flight. Callers must hold off on rendering a
   // denial until this clears, or every cold load flashes one.
   isResolving: boolean;
   // The call itself failed — network, gateway, or identity. Distinct from
-  // `isAuthorized === false` on purpose: both leave us without privileges and
+  // `canSee` answering false on purpose: both leave us without privileges and
   // it would be easy to collapse them, but "you're not in the MIS group" is a
   // reason to go and ask, while "the request failed" is a reason to retry.
   isError: boolean;
@@ -101,19 +87,17 @@ export function useMisGate(enabled = true): MisGate {
   const hasArr = misHasPrivilege(userInfo.data, MIS_PRIVILEGE.ARR_DASHBOARD);
 
   const canSee = (itemId: string): boolean => {
-    const required = ITEM_PRIVILEGE[itemId];
-    // Before the privilege branch, so the flag closes the screen whatever the
-    // reader holds — and reaches this screen alone, never the Builds beside it.
+    // Unregistered: refused, so an id this gate has never heard of is
+    // invisible rather than public.
+    if (!MIS_ITEM_IDS.has(itemId)) return false;
+    // The flag closes this screen whatever the reader holds, and reaches this
+    // screen alone, never the Builds beside it.
     if (itemId === ANALYSIS_ITEM_ID) return hasArr && analysisEnabled;
-    if (required === MIS_PRIVILEGE.ARR_DASHBOARD) return hasArr;
-    // Unmapped: refused. A screen added to the registry without a line in
-    // ITEM_PRIVILEGE is invisible rather than public.
-    return false;
+    return hasArr;
   };
 
   return {
     canSee,
-    isAuthorized: hasArr,
     // `isPending`, not `isLoading`: this query waits on the Asgardeo sub, and
     // during that window isLoading is already false. Callers reading it would
     // see a finished check with no privileges and flash a denial on every cold
