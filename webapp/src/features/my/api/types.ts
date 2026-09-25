@@ -165,17 +165,24 @@ export interface BankAccountsResponse {
   count: number;
 }
 
-// GET /app-config on the banking backend — deliberately a SUBSET of the
-// full response (it also serves customLocationMap, unused here): the
-// day-of-month cutoffs, work-location allow-list, restricted-role list, and
-// the full country list the edit/add dialog's Account Holder's Country step
-// picks from (matching the source app's own Account Holder's Country field).
+// One `customLocationMap` entry: for an employee whose work location is
+// `location`, the Consultancy Bank Location dropdown offers `customMap`.
+export interface CustomLocationMapEntry {
+  location: string;
+  customMap: string[];
+}
+
+// GET /app-config on the banking backend: the day-of-month cutoffs,
+// work-location allow-list, restricted-role list, the full country list the
+// edit/add dialog's Account Holder's Country step picks from, and the
+// customLocationMap that narrows Consultancy's Bank Location options.
 export interface BankingAppConfig {
   salaryThreshold: number;
   consultancyThreshold: number;
   reimbursementsAllowedCountries: string[];
   consultancyRestrictedRoles: string[];
   allCountries: string[];
+  customLocationMap: CustomLocationMapEntry[];
 }
 
 // GET /banks on the banking backend — the lookup list backing the bank

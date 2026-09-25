@@ -154,6 +154,7 @@ function config(overrides: Partial<BankingAppConfig> = {}) {
       reimbursementsAllowedCountries: ["Colombo"],
       consultancyRestrictedRoles: [],
       allCountries: ["Sri Lanka"],
+      customLocationMap: [],
       ...overrides,
     },
     isPending: false,
@@ -343,6 +344,76 @@ describe("Edit/Add popup", () => {
     expect(screen.getByRole("combobox", { name: "Bank Location" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Branch Name")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Branch Code")).not.toBeInTheDocument();
+  });
+
+  describe("Consultancy Bank Location narrowing (customLocationMap)", () => {
+    async function openBankInfoStep(user: ReturnType<typeof userEvent.setup>, accountTypeLabel: string) {
+      await openDialogFor(user, accountTypeLabel);
+      await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
+      await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+      await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+      await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+      await user.type(screen.getByLabelText("Account No"), "1234567890");
+      await user.click(screen.getByRole("button", { name: "Continue" }));
+    }
+
+    beforeEach(() => {
+      useBanksMock.mockReturnValue(
+        banks([bank(), bank({ bankName: "MCB", swiftCode: "MCBLMVMV", bankCode: "9", bankLocation: "Maldives" })]),
+      );
+    });
+
+    it("offers only the work location, pre-selected, when the map has no entry for it", async () => {
+      renderPage();
+      const user = userEvent.setup();
+      await openBankInfoStep(user, "Consultancy");
+
+      const location = screen.getByRole("combobox", { name: "Bank Location" });
+      expect(location).toHaveValue("Colombo");
+      await user.click(location);
+      expect(await screen.findByRole("option", { name: "Colombo" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "Maldives" })).not.toBeInTheDocument();
+    });
+
+    it("offers the matching entry's customMap instead, when the map has one for the work location", async () => {
+      useBankingConfigMock.mockReturnValue(
+        config({ customLocationMap: [{ location: "Colombo", customMap: ["Colombo", "Maldives"] }] }),
+      );
+      renderPage();
+      const user = userEvent.setup();
+      await openBankInfoStep(user, "Consultancy");
+
+      expect(screen.getByRole("combobox", { name: "Bank Location" })).toHaveValue("Colombo");
+      await user.click(screen.getByRole("combobox", { name: "Bank Location" }));
+      expect(await screen.findByRole("option", { name: "Colombo" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Maldives" })).toBeInTheDocument();
+    });
+
+    it("pre-selects the first allowed location when the entry leaves the work location out", async () => {
+      useBankingConfigMock.mockReturnValue(
+        config({ customLocationMap: [{ location: "Colombo", customMap: ["Maldives"] }] }),
+      );
+      renderPage();
+      const user = userEvent.setup();
+      await openBankInfoStep(user, "Consultancy");
+
+      expect(screen.getByRole("combobox", { name: "Bank Location" })).toHaveValue("Maldives");
+    });
+
+    it("leaves Salary's Bank Location options as every location on file, ignoring the map", async () => {
+      useBankingConfigMock.mockReturnValue(
+        config({ customLocationMap: [{ location: "Colombo", customMap: ["Maldives"] }] }),
+      );
+      renderPage();
+      const user = userEvent.setup();
+      await openBankInfoStep(user, "Salary");
+
+      const location = screen.getByRole("combobox", { name: "Bank Location" });
+      expect(location).toHaveValue("");
+      await user.click(location);
+      expect(await screen.findByRole("option", { name: "Colombo" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Maldives" })).toBeInTheDocument();
+    });
   });
 
   it("blocks advancing from the Bank Info step until required fields are filled", async () => {

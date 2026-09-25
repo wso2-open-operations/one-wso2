@@ -173,6 +173,7 @@ export default function MyAccountsTab() {
           employeeEmail={ownerEmail ?? ""}
           allCountries={config.data?.allCountries ?? []}
           employeeWorkLocation={workLocation}
+          customLocationMap={config.data?.customLocationMap ?? []}
           onClose={() => setEditingType(null)}
           onSuccess={handleSubmitted}
         />

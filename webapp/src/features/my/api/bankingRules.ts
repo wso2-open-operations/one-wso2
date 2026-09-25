@@ -15,6 +15,7 @@
 // under the License.
 
 import { hasAnyGroup } from "@hooks/useAsgardeoGroups";
+import type { CustomLocationMapEntry } from "./types";
 
 // The three Bank Account gating decisions: whether an Account Type's day-
 // of-month cutoff has passed, whether the employee's work location is
@@ -67,4 +68,33 @@ export function formatOrdinal(day: number): string {
     default:
       return `${day}th`;
   }
+}
+
+/**
+ * The Bank Location options a Consultancy request may choose from: the
+ * work location's own `customLocationMap` entry when the backend config has
+ * one (used as-is, even if it leaves the work location out), otherwise just
+ * the work location itself. Presentation only — the backend does not
+ * enforce it, same as the source app.
+ */
+export function consultancyAllowedLocations(
+  workLocation: string | null | undefined,
+  customLocationMap: readonly CustomLocationMapEntry[] | undefined,
+): string[] {
+  const entry = customLocationMap?.find((e) => e.location === workLocation);
+  if (entry) return [...entry.customMap];
+  return workLocation ? [workLocation] : [];
+}
+
+/**
+ * The Bank Location a Consultancy request starts on: the work location when
+ * it is allowed, otherwise the first allowed location, otherwise nothing.
+ */
+export function initialConsultancyBankLocation(
+  workLocation: string | null | undefined,
+  allowedLocations: readonly string[],
+): string {
+  return workLocation && allowedLocations.includes(workLocation)
+    ? workLocation
+    : (allowedLocations[0] ?? "");
 }

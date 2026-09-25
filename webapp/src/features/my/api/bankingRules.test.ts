@@ -26,7 +26,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
 
 const {
+  consultancyAllowedLocations,
   formatOrdinal,
+  initialConsultancyBankLocation,
   isConsultancyRestricted,
   isPastThreshold,
   isReimbursementEligible,
@@ -106,5 +108,48 @@ describe("formatOrdinal", () => {
     expect(formatOrdinal(11)).toBe("11th");
     expect(formatOrdinal(12)).toBe("12th");
     expect(formatOrdinal(13)).toBe("13th");
+  });
+});
+
+describe("consultancyAllowedLocations", () => {
+  const map = [
+    { location: "Sri Lanka", customMap: ["Sri Lanka", "Maldives"] },
+    { location: "Singapore", customMap: ["Malaysia"] },
+  ];
+
+  it("returns the matching entry's customMap when the work location has one", () => {
+    expect(consultancyAllowedLocations("Sri Lanka", map)).toEqual(["Sri Lanka", "Maldives"]);
+  });
+
+  it("uses the entry's customMap as-is, even when it omits the work location itself", () => {
+    expect(consultancyAllowedLocations("Singapore", map)).toEqual(["Malaysia"]);
+  });
+
+  it("falls back to just the work location when no entry matches", () => {
+    expect(consultancyAllowedLocations("India", map)).toEqual(["India"]);
+  });
+
+  it("falls back to just the work location when the map is empty or not loaded yet", () => {
+    expect(consultancyAllowedLocations("India", [])).toEqual(["India"]);
+    expect(consultancyAllowedLocations("India", undefined)).toEqual(["India"]);
+  });
+
+  it("is empty when the work location is unknown and nothing matches", () => {
+    expect(consultancyAllowedLocations(undefined, map)).toEqual([]);
+    expect(consultancyAllowedLocations("", [])).toEqual([]);
+  });
+});
+
+describe("initialConsultancyBankLocation", () => {
+  it("prefills the work location when it is one of the allowed locations", () => {
+    expect(initialConsultancyBankLocation("Sri Lanka", ["Maldives", "Sri Lanka"])).toBe("Sri Lanka");
+  });
+
+  it("prefills the first allowed location when the work location is not among them", () => {
+    expect(initialConsultancyBankLocation("Singapore", ["Malaysia"])).toBe("Malaysia");
+  });
+
+  it("is empty when there are no allowed locations", () => {
+    expect(initialConsultancyBankLocation(undefined, [])).toBe("");
   });
 });

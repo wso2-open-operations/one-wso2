@@ -35,7 +35,11 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { ACCOUNT_TYPE_LABEL } from "../../api/derive";
 import { useBanks } from "../../api/useBanks";
 import { useCreateBankAccountRequest } from "../../api/useCreateBankAccountRequest";
-import type { AccountType, Bank } from "../../api/types";
+import {
+  consultancyAllowedLocations,
+  initialConsultancyBankLocation,
+} from "../../api/bankingRules";
+import type { AccountType, Bank, CustomLocationMapEntry } from "../../api/types";
 import {
   buildCreateBankAccountRequestPayload,
   todayIsoDate,
@@ -70,6 +74,8 @@ export interface BankAccountRequestDialogProps {
   allCountries: string[];
   /** The employee's own work location — folded into the Bank Location step's options, same as the source app. */
   employeeWorkLocation: string | undefined;
+  /** Banking app-config's `customLocationMap` — narrows Consultancy's Bank Location options. */
+  customLocationMap: CustomLocationMapEntry[];
   onClose: () => void;
   /** Called after a successful submission — the caller closes the dialog and refetches. */
   onSuccess: () => void;
@@ -86,36 +92,44 @@ export interface BankAccountRequestDialogProps {
 // Country (step 1) picks from the full allCountries list, while Bank
 // Location (step 2) picks from the banks actually on file plus the
 // employee's own work location — that's the source app's own behaviour for
-// every Account Type except Consultancy, which additionally narrows Bank
-// Location to a `customLocationMap`-approved set keyed by the employee's
-// real location. That narrowing isn't ported here (it needs its own
-// config field this app doesn't otherwise use) — Consultancy gets the same
-// Bank Location options as the other two types, a presentation-only gap
-// worth closing later, not a change to what gets submitted.
+// every Account Type except Consultancy, whose Bank Location is narrowed to
+// the `customLocationMap` entry for the employee's work location (or just
+// that location when there is no entry), and starts pre-selected.
 export default function BankAccountRequestDialog({
   accountType,
   employeeEmail,
   allCountries,
   employeeWorkLocation,
+  customLocationMap,
   onClose,
   onSuccess,
 }: BankAccountRequestDialogProps) {
   const [step, setStep] = useState<DialogStep>("holder");
-  const [values, setValues] = useState<BankAccountFormValues>(BLANK_VALUES);
+  const isConsultancy = accountType === "CONSULTANCY";
+  const consultancyLocations = useMemo(
+    () => (isConsultancy ? consultancyAllowedLocations(employeeWorkLocation, customLocationMap) : []),
+    [isConsultancy, employeeWorkLocation, customLocationMap],
+  );
+  const [values, setValues] = useState<BankAccountFormValues>(() => ({
+    ...BLANK_VALUES,
+    bankLocation: isConsultancy
+      ? initialConsultancyBankLocation(employeeWorkLocation, consultancyLocations)
+      : "",
+  }));
   const [errors, setErrors] = useState<BankAccountFormErrors>({});
   const [submitError, setSubmitError] = useState<string | undefined>();
 
   const banksQuery = useBanks(true);
   const mutation = useCreateBankAccountRequest();
 
-  const isConsultancy = accountType === "CONSULTANCY";
   const stepIndex = STEP_ORDER.indexOf(step);
 
   const bankLocations = useMemo(() => {
+    if (isConsultancy) return consultancyLocations;
     const set = new Set((banksQuery.data?.banks ?? []).map((b) => b.bankLocation));
     if (employeeWorkLocation) set.add(employeeWorkLocation);
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [banksQuery.data, employeeWorkLocation]);
+  }, [isConsultancy, consultancyLocations, banksQuery.data, employeeWorkLocation]);
 
   const banksForLocation = useMemo(
     () => (banksQuery.data?.banks ?? []).filter((b) => b.bankLocation === values.bankLocation),
