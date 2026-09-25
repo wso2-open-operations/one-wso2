@@ -176,6 +176,43 @@ export interface BankingAppConfig {
   consultancyRestrictedRoles: string[];
 }
 
+// GET /banks on the banking backend — the lookup list backing the bank
+// autocomplete in the edit/add flow.
+export interface Bank {
+  bankCode: string;
+  bankLocation: string;
+  bankName: string;
+  swiftCode: string;
+}
+
+export interface BanksResponse {
+  banks: Bank[];
+  count: number;
+}
+
+// POST /employee/accounts body. Every Account Type sends the same shape —
+// branchName/branchCode are simply empty for CONSULTANCY rather than a
+// different payload shape, matching the source app's own form.
+export interface CreateBankAccountRequestPayload {
+  employeeEmail: string;
+  accountType: AccountType;
+  accountName: string;
+  accountNumber: string;
+  beneficiaryAddress: string;
+  bankName: string;
+  bankSwiftCode: string;
+  bankCode: string;
+  bankLocation: string;
+  bankAddress: string;
+  branchName: string;
+  branchCode: string;
+  effectiveFrom: string;
+}
+
+export interface CreateBankAccountRequestResponse {
+  applicationID: number;
+}
+
 // Promotion-app /employee-info response. Mirrors digiops-hr/apps/promotion
 // backend/types.bal EmployeeInfo (outer) + EmployeeInfoWithLead (inner).
 // All string? fields default to "" server-side, so treat "" the same as

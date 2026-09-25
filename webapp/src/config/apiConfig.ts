@@ -147,6 +147,10 @@ export const bankingServiceUrls = {
   // GET /app-config — thresholds + eligibility config. Deployment
   // configuration, not per-employee state.
   appConfig: `${bankingBackendUrl}/app-config`,
+  // GET /banks — the lookup list for the edit/add flow's bank autocomplete.
+  banks: `${bankingBackendUrl}/banks`,
+  // POST /employee/accounts — submits a bank account change request.
+  createBankAccountRequest: `${bankingBackendUrl}/employee/accounts`,
 };
 
 // ---- PAR app backend ---------------------------------------------------------

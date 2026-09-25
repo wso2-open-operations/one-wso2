@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Box, Skeleton, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { useState } from "react";
+import { Alert, Box, Skeleton, Snackbar, Tooltip, Typography } from "@wso2/oxygen-ui";
 import PerspectiveHeader from "@components/perspective-header/PerspectiveHeader";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useMeProfile } from "../../api/useMeProfile";
@@ -24,6 +25,7 @@ import { useBankingGate } from "../../api/useBankingGate";
 import { formatOrdinal, isPastThreshold, isReimbursementEligible } from "../../api/bankingRules";
 import type { AccountType } from "../../api/types";
 import BankAccountPanel from "../components/BankAccountPanel";
+import BankAccountRequestDialog from "../components/BankAccountRequestDialog";
 
 // Ported from digiops-hr's banking webapp "Change Bank Account" tab. It's
 // a full page of its own rather than living entirely inside
@@ -33,10 +35,6 @@ import BankAccountPanel from "../components/BankAccountPanel";
 // logic intact, not compress it to fit a smaller surface. No Employee
 // Details header here — that information is already shown on MyProfilePage,
 // so repeating it would just be a second, driftable copy.
-//
-// The Edit/Add flow itself (the bank-lookup + details + submit popup) is a
-// follow-up piece of work — panels here render and gate correctly, but
-// `onEdit` is intentionally left unwired until that dialog exists.
 export default function BankingPage() {
   const profile = useMeProfile();
   const ownerEmail = profile.data?.employee.workEmail;
@@ -44,6 +42,20 @@ export default function BankingPage() {
   const config = useBankingConfig();
   const gate = useBankingGate();
   const configured = isBankingBackendConfigured();
+  const [editingType, setEditingType] = useState<AccountType | null>(null);
+  const [snack, setSnack] = useState<{ open: boolean; severity: "success" | "error"; message: string }>(
+    { open: false, severity: "success", message: "" },
+  );
+
+  function handleSubmitted() {
+    setEditingType(null);
+    void accounts.refetch();
+    setSnack({
+      open: true,
+      severity: "success",
+      message: "Your bank account change request has been submitted.",
+    });
+  }
 
   const header = (
     <PerspectiveHeader
@@ -133,6 +145,16 @@ export default function BankingPage() {
   return (
     <Box>
       {header}
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={4000}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
+          {snack.message}
+        </Alert>
+      </Snackbar>
       <Box
         sx={{
           display: "grid",
@@ -144,20 +166,31 @@ export default function BankingPage() {
           accountType="SALARY"
           account={activeAccountOf("SALARY")}
           disabledReason={disabledReasonFor("SALARY")}
+          onEdit={() => setEditingType("SALARY")}
         />
         {showConsultancy && (
           <BankAccountPanel
             accountType="CONSULTANCY"
             account={activeAccountOf("CONSULTANCY")}
             disabledReason={disabledReasonFor("CONSULTANCY")}
+            onEdit={() => setEditingType("CONSULTANCY")}
           />
         )}
         <BankAccountPanel
           accountType="REIMBURSEMENT"
           account={activeAccountOf("REIMBURSEMENT")}
           disabledReason={disabledReasonFor("REIMBURSEMENT")}
+          onEdit={() => setEditingType("REIMBURSEMENT")}
         />
       </Box>
+      {editingType && (
+        <BankAccountRequestDialog
+          accountType={editingType}
+          employeeEmail={ownerEmail ?? ""}
+          onClose={() => setEditingType(null)}
+          onSuccess={handleSubmitted}
+        />
+      )}
     </Box>
   );
 }

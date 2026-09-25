@@ -72,11 +72,7 @@ export interface BankAccountPanelProps {
   account: BankAccount | undefined;
   /** Set (with a reason) to disable the Edit/Add action; unset to leave it enabled. */
   disabledReason?: string;
-  /**
-   * Opens the edit/add flow for this Account Type. Left unwired for now —
-   * the popup itself lands in a follow-up ticket; the button renders and
-   * gates correctly ahead of that.
-   */
+  /** Opens the edit/add flow for this Account Type. */
   onEdit?: () => void;
 }
 
