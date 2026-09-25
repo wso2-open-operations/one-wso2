@@ -142,7 +142,12 @@ export default function SummaryTab() {
                   label={a.accountType}
                   color={ACCOUNT_TYPE_COLOR[a.accountType]}
                   size="small"
-                  avatar={<Avatar sx={{ bgcolor: "common.white" }}>{a.accountType[0]}</Avatar>}
+                  // The tripled selector outranks the Chip's own avatar colouring.
+                  avatar={
+                    <Avatar sx={{ "&&&": { bgcolor: "common.white", color: "common.black" } }}>
+                      {a.accountType[0]}
+                    </Avatar>
+                  }
                 />
               </TableCell>
               <TableCell>{formatDate(a.effectiveFrom)}</TableCell>
