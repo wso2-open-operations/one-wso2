@@ -63,11 +63,13 @@ function useSalesQueryBasis() {
  * the service refuses every endpoint in that case — so the page asks this one
  * question rather than showing four copies of the same refusal.
  */
-export function useSalesUserInfo() {
+export function useSalesUserInfo(enabled = true) {
   const { getAccessToken, subState, retryIdentity, userSub, ready } = useSalesQueryBasis();
   const query = useQuery<SalesUserInfo>({
     queryKey: ["sales-user-info", userSub],
-    enabled: ready,
+    // `enabled` lets the rail ask only while Sales is the open perspective, rather than
+    // calling meet-app from every page. Same key, so the rail and the page share one request.
+    enabled: ready && enabled,
     queryFn: async () => authedGet<SalesUserInfo>(salesServiceUrls.userInfo, await getAccessToken()),
     staleTime: 5 * 60 * 1000,
     retry: salesRetry,

@@ -373,6 +373,14 @@ const SALES_SECTIONS: PerspectiveSection[] = [
   },
 ];
 
+/**
+ * Sales rail ids, which the rail must route through useSalesRailGate rather than `requires`
+ * -- the same shape as SECURITY_ITEM_IDS. Access is decided by the meet-app backend's own
+ * groups, so the only way to know a caller has none is its 403; until this gate existed the
+ * Meetings row stayed in the rail beside a "Nothing here for you yet" card.
+ */
+export const SALES_ITEM_IDS: ReadonlySet<string> = new Set(SALES_SECTIONS.map((s) => s.id));
+
 export interface PerspectiveDef {
   key: string;
   label: string;

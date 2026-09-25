@@ -20,6 +20,7 @@ import {
   PAR_LEAD_PORTAL_ITEM_ID,
   SRI_LANKA_ONLY_ITEM_IDS,
   SUBSCRIPTION_ITEM_IDS,
+  SALES_ITEM_IDS,
   UMT_ADMIN_ITEM_IDS,
   type PerspectiveSection,
 } from "@constants/perspectives";
@@ -39,6 +40,7 @@ import { useLeaveGate } from "@features/leave/api/useLeaveGate";
 import { useMarketingOpsGate } from "@features/marketing-ops/api/useMarketingOpsGate";
 import { useDueDiligenceGate } from "@features/due-diligence/api/useDueDiligenceGate";
 import { useSecurityGate } from "@features/security/api/useSecurityGate";
+import { useSalesRailGate } from "@features/sales/api/useSalesGate";
 import { useSubscriptionGate } from "@features/subscriptions/api/useSubscriptionGate";
 import { useParCanSeeLeadPortal, useParEmployeeItemVisible } from "@features/par/api/useParData";
 import { useParIsAdmin } from "@features/par/api/useParIsAdmin";
@@ -142,6 +144,8 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   // the gate is enabled for either.
   const dueDiligenceGate = useDueDiligenceGate(active.key === "finance" || active.key === "legal");
   const securityGate = useSecurityGate(active.key === "security");
+  // Sales: rows hidden when meet-app refuses the caller outright (403) -- see useSalesRailGate.
+  const salesGate = useSalesRailGate(active.key === "sales");
 
   // Subscriptions (PickMe Commute / LaaS) is the same shape of problem once
   // more, with one extra wrinkle worth naming: its backend publishes the
@@ -224,6 +228,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
     if (SRI_LANKA_ONLY_ITEM_IDS.has(s.id) && !isSriLankaEmployee) return false;
     if (DUE_DILIGENCE_ITEM_IDS.has(s.id)) return dueDiligenceGate.canSee(s.id);
     if (SECURITY_ITEM_IDS.has(s.id)) return securityGate.canSee(s.id);
+    if (SALES_ITEM_IDS.has(s.id)) return salesGate.canSee(s.id);
     if (FINANCE_ITEM_IDS.has(s.id)) return financeGate.canSee(s.id);
     if (LEAVE_ITEM_IDS.has(s.id)) return leaveGate.canSee(s.id);
     if (SUBSCRIPTION_ITEM_IDS.has(s.id)) return subscriptionCanSee(s.id);
@@ -253,6 +258,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
     marketingOpsGate.isResolving ||
     dueDiligenceGate.isResolving ||
     securityGate.isResolving ||
+    salesGate.isResolving ||
     subscriptionGate.isResolving ||
     infraGate.isResolving ||
     parLeadPortalGate.isLoading ||

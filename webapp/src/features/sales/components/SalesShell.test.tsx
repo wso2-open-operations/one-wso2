@@ -44,6 +44,7 @@ vi.mock("@context/perspective/PerspectiveContext", () => ({
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import SalesShell from "./SalesShell";
+import PerspectiveLanding from "@components/perspective-landing/PerspectiveLanding";
 
 function renderShell(props: { configured: boolean; forbidden?: boolean }) {
   return render(
@@ -86,5 +87,22 @@ describe("SalesShell", () => {
     renderShell({ configured: true, forbidden: false });
     expect(screen.getByText("meeting list")).toBeInTheDocument();
     expect(screen.queryByText("Nothing here for you yet")).not.toBeInTheDocument();
+  });
+
+  // The requirement is visual parity with Security and Compliance and Marketing Ops. Both reach
+  // their no-access screen through PerspectiveLanding (nothing visible in the rail), so the
+  // strongest check is that Sales renders that SAME markup -- title, card, button, no subtitle.
+  it("renders exactly the no-access screen Security and Marketing Ops show", () => {
+    const { container: sales, unmount } = renderShell({ configured: true, forbidden: true });
+    const salesHtml = sales.innerHTML;
+    unmount();
+    const { container: landing } = render(
+      <MemoryRouter>
+        <PerspectiveLanding />
+      </MemoryRouter>,
+    );
+    expect(salesHtml).toBe(landing.innerHTML);
+    expect(screen.getByRole("heading", { level: 1, name: "Sales" })).toBeInTheDocument();
+    expect(screen.queryByText(/Meetings recorded/)).not.toBeInTheDocument();
   });
 });

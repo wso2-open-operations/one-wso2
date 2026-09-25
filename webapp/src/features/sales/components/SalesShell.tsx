@@ -17,7 +17,7 @@
 import type { ReactNode } from "react";
 import { Alert, Box } from "@wso2/oxygen-ui";
 import PerspectiveHeader from "@components/perspective-header/PerspectiveHeader";
-import { NothingHere } from "@components/perspective-landing/PerspectiveLanding";
+import { NothingHere, PageTitle } from "@components/perspective-landing/PerspectiveLanding";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
 
 /**
@@ -47,6 +47,19 @@ export default function SalesShell({
   children: ReactNode;
 }) {
   const active = useActivePerspective();
+  // No access: exactly the screen Security and Compliance and Marketing Ops show when nothing in
+  // them is open to you (PerspectiveLanding's title + card) -- no subtitle, since it describes
+  // content the caller cannot see. The rail hides this perspective's rows the same way
+  // (useSalesRailGate).
+  if (configured && forbidden) {
+    return (
+      <Box>
+        <PageTitle label={active.label} />
+        <NothingHere label={active.label} icon={active.icon} />
+      </Box>
+    );
+  }
+
   return (
     <Box>
       <PerspectiveHeader title={title} subtitle={subtitle} />
@@ -56,9 +69,6 @@ export default function SalesShell({
           Sales isn&apos;t connected yet. Set <code>{configKey}</code> in{" "}
           <code>public/config.js</code> (the meet-app backend URL) and reload.
         </Alert>
-      ) : forbidden ? (
-        // The same card other perspectives show for 403.
-        <NothingHere label={active.label} icon={active.icon} />
       ) : (
         children
       )}
