@@ -15,11 +15,15 @@
 // under the License.
 
 import { useMemo, useState } from "react";
-import { Card, Skeleton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Button, Card, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { LandmarkIcon } from "@wso2/oxygen-ui-icons-react";
+import { Link as RouterLink } from "react-router";
 import DetailRow from "@components/detail-row/DetailRow";
 import Pager from "@features/people-ops/components/Pager";
-import type { AccountType, BankAccount } from "../api/types";
+import { ACCOUNT_TYPE_LABEL } from "../api/derive";
+import type { BankAccount } from "../api/types";
+import { useBankingAccess } from "../api/useBankingAccess";
+import BankingNotConfigured from "../banking/components/BankingNotConfigured";
 import {
   isBankingBackendConfigured,
   useBankAccounts,
@@ -27,19 +31,16 @@ import {
 
 const PAGE_SIZE = 2;
 
-const TYPE_LABEL: Record<AccountType, string> = {
-  SALARY: "Salary",
-  REIMBURSEMENT: "Reimbursement",
-  CONSULTANCY: "Consultancy",
-};
-
 // Live bank-accounts card in ConnectedServices. Reads from banking-app's
-// GET /employee/accounts?employeeWorkEmail=<me>. Currently read-only —
-// no add/deactivate UI (banking add-flow goes through approval workflow,
-// which is a bigger surface than we've scoped for now).
+// GET /employee/accounts?employeeWorkEmail=<me>. Read-only here: its Edit
+// link takes the employee to the Banking page, where the add/change flow
+// lives.
 export default function BankAccountsCard({ ownerEmail }: { ownerEmail?: string }) {
   const configured = isBankingBackendConfigured();
   const query = useBankAccounts(ownerEmail);
+  // The Banking page is closed to callers the banking backend does not
+  // count as employees, so its entry point here goes with it.
+  const bankingAccess = useBankingAccess();
   const [page, setPage] = useState(0);
 
   // Show ACTIVE accounts only — INACTIVE are historical, REQUESTED /
@@ -79,14 +80,15 @@ export default function BankAccountsCard({ ownerEmail }: { ownerEmail?: string }
             onNext={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
           />
         )}
+        {bankingAccess.canSee && (
+          <Button size="small" component={RouterLink} to="/me/banking">
+            Edit
+          </Button>
+        )}
       </Stack>
 
       {!configured ? (
-        <Tooltip title="Set ONE_WSO2_BANKING_BACKEND_URL to enable this." placement="top">
-          <Typography sx={{ fontSize: 12.5, color: "text.disabled", fontStyle: "italic", py: 1.5, cursor: "help" }}>
-            Not configured
-          </Typography>
-        </Tooltip>
+        <BankingNotConfigured sx={{ fontSize: 12.5, py: 1.5 }} />
       ) : query.isLoading ? (
         <AccountsSkeleton />
       ) : query.isError ? (
@@ -102,7 +104,7 @@ export default function BankAccountsCard({ ownerEmail }: { ownerEmail?: string }
           <DetailRow
             key={a.accountId}
             icon={<LandmarkIcon size={14} />}
-            title={`${a.bankName ?? "Bank"} · ${TYPE_LABEL[a.accountType] ?? a.accountType}`}
+            title={`${a.bankName ?? "Bank"} · ${ACCOUNT_TYPE_LABEL[a.accountType] ?? a.accountType}`}
             meta={`${maskAccountNumber(a.accountNumber)}${a.branchName ? ` · ${a.branchName}` : ""}`}
             last={idx === visible.length - 1}
           />

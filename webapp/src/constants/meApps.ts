@@ -19,7 +19,13 @@
 // Same App → items shape as @constants/financeApps; see
 // that file's header for the general rationale.
 
-import { MailsIcon, SignatureIcon, TreePalmIcon, UtensilsIcon } from "@wso2/oxygen-ui-icons-react";
+import {
+  LandmarkIcon,
+  MailsIcon,
+  SignatureIcon,
+  TreePalmIcon,
+  UtensilsIcon,
+} from "@wso2/oxygen-ui-icons-react";
 import type { MenuApp } from "@constants/appMenu";
 
 export const ME_APPS: readonly MenuApp[] = [
@@ -101,6 +107,28 @@ export const ME_APPS: readonly MenuApp[] = [
       },
     ],
   },
+  // Ported from digiops-hr's banking webapp "Change Bank Account" tab. Its
+  // own page rather than staying inside the BankAccountsCard dashboard card,
+  // because the source app's employee-facing surface alone — three Account
+  // Types, each with its own multi-step edit form and eligibility rules —
+  // is more than a card can hold. One screen today (the employee-facing
+  // panels); expected to grow admin-only sections later, gated on the
+  // banking backend's own admin/lead roles rather than this registry's
+  // `requires` (which speaks people-app's privilege vocabulary instead).
+  {
+    key: "banking",
+    name: "Banking",
+    icon: LandmarkIcon,
+    purpose: "View and update your salary, consultancy, and reimbursement bank accounts.",
+    items: [
+      {
+        id: "banking-home",
+        label: "Home",
+        desc: "Manage your salary, consultancy, and reimbursement bank accounts.",
+        path: "/me/banking",
+      },
+    ],
+  },
 ];
 
 // Item ids the rail must route to Leave's OWN gate rather than resolving
@@ -108,4 +136,12 @@ export const ME_APPS: readonly MenuApp[] = [
 // privilege vocabulary. See features/leave/api/useLeaveGate.
 export const LEAVE_ITEM_IDS: ReadonlySet<string> = new Set(
   (ME_APPS.find((app) => app.key === "leave")?.items ?? []).map((it) => it.id),
+);
+
+// Item ids the rail must route to the banking gate rather than resolving
+// `requires` against people-app capabilities — the banking backend itself
+// says who may use it (GET /employee-privileges). See
+// features/my/api/useBankingAccess.
+export const BANKING_ITEM_IDS: ReadonlySet<string> = new Set(
+  (ME_APPS.find((app) => app.key === "banking")?.items ?? []).map((it) => it.id),
 );

@@ -26,7 +26,7 @@ import {
 } from "@constants/perspectives";
 import { capabilitiesFromPrivileges, type Capability } from "@constants/appMenu";
 import { FINANCE_ITEM_IDS } from "@constants/financeApps";
-import { LEAVE_ITEM_IDS } from "@constants/meApps";
+import { BANKING_ITEM_IDS, LEAVE_ITEM_IDS } from "@constants/meApps";
 import { PAR_EMPLOYEE_ITEM_ID } from "@constants/parApps";
 import { DUE_DILIGENCE_ITEM_IDS } from "@constants/dueDiligenceApps";
 import { SECURITY_ITEM_IDS } from "@constants/securityApps";
@@ -37,6 +37,7 @@ import { useUserInfo } from "@api/useUserInfo";
 import { useMeProfile } from "@features/my/api/useMeProfile";
 import { useFinanceGate } from "@features/finance/api/useFinanceGate";
 import { useLeaveGate } from "@features/leave/api/useLeaveGate";
+import { useBankingAccess } from "@features/my/api/useBankingAccess";
 import { useMarketingOpsGate } from "@features/marketing-ops/api/useMarketingOpsGate";
 import { useDueDiligenceGate } from "@features/due-diligence/api/useDueDiligenceGate";
 import { useSecurityGate } from "@features/security/api/useSecurityGate";
@@ -124,6 +125,10 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   // `requires` against `caps` showed Reports to a people-app lead who cannot
   // use it, and hid it from a leave lead who can.
   const leaveGate = useLeaveGate(active.key === "me");
+
+  // Banking is open to callers the banking backend says are employees. Its
+  // entry lives under Me, so only ask while Me is active.
+  const bankingAccess = useBankingAccess(active.key === "me");
 
   // Marketing Ops is the same shape of problem and needs the same treatment:
   // its rail gates on the MARKETING OPS backend's own Asgardeo groups
@@ -231,6 +236,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
     if (SALES_ITEM_IDS.has(s.id)) return salesGate.canSee(s.id);
     if (FINANCE_ITEM_IDS.has(s.id)) return financeGate.canSee(s.id);
     if (LEAVE_ITEM_IDS.has(s.id)) return leaveGate.canSee(s.id);
+    if (BANKING_ITEM_IDS.has(s.id)) return bankingAccess.canSee;
     if (SUBSCRIPTION_ITEM_IDS.has(s.id)) return subscriptionCanSee(s.id);
     if (s.id === PAR_LEAD_PORTAL_ITEM_ID) return parLeadPortalGate.canSee;
     if (s.id === PAR_ADMIN_PORTAL_ITEM_ID) return parAdminPortalGate.isAdmin;
@@ -255,6 +261,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
     userInfo.isLoading ||
     financeGate.isResolving ||
     leaveGate.isResolving ||
+    bankingAccess.isResolving ||
     marketingOpsGate.isResolving ||
     dueDiligenceGate.isResolving ||
     securityGate.isResolving ||

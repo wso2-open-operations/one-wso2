@@ -144,6 +144,23 @@ export const bankingServiceUrls = {
   // accounts. Backend allows self-lookup for non-admin callers.
   employeeAccounts: (workEmail: string) =>
     `${bankingBackendUrl}/employee/accounts?employeeWorkEmail=${encodeURIComponent(workEmail)}`,
+  // GET /employee-privileges — what the caller may do (employee / People Ops
+  // admin / Finance admin), decided by the backend from the same roles it
+  // enforces, so the frontend keeps no role names of its own.
+  employeePrivileges: `${bankingBackendUrl}/employee-privileges`,
+  // GET /employee-info?employeeWorkEmail=<email> — the caller's own HR
+  // record as the banking backend sees it (its `location` is what the
+  // Reimbursement gate and Bank Location options key on). Backend answers
+  // only for the caller's own email.
+  employeeInfo: (workEmail: string) =>
+    `${bankingBackendUrl}/employee-info?employeeWorkEmail=${encodeURIComponent(workEmail)}`,
+  // GET /app-config — thresholds + eligibility config. Deployment
+  // configuration, not per-employee state.
+  appConfig: `${bankingBackendUrl}/app-config`,
+  // GET /banks — the lookup list for the edit/add flow's bank autocomplete.
+  banks: `${bankingBackendUrl}/banks`,
+  // POST /employee/accounts — submits a bank account change request.
+  createBankAccountRequest: `${bankingBackendUrl}/employee/accounts`,
 };
 
 // ---- PAR app backend ---------------------------------------------------------
