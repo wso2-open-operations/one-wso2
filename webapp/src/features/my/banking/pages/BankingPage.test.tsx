@@ -30,6 +30,7 @@ vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) })
 
 const { default: BankingPage, BankingIndex } = await import("./BankingPage");
 const { default: MyAccountsTab } = await import("./MyAccountsTab");
+const { default: SummaryTab } = await import("./SummaryTab");
 
 // BankingPage is now just the tab-bar frame; the panels this file exercises
 // render one route deeper, at its "my-accounts" tab. Starting the router
@@ -43,6 +44,21 @@ function renderPage() {
         <Route path="me/banking" element={<BankingPage />}>
           <Route index element={<BankingIndex />} />
           <Route path="my-accounts" element={<MyAccountsTab />} />
+          <Route path="summary" element={<SummaryTab />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function renderSummary() {
+  return render(
+    <MemoryRouter initialEntries={["/me/banking/summary"]}>
+      <Routes>
+        <Route path="me/banking" element={<BankingPage />}>
+          <Route index element={<BankingIndex />} />
+          <Route path="my-accounts" element={<MyAccountsTab />} />
+          <Route path="summary" element={<SummaryTab />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -208,9 +224,10 @@ describe("tab frame", () => {
     expect(await screen.findByText("Salary")).toBeInTheDocument();
   });
 
-  it("shows the My Accounts tab in the tab bar", () => {
+  it("shows the My Accounts and Summary tabs in the tab bar", () => {
     renderPage();
     expect(screen.getByRole("tab", { name: "My Accounts" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Summary" })).toBeInTheDocument();
   });
 });
 
@@ -557,5 +574,59 @@ describe("Reimbursement Eligibility", () => {
 
     const reimbursementCard = screen.getByText("Reimbursement").closest(".MuiCard-root") as HTMLElement;
     expect(editButton(reimbursementCard)).toBeEnabled();
+  });
+});
+
+describe("Summary tab", () => {
+  it("lists every account across all types and statuses, not just Active ones", () => {
+    useBankAccountsMock.mockReturnValue(
+      accounts([
+        account({ accountId: 1, accountType: "CONSULTANCY", accountStatus: "ACTIVE", accountNumber: "5566778899", bankName: "Sampath Bank PLC", paymentMethod: "Bank Transfer", effectiveFrom: "2026-09-09" }),
+        account({ accountId: 2, accountType: "SALARY", accountStatus: "REQUESTED", accountNumber: "1234567890", bankName: "Bank of Ceylon" }),
+        account({ accountId: 3, accountType: "REIMBURSEMENT", accountStatus: "REJECTED", accountNumber: "9999999999", bankName: "HNB" }),
+        account({ accountId: 4, accountType: "SALARY", accountStatus: "INACTIVE", accountNumber: "1111111111", bankName: "NDB" }),
+      ]),
+    );
+    renderSummary();
+
+    const table = screen.getByRole("table");
+    for (const header of ["Account Types", "Effected From", "Account No", "Name", "Changed Bank", "Payment Method", "Status"]) {
+      expect(within(table).getByRole("columnheader", { name: header })).toBeInTheDocument();
+    }
+    // Header row + one row per account.
+    expect(within(table).getAllByRole("row")).toHaveLength(5);
+    expect(within(table).getByText("5566778899")).toBeInTheDocument();
+    expect(within(table).getByText("Sampath Bank PLC")).toBeInTheDocument();
+    expect(within(table).getByText("2026-09-09")).toBeInTheDocument();
+    expect(within(table).getByText("CONSULTANCY")).toBeInTheDocument();
+    expect(within(table).getByText("REIMBURSEMENT")).toBeInTheDocument();
+    for (const status of ["ACTIVE", "REQUESTED", "REJECTED", "INACTIVE"]) {
+      expect(within(table).getByText(status)).toBeInTheDocument();
+    }
+  });
+
+  it("shows Bank Transfer as the Payment Method when the record has none", () => {
+    useBankAccountsMock.mockReturnValue(accounts([account({ paymentMethod: null })]));
+    renderSummary();
+    expect(within(screen.getByRole("table")).getByText("Bank Transfer")).toBeInTheDocument();
+  });
+
+  it("shows a clear empty state instead of an empty table when there are no records", () => {
+    useBankAccountsMock.mockReturnValue(accounts([]));
+    renderSummary();
+    expect(screen.getByText("No account history found")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows a retryable error if the accounts fail to load", () => {
+    useBankAccountsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("network down"),
+      refetch: vi.fn(),
+    });
+    renderSummary();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 });

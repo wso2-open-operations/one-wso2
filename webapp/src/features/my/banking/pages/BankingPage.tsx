@@ -22,10 +22,10 @@ import { BANKING_PATH, BANKING_TABS } from "../bankingTabs";
 
 // The frame every Banking tab shares: the header and the tab bar, with an
 // <Outlet /> for whichever tab the URL names — same shape as Claim
-// Approval's own page/tabs split. Only one tab exists today (see
-// MyAccountsTab); this is what keeps a later, admin-facing tab additive —
-// a new entry in bankingTabs.ts plus a new route in App.tsx — rather than
-// a reshape of this component.
+// Approval's own page/tabs split (see MyAccountsTab and SummaryTab). This
+// is what keeps a later, admin-facing tab additive — a new entry in
+// bankingTabs.ts plus a new route in App.tsx — rather than a reshape of
+// this component.
 export default function BankingPage() {
   return (
     <Box>

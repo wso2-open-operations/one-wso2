@@ -61,6 +61,7 @@ import EmailGroupsPage from "@features/my/email-groups/pages/EmailGroupsPage";
 import EmailSignaturePage from "@features/my/email-signature/pages/EmailSignaturePage";
 import BankingPage, { BankingIndex } from "@features/my/banking/pages/BankingPage";
 import MyAccountsTab from "@features/my/banking/pages/MyAccountsTab";
+import SummaryTab from "@features/my/banking/pages/SummaryTab";
 import MyTeamPage from "@features/my/my-team/pages/MyTeamPage";
 import TeamMemberPage from "@features/my/my-team/pages/TeamMemberPage";
 import PerspectiveLanding from "@components/perspective-landing/PerspectiveLanding";
@@ -770,6 +771,7 @@ export default function App() {
           <Route path="me/banking" element={<BankingPage />}>
             <Route index element={<BankingIndex />} />
             <Route path="my-accounts" element={<MyAccountsTab />} />
+            <Route path="summary" element={<SummaryTab />} />
           </Route>
           {/* Catch-all → landing */}
           <Route path="*" element={<Navigate to={landingPath()} replace />} />

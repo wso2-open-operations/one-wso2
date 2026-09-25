@@ -26,7 +26,7 @@ import type { AccountType } from "../../api/types";
 import BankAccountPanel from "../components/BankAccountPanel";
 import BankAccountRequestDialog from "../components/BankAccountRequestDialog";
 
-// The one tab BankingPage has today — ported from digiops-hr's banking
+// The first of BankingPage's tabs — ported from digiops-hr's banking
 // webapp "Change Bank Account" tab. Three Account Types, each with its own
 // multi-step edit form and its own eligibility/deadline rules, is more
 // than a dashboard card can hold — and the port's whole point is to keep

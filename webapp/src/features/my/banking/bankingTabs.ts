@@ -16,13 +16,13 @@
 
 import type { RoutedTabDef } from "@components/routed-tabs/RoutedTabs";
 
-// One tab today — the employee-facing panels. Kept as a real route (not
-// folded into BankingPage itself) so a second, admin-facing tab can be
-// added here later as a new entry plus its own route in App.tsx, without
-// reshaping this page: the same additive-not-reshape treatment Claim
-// Approval's tabs already get.
+// Each tab is a real route (not folded into BankingPage itself), so a
+// further tab — e.g. an admin-facing one — is a new entry here plus its own
+// route in App.tsx, without reshaping this page: the same
+// additive-not-reshape treatment Claim Approval's tabs already get.
 export const BANKING_PATH = "/me/banking";
 
 export const BANKING_TABS: readonly RoutedTabDef[] = [
   { segment: "my-accounts", label: "My Accounts" },
+  { segment: "summary", label: "Summary" },
 ] as const;
