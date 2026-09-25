@@ -144,6 +144,9 @@ export const bankingServiceUrls = {
   // accounts. Backend allows self-lookup for non-admin callers.
   employeeAccounts: (workEmail: string) =>
     `${bankingBackendUrl}/employee/accounts?employeeWorkEmail=${encodeURIComponent(workEmail)}`,
+  // GET /app-config — thresholds + eligibility config. Deployment
+  // configuration, not per-employee state.
+  appConfig: `${bankingBackendUrl}/app-config`,
 };
 
 // ---- PAR app backend ---------------------------------------------------------

@@ -15,8 +15,9 @@
 // under the License.
 
 import { useMemo, useState } from "react";
-import { Card, Skeleton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Button, Card, Skeleton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { LandmarkIcon } from "@wso2/oxygen-ui-icons-react";
+import { Link as RouterLink } from "react-router";
 import DetailRow from "@components/detail-row/DetailRow";
 import Pager from "@features/people-ops/components/Pager";
 import type { AccountType, BankAccount } from "../api/types";
@@ -79,6 +80,9 @@ export default function BankAccountsCard({ ownerEmail }: { ownerEmail?: string }
             onNext={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
           />
         )}
+        <Button size="small" component={RouterLink} to="/me/banking">
+          Edit
+        </Button>
       </Stack>
 
       {!configured ? (
