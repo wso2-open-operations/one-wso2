@@ -35,20 +35,27 @@ const {
 } = await import("./bankingRules");
 
 describe("isPastThreshold", () => {
+  // The source app compares the UTC day-of-month, so the answer must not
+  // depend on the viewer's timezone around the cutoff.
+  it("uses the UTC day, not the local one", () => {
+    expect(isPastThreshold(new Date("2026-09-18T23:59:59Z"), 18)).toBe(false);
+    expect(isPastThreshold(new Date("2026-09-19T00:00:00Z"), 18)).toBe(true);
+  });
+
   it("is false on the threshold day itself", () => {
-    expect(isPastThreshold(new Date(2026, 8, 18), 18)).toBe(false);
+    expect(isPastThreshold(new Date(Date.UTC(2026, 8, 18, 12)), 18)).toBe(false);
   });
 
   it("is false before the threshold day", () => {
-    expect(isPastThreshold(new Date(2026, 8, 17), 18)).toBe(false);
+    expect(isPastThreshold(new Date(Date.UTC(2026, 8, 17, 12)), 18)).toBe(false);
   });
 
   it("is true the day after the threshold", () => {
-    expect(isPastThreshold(new Date(2026, 8, 19), 18)).toBe(true);
+    expect(isPastThreshold(new Date(Date.UTC(2026, 8, 19, 12)), 18)).toBe(true);
   });
 
   it("is true well past the threshold", () => {
-    expect(isPastThreshold(new Date(2026, 8, 30), 18)).toBe(true);
+    expect(isPastThreshold(new Date(Date.UTC(2026, 8, 30, 12)), 18)).toBe(true);
   });
 });
 

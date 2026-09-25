@@ -27,10 +27,12 @@ import type { CustomLocationMapEntry } from "./types";
 
 /**
  * True once `today` is past the Account Type's Threshold day-of-month —
- * that Account Type's Edit action should be disabled.
+ * that Account Type's Edit action should be disabled. Compares the UTC
+ * day, as the source app does, so the answer near a cutoff doesn't depend
+ * on the viewer's timezone.
  */
 export function isPastThreshold(today: Date, thresholdDay: number): boolean {
-  return today.getDate() > thresholdDay;
+  return today.getUTCDate() > thresholdDay;
 }
 
 /** True when `workLocation` is on the Reimbursement Eligibility allow-list. */

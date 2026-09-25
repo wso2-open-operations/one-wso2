@@ -15,7 +15,7 @@
 // under the License.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import type { Bank, BankAccount, BankingAppConfig } from "../../api/types";
@@ -347,8 +347,18 @@ describe("Edit/Add popup", () => {
   });
 
   describe("Consultancy Bank Location narrowing (customLocationMap)", () => {
-    async function openBankInfoStep(user: ReturnType<typeof userEvent.setup>, accountTypeLabel: string) {
+    async function openBankInfoStep(
+      user: ReturnType<typeof userEvent.setup>,
+      accountTypeLabel: string,
+      { expectInvalidCountry = false }: { expectInvalidCountry?: boolean } = {},
+    ) {
       await openDialogFor(user, accountTypeLabel);
+      // A map entry that leaves the work location out raises the Invalid
+      // Country notice on open (covered in its own tests) — acknowledge it.
+      if (expectInvalidCountry) {
+        await user.click(await screen.findByRole("button", { name: "OK" }));
+        await waitFor(() => expect(screen.queryByText("Invalid Country")).not.toBeInTheDocument());
+      }
       await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
       await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
       await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
@@ -395,7 +405,7 @@ describe("Edit/Add popup", () => {
       );
       renderPage();
       const user = userEvent.setup();
-      await openBankInfoStep(user, "Consultancy");
+      await openBankInfoStep(user, "Consultancy", { expectInvalidCountry: true });
 
       expect(screen.getByRole("combobox", { name: "Bank Location" })).toHaveValue("Maldives");
     });
@@ -413,6 +423,119 @@ describe("Edit/Add popup", () => {
       await user.click(location);
       expect(await screen.findByRole("option", { name: "Colombo" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "Maldives" })).toBeInTheDocument();
+    });
+  });
+
+  describe("Confirm Change Request", () => {
+    it("asks for confirmation on Save and sends nothing until it is given", async () => {
+      renderPage();
+      const user = userEvent.setup();
+      await openDialogFor(user, "Salary");
+      await completeUpToReview(user);
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(await screen.findByText("Confirm Change Request")).toBeInTheDocument();
+      expect(
+        screen.getByText("Are you sure you want to make this bank account change?"),
+      ).toBeInTheDocument();
+      expect(mutateAsyncMock).not.toHaveBeenCalled();
+    });
+
+    it("sends nothing and stays on the review step when the confirmation is cancelled", async () => {
+      renderPage();
+      const user = userEvent.setup();
+      await openDialogFor(user, "Salary");
+      await completeUpToReview(user);
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      const confirm = (await screen.findByText("Confirm Change Request")).closest('[role="dialog"]') as HTMLElement;
+      await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+
+      expect(mutateAsyncMock).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByText("Confirm Change Request")).not.toBeInTheDocument());
+      expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    });
+  });
+
+  describe("Invalid Country notice", () => {
+    it("tells a Consultancy requester whose map entry leaves their work location out", async () => {
+      useBankingConfigMock.mockReturnValue(
+        config({ customLocationMap: [{ location: "Colombo", customMap: ["Maldives"] }] }),
+      );
+      renderPage();
+      const user = userEvent.setup();
+      await openDialogFor(user, "Consultancy");
+
+      expect(await screen.findByText("Invalid Country")).toBeInTheDocument();
+      expect(screen.getByText("Your country is not available in the bank locations.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "OK" }));
+      await waitFor(() => expect(screen.queryByText("Invalid Country")).not.toBeInTheDocument());
+    });
+
+    it("stays quiet when the work location is among the allowed locations", async () => {
+      renderPage();
+      const user = userEvent.setup();
+      await openDialogFor(user, "Consultancy");
+
+      expect(screen.queryByText("Invalid Country")).not.toBeInTheDocument();
+    });
+
+    it("stays quiet for Salary and Reimbursement, whose list always includes the work location", async () => {
+      useBankingConfigMock.mockReturnValue(
+        config({ customLocationMap: [{ location: "Colombo", customMap: ["Maldives"] }] }),
+      );
+      renderPage();
+      const user = userEvent.setup();
+      await openDialogFor(user, "Salary");
+
+      expect(screen.queryByText("Invalid Country")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Bank Info step quirks carried over from the source", () => {
+    async function toBankInfo(user: ReturnType<typeof userEvent.setup>) {
+      await openDialogFor(user, "Salary");
+      await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
+      await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+      await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+      await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+      await user.type(screen.getByLabelText("Account No"), "1234567890");
+      await user.click(screen.getByRole("button", { name: "Continue" }));
+    }
+
+    it("clears the Bank Address when a different bank is picked", async () => {
+      renderPage();
+      const user = userEvent.setup();
+      await toBankInfo(user);
+      await user.click(screen.getByRole("combobox", { name: "Bank Location" }));
+      await user.click(await screen.findByRole("option", { name: "Colombo" }));
+      await user.click(screen.getByRole("combobox", { name: "Bank Name and Swift Code" }));
+      await user.click(await screen.findByRole("option", { name: "BOC (BOCCLKLX)" }));
+      await user.type(screen.getByLabelText("Bank Address"), "1 Bank Street, Colombo, Sri Lanka");
+      expect(screen.getByLabelText("Bank Address")).toHaveValue("1 Bank Street, Colombo, Sri Lanka");
+
+      await user.click(screen.getByRole("combobox", { name: "Bank Name and Swift Code" }));
+      await user.click(await screen.findByRole("option", { name: "HNB (HBLILKLX)" }));
+
+      expect(screen.getByLabelText("Bank Address")).toHaveValue("");
+    });
+
+    it("lists banks filed under United States when the Bank Location is US", async () => {
+      useBanksMock.mockReturnValue(
+        banks([
+          bank({ bankLocation: "United States", bankName: "Chase", swiftCode: "CHASUS33", bankCode: "3" }),
+          bank(),
+        ]),
+      );
+      useMeProfileMock.mockReturnValue(profile("US"));
+      renderPage();
+      const user = userEvent.setup();
+      await toBankInfo(user);
+      await user.click(screen.getByRole("combobox", { name: "Bank Location" }));
+      await user.click(await screen.findByRole("option", { name: "US" }));
+      await user.click(screen.getByRole("combobox", { name: "Bank Name and Swift Code" }));
+
+      expect(await screen.findByRole("option", { name: "Chase (CHASUS33)" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "BOC (BOCCLKLX)" })).not.toBeInTheDocument();
     });
   });
 
@@ -470,6 +593,7 @@ describe("Edit/Add popup", () => {
     await openDialogFor(user, "Salary");
     await completeUpToReview(user);
     await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(await screen.findByRole("button", { name: "Yes" }));
 
     expect(mutateAsyncMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -503,6 +627,7 @@ describe("Edit/Add popup", () => {
     await openDialogFor(user, "Salary");
     await completeUpToReview(user);
     await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(await screen.findByRole("button", { name: "Yes" }));
 
     expect(
       await screen.findByText("Changes allowed only until the 5th of each month."),
@@ -674,6 +799,57 @@ describe("Summary tab", () => {
     for (const status of ["ACTIVE", "REQUESTED", "REJECTED", "INACTIVE"]) {
       expect(within(table).getByText(status)).toBeInTheDocument();
     }
+  });
+
+  describe("column sorting", () => {
+    function seed() {
+      useBankAccountsMock.mockReturnValue(
+        accounts([
+          account({ accountId: 1, accountName: "Charlie", bankName: "NDB" }),
+          account({ accountId: 2, accountName: "alice", bankName: "BOC" }),
+          account({ accountId: 3, accountName: "Bob", bankName: "HNB" }),
+        ]),
+      );
+    }
+    const namesInOrder = () =>
+      within(screen.getByRole("table"))
+        .getAllByRole("row")
+        .slice(1)
+        .map((r) => within(r).getAllByRole("cell")[3].textContent);
+
+    it("keeps the backend's order until a header is clicked", () => {
+      seed();
+      renderSummary();
+      expect(namesInOrder()).toEqual(["Charlie", "alice", "Bob"]);
+    });
+
+    it("sorts ascending, then descending, then back to the backend's order on repeated clicks", async () => {
+      seed();
+      renderSummary();
+      const user = userEvent.setup();
+      const header = () => screen.getByRole("columnheader", { name: "Name" });
+
+      await user.click(within(header()).getByRole("button"));
+      expect(namesInOrder()).toEqual(["alice", "Bob", "Charlie"]);
+      expect(header()).toHaveAttribute("aria-sort", "ascending");
+
+      await user.click(within(header()).getByRole("button"));
+      expect(namesInOrder()).toEqual(["Charlie", "Bob", "alice"]);
+      expect(header()).toHaveAttribute("aria-sort", "descending");
+
+      await user.click(within(header()).getByRole("button"));
+      expect(namesInOrder()).toEqual(["Charlie", "alice", "Bob"]);
+      expect(header()).not.toHaveAttribute("aria-sort");
+    });
+
+    it("sorts by whichever column was clicked last, and sorts across pages", async () => {
+      seed();
+      renderSummary();
+      const user = userEvent.setup();
+      await user.click(within(screen.getByRole("columnheader", { name: "Changed Bank" })).getByRole("button"));
+
+      expect(namesInOrder()).toEqual(["alice", "Bob", "Charlie"]); // BOC, HNB, NDB
+    });
   });
 
   it("shows Bank Transfer as the Payment Method when the record has none", () => {

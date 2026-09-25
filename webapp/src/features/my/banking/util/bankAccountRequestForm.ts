@@ -37,10 +37,22 @@ export interface BankAccountFormValues {
 export type BankAccountFormErrors = Partial<Record<keyof BankAccountFormValues, string>>;
 
 // An address needs at least three comma-separated parts (street, city,
-// country) — same requirement the source app enforces before a bank account
-// change is accepted.
+// country). Checked exactly the way the source app does it — a pattern that
+// wants three non-empty runs between commas, plus a count of the parts of
+// the trimmed value — so what it lets through is identical: a part that is
+// only spaces still counts, an empty part between two commas doesn't.
+const ADDRESS_PATTERN = /^([^,]+)(,[^,]+){2,}$/;
+const ADDRESS_FORMAT_ERROR = "Address must contain at least three elements separated by commas";
+
 function isWellFormedAddress(value: string): boolean {
-  return value.trim().split(",").filter((part) => part.trim().length > 0).length >= 3;
+  return ADDRESS_PATTERN.test(value) && value.trim().split(",").length >= 3;
+}
+
+// Banks are filed under "United States", while the Bank Location list can
+// carry the "US" abbreviation — the source app looks banks up under the full
+// name for that one location and every other location as-is.
+export function banksLocationKey(location: string): string {
+  return location === "US" ? "United States" : location;
 }
 
 // Step 1 — Account Holder Info.
@@ -51,10 +63,10 @@ export function validateAccountHolder(values: BankAccountFormValues): BankAccoun
     errors.accountName = "Account Holder's Name is required";
   }
 
-  if (!values.beneficiaryAddress.trim()) {
+  if (!values.beneficiaryAddress) {
     errors.beneficiaryAddress = "Account Holder's Address is required";
   } else if (!isWellFormedAddress(values.beneficiaryAddress)) {
-    errors.beneficiaryAddress = "Address should be in the format: Street, City, Country";
+    errors.beneficiaryAddress = ADDRESS_FORMAT_ERROR;
   }
 
   if (!values.accountHolderCountry) {
@@ -85,10 +97,10 @@ export function validateBankInfo(
     errors.bankName = "Select a bank to continue";
   }
 
-  if (!values.bankAddress.trim()) {
+  if (!values.bankAddress) {
     errors.bankAddress = "Bank Address is required";
   } else if (!isWellFormedAddress(values.bankAddress)) {
-    errors.bankAddress = "Address should be in the format: Street, City, Country";
+    errors.bankAddress = ADDRESS_FORMAT_ERROR;
   }
 
   // Consultancy accounts are paid without a branch reference — matches the

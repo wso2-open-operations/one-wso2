@@ -16,6 +16,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  banksLocationKey,
   buildCreateBankAccountRequestPayload,
   validateAccountHolder,
   validateBankInfo,
@@ -56,7 +57,19 @@ describe("validateAccountHolder", () => {
     expect(
       validateAccountHolder(values({ beneficiaryAddress: "No 23, Galle Road" }))
         .beneficiaryAddress,
-    ).toBe("Address should be in the format: Street, City, Country");
+    ).toBe("Address must contain at least three elements separated by commas");
+  });
+
+  it("counts comma-separated parts the way the source does: untrimmed, so a blank-but-present part still counts", () => {
+    expect(
+      validateAccountHolder(values({ beneficiaryAddress: "No 23, ,Colombo" })).beneficiaryAddress,
+    ).toBeUndefined();
+  });
+
+  it("rejects an address with an empty part between commas", () => {
+    expect(
+      validateAccountHolder(values({ beneficiaryAddress: "No 23,,Colombo" })).beneficiaryAddress,
+    ).toBe("Address must contain at least three elements separated by commas");
   });
 
   it("accepts an address with three or more comma-separated parts", () => {
@@ -108,7 +121,7 @@ describe("validateBankInfo", () => {
     );
     expect(
       validateBankInfo(values({ bankAddress: "1 Bank Street" }), "SALARY").bankAddress,
-    ).toBe("Address should be in the format: Street, City, Country");
+    ).toBe("Address must contain at least three elements separated by commas");
   });
 
   it("requires branch name and branch code for SALARY", () => {
@@ -180,5 +193,16 @@ describe("buildCreateBankAccountRequestPayload", () => {
   it("stamps effectiveFrom as today, regardless of account type", () => {
     const payload = buildCreateBankAccountRequestPayload(values(), "CONSULTANCY", "person@wso2.com");
     expect(payload.effectiveFrom).toBe("2026-09-25");
+  });
+});
+
+describe("banksLocationKey", () => {
+  it("maps the US abbreviation to the location name banks are filed under", () => {
+    expect(banksLocationKey("US")).toBe("United States");
+  });
+
+  it("passes every other location through unchanged", () => {
+    expect(banksLocationKey("Sri Lanka")).toBe("Sri Lanka");
+    expect(banksLocationKey("")).toBe("");
   });
 });

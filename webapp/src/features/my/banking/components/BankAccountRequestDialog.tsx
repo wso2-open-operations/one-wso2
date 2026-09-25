@@ -41,6 +41,7 @@ import {
 } from "../../api/bankingRules";
 import type { AccountType, Bank, CustomLocationMapEntry } from "../../api/types";
 import {
+  banksLocationKey,
   buildCreateBankAccountRequestPayload,
   todayIsoDate,
   validateAccountHolder,
@@ -118,6 +119,8 @@ export default function BankAccountRequestDialog({
   }));
   const [errors, setErrors] = useState<BankAccountFormErrors>({});
   const [submitError, setSubmitError] = useState<string | undefined>();
+  const [confirming, setConfirming] = useState(false);
+  const [invalidCountryAcknowledged, setInvalidCountryAcknowledged] = useState(false);
 
   const banksQuery = useBanks(true);
   const mutation = useCreateBankAccountRequest();
@@ -131,8 +134,18 @@ export default function BankAccountRequestDialog({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [isConsultancy, consultancyLocations, banksQuery.data, employeeWorkLocation]);
 
+  // The employee's own work location is missing from the Bank Location
+  // options — only reachable for Consultancy, when its customLocationMap
+  // entry leaves the work location out. Just informs, like the source app.
+  const showInvalidCountry =
+    Boolean(employeeWorkLocation) &&
+    !bankLocations.includes(employeeWorkLocation as string) &&
+    !invalidCountryAcknowledged;
+
   const banksForLocation = useMemo(
-    () => (banksQuery.data?.banks ?? []).filter((b) => b.bankLocation === values.bankLocation),
+    () => (banksQuery.data?.banks ?? []).filter(
+        (b) => b.bankLocation === banksLocationKey(values.bankLocation),
+      ),
     [banksQuery.data, values.bankLocation],
   );
 
@@ -140,7 +153,14 @@ export default function BankAccountRequestDialog({
     setValues((v) => ({ ...v, [key]: value }));
   }
 
+  // Picking a location or bank starts the Bank Info fields that depend on it
+  // over: stale validation messages on the address/branch fields go away.
+  function clearDependentErrors() {
+    setErrors((e) => ({ ...e, bankAddress: undefined, branchName: undefined, branchCode: undefined }));
+  }
+
   function selectBankLocation(next: string) {
+    clearDependentErrors();
     setValues((v) => ({
       ...v,
       bankLocation: next,
@@ -153,8 +173,11 @@ export default function BankAccountRequestDialog({
   }
 
   function selectBank(selected: Bank | null) {
+    clearDependentErrors();
     setValues((v) => ({
       ...v,
+      // The address belongs to the bank it was typed for.
+      bankAddress: "",
       bankName: selected?.bankName ?? "",
       bankSwiftCode: selected?.swiftCode ?? "",
       bankCode: selected?.bankCode ?? "",
@@ -174,6 +197,7 @@ export default function BankAccountRequestDialog({
   }
 
   async function submit() {
+    setConfirming(false);
     setSubmitError(undefined);
     try {
       await mutation.mutateAsync(
@@ -364,11 +388,36 @@ export default function BankAccountRequestDialog({
         {step === "holder" && <Button variant="contained" onClick={goToBankInfo}>Continue</Button>}
         {step === "bank" && <Button variant="contained" onClick={goToReview}>Continue</Button>}
         {step === "review" && (
-          <Button variant="contained" onClick={submit} disabled={mutation.isPending}>
+          <Button variant="contained" onClick={() => setConfirming(true)} disabled={mutation.isPending}>
             Save
           </Button>
         )}
       </DialogActions>
+
+      <Dialog open={confirming} onClose={() => setConfirming(false)}>
+        <DialogTitle>Confirm Change Request</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to make this bank account change?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirming(false)}>Cancel</Button>
+          <Button variant="contained" onClick={submit}>
+            Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={showInvalidCountry} onClose={() => setInvalidCountryAcknowledged(true)}>
+        <DialogTitle>Invalid Country</DialogTitle>
+        <DialogContent>
+          <Typography>Your country is not available in the bank locations.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setInvalidCountryAcknowledged(true)}>
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }

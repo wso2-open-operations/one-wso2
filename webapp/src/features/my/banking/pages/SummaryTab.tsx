@@ -27,6 +27,7 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  TableSortLabel,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -34,7 +35,7 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useMeProfile } from "../../api/useMeProfile";
 import { isBankingBackendConfigured, useBankAccounts } from "../../api/useBankAccounts";
 import { display, formatDate } from "../../api/derive";
-import type { AccountStatus, AccountType } from "../../api/types";
+import type { AccountStatus, AccountType, BankAccount } from "../../api/types";
 
 type ChipColor = "default" | "success" | "warning" | "error";
 
@@ -56,15 +57,23 @@ const ACCOUNT_STATUS_COLOR: Record<AccountStatus, ChipColor> = {
 
 const ROWS_PER_PAGE_OPTIONS = [7, 10, 25, 50];
 
-const COLUMNS = [
-  "Account Types",
-  "Effected From",
-  "Account No",
-  "Name",
-  "Changed Bank",
-  "Payment Method",
-  "Status",
-] as const;
+// Each column's label, and the value it sorts (and displays) by.
+const COLUMNS: { label: string; value: (a: BankAccount) => string }[] = [
+  { label: "Account Types", value: (a) => a.accountType },
+  { label: "Effected From", value: (a) => a.effectiveFrom ?? "" },
+  { label: "Account No", value: (a) => a.accountNumber ?? "" },
+  { label: "Name", value: (a) => a.accountName ?? "" },
+  { label: "Changed Bank", value: (a) => a.bankName ?? "" },
+  // Records that predate Payment Method show as Bank Transfer, and sort as such.
+  { label: "Payment Method", value: (a) => a.paymentMethod || "Bank Transfer" },
+  { label: "Status", value: (a) => a.accountStatus },
+];
+
+type SortState = { column: number; direction: "asc" | "desc" } | null;
+
+// Same as the source's grid: every column sortable, and clicking one
+// cycles ascending -> descending -> back to the backend's own order.
+const compareText = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }).compare;
 
 // The Banking page's second tab — ported from digiops-hr's banking webapp
 // "Summary" tab: the employee's whole bank-account change history, every
@@ -76,6 +85,7 @@ export default function SummaryTab() {
   const accounts = useBankAccounts(profile.data?.employee.workEmail);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(ROWS_PER_PAGE_OPTIONS[0]);
+  const [sort, setSort] = useState<SortState>(null);
 
   if (!isBankingBackendConfigured()) {
     return (
@@ -120,18 +130,45 @@ export default function SummaryTab() {
     );
   }
 
-  const visible = rows.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  const sorted = sort
+    ? [...rows].sort((a, b) => {
+        const get = COLUMNS[sort.column].value;
+        const result = compareText(get(a), get(b));
+        return sort.direction === "asc" ? result : -result;
+      })
+    : rows;
+  const visible = sorted.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+
+  function cycleSort(column: number) {
+    setSort((current) => {
+      if (current?.column !== column) return { column, direction: "asc" };
+      return current.direction === "asc" ? { column, direction: "desc" } : null;
+    });
+  }
 
   return (
     <TableContainer>
       <Table size="small">
         <TableHead>
           <TableRow>
-            {COLUMNS.map((label) => (
-              <TableCell key={label} sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
-                {label}
-              </TableCell>
-            ))}
+            {COLUMNS.map(({ label }, index) => {
+              const active = sort?.column === index;
+              return (
+                <TableCell
+                  key={label}
+                  sortDirection={active ? sort.direction : false}
+                  sx={{ fontWeight: 600, whiteSpace: "nowrap" }}
+                >
+                  <TableSortLabel
+                    active={active}
+                    direction={active ? sort.direction : "asc"}
+                    onClick={() => cycleSort(index)}
+                  >
+                    {label}
+                  </TableSortLabel>
+                </TableCell>
+              );
+            })}
           </TableRow>
         </TableHead>
         <TableBody>
