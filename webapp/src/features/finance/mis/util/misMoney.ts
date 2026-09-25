@@ -206,10 +206,17 @@ export function misHeadlineAmount(value: number | null | undefined): string {
   return HEADLINE_FORMAT.format(value);
 }
 
+// `minimumFractionDigits: 0` is not a default being restated. For a currency,
+// engines disagree on what a lone `maximumFractionDigits: 1` implies: Node 24's
+// V8 writes `$950`, while Node 22's — the version this repo pins — takes the
+// currency's two minimum digits, clamps them to one, and writes `$950.0`. A
+// browser splits the same way by engine version. Saying both ends makes it one
+// answer everywhere.
 const HEADLINE_FORMAT = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: CURRENCY_CODE,
   notation: "compact",
+  minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 });
 

@@ -43,6 +43,7 @@
 // first one `products`. This keeps the labels' distinction and drops the
 // state's confusion.
 
+import { misHeadlineAmount } from "./misMoney";
 import { pacificCivilDate, type MisCivilDate } from "./misPacificTime";
 
 /**
@@ -290,14 +291,14 @@ export function analysisFilterTags(
   if (filters.arrRange.lower != null) {
     tags.push({
       id: "arrRange.lower",
-      label: `ARR from ${compactUsd(filters.arrRange.lower)}`,
+      label: `ARR from ${misHeadlineAmount(filters.arrRange.lower)}`,
       patch: { arrRange: { ...filters.arrRange, lower: null } },
     });
   }
   if (filters.arrRange.upper != null) {
     tags.push({
       id: "arrRange.upper",
-      label: `ARR to ${compactUsd(filters.arrRange.upper)}`,
+      label: `ARR to ${misHeadlineAmount(filters.arrRange.upper)}`,
       patch: { arrRange: { ...filters.arrRange, upper: null } },
     });
   }
@@ -335,15 +336,6 @@ function listTags<T extends string | number>(
     });
   }
 }
-
-/** `$50K`, `$1M` — an ARR boundary, short enough to sit on a tag. */
-const compactUsd = (value: number): string =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
 
 /** `2026-03-01` — a date on a tag, in the shape the wire uses. */
 export const isoCivilDate = ({ year, month, day }: MisCivilDate): string =>
