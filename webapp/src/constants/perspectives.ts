@@ -21,6 +21,7 @@ import { csmUrl, isCsmConfigured, isIsacConfigured, isacUrl } from "@config/apiC
 import { isPreviewEnabled } from "@config/previewFeatures";
 import {
   Box as BoxIcon,
+  BarChart3,
   CheckCheckIcon,
   ClipboardCheckIcon,
   DatabaseIcon,
@@ -343,6 +344,7 @@ const UMT_SECTIONS: PerspectiveSection[] = [
   // items are (see the comment above SUBSCRIPTION_ITEM_IDS).
   { id: "umt-products", label: "Product Management", icon: BoxIcon, path: "/umt/products" },
   { id: "umt-release-chunks", label: "Release Chunks", icon: LucideLayoutGrid, path: "/umt/release-chunks" },
+  { id: "umt-statistics", label: "Statistics", icon: BarChart3, path: "/umt/statistics" },
 ];
 
 

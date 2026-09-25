@@ -529,6 +529,14 @@ export const umtServiceUrls = {
   meta: `${umtBackendUrl}/meta`,
   // GET — aggregate update lifecycle and release-chunk build counts.
   updatesStats: `${umtBackendUrl}/update/stats`,
+  // GET — Statistics page's monthly stacked-bar chart data, one endpoint per
+  // breakdown; "all" has no per-series split.
+  platformStats: `${umtBackendUrl}/update/platform-stats`,
+  platformStatsProductWise: `${umtBackendUrl}/update/platform-stats/product-wise`,
+  platformStatsVersionWise: `${umtBackendUrl}/update/platform-stats/version-wise`,
+  platformStatsUpdateOrigin: `${umtBackendUrl}/update/platform-stats/update-origin`,
+  platformStatsUpdateLifecycle: `${umtBackendUrl}/update/platform-stats/update-lifecycle`,
+  platformStatsExtendedSupport: `${umtBackendUrl}/update/platform-stats/extended-support`,
   // POST — filtered, server-paginated update summaries.
   updatesSearch: `${umtBackendUrl}/update/search`,
   // GET — every update in one lifecycle state, unpaginated. Distinct from the

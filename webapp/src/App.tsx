@@ -147,6 +147,7 @@ import UmtCreateReleaseChunkPage from "@features/umt/pages/UmtCreateReleaseChunk
 import UmtHomePage from "@features/umt/pages/UmtHomePage";
 import UmtProductsPage from "@features/umt/pages/UmtProductsPage";
 import UmtReleaseChunksPage from "@features/umt/pages/UmtReleaseChunksPage";
+import UmtStatisticsPage from "@features/umt/pages/UmtStatisticsPage";
 import UmtUpdateView from "@features/umt/pages/UmtUpdateView";
 import UmtUpdatesPage from "@features/umt/pages/UmtUpdatesPage";
 import InfraHomePage from "@features/infra/pages/InfraHomePage";
@@ -173,6 +174,7 @@ export default function App() {
               <Route path="umt/products" element={<UmtProductsPage />} />
               <Route path="umt/release-chunks" element={<UmtReleaseChunksPage />} />
               <Route path="umt/release-chunks/new" element={<UmtCreateReleaseChunkPage />} />
+              <Route path="umt/statistics" element={<UmtStatisticsPage />} />
             </>
           )}
           {isPreviewEnabled("infra") && (
