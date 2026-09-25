@@ -160,10 +160,19 @@ export default function MyAccountsTab() {
           onEdit={() => setEditingType("REIMBURSEMENT")}
         />
       </Box>
+      {config.data && (
+        <Alert severity="warning" sx={{ mt: 1.75 }}>
+          Please note that changes to <b>salary</b> bank details can be made only until the{" "}
+          <b>{formatOrdinal(config.data.salaryThreshold)}</b>, and <b>consultancy</b> bank details
+          until the <b>{formatOrdinal(config.data.consultancyThreshold)}</b>.
+        </Alert>
+      )}
       {editingType && (
         <BankAccountRequestDialog
           accountType={editingType}
           employeeEmail={ownerEmail ?? ""}
+          allCountries={config.data?.allCountries ?? []}
+          employeeWorkLocation={workLocation}
           onClose={() => setEditingType(null)}
           onSuccess={handleSubmitted}
         />

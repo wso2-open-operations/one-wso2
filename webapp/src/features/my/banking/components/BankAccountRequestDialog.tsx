@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -38,50 +38,69 @@ import { useCreateBankAccountRequest } from "../../api/useCreateBankAccountReque
 import type { AccountType, Bank } from "../../api/types";
 import {
   buildCreateBankAccountRequestPayload,
-  validateAccountDetails,
-  validateBankLookup,
+  todayIsoDate,
+  validateAccountHolder,
+  validateBankInfo,
   type BankAccountFormErrors,
   type BankAccountFormValues,
 } from "../util/bankAccountRequestForm";
 
 const BLANK_VALUES: BankAccountFormValues = {
+  accountName: "",
+  beneficiaryAddress: "",
+  accountHolderCountry: "",
+  accountNumber: "",
+  bankLocation: "",
   bankName: "",
   bankSwiftCode: "",
   bankCode: "",
-  bankLocation: "",
-  accountName: "",
-  beneficiaryAddress: "",
-  accountNumber: "",
   bankAddress: "",
   branchName: "",
   branchCode: "",
 };
 
-type DialogStep = "lookup" | "details" | "review";
-const STEP_ORDER: DialogStep[] = ["lookup", "details", "review"];
-const STEP_LABELS = ["Select Bank", "Account Details", "Review"];
+type DialogStep = "holder" | "bank" | "review";
+const STEP_ORDER: DialogStep[] = ["holder", "bank", "review"];
+const STEP_LABELS = ["Account Holder Info", "Bank Info", "Finish"];
 
 export interface BankAccountRequestDialogProps {
   accountType: AccountType;
   employeeEmail: string;
+  /** The full country list the Account Holder's Country step picks from — banking app-config's own `allCountries`. */
+  allCountries: string[];
+  /** The employee's own work location — folded into the Bank Location step's options, same as the source app. */
+  employeeWorkLocation: string | undefined;
   onClose: () => void;
   /** Called after a successful submission — the caller closes the dialog and refetches. */
   onSuccess: () => void;
 }
 
-// The bank lookup → account details → review flow behind each panel's
-// Edit/Add action, replicating the source app's Stepper dialog with this
-// app's own component library. Always starts blank: a Change Request is a
-// new submission, not an in-place edit of the current Active account — the
-// source app's own form does the same regardless of whether one already
-// exists.
+// The Account Holder Info -> Bank Info -> Finish flow behind each panel's
+// Edit Account action, matching the source app's own Stepper dialog step
+// order and field grouping, rebuilt with this app's own component library.
+// Always starts blank: a Change Request is a new submission, not an
+// in-place edit of the current Active account — the source app's own form
+// does the same regardless of whether one already exists.
+//
+// Two fields deliberately don't line up with each other: Account Holder's
+// Country (step 1) picks from the full allCountries list, while Bank
+// Location (step 2) picks from the banks actually on file plus the
+// employee's own work location — that's the source app's own behaviour for
+// every Account Type except Consultancy, which additionally narrows Bank
+// Location to a `customLocationMap`-approved set keyed by the employee's
+// real location. That narrowing isn't ported here (it needs its own
+// config field this app doesn't otherwise use) — Consultancy gets the same
+// Bank Location options as the other two types, a presentation-only gap
+// worth closing later, not a change to what gets submitted.
 export default function BankAccountRequestDialog({
   accountType,
   employeeEmail,
+  allCountries,
+  employeeWorkLocation,
   onClose,
   onSuccess,
 }: BankAccountRequestDialogProps) {
-  const [step, setStep] = useState<DialogStep>("lookup");
+  const [step, setStep] = useState<DialogStep>("holder");
   const [values, setValues] = useState<BankAccountFormValues>(BLANK_VALUES);
   const [errors, setErrors] = useState<BankAccountFormErrors>({});
   const [submitError, setSubmitError] = useState<string | undefined>();
@@ -92,8 +111,31 @@ export default function BankAccountRequestDialog({
   const isConsultancy = accountType === "CONSULTANCY";
   const stepIndex = STEP_ORDER.indexOf(step);
 
+  const bankLocations = useMemo(() => {
+    const set = new Set((banksQuery.data?.banks ?? []).map((b) => b.bankLocation));
+    if (employeeWorkLocation) set.add(employeeWorkLocation);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [banksQuery.data, employeeWorkLocation]);
+
+  const banksForLocation = useMemo(
+    () => (banksQuery.data?.banks ?? []).filter((b) => b.bankLocation === values.bankLocation),
+    [banksQuery.data, values.bankLocation],
+  );
+
   function set<K extends keyof BankAccountFormValues>(key: K, value: string) {
     setValues((v) => ({ ...v, [key]: value }));
+  }
+
+  function selectBankLocation(next: string) {
+    setValues((v) => ({
+      ...v,
+      bankLocation: next,
+      // A bank picked under the old location doesn't necessarily exist
+      // under the new one — reset rather than carry over a mismatched pair.
+      bankName: "",
+      bankSwiftCode: "",
+      bankCode: "",
+    }));
   }
 
   function selectBank(selected: Bank | null) {
@@ -102,18 +144,17 @@ export default function BankAccountRequestDialog({
       bankName: selected?.bankName ?? "",
       bankSwiftCode: selected?.swiftCode ?? "",
       bankCode: selected?.bankCode ?? "",
-      bankLocation: selected?.bankLocation ?? "",
     }));
   }
 
-  function goToDetails() {
-    const found = validateBankLookup(values);
+  function goToBankInfo() {
+    const found = validateAccountHolder(values);
     setErrors(found);
-    if (Object.keys(found).length === 0) setStep("details");
+    if (Object.keys(found).length === 0) setStep("bank");
   }
 
   function goToReview() {
-    const found = validateAccountDetails(values, accountType);
+    const found = validateBankInfo(values, accountType);
     setErrors(found);
     if (Object.keys(found).length === 0) setStep("review");
   }
@@ -130,9 +171,6 @@ export default function BankAccountRequestDialog({
     }
   }
 
-  const selectedBank =
-    banksQuery.data?.banks.find((b) => b.bankName === values.bankName) ?? null;
-
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{ACCOUNT_TYPE_LABEL[accountType]} bank account</DialogTitle>
@@ -145,30 +183,7 @@ export default function BankAccountRequestDialog({
           ))}
         </Stepper>
 
-        {step === "lookup" &&
-          (banksQuery.isError ? (
-            <ErrorNotice error={banksQuery.error} onRetry={() => banksQuery.refetch()}>
-              Couldn&apos;t load the bank list.
-            </ErrorNotice>
-          ) : (
-            <Autocomplete
-              options={banksQuery.data?.banks ?? []}
-              loading={banksQuery.isLoading}
-              getOptionLabel={(b) => `${b.bankName} (${b.swiftCode})`}
-              value={selectedBank}
-              onChange={(_, next) => selectBank(next)}
-              renderInput={(p) => (
-                <TextField
-                  {...p}
-                  label="Bank"
-                  error={Boolean(errors.bankName)}
-                  helperText={errors.bankName}
-                />
-              )}
-            />
-          ))}
-
-        {step === "details" && (
+        {step === "holder" && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <TextField
               label="Account Holder's Name"
@@ -183,8 +198,21 @@ export default function BankAccountRequestDialog({
               value={values.beneficiaryAddress}
               onChange={(e) => set("beneficiaryAddress", e.target.value)}
               error={Boolean(errors.beneficiaryAddress)}
-              helperText={errors.beneficiaryAddress ?? "Street, City, Country"}
+              helperText={errors.beneficiaryAddress}
               fullWidth
+            />
+            <Autocomplete
+              options={allCountries}
+              value={values.accountHolderCountry || null}
+              onChange={(_, next) => set("accountHolderCountry", next ?? "")}
+              renderInput={(p) => (
+                <TextField
+                  {...p}
+                  label="Account Holder's Country"
+                  error={Boolean(errors.accountHolderCountry)}
+                  helperText={errors.accountHolderCountry}
+                />
+              )}
             />
             <TextField
               label="Account No"
@@ -194,66 +222,136 @@ export default function BankAccountRequestDialog({
               helperText={errors.accountNumber}
               fullWidth
             />
-            <TextField
-              label="Bank Address"
-              value={values.bankAddress}
-              onChange={(e) => set("bankAddress", e.target.value)}
-              error={Boolean(errors.bankAddress)}
-              helperText={errors.bankAddress ?? "Street, City, Country"}
-              fullWidth
-            />
-            {!isConsultancy && (
-              <Box sx={{ display: "flex", gap: 2 }}>
-                <TextField
-                  label="Branch Name"
-                  value={values.branchName}
-                  onChange={(e) => set("branchName", e.target.value)}
-                  error={Boolean(errors.branchName)}
-                  helperText={errors.branchName}
-                  fullWidth
-                />
-                <TextField
-                  label="Branch Code"
-                  value={values.branchCode}
-                  onChange={(e) => set("branchCode", e.target.value)}
-                  error={Boolean(errors.branchCode)}
-                  helperText={errors.branchCode}
-                  fullWidth
-                />
-              </Box>
-            )}
+            <Alert severity="warning">
+              Please make sure to enter your address in the following format — Address P.O.Box or
+              Street, City. Sample — No23, Galle road, Colombo.
+            </Alert>
           </Box>
         )}
 
+        {step === "bank" &&
+          (banksQuery.isError ? (
+            <ErrorNotice error={banksQuery.error} onRetry={() => banksQuery.refetch()}>
+              Couldn&apos;t load the bank list.
+            </ErrorNotice>
+          ) : (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Autocomplete
+                options={bankLocations}
+                value={values.bankLocation || null}
+                onChange={(_, next) => selectBankLocation(next ?? "")}
+                renderInput={(p) => (
+                  <TextField
+                    {...p}
+                    label="Bank Location"
+                    error={Boolean(errors.bankLocation)}
+                    helperText={errors.bankLocation}
+                  />
+                )}
+              />
+              <Autocomplete
+                options={banksForLocation}
+                loading={banksQuery.isLoading}
+                getOptionLabel={(b) => `${b.bankName} (${b.swiftCode})`}
+                value={banksForLocation.find((b) => b.bankName === values.bankName) ?? null}
+                onChange={(_, next) => selectBank(next)}
+                renderInput={(p) => (
+                  <TextField
+                    {...p}
+                    label="Bank Name and Swift Code"
+                    error={Boolean(errors.bankName)}
+                    helperText={errors.bankName}
+                  />
+                )}
+              />
+              <TextField label="Bank Code" value={values.bankCode} fullWidth slotProps={{ input: { readOnly: true } }} />
+              <TextField
+                label="Bank Address"
+                value={values.bankAddress}
+                onChange={(e) => set("bankAddress", e.target.value)}
+                error={Boolean(errors.bankAddress)}
+                helperText={errors.bankAddress}
+                fullWidth
+              />
+              {!isConsultancy && (
+                <Box sx={{ display: "flex", gap: 2 }}>
+                  <TextField
+                    label="Branch Name"
+                    value={values.branchName}
+                    onChange={(e) => set("branchName", e.target.value)}
+                    error={Boolean(errors.branchName)}
+                    helperText={errors.branchName}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Branch Code"
+                    value={values.branchCode}
+                    onChange={(e) => set("branchCode", e.target.value)}
+                    error={Boolean(errors.branchCode)}
+                    helperText={errors.branchCode}
+                    fullWidth
+                  />
+                </Box>
+              )}
+            </Box>
+          ))}
+
         {step === "review" && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-            <ReviewRow label="Account Type" value={ACCOUNT_TYPE_LABEL[accountType]} />
-            <ReviewRow label="Account Holder's Name" value={values.accountName} />
-            <ReviewRow label="Account Holder's Address" value={values.beneficiaryAddress} />
-            <ReviewRow label="Account No" value={values.accountNumber} />
-            <ReviewRow label="Bank" value={`${values.bankName} (${values.bankSwiftCode})`} />
-            <ReviewRow label="Bank Address" value={values.bankAddress} />
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+            <Box>
+              <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 1 }}>
+                Account Information
+              </Typography>
+              <ReviewRow label="Account Name" value={values.accountName} />
+              <ReviewRow label="Account Number" value={values.accountNumber} />
+              <ReviewRow label="Account Type" value={ACCOUNT_TYPE_LABEL[accountType]} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 1 }}>
+                Beneficiary Information
+              </Typography>
+              <ReviewRow label="Account Holder Address" value={values.beneficiaryAddress} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 1 }}>
+                Bank Information
+              </Typography>
+              <ReviewRow label="Bank Name" value={values.bankName} />
+              <ReviewRow label="Bank Location" value={values.bankLocation} />
+              <ReviewRow label="Bank Swift Code" value={values.bankSwiftCode} />
+              <ReviewRow label="Bank Code" value={values.bankCode} />
+              <ReviewRow label="Bank Address" value={values.bankAddress} />
+            </Box>
             {!isConsultancy && (
-              <ReviewRow label="Branch" value={`${values.branchName} · ${values.branchCode}`} />
+              <Box>
+                <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 1 }}>
+                  Branch Information
+                </Typography>
+                <ReviewRow label="Branch Name" value={values.branchName} />
+                <ReviewRow label="Branch Code" value={values.branchCode} />
+              </Box>
             )}
+            <Box>
+              <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 1 }}>
+                Payment Information
+              </Typography>
+              <ReviewRow label="Payment Method" value="Bank Transfer" />
+              <ReviewRow label="Effective From" value={todayIsoDate()} />
+            </Box>
             {submitError && <Alert severity="error">{submitError}</Alert>}
-            <Alert severity="info">
-              This submits a change request — your current active account stays in effect until
-              it&apos;s approved.
-            </Alert>
           </Box>
         )}
       </DialogContent>
       <DialogActions>
-        {step !== "lookup" && (
+        {step !== "holder" && (
           <Button onClick={() => setStep(STEP_ORDER[stepIndex - 1])}>Back</Button>
         )}
         <Button onClick={onClose}>Cancel</Button>
-        {step === "lookup" && <Button variant="contained" onClick={goToDetails}>Next</Button>}
-        {step === "details" && <Button variant="contained" onClick={goToReview}>Next</Button>}
+        {step === "holder" && <Button variant="contained" onClick={goToBankInfo}>Continue</Button>}
+        {step === "bank" && <Button variant="contained" onClick={goToReview}>Continue</Button>}
         {step === "review" && (
           <Button variant="contained" onClick={submit} disabled={mutation.isPending}>
-            Submit
+            Save
           </Button>
         )}
       </DialogActions>
@@ -263,7 +361,7 @@ export default function BankAccountRequestDialog({
 
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+    <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.5 }}>
       <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>{label}</Typography>
       <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{value}</Typography>
     </Box>

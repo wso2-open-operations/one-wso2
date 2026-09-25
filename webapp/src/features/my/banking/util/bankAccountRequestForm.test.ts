@@ -17,20 +17,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildCreateBankAccountRequestPayload,
-  validateAccountDetails,
-  validateBankLookup,
+  validateAccountHolder,
+  validateBankInfo,
   type BankAccountFormValues,
 } from "./bankAccountRequestForm";
 
 function values(overrides: Partial<BankAccountFormValues> = {}): BankAccountFormValues {
   return {
+    accountName: "P Person",
+    beneficiaryAddress: "No 23, Galle Road, Colombo",
+    accountHolderCountry: "Sri Lanka",
+    accountNumber: "1234567890",
+    bankLocation: "Sri Lanka",
     bankName: "BOC",
     bankSwiftCode: "BOCCLKLX",
     bankCode: "12",
-    bankLocation: "Colombo",
-    accountName: "P Person",
-    beneficiaryAddress: "No 23, Galle Road, Colombo",
-    accountNumber: "1234567890",
     bankAddress: "1 Bank Street, Colombo, Sri Lanka",
     branchName: "Head Office",
     branchCode: "001",
@@ -38,92 +39,98 @@ function values(overrides: Partial<BankAccountFormValues> = {}): BankAccountForm
   };
 }
 
-describe("validateBankLookup", () => {
-  it("requires a bank to have been selected", () => {
-    expect(validateBankLookup(values({ bankName: "" }))).toEqual({
-      bankName: "Select a bank to continue",
-    });
-  });
-
-  it("passes once a bank is selected", () => {
-    expect(validateBankLookup(values())).toEqual({});
-  });
-});
-
-describe("validateAccountDetails", () => {
+describe("validateAccountHolder", () => {
   it("requires the account holder's name", () => {
-    expect(validateAccountDetails(values({ accountName: "" }), "SALARY").accountName).toBe(
+    expect(validateAccountHolder(values({ accountName: "" })).accountName).toBe(
       "Account Holder's Name is required",
     );
   });
 
   it("requires the account holder's address", () => {
     expect(
-      validateAccountDetails(values({ beneficiaryAddress: "" }), "SALARY").beneficiaryAddress,
+      validateAccountHolder(values({ beneficiaryAddress: "" })).beneficiaryAddress,
     ).toBe("Account Holder's Address is required");
   });
 
   it("rejects an address with fewer than three comma-separated parts", () => {
     expect(
-      validateAccountDetails(values({ beneficiaryAddress: "No 23, Galle Road" }), "SALARY")
+      validateAccountHolder(values({ beneficiaryAddress: "No 23, Galle Road" }))
         .beneficiaryAddress,
     ).toBe("Address should be in the format: Street, City, Country");
   });
 
   it("accepts an address with three or more comma-separated parts", () => {
     expect(
-      validateAccountDetails(values({ beneficiaryAddress: "No 23, Galle Road, Colombo" }), "SALARY")
+      validateAccountHolder(values({ beneficiaryAddress: "No 23, Galle Road, Colombo" }))
         .beneficiaryAddress,
     ).toBeUndefined();
   });
 
+  it("requires the account holder's country", () => {
+    expect(validateAccountHolder(values({ accountHolderCountry: "" })).accountHolderCountry).toBe(
+      "Select a country to continue",
+    );
+  });
+
   it("requires the account number", () => {
-    expect(validateAccountDetails(values({ accountNumber: "" }), "SALARY").accountNumber).toBe(
+    expect(validateAccountHolder(values({ accountNumber: "" })).accountNumber).toBe(
       "Account No is required",
     );
   });
 
   it("rejects an account number longer than 34 characters", () => {
     expect(
-      validateAccountDetails(values({ accountNumber: "1".repeat(35) }), "SALARY").accountNumber,
+      validateAccountHolder(values({ accountNumber: "1".repeat(35) })).accountNumber,
     ).toBe("Account Number must be at most 34 characters");
   });
 
+  it("returns no errors for a fully valid submission", () => {
+    expect(validateAccountHolder(values())).toEqual({});
+  });
+});
+
+describe("validateBankInfo", () => {
+  it("requires a bank location to have been selected", () => {
+    expect(validateBankInfo(values({ bankLocation: "" }), "SALARY").bankLocation).toBe(
+      "Select a bank location to continue",
+    );
+  });
+
+  it("requires a bank to have been selected", () => {
+    expect(validateBankInfo(values({ bankName: "" }), "SALARY").bankName).toBe(
+      "Select a bank to continue",
+    );
+  });
+
   it("requires the bank address, in the same three-part format", () => {
-    expect(validateAccountDetails(values({ bankAddress: "" }), "SALARY").bankAddress).toBe(
+    expect(validateBankInfo(values({ bankAddress: "" }), "SALARY").bankAddress).toBe(
       "Bank Address is required",
     );
     expect(
-      validateAccountDetails(values({ bankAddress: "1 Bank Street" }), "SALARY").bankAddress,
+      validateBankInfo(values({ bankAddress: "1 Bank Street" }), "SALARY").bankAddress,
     ).toBe("Address should be in the format: Street, City, Country");
   });
 
   it("requires branch name and branch code for SALARY", () => {
-    const errors = validateAccountDetails(values({ branchName: "", branchCode: "" }), "SALARY");
+    const errors = validateBankInfo(values({ branchName: "", branchCode: "" }), "SALARY");
     expect(errors.branchName).toBe("Branch Name is required");
     expect(errors.branchCode).toBe("Branch Code is required");
   });
 
   it("requires branch name and branch code for REIMBURSEMENT", () => {
-    const errors = validateAccountDetails(
-      values({ branchName: "", branchCode: "" }),
-      "REIMBURSEMENT",
-    );
+    const errors = validateBankInfo(values({ branchName: "", branchCode: "" }), "REIMBURSEMENT");
     expect(errors.branchName).toBe("Branch Name is required");
     expect(errors.branchCode).toBe("Branch Code is required");
   });
 
   it("does not require branch name or branch code for CONSULTANCY", () => {
-    const errors = validateAccountDetails(
-      values({ branchName: "", branchCode: "" }),
-      "CONSULTANCY",
-    );
+    const errors = validateBankInfo(values({ branchName: "", branchCode: "" }), "CONSULTANCY");
     expect(errors.branchName).toBeUndefined();
     expect(errors.branchCode).toBeUndefined();
   });
 
   it("returns no errors for a fully valid SALARY submission", () => {
-    expect(validateAccountDetails(values(), "SALARY")).toEqual({});
+    expect(validateBankInfo(values(), "SALARY")).toEqual({});
   });
 });
 
@@ -136,7 +143,7 @@ describe("buildCreateBankAccountRequestPayload", () => {
     vi.useRealTimers();
   });
 
-  it("carries every field through, plus the employee email and account type", () => {
+  it("carries every backend field through, plus the employee email and account type", () => {
     const payload = buildCreateBankAccountRequestPayload(values(), "SALARY", "person@wso2.com");
     expect(payload).toEqual({
       employeeEmail: "person@wso2.com",
@@ -147,12 +154,17 @@ describe("buildCreateBankAccountRequestPayload", () => {
       bankName: "BOC",
       bankSwiftCode: "BOCCLKLX",
       bankCode: "12",
-      bankLocation: "Colombo",
+      bankLocation: "Sri Lanka",
       bankAddress: "1 Bank Street, Colombo, Sri Lanka",
       branchName: "Head Office",
       branchCode: "001",
       effectiveFrom: "2026-09-25",
     });
+  });
+
+  it("never sends accountHolderCountry — it's a UI-only field that only drives the Bank Location default, not part of the backend contract", () => {
+    const payload = buildCreateBankAccountRequestPayload(values(), "SALARY", "person@wso2.com");
+    expect(payload).not.toHaveProperty("accountHolderCountry");
   });
 
   it("sends empty branch name/code for CONSULTANCY, never the source app's own placeholders", () => {

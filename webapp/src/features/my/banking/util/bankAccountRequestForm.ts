@@ -18,13 +18,17 @@ import type { AccountType } from "../../api/types";
 import type { CreateBankAccountRequestPayload } from "../../api/types";
 
 export interface BankAccountFormValues {
+  accountName: string;
+  beneficiaryAddress: string;
+  // UI-only — drives the Bank Location step's default, never sent to the
+  // backend (the source app's own request body has no country field
+  // either, only bankLocation).
+  accountHolderCountry: string;
+  accountNumber: string;
+  bankLocation: string;
   bankName: string;
   bankSwiftCode: string;
   bankCode: string;
-  bankLocation: string;
-  accountName: string;
-  beneficiaryAddress: string;
-  accountNumber: string;
   bankAddress: string;
   branchName: string;
   branchCode: string;
@@ -39,14 +43,8 @@ function isWellFormedAddress(value: string): boolean {
   return value.trim().split(",").filter((part) => part.trim().length > 0).length >= 3;
 }
 
-export function validateBankLookup(values: BankAccountFormValues): BankAccountFormErrors {
-  return values.bankName ? {} : { bankName: "Select a bank to continue" };
-}
-
-export function validateAccountDetails(
-  values: BankAccountFormValues,
-  accountType: AccountType,
-): BankAccountFormErrors {
+// Step 1 — Account Holder Info.
+export function validateAccountHolder(values: BankAccountFormValues): BankAccountFormErrors {
   const errors: BankAccountFormErrors = {};
 
   if (!values.accountName.trim()) {
@@ -59,10 +57,32 @@ export function validateAccountDetails(
     errors.beneficiaryAddress = "Address should be in the format: Street, City, Country";
   }
 
+  if (!values.accountHolderCountry) {
+    errors.accountHolderCountry = "Select a country to continue";
+  }
+
   if (!values.accountNumber.trim()) {
     errors.accountNumber = "Account No is required";
   } else if (values.accountNumber.length > 34) {
     errors.accountNumber = "Account Number must be at most 34 characters";
+  }
+
+  return errors;
+}
+
+// Step 2 — Bank Info.
+export function validateBankInfo(
+  values: BankAccountFormValues,
+  accountType: AccountType,
+): BankAccountFormErrors {
+  const errors: BankAccountFormErrors = {};
+
+  if (!values.bankLocation) {
+    errors.bankLocation = "Select a bank location to continue";
+  }
+
+  if (!values.bankName) {
+    errors.bankName = "Select a bank to continue";
   }
 
   if (!values.bankAddress.trim()) {
@@ -86,7 +106,7 @@ export function validateAccountDetails(
 // submit time for every Account Type — it is never a field the employee
 // edits, despite Consultancy's "Effective Month" appearing on the read-only
 // summary once an account exists.
-function todayIsoDate(): string {
+export function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 

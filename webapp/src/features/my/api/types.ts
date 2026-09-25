@@ -166,14 +166,16 @@ export interface BankAccountsResponse {
 }
 
 // GET /app-config on the banking backend — deliberately a SUBSET of the
-// full response (it also serves customLocationMap/allCountries, unused
-// here): only the fields the day-of-month cutoff, work-location allow-list,
-// and restricted-role checks actually read.
+// full response (it also serves customLocationMap, unused here): the
+// day-of-month cutoffs, work-location allow-list, restricted-role list, and
+// the full country list the edit/add dialog's Account Holder's Country step
+// picks from (matching the source app's own Account Holder's Country field).
 export interface BankingAppConfig {
   salaryThreshold: number;
   consultancyThreshold: number;
   reimbursementsAllowedCountries: string[];
   consultancyRestrictedRoles: string[];
+  allCountries: string[];
 }
 
 // GET /banks on the banking backend — the lookup list backing the bank

@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Box, Button, Card, Stack, Typography } from "@wso2/oxygen-ui";
+import { Box, Card, IconButton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { EditIcon } from "@wso2/oxygen-ui-icons-react";
 import { ACCOUNT_TYPE_LABEL, display } from "../../api/derive";
 import type { AccountType, BankAccount } from "../../api/types";
 
@@ -84,30 +85,30 @@ export default function BankAccountPanel({
         <Typography sx={{ fontWeight: 600, fontSize: 14, flex: 1 }}>
           {ACCOUNT_TYPE_LABEL[accountType]}
         </Typography>
-        <Button
-          variant="outlined"
-          size="small"
-          disabled={Boolean(disabledReason)}
-          onClick={onEdit}
-        >
-          {account ? "Edit" : "Add"}
-        </Button>
+        <Tooltip title="Edit Account">
+          <span>
+            <IconButton
+              aria-label="Edit Account"
+              size="small"
+              disabled={Boolean(disabledReason)}
+              onClick={onEdit}
+            >
+              <EditIcon size={16} />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Stack>
 
-      {!account ? (
-        <Typography sx={{ fontSize: 12.5, color: "text.secondary", py: 1.5 }}>
-          Not set up yet.
-        </Typography>
-      ) : (
-        <Stack spacing={1}>
-          {fields.map((f) => (
-            <Box key={f.key}>
-              <Typography sx={{ fontSize: 11, color: "text.secondary" }}>{f.label}</Typography>
-              <Typography sx={{ fontSize: 13 }}>{display(account[f.key] as string | null)}</Typography>
-            </Box>
-          ))}
-        </Stack>
-      )}
+      <Stack spacing={1}>
+        {fields.map((f) => (
+          <Box key={f.key}>
+            <Typography sx={{ fontSize: 11, color: "text.secondary" }}>{f.label}</Typography>
+            <Typography sx={{ fontSize: 13 }}>
+              {account ? display(account[f.key] as string | null) : display(null)}
+            </Typography>
+          </Box>
+        ))}
+      </Stack>
 
       {disabledReason && (
         <Typography sx={{ fontSize: 11.5, color: "text.disabled", mt: 1.5 }}>

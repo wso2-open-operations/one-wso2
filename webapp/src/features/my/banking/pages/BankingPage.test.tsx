@@ -137,6 +137,7 @@ function config(overrides: Partial<BankingAppConfig> = {}) {
       consultancyThreshold: 28,
       reimbursementsAllowedCountries: ["Colombo"],
       consultancyRestrictedRoles: [],
+      allCountries: ["Sri Lanka"],
       ...overrides,
     },
     isPending: false,
@@ -213,25 +214,37 @@ describe("tab frame", () => {
   });
 });
 
-// Fills the bank-lookup step, then the account-details step (SALARY/
-// REIMBURSEMENT field set unless `consultancy` is set), landing on Review.
+function editButton(cardEl: HTMLElement) {
+  return within(cardEl).getByRole("button", { name: "Edit Account" });
+}
+
+function openDialogFor(user: ReturnType<typeof userEvent.setup>, accountTypeLabel: string) {
+  return user.click(editButton(screen.getByText(accountTypeLabel).closest(".MuiCard-root") as HTMLElement));
+}
+
+// Fills Account Holder Info (step 1), then Bank Info (step 2, SALARY/
+// REIMBURSEMENT field set unless `consultancy` is set), landing on Finish.
 async function completeUpToReview(
   user: ReturnType<typeof userEvent.setup>,
   { consultancy = false }: { consultancy?: boolean } = {},
 ) {
-  await user.click(screen.getByRole("combobox", { name: "Bank" }));
-  await user.click(await screen.findByRole("option", { name: "BOC (BOCCLKLX)" }));
-  await user.click(screen.getByRole("button", { name: "Next" }));
-
   await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
   await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+  await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+  await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
   await user.type(screen.getByLabelText("Account No"), "1234567890");
+  await user.click(screen.getByRole("button", { name: "Continue" }));
+
+  await user.click(screen.getByRole("combobox", { name: "Bank Location" }));
+  await user.click(await screen.findByRole("option", { name: "Colombo" }));
+  await user.click(screen.getByRole("combobox", { name: "Bank Name and Swift Code" }));
+  await user.click(await screen.findByRole("option", { name: "BOC (BOCCLKLX)" }));
   await user.type(screen.getByLabelText("Bank Address"), "1 Bank Street, Colombo, Sri Lanka");
   if (!consultancy) {
     await user.type(screen.getByLabelText("Branch Name"), "Head Office");
     await user.type(screen.getByLabelText("Branch Code"), "001");
   }
-  await user.click(screen.getByRole("button", { name: "Next" }));
+  await user.click(screen.getByRole("button", { name: "Continue" }));
 }
 
 describe("Edit/Add popup", () => {
@@ -239,48 +252,42 @@ describe("Edit/Add popup", () => {
     renderPage();
     const user = userEvent.setup();
 
-    const reimbursementCard = screen.getByText("Reimbursement").closest(".MuiCard-root") as HTMLElement;
-    await user.click(within(reimbursementCard).getByRole("button", { name: "Add" }));
+    await openDialogFor(user, "Reimbursement");
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("Reimbursement");
-    // The Salary panel's own Add/Edit action is untouched — queried with
+    // The Salary panel's own Edit Account action is untouched — queried with
     // `hidden: true` since the open Dialog correctly marks the rest of the
     // page aria-hidden while it's up, which getByRole excludes by default.
     expect(
       within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole("button", {
-        name: "Add",
+        name: "Edit Account",
         hidden: true,
       }),
     ).toBeEnabled();
   });
 
-  it("can be cancelled from the bank-lookup step without submitting", async () => {
+  it("can be cancelled from the Account Holder Info step without submitting", async () => {
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
+    await openDialogFor(user, "Salary");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mutateAsyncMock).not.toHaveBeenCalled();
   });
 
-  it("blocks advancing from the bank-lookup step until a bank is selected", async () => {
+  it("blocks advancing from the Account Holder Info step until required fields are filled", async () => {
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
+    await openDialogFor(user, "Salary");
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByText("Select a bank to continue")).toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toHaveTextContent("Bank");
-    expect(screen.queryByLabelText("Account Holder's Name")).not.toBeInTheDocument();
+    expect(screen.getByText("Account Holder's Name is required")).toBeInTheDocument();
+    expect(screen.getByText("Select a country to continue")).toBeInTheDocument();
+    // Still on the Account Holder Info step, not advanced to Bank Info.
+    expect(screen.queryByRole("combobox", { name: "Bank Location" })).not.toBeInTheDocument();
   });
 
   it("shows a retryable error state if the bank list fails to load", async () => {
@@ -293,90 +300,88 @@ describe("Edit/Add popup", () => {
     });
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
+    await openDialogFor(user, "Salary");
+    await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
+    await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+    await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+    await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+    await user.type(screen.getByLabelText("Account No"), "1234567890");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
-  it("shows Consultancy's own field set on the details step (no branch fields)", async () => {
+  it("shows Consultancy's own field set on the Bank Info step (no branch fields)", async () => {
     useBankingGateMock.mockReturnValue(gate());
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Consultancy").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
-    await user.click(screen.getByRole("combobox", { name: "Bank" }));
-    await user.click(await screen.findByRole("option", { name: "BOC (BOCCLKLX)" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await openDialogFor(user, "Consultancy");
+    await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
+    await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+    await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+    await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+    await user.type(screen.getByLabelText("Account No"), "1234567890");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByLabelText("Account Holder's Name")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Bank Location" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Branch Name")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Branch Code")).not.toBeInTheDocument();
   });
 
-  it("blocks advancing from the details step until required fields are filled", async () => {
+  it("blocks advancing from the Bank Info step until required fields are filled", async () => {
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
-    await user.click(screen.getByRole("combobox", { name: "Bank" }));
-    await user.click(await screen.findByRole("option", { name: "BOC (BOCCLKLX)" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await openDialogFor(user, "Salary");
+    await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
+    await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+    await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+    await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+    await user.type(screen.getByLabelText("Account No"), "1234567890");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByText("Account Holder's Name is required")).toBeInTheDocument();
-    // Still on the details step, not advanced to Review.
-    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+    expect(screen.getByText("Select a bank location to continue")).toBeInTheDocument();
+    // Still on the Bank Info step, not advanced to Finish.
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 
-  it("can go back from the details step to the bank-lookup step", async () => {
+  it("can go back from the Bank Info step to Account Holder Info", async () => {
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
-    await user.click(screen.getByRole("combobox", { name: "Bank" }));
-    await user.click(await screen.findByRole("option", { name: "BOC (BOCCLKLX)" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await openDialogFor(user, "Salary");
+    await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
+    await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+    await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+    await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+    await user.type(screen.getByLabelText("Account No"), "1234567890");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     await user.click(screen.getByRole("button", { name: "Back" }));
 
-    expect(screen.getByRole("combobox", { name: "Bank" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Account Holder's Name")).toHaveValue("P Person");
   });
 
   it("shows a review of the entered values before submitting", async () => {
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
+    await openDialogFor(user, "Salary");
     await completeUpToReview(user);
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("P Person");
     expect(dialog).toHaveTextContent("1234567890");
     expect(dialog).toHaveTextContent("BOC");
-    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Bank Transfer");
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
   it("submits the expected payload, shows success, and closes the dialog", async () => {
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
+    await openDialogFor(user, "Salary");
     await completeUpToReview(user);
-    await user.click(screen.getByRole("button", { name: "Submit" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(mutateAsyncMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -394,6 +399,10 @@ describe("Edit/Add popup", () => {
         branchCode: "001",
       }),
     );
+    // accountHolderCountry is UI-only — never part of the submitted payload.
+    expect(mutateAsyncMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ accountHolderCountry: expect.anything() }),
+    );
     expect(await screen.findByText(/request/i)).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -403,12 +412,9 @@ describe("Edit/Add popup", () => {
     mutateAsyncMock.mockRejectedValue(new Error("Changes allowed only until the 5th of each month."));
     renderPage();
     const user = userEvent.setup();
-    await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
-      "button",
-      { name: "Add" },
-    ));
+    await openDialogFor(user, "Salary");
     await completeUpToReview(user);
-    await user.click(screen.getByRole("button", { name: "Submit" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(
       await screen.findByText("Changes allowed only until the 5th of each month."),
@@ -419,28 +425,18 @@ describe("Edit/Add popup", () => {
   it("starts blank again if reopened after being cancelled", async () => {
     renderPage();
     const user = userEvent.setup();
-    const openSalaryDialog = () =>
-      user.click(
-        within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole("button", {
-          name: "Add",
-        }),
-      );
 
-    await openSalaryDialog();
-    await user.click(screen.getByRole("combobox", { name: "Bank" }));
-    await user.click(await screen.findByRole("option", { name: "BOC (BOCCLKLX)" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await openDialogFor(user, "Salary");
     await user.type(screen.getByLabelText("Account Holder's Name"), "Stale Value");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-    await openSalaryDialog();
-    expect(screen.getByRole("combobox", { name: "Bank" })).toBeInTheDocument();
-    expect(screen.queryByDisplayValue("Stale Value")).not.toBeInTheDocument();
+    await openDialogFor(user, "Salary");
+    expect(screen.getByLabelText("Account Holder's Name")).toHaveValue("");
   });
 });
 
 describe("panel field rendering", () => {
-  it("renders each Account Type's own fields, and an empty state for one not set up", () => {
+  it("renders each Account Type's own fields, and a full dashed-out field list for one not set up", () => {
     useBankAccountsMock.mockReturnValue(
       accounts([
         account({ accountType: "SALARY", bankName: "BOC", accountNumber: "1111" }),
@@ -450,7 +446,7 @@ describe("panel field rendering", () => {
           bankName: "HNB",
           accountNumber: "2222",
         }),
-        // No CONSULTANCY account — that panel should show the empty state.
+        // No CONSULTANCY account — that panel should still show its full field list.
       ]),
     );
 
@@ -463,17 +459,15 @@ describe("panel field rendering", () => {
     // Reimbursement: its own fields, same shape as Salary here.
     expect(screen.getByText("Reimbursement").closest(".MuiCard-root")).toHaveTextContent("HNB");
 
-    // Consultancy: no account yet -> empty state, and the action reads "Add".
+    // Consultancy: no account yet -> the field list still renders, dashed out.
     const consultancyCard = screen.getByText("Consultancy").closest(".MuiCard-root") as HTMLElement;
-    expect(consultancyCard).toHaveTextContent("Not set up yet.");
-    expect(within(consultancyCard).getByRole("button", { name: "Add" })).toBeInTheDocument();
+    expect(consultancyCard).toHaveTextContent("Account Holder's Name");
+    expect(consultancyCard).toHaveTextContent("Payment Method");
+    expect(within(consultancyCard).getAllByText("—").length).toBeGreaterThan(0);
+    expect(editButton(consultancyCard)).toBeInTheDocument();
 
-    // Salary/Reimbursement already have an account -> "Edit", not "Add".
-    expect(
-      within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole("button", {
-        name: "Edit",
-      }),
-    ).toBeInTheDocument();
+    // Every panel's action reads "Edit Account", whether or not an account exists yet.
+    expect(editButton(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement)).toBeInTheDocument();
   });
 
   it("shows Consultancy's own field set (Payment Method), not the bank-location block", () => {
@@ -487,6 +481,17 @@ describe("panel field rendering", () => {
     expect(consultancyCard).toHaveTextContent("Payment Method");
     expect(consultancyCard).toHaveTextContent("Wire transfer");
     expect(consultancyCard).not.toHaveTextContent("Bank Location");
+  });
+});
+
+describe("Threshold warning banner", () => {
+  it("states both Salary's and Consultancy's cutoff dates together, below the panels", () => {
+    useBankingConfigMock.mockReturnValue(config({ salaryThreshold: 20, consultancyThreshold: 30 }));
+
+    renderPage();
+
+    const banner = screen.getByRole("alert");
+    expect(/salary.*20th.*consultancy.*30th/is.test(banner.textContent ?? "")).toBe(true);
   });
 });
 
@@ -506,12 +511,12 @@ describe("Threshold gating", () => {
     renderPage();
 
     const salaryCard = screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement;
-    expect(within(salaryCard).getByRole("button", { name: "Edit" })).toBeDisabled();
+    expect(editButton(salaryCard)).toBeDisabled();
     expect(salaryCard).toHaveTextContent("Changes allowed only until the 5th of each month.");
 
     // Consultancy's own threshold (28) hasn't passed — independent of Salary's.
     const consultancyCard = screen.getByText("Consultancy").closest(".MuiCard-root") as HTMLElement;
-    expect(within(consultancyCard).getByRole("button", { name: "Add" })).toBeEnabled();
+    expect(editButton(consultancyCard)).toBeEnabled();
   });
 });
 
@@ -536,12 +541,12 @@ describe("Reimbursement Eligibility", () => {
     renderPage();
 
     const reimbursementCard = screen.getByText("Reimbursement").closest(".MuiCard-root") as HTMLElement;
-    expect(within(reimbursementCard).getByRole("button", { name: "Add" })).toBeDisabled();
+    expect(editButton(reimbursementCard)).toBeDisabled();
     expect(reimbursementCard).toHaveTextContent("Not available for your work location.");
 
     // Salary is unaffected by Reimbursement's own gate.
     const salaryCard = screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement;
-    expect(within(salaryCard).getByRole("button", { name: "Add" })).toBeEnabled();
+    expect(editButton(salaryCard)).toBeEnabled();
   });
 
   it("leaves it enabled for an eligible work location", () => {
@@ -551,6 +556,6 @@ describe("Reimbursement Eligibility", () => {
     renderPage();
 
     const reimbursementCard = screen.getByText("Reimbursement").closest(".MuiCard-root") as HTMLElement;
-    expect(within(reimbursementCard).getByRole("button", { name: "Add" })).toBeEnabled();
+    expect(editButton(reimbursementCard)).toBeEnabled();
   });
 });
