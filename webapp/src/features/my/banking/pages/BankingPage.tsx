@@ -14,193 +14,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState } from "react";
-import { Alert, Box, Skeleton, Snackbar, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Navigate, Outlet } from "react-router";
+import { Box } from "@wso2/oxygen-ui";
 import PerspectiveHeader from "@components/perspective-header/PerspectiveHeader";
-import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { useMeProfile } from "../../api/useMeProfile";
-import { isBankingBackendConfigured, useBankAccounts } from "../../api/useBankAccounts";
-import { useBankingConfig } from "../../api/useBankingConfig";
-import { useBankingGate } from "../../api/useBankingGate";
-import { formatOrdinal, isPastThreshold, isReimbursementEligible } from "../../api/bankingRules";
-import type { AccountType } from "../../api/types";
-import BankAccountPanel from "../components/BankAccountPanel";
-import BankAccountRequestDialog from "../components/BankAccountRequestDialog";
+import RoutedTabs from "@components/routed-tabs/RoutedTabs";
+import { BANKING_PATH, BANKING_TABS } from "../bankingTabs";
 
-// Ported from digiops-hr's banking webapp "Change Bank Account" tab. It's
-// a full page of its own rather than living entirely inside
-// BankAccountsCard: three Account Types, each with its own multi-step edit
-// form and its own eligibility/deadline rules, is more than a dashboard
-// card can hold — and the port's whole point is to keep the source app's
-// logic intact, not compress it to fit a smaller surface. No Employee
-// Details header here — that information is already shown on MyProfilePage,
-// so repeating it would just be a second, driftable copy.
+// The frame every Banking tab shares: the header and the tab bar, with an
+// <Outlet /> for whichever tab the URL names — same shape as Claim
+// Approval's own page/tabs split. Only one tab exists today (see
+// MyAccountsTab); this is what keeps a later, admin-facing tab additive —
+// a new entry in bankingTabs.ts plus a new route in App.tsx — rather than
+// a reshape of this component.
 export default function BankingPage() {
-  const profile = useMeProfile();
-  const ownerEmail = profile.data?.employee.workEmail;
-  const accounts = useBankAccounts(ownerEmail);
-  const config = useBankingConfig();
-  const gate = useBankingGate();
-  const configured = isBankingBackendConfigured();
-  const [editingType, setEditingType] = useState<AccountType | null>(null);
-  const [snack, setSnack] = useState<{ open: boolean; severity: "success" | "error"; message: string }>(
-    { open: false, severity: "success", message: "" },
-  );
-
-  function handleSubmitted() {
-    setEditingType(null);
-    void accounts.refetch();
-    setSnack({
-      open: true,
-      severity: "success",
-      message: "Your bank account change request has been submitted.",
-    });
-  }
-
-  const header = (
-    <PerspectiveHeader
-      title="Banking"
-      subtitle="Your salary, consultancy, and reimbursement bank accounts."
-    />
-  );
-
-  if (!configured) {
-    return (
-      <Box>
-        {header}
-        <Tooltip title="Set ONE_WSO2_BANKING_BACKEND_URL to enable this." placement="top">
-          <Typography sx={{ color: "text.disabled", fontStyle: "italic", cursor: "help" }}>
-            Not configured
-          </Typography>
-        </Tooltip>
-      </Box>
-    );
-  }
-
-  if (profile.isLoading || accounts.isLoading) {
-    return (
-      <Box>
-        {header}
-        <PanelsSkeleton />
-      </Box>
-    );
-  }
-
-  if (profile.isError) {
-    return (
-      <Box>
-        {header}
-        <ErrorNotice error={profile.error} onRetry={() => profile.refetch()}>
-          Couldn&apos;t load your profile.
-        </ErrorNotice>
-      </Box>
-    );
-  }
-
-  if (accounts.isError) {
-    return (
-      <Box>
-        {header}
-        <ErrorNotice error={accounts.error} onRetry={() => accounts.refetch()}>
-          Couldn&apos;t load your bank accounts.
-        </ErrorNotice>
-      </Box>
-    );
-  }
-
-  const workLocation = profile.data?.employee.workLocation;
-  const today = new Date();
-
-  const activeAccountOf = (type: AccountType) =>
-    accounts.data?.bankAccounts.find((a) => a.accountType === type && a.accountStatus === "ACTIVE");
-
-  // The Salary/Consultancy day-of-month cutoff and the Reimbursement
-  // location allow-list both read the app-config directly; Consultancy's
-  // role restriction is decided by the gate instead, since that also needs
-  // the caller's Asgardeo groups, not just the config.
-  function disabledReasonFor(type: AccountType): string | undefined {
-    if (type === "CONSULTANCY" && gate.isResolving) return "Loading…";
-    if (type === "CONSULTANCY" && gate.isError) return "Couldn't verify eligibility.";
-    if (type !== "CONSULTANCY" && config.isPending) return "Loading…";
-    if (config.isError || !config.data) return "Couldn't load banking configuration.";
-
-    if (type === "REIMBURSEMENT") {
-      return isReimbursementEligible(workLocation, config.data.reimbursementsAllowedCountries)
-        ? undefined
-        : "Not available for your work location.";
-    }
-
-    const thresholdDay = type === "SALARY" ? config.data.salaryThreshold : config.data.consultancyThreshold;
-    return isPastThreshold(today, thresholdDay)
-      ? `Changes allowed only until the ${formatOrdinal(thresholdDay)} of each month.`
-      : undefined;
-  }
-
-  // Fails open on showing the panel (hiding it would wrongly hide
-  // Consultancy from an eligible employee whenever the gate hasn't
-  // resolved yet or failed) — Edit itself is what fails closed, via
-  // disabledReasonFor above.
-  const showConsultancy = gate.isResolving || gate.isError || !gate.isConsultancyRestricted;
-
   return (
     <Box>
-      {header}
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={4000}
-        onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
-          {snack.message}
-        </Alert>
-      </Snackbar>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: `repeat(${showConsultancy ? 3 : 2}, 1fr)` },
-          gap: 1.75,
-        }}
-      >
-        <BankAccountPanel
-          accountType="SALARY"
-          account={activeAccountOf("SALARY")}
-          disabledReason={disabledReasonFor("SALARY")}
-          onEdit={() => setEditingType("SALARY")}
-        />
-        {showConsultancy && (
-          <BankAccountPanel
-            accountType="CONSULTANCY"
-            account={activeAccountOf("CONSULTANCY")}
-            disabledReason={disabledReasonFor("CONSULTANCY")}
-            onEdit={() => setEditingType("CONSULTANCY")}
-          />
-        )}
-        <BankAccountPanel
-          accountType="REIMBURSEMENT"
-          account={activeAccountOf("REIMBURSEMENT")}
-          disabledReason={disabledReasonFor("REIMBURSEMENT")}
-          onEdit={() => setEditingType("REIMBURSEMENT")}
-        />
-      </Box>
-      {editingType && (
-        <BankAccountRequestDialog
-          accountType={editingType}
-          employeeEmail={ownerEmail ?? ""}
-          onClose={() => setEditingType(null)}
-          onSuccess={handleSubmitted}
-        />
-      )}
+      <PerspectiveHeader
+        title="Banking"
+        subtitle="Your salary, consultancy, and reimbursement bank accounts."
+      />
+      <RoutedTabs basePath={BANKING_PATH} tabs={BANKING_TABS} ariaLabel="Banking sections" />
+      <Outlet />
     </Box>
   );
 }
 
-function PanelsSkeleton() {
-  return (
-    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" }, gap: 1.75 }}>
-      <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1.5 }} />
-      <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1.5 }} />
-      <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1.5 }} />
-    </Box>
-  );
+/** `/me/banking` itself has nothing to show — send the caller to the first tab. */
+export function BankingIndex() {
+  return <Navigate to={`${BANKING_PATH}/${BANKING_TABS[0].segment}`} replace />;
 }

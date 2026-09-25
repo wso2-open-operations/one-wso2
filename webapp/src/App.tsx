@@ -59,7 +59,8 @@ const ParAdminHistoryTab = lazy(() => import("@features/par/pages/ParAdminHistor
 const ParAdminGlobalConfigTab = lazy(() => import("@features/par/pages/ParAdminGlobalConfigTab"));
 import EmailGroupsPage from "@features/my/email-groups/pages/EmailGroupsPage";
 import EmailSignaturePage from "@features/my/email-signature/pages/EmailSignaturePage";
-import BankingPage from "@features/my/banking/pages/BankingPage";
+import BankingPage, { BankingIndex } from "@features/my/banking/pages/BankingPage";
+import MyAccountsTab from "@features/my/banking/pages/MyAccountsTab";
 import MyTeamPage from "@features/my/my-team/pages/MyTeamPage";
 import TeamMemberPage from "@features/my/my-team/pages/TeamMemberPage";
 import PerspectiveLanding from "@components/perspective-landing/PerspectiveLanding";
@@ -763,8 +764,13 @@ export default function App() {
               digiops-hr's banking webapp "Change Bank Account" tab — its
               own page rather than a dashboard card, since three Account
               Types with their own edit forms and eligibility rules don't
-              fit in one. */}
-          <Route path="me/banking" element={<BankingPage />} />
+              fit in one. Tabbed like Claim Approval, so a later
+              admin-facing tab is a new route here, not a reshape of
+              BankingPage. */}
+          <Route path="me/banking" element={<BankingPage />}>
+            <Route index element={<BankingIndex />} />
+            <Route path="my-accounts" element={<MyAccountsTab />} />
+          </Route>
           {/* Catch-all → landing */}
           <Route path="*" element={<Navigate to={landingPath()} replace />} />
         </Route>

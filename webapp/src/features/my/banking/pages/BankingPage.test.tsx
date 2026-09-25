@@ -17,6 +17,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router";
 import type { Bank, BankAccount, BankingAppConfig } from "../../api/types";
 
 // BankingPage uses the real bankingRules.ts (deliberately not mocked — the
@@ -27,7 +28,26 @@ import type { Bank, BankAccount, BankingAppConfig } from "../../api/types";
 // useUmtGate.test.tsx.
 vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
 
-const { default: BankingPage } = await import("./BankingPage");
+const { default: BankingPage, BankingIndex } = await import("./BankingPage");
+const { default: MyAccountsTab } = await import("./MyAccountsTab");
+
+// BankingPage is now just the tab-bar frame; the panels this file exercises
+// render one route deeper, at its "my-accounts" tab. Starting the router
+// there directly (rather than at the bare basePath) keeps every existing
+// assertion synchronous — going via the index route's <Navigate> would add
+// a redirect render pass before the same content appears.
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={["/me/banking/my-accounts"]}>
+      <Routes>
+        <Route path="me/banking" element={<BankingPage />}>
+          <Route index element={<BankingIndex />} />
+          <Route path="my-accounts" element={<MyAccountsTab />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+}
 
 // Hooks mocked at the module boundary, same approach as MyTeamPage.test.tsx
 // — no QueryClientProvider needed since nothing here touches react-query
@@ -169,6 +189,30 @@ beforeEach(() => {
   mutateAsyncMock.mockResolvedValue({ applicationID: 42 });
 });
 
+describe("tab frame", () => {
+  it("redirects the bare /me/banking route to the My Accounts tab", async () => {
+    render(
+      <MemoryRouter initialEntries={["/me/banking"]}>
+        <Routes>
+          <Route path="me/banking" element={<BankingPage />}>
+            <Route index element={<BankingIndex />} />
+            <Route path="my-accounts" element={<MyAccountsTab />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // The redirect is a client-side <Navigate>, so the tab's own content
+    // (not present on the bare index route) is what confirms it landed.
+    expect(await screen.findByText("Salary")).toBeInTheDocument();
+  });
+
+  it("shows the My Accounts tab in the tab bar", () => {
+    renderPage();
+    expect(screen.getByRole("tab", { name: "My Accounts" })).toBeInTheDocument();
+  });
+});
+
 // Fills the bank-lookup step, then the account-details step (SALARY/
 // REIMBURSEMENT field set unless `consultancy` is set), landing on Review.
 async function completeUpToReview(
@@ -192,7 +236,7 @@ async function completeUpToReview(
 
 describe("Edit/Add popup", () => {
   it("opens a dialog scoped to the clicked panel's Account Type", async () => {
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
 
     const reimbursementCard = screen.getByText("Reimbursement").closest(".MuiCard-root") as HTMLElement;
@@ -212,7 +256,7 @@ describe("Edit/Add popup", () => {
   });
 
   it("can be cancelled from the bank-lookup step without submitting", async () => {
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -225,7 +269,7 @@ describe("Edit/Add popup", () => {
   });
 
   it("blocks advancing from the bank-lookup step until a bank is selected", async () => {
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -247,7 +291,7 @@ describe("Edit/Add popup", () => {
       error: new Error("network down"),
       refetch: vi.fn(),
     });
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -259,7 +303,7 @@ describe("Edit/Add popup", () => {
 
   it("shows Consultancy's own field set on the details step (no branch fields)", async () => {
     useBankingGateMock.mockReturnValue(gate());
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Consultancy").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -275,7 +319,7 @@ describe("Edit/Add popup", () => {
   });
 
   it("blocks advancing from the details step until required fields are filled", async () => {
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -293,7 +337,7 @@ describe("Edit/Add popup", () => {
   });
 
   it("can go back from the details step to the bank-lookup step", async () => {
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -309,7 +353,7 @@ describe("Edit/Add popup", () => {
   });
 
   it("shows a review of the entered values before submitting", async () => {
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -325,7 +369,7 @@ describe("Edit/Add popup", () => {
   });
 
   it("submits the expected payload, shows success, and closes the dialog", async () => {
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -357,7 +401,7 @@ describe("Edit/Add popup", () => {
   it("shows a specific error and stays open when the backend rejects the submission", async () => {
     mutateAsyncMock.mockReset();
     mutateAsyncMock.mockRejectedValue(new Error("Changes allowed only until the 5th of each month."));
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     await user.click(within(screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement).getByRole(
       "button",
@@ -373,7 +417,7 @@ describe("Edit/Add popup", () => {
   });
 
   it("starts blank again if reopened after being cancelled", async () => {
-    render(<BankingPage />);
+    renderPage();
     const user = userEvent.setup();
     const openSalaryDialog = () =>
       user.click(
@@ -410,7 +454,7 @@ describe("panel field rendering", () => {
       ]),
     );
 
-    render(<BankingPage />);
+    renderPage();
 
     // Salary: bank-detail fields present.
     expect(screen.getByText("Salary").closest(".MuiCard-root")).toHaveTextContent("BOC");
@@ -437,7 +481,7 @@ describe("panel field rendering", () => {
       accounts([account({ accountType: "CONSULTANCY", paymentMethod: "Wire transfer" })]),
     );
 
-    render(<BankingPage />);
+    renderPage();
 
     const consultancyCard = screen.getByText("Consultancy").closest(".MuiCard-root") as HTMLElement;
     expect(consultancyCard).toHaveTextContent("Payment Method");
@@ -459,7 +503,7 @@ describe("Threshold gating", () => {
     useBankingConfigMock.mockReturnValue(config({ salaryThreshold: 5, consultancyThreshold: 28 }));
     useBankAccountsMock.mockReturnValue(accounts([account({ accountType: "SALARY" })]));
 
-    render(<BankingPage />);
+    renderPage();
 
     const salaryCard = screen.getByText("Salary").closest(".MuiCard-root") as HTMLElement;
     expect(within(salaryCard).getByRole("button", { name: "Edit" })).toBeDisabled();
@@ -475,7 +519,7 @@ describe("Consultancy Restriction", () => {
   it("does not render the Consultancy panel for a restricted-group caller", () => {
     useBankingGateMock.mockReturnValue(gate({ isConsultancyRestricted: true }));
 
-    render(<BankingPage />);
+    renderPage();
 
     expect(screen.queryByText("Consultancy")).not.toBeInTheDocument();
     // The other two panels are unaffected.
@@ -489,7 +533,7 @@ describe("Reimbursement Eligibility", () => {
     useMeProfileMock.mockReturnValue(profile("Nowhereville"));
     useBankingConfigMock.mockReturnValue(config({ reimbursementsAllowedCountries: ["Colombo"] }));
 
-    render(<BankingPage />);
+    renderPage();
 
     const reimbursementCard = screen.getByText("Reimbursement").closest(".MuiCard-root") as HTMLElement;
     expect(within(reimbursementCard).getByRole("button", { name: "Add" })).toBeDisabled();
@@ -504,7 +548,7 @@ describe("Reimbursement Eligibility", () => {
     useMeProfileMock.mockReturnValue(profile("Colombo"));
     useBankingConfigMock.mockReturnValue(config({ reimbursementsAllowedCountries: ["Colombo"] }));
 
-    render(<BankingPage />);
+    renderPage();
 
     const reimbursementCard = screen.getByText("Reimbursement").closest(".MuiCard-root") as HTMLElement;
     expect(within(reimbursementCard).getByRole("button", { name: "Add" })).toBeEnabled();
