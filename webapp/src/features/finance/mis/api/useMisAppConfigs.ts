@@ -114,7 +114,14 @@ export function useMisAppConfigs(enabled = true): MisAppConfigsState {
     // question being answered is "may this screen exist", where the only safe
     // reading of an unrecognised answer is no.
     analysisEnabled: isConfigsBody(folded.data) && folded.data.productsUsageEnabled === true,
-    isLoading: folded.isPending && folded.fetchStatus !== "idle",
+    // Pending counts as loading whenever there is a backend this hook means to
+    // ask, which is `useMisGate`'s rule for `isResolving`. Not `fetchStatus`:
+    // useAsgardeoSub starts at "loading" on every mount, and until it resolves
+    // the query is switched off, pending AND idle. Read as settled, that was the
+    // backend saying ARR Analysis is off, and the route redirected on every
+    // visit. Switched off for any other reason, it stays not loading, so a
+    // perspective without MIS never waits on it.
+    isLoading: folded.isPending && enabled && isSignedIn && isMisArrConfigured(),
     isError: folded.isError,
     errorMessage: folded.error ? humanizeHttpError(folded.error) : "",
     retry: () => void folded.refetch(),

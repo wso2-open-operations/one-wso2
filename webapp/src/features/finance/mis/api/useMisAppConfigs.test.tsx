@@ -28,7 +28,7 @@ const identity = {
   value: { status: "ready", sub: "user-under-test" } as
     | { status: "ready"; sub: string }
     | { status: "error"; message: string }
-    | { status: "resolving" },
+    | { status: "loading" },
 };
 // Only the hook is stubbed. `foldIdentityError` stays real: it is the thing
 // under test on the identity-failure case below, and a mock of it would leave
@@ -105,6 +105,20 @@ describe("before the call answers", () => {
     expect(result.current.isLoading).toBe(true);
     expect(result.current.options.salesRegions).toEqual([]);
     expect(result.current.options.countries).toEqual([]);
+  });
+
+  // The first render of EVERY mount, not only a cold load: useAsgardeoSub keeps
+  // its own state and starts at "loading", so the query is keyed on no sub and
+  // switched off, which leaves it pending and idle. That is not an answer.
+  // Reported as settled, it read as the backend saying ARR Analysis is off, and
+  // the route redirected on every visit (found live on stage, 2026-09-25).
+  it("is still loading while the session's sub is being read", () => {
+    identity.value = { status: "loading" };
+    const { result } = renderConfigs();
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isError).toBe(false);
+    expect(result.current.analysisEnabled).toBe(false);
+    expect(authedGet).not.toHaveBeenCalled();
   });
 });
 
