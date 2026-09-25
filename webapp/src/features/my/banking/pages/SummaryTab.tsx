@@ -127,7 +127,11 @@ export default function SummaryTab() {
         return sort.direction === "asc" ? result : -result;
       })
     : rows;
-  const visible = sorted.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  // The list is refetched whenever the tab opens, so it can end up with fewer
+  // pages than the one being viewed; stay on the last page that exists.
+  const lastPage = Math.max(0, Math.ceil(rows.length / rowsPerPage) - 1);
+  const currentPage = Math.min(page, lastPage);
+  const visible = sorted.slice(currentPage * rowsPerPage, (currentPage + 1) * rowsPerPage);
 
   function cycleSort(column: number) {
     setSort((current) => {
@@ -199,7 +203,7 @@ export default function SummaryTab() {
       <TablePagination
         component="div"
         count={rows.length}
-        page={page}
+        page={currentPage}
         rowsPerPage={rowsPerPage}
         rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
         onPageChange={(_, next) => setPage(next)}

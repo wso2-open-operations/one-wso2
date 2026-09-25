@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -198,7 +198,16 @@ export default function BankAccountRequestDialog({
     if (Object.keys(found).length === 0) setStep("review");
   }
 
+  // One request at a time. A ref rather than the mutation's own pending flag:
+  // that only flips after a re-render, and the confirmation's Yes button stays
+  // clickable while the dialog fades out, so a quick second press would
+  // otherwise send a second request (a second NetSuite update for
+  // Reimbursement and Consultancy).
+  const sending = useRef(false);
+
   async function submit() {
+    if (sending.current) return;
+    sending.current = true;
     setConfirming(false);
     setSubmitError(undefined);
     try {
@@ -208,6 +217,8 @@ export default function BankAccountRequestDialog({
       onSuccess();
     } catch (err) {
       setSubmitError(describeError(err));
+    } finally {
+      sending.current = false;
     }
   }
 
@@ -410,7 +421,7 @@ export default function BankAccountRequestDialog({
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirming(false)}>Cancel</Button>
-          <Button variant="contained" onClick={submit}>
+          <Button variant="contained" onClick={submit} disabled={mutation.isPending}>
             Yes
           </Button>
         </DialogActions>

@@ -750,6 +750,26 @@ describe("Edit/Add popup", () => {
     ).toBeInTheDocument();
   });
 
+  it("sends the request only once when Yes is pressed twice in quick succession", async () => {
+    // A request that is still in flight when the second press arrives.
+    let finish: (value: { applicationID: number }) => void = () => {};
+    mutateAsyncMock.mockReset();
+    mutateAsyncMock.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    renderPage();
+    const user = userEvent.setup();
+    await openDialogFor(user, "Reimbursement");
+    await completeUpToReview(user);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.dblClick(await screen.findByRole("button", { name: "Yes" }));
+
+    expect(mutateAsyncMock).toHaveBeenCalledTimes(1);
+    finish({ applicationID: 1 });
+  });
+
   it("shows a specific error and stays open when the backend rejects the submission", async () => {
     mutateAsyncMock.mockReset();
     mutateAsyncMock.mockRejectedValue(new Error("Changes allowed only until the 5th of each month."));
