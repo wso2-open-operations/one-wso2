@@ -43,7 +43,7 @@ both apps run — see [ADR 0003](../adr/0003-bug-for-bug-parity-during-the-paral
 
 WSO2's internal finance reporting app. It shows recurring revenue moving from an opening balance to a
 closing balance over a Period, breaks current ARR down by partner model, region, industry and
-customer lifetime, and hosts the Flash P&L. All amounts are USD. Pacific Time is the canonical
+customer lifetime; the source also hosts the Flash P&L, which is not ported (ADR 0005). All amounts are USD. Pacific Time is the canonical
 business timezone for every Period boundary.
 
 | Who | What they see |
@@ -390,11 +390,14 @@ than something the client appends.
 
 **Rollout.** Every MIS screen is behind the `mis` preview flag, rail entries and routes alike
 (`config/previewFeatures.ts`), so a deployment shows MIS only when its config carries
-`ONE_WSO2_PREVIEW_FEATURES: { mis: true }` as well as the backend URLs. That is upstream's rule for
-a port that has not yet run against its live backends, and MIS has not: §11.1's signed-in visit is
-outstanding, and so is ticket 19's parity check. The flag comes out when both have happened. Added
-when this branch was rebased onto upstream's shell (2026-09-23), after the Finance perspective began
-forwarding its landing to the first visible item.
+`ONE_WSO2_PREVIEW_FEATURES: { mis: true }` as well as the backend URL. That is upstream's rule for
+a port that has not yet run against its live backends, and MIS has not shown a figure from them: the
+signed-in visit was made and One WSO2's token is accepted (§11.1), but on stage the ARR service's own
+lookups fail behind it, and ticket 19's parity check has not happened. The flag comes out when MIS
+has shown live figures and Finance has signed off that check. It holds back MIS's backend calls as
+well as its screens: with the flag off, the Finance perspective asks the ARR service nothing, even
+where the URL is configured. Added when this branch was rebased onto upstream's shell (2026-09-23),
+after the Finance perspective began forwarding its landing to the first visible item.
 
 ## 7. Deviations from the source, and why
 
@@ -407,7 +410,7 @@ timer, the sidebar and nav rail, the banner system, the Redux store, and all thr
 express the Build: `pageSize > 100` throws, column pinning is absent, `GridPinnedRows` returns `null`,
 and row grouping, tree data and aggregation are not in the package at all. Rather than add a
 dependency — which `AttendeeGrid.tsx:46-64` records this codebase deciding against once already — the
-Build and Flash tables are hand-rolled on `Table`, following the existing precedents for sticky first
+Build tables are hand-rolled on `Table`, following the existing precedents for sticky first
 columns, three-level collapsible sections, hand-computed totals and horizontal overflow. ARR
 Analysis's flat account table does take the DataGrid. A three-variant prototype confirmed this is
 achievable — see [ADR 0004](../adr/0004-arr-build-tables-are-hand-rolled.md), which also records the
@@ -420,8 +423,8 @@ deferrable.
 
 **Excel.** The bespoke ExcelJS workbook is kept, but restructured into pure builder functions with the
 blob download isolated, so it can finally be tested. `exceljs` is dynamically imported at the call
-site, as everywhere else in this repo. Built in ticket 11; three things about it are decisions rather
-than transcription:
+site, as everywhere else in this repo. Built in ticket 11; four things about it are decisions rather
+than transcription, the last of them made in ticket 18:
 
 - **A figure in the file is a NUMBER, where the source writes a string.** `generateAnnualSheet.js`
   puts `formatNumber(item.iam)` into every figure cell — `Intl.NumberFormat` output, so `"1,234.50"`
@@ -445,6 +448,12 @@ than transcription:
   Pacific evening is filed under tomorrow. Its two clean-up rules ARE kept, including the fact that
   there are two of them: a row label loses its hyphens and a Period column keeps them, so a range
   survives as `20250903_-_20260903` rather than collapsing into one unreadable number.
+- **A percentage is Excel's own.** The Build's percentage rows (Net Dollar Retention, y/y growth,
+  the % rows) arrive as percentage points, so 98.25 means 98.25%. The file writes 0.9825 under
+  `0.00%`, which shows as "98.25%" and stays right under a formula that multiplies by the cell;
+  ticket 11 had written the bare 98.25 under money's format. Ticket 18 set the rule, in
+  `misBuildSheet`'s `figureCell`, keyed on the kind of number, and it is the one part of that
+  ticket the port keeps (ADR 0005). `MIS_NUMBER_FORMATS.PERCENTAGE` says why.
 
 The customer drill-down is a consumer of these same builders. The source's dialog has its own Export
 CSV button; porting that as a second, bespoke CSV path is what ticket 11 exists to prevent, so the
@@ -454,8 +463,8 @@ same degenerate case `BuildTable` already renders it in.
 Three of the decisions above change what the source does — **the filename's date, a figure's cell
 type, and the drill-down's CSV becoming an .xlsx** — and all three are **knowing exceptions to
 [ADR 0003](../adr/0003-bug-for-bug-parity-during-the-parallel-period.md), not cases the ADR fails to
-reach.** (The fourth, always exporting at units, deviates from nothing: the source has no Build
-export at all.)
+reach.** (The other two, always exporting at units and writing percentages as Excel's own, deviate
+from nothing: the source has no Build export at all.)
 
 They are taken because none of them reaches what that ADR protects. ADR 0003 exists so that finance
 signing off figures from both apps never has to investigate a disagreement, and §10.37 compares the
@@ -465,9 +474,7 @@ period sees no disagreement it has to explain. Each is also a defect that would 
 preserved in a file outliving the parallel period: an export filed under tomorrow's date, and a
 column of figures that cannot be summed.
 
-*Not ported — ADR 0005.*
-
-**The Flash's two dialogs become one, and the P&L's own rows (ticket 15).** The source reaches its
+*Not ported — ADR 0005.* **The Flash's two dialogs become one, and the P&L's own rows (ticket 15).** The source reaches its
 sub-levels through a separate `MultiLevelViewDialog` opened from the Cost of Sales and Expense
 headings, and reaches a business unit's monthly view through `MonthlyViewDialog` on each column
 header — and the monthly view it opens depends on which of the two you came from, because the first
@@ -477,7 +484,7 @@ question (`isSubLevel: true`, which is purely additive at the backend —
 `balance_statement.bal:312-325` attaches `subLevel` to the Cost of Sales and Expense lines and
 changes nothing else).
 
-**Gross Margin renders `77.50` where the source renders `78 %` (ticket 15).** `DataTable.js:83-88`
+*Not ported — ADR 0005.* **Gross Margin renders `77.50` where the source renders `78 %` (ticket 15).** `DataTable.js:83-88`
 does `` `${Math.round(params.value)} %` ``. The port routes every percentage through ticket 05's
 `formatMisValue`, which gives two decimals and no unit marker — the same as the Build's own retention
 rows, so this is a port-wide convention rather than a Flash decision. More precision than the source,
@@ -486,17 +493,13 @@ knowing for §10.37 because a reconciler diffing the two screens sees both a dif
 different string on those rows; adding the marker would mean changing the shared formatter and every
 Build percentage with it, which is a decision for after the parallel period.
 
-*Not ported — ADR 0005.*
-
-**The Flash's month pickers are native inputs (ticket 15).** The source uses
+*Not ported — ADR 0005.* **The Flash's month pickers are native inputs (ticket 15).** The source uses
 `@mui/x-date-pickers`, which this repo does not ship; `<input type="month">` is the browser's own
 picker, holds `yyyy-MM`, and never puts a month through a `Date` — which is most of §3's rule on this
 screen. Same reasoning as the ag-Grid and DataGrid decisions above: a dependency is not added for one
 control.
 
-*Not ported — ADR 0005.*
-
-**The Flash shares the Scale preference rather than defaulting to thousands (ticket 15).**
+*Not ported — ADR 0005.* **The Flash shares the Scale preference rather than defaulting to thousands (ticket 15).**
 `TableView.js` opens this one screen at `useState(true)` — thousands — where every other MIS screen
 opens at units. The port carries the one cross-screen `ScalePreferenceContext` §4 settled, so
 switching to the Flash does not switch units under the reader. The caption beside the table says
@@ -1842,9 +1845,8 @@ is in the gitignored `My Findings Finance MIS.md` at the repo root.
 **Ticket 01 (the shell wiring) is built.** It did not close item 1 or 4 — neither can be closed by
 code — but it *instruments* both: `/finance/mis/arr-build` now renders the raw `privileges` array
 `GET /user-info` returned and what it resolved to, so one signed-in visit answers both at once. That
-visit is the only thing standing between this spec and a settled premise. It needs
-`http://localhost:3000` registered as an allowed redirect on the One WSO2 **staging** Asgardeo app,
-or a live session at `https://one.wso2.com`.
+visit has been made, on stage on 2026-09-23: it settled the premise, since One WSO2's token is
+accepted, and left item 4 open behind the stage service's own failures (item 1).
 
 1. **Can One WSO2's Asgardeo token reach the three MIS services at all?** They sit behind Choreo's
    gateway expecting `x-jwt-assertion` and enforce a WSO2 email-domain regex. Same tenant? Same
@@ -1871,10 +1873,10 @@ or a live session at `https://one.wso2.com`.
    - **Settled:** tenant, token format and gateway routing all work. Nothing in the port's code is
      wrong, and ADR 0001 is not in play: the fix is a subscription on the consuming application, not
      a change to any MIS service.
-   - **Needed:** in Choreo, subscribe One WSO2's application to `mis-arr-backend` and
-     `mis-flash-backend`, the way it is already subscribed to OPD, CC and expense claims. Do it per
-     environment; stage first. (The Flash service was not called on this visit; expect the same
-     answer until it is subscribed.)
+   - **Needed:** in Choreo, subscribe One WSO2's application to `mis-arr-backend`, the way it is
+     already subscribed to OPD, CC and expense claims. Do it per environment; stage first. (This
+     first named `mis-flash-backend` too. The Flash stays in the MIS app — ADR 0005 — so One WSO2
+     has nothing to call there.)
    - **Still open behind it:** whether the MIS services accept the `x-jwt-assertion` the gateway
      forwards, and their email-domain regex. That is the next hop and needs the subscription to
      exist first. It also leaves §11.4 unanswered: the gateway answered before the service could.
@@ -1901,8 +1903,8 @@ or a live session at `https://one.wso2.com`.
    its own entity service both fail. That needs the MIS owners and the service's stage runtime logs
    (both failures are logged with `log:printError`, beside the messages above). Worth checking first
    whether the source MIS frontend works on stage at all today; if it doesn't, this is a stage outage,
-   not anything about One WSO2. §11.4 stays open until `/user-info` answers. The Flash screens can't
-   be tried yet, because every MIS screen asks `/user-info` first. On screen, the ARR Build settles on
+   not anything about One WSO2. §11.4 stays open until `/user-info` answers, and so does every screen,
+   because each asks `/user-info` first. On screen, the ARR Build settles on
    *"Couldn't check your MIS access. Unable to retrieve employee information"* with Retry: an error,
    not a denial.
 2. ~~**Are the three gateway hostnames under `*.wso2.com`?**~~ **ANSWERED, and the answer differs by
@@ -1921,10 +1923,11 @@ or a live session at `https://one.wso2.com`.
 
    Also note the paths disagree across environments: **production ends `/v1`, staging ends `/v1.0`**.
    That belongs in configuration, never in code.
-3. **What are the real LDAP groups behind `987` and `789`?** `arrDashboardUserRoles` and
-   `flashDashboardUserRoles` are `configurable string[] = ?` supplied from Choreo config. **Confirmed
-   still open**: both are declared in the component's Ballerina schema but read "(not set)" there,
-   because their values arrive from a *secret* file mount, and the Choreo CLI does not return secret
+3. **What are the real LDAP groups behind `987`?** `arrDashboardUserRoles` is a
+   `configurable string[] = ?` supplied from Choreo config. (`789`'s, `flashDashboardUserRoles`, no
+   longer matters here: that privilege opens nothing in One WSO2, ADR 0005.) **Confirmed still
+   open**: it is declared in the component's Ballerina schema but reads "(not set)" there, because
+   its value arrives from a *secret* file mount, and the Choreo CLI does not return secret
    contents. Read them from the Choreo console or via `scripts/mis-port-facts.sh` stage 5.
 4. **Does `GET /user-info` return 200 with empty privileges for a non-MIS employee, or 403?** This
    decides whether the gate can show an honest locked state or must treat a denial as absence.
@@ -1937,7 +1940,9 @@ or a live session at `https://one.wso2.com`.
 5. **Is the Flash comments backend alive?** `mis-admin-backend` is deprecated and suspended in
    Production while the live MIS config still points at it (§2.5). Establish whether comments work in
    production today before porting them — and if they moved, to what.
-6. **Which of the five screens is actually used, and by how many people?** It changes what the tracer
+
+   *Moot — the Flash Dashboard is not ported (ADR 0005); ticket 04 is closed wontfix.*
+6. **Which of the four screens is actually used, and by how many people?** It changes what the tracer
    bullet should prove first and what may not need porting at all.
 7. **Who signs off the re-placed screens**, per [ADR 0002](../adr/0002-rethink-ia-rather-than-transcribe.md)?
 8. ~~**Is a minimum-width notice acceptable** in a shell that otherwise promises every screen works
@@ -1945,7 +1950,6 @@ or a live session at `https://one.wso2.com`.
    and the table still renders.** Decided in ticket 08 and built as
    `components/wide-table-notice/WideTableNotice.tsx`, shared rather than MIS-local.
 
-   *Moot — the Flash Dashboard is not ported (ADR 0005).*
 
    **What settled it was measuring the real tables rather than the prototype's seven fake
    customers.** Variant C — one Period at a time, rendered vertically — answers for ONE of the four:
@@ -2038,8 +2042,9 @@ or a live session at `https://one.wso2.com`.
     **one per industry** over six — all in parallel, all on one filter change. The debounce collapses
     a burst of changes into one such round; it does nothing about the size of the round. That is the
     source's shape and presumably survives in production today, but One WSO2 reaches these services
-    through a different client and §11.1's token path is still unproven, so it is worth watching on
-    the first live visit rather than assuming. The one place to change it for every table at once is
+    through a different client, and no figure has reached it yet (§11.1: the token is accepted, the
+    stage service's own lookups fail), so it is worth watching on the first visit that shows figures
+    rather than assuming. The one place to change it for every table at once is
     `useColumnQueries`, which already carries this note for the Build's columns (§7).
 
 15. **Should the Flash's filters reach the URL?** Ticket 15. The same question as item 12 asks of ARR
@@ -2104,9 +2109,9 @@ or a live session at `https://one.wso2.com`.
       real Other Expenses where the source put Other Income's figures under that heading;
     - its figures are numbers and its percentages true percentages, where today's are text.
 
-    *Moot — the Flash Dashboard is not ported (ADR 0005).*
-
     A person reading the file is better served by all of it. A macro, a lookup, or a template filled
     by copying columns in position would not be, and nothing in either repo can say whether one
     exists. **Ask Finance once**, before the parallel period ends. If the answer is to keep today's
     order, it is one argument in `misFlashAnnualSheet`.
+
+    *Moot — the Flash Dashboard is not ported (ADR 0005).*

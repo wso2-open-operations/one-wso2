@@ -40,9 +40,10 @@ afterEach(() => {
 
 const keys = (perspectives: readonly { key: string }[]) => perspectives.map((p) => p.key);
 
-// Finance MIS has never run against its live backends — ticket 01's one
-// signed-in visit is still outstanding — so it lands the way every other port
-// in that state does: behind its own flag, as a whole.
+// Finance MIS has not yet shown a figure from its live backends — One WSO2's
+// token is accepted, but the stage service's own lookups fail behind it — so it
+// lands the way every other port in that state does: behind its own flag, as a
+// whole.
 describe("Finance MIS's rail entries", () => {
   const misIdsIn = (perspectives: Perspectives) =>
     (perspectives.findPerspectiveByKey("finance")?.sections ?? [])
