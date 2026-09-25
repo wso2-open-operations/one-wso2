@@ -66,6 +66,7 @@ export default function UmtReleaseChunkBuildInfoDialog({
       headerName: "Product",
       flex: 2,
       minWidth: 160,
+      sortable: false,
       renderCell: (params) => (
         <ChunkCell>
           <ChunkLine>
@@ -81,6 +82,7 @@ export default function UmtReleaseChunkBuildInfoDialog({
       headerName: "Build Status",
       flex: 1,
       minWidth: 140,
+      sortable: false,
       renderCell: (params) => (
         <ChunkCell>
           <ChunkLine>

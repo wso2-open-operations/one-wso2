@@ -6,8 +6,8 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, useQueries } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "token" }));
@@ -140,17 +140,106 @@ describe("useUmtTriggerCstBuild", () => {
 });
 
 describe("useUmtRetriggerDockerBuild", () => {
-  it("POSTs retriggerDockerBuild and invalidates docker and chunk status", async () => {
-    const { result, invalidateQueries } = renderMutation(() => useUmtRetriggerDockerBuild(7));
+  // A row's chunk-status query, observed the way the pending grid observes
+  // it, so that invalidating it really refetches.
+  function useWithChunkStatuses(statuses: Record<number, () => Promise<unknown>>) {
+    const queries = useQueries({
+      queries: Object.entries(statuses).map(([id, queryFn]) => ({
+        queryKey: ["umt-release-chunk-status", "sub", Number(id)],
+        queryFn,
+        retry: false,
+      })),
+    });
+    return { queries, mutation: useUmtRetriggerDockerBuild(7) };
+  }
 
+  it("POSTs retriggerDockerBuild and refetches the docker statuses and this chunk's status", async () => {
+    const chunkStatus = vi.fn(async () => ({ id: 7, status: "retriggering" }));
+    const { result, invalidateQueries } = renderMutation(() => useWithChunkStatuses({ 7: chunkStatus }));
+    await waitFor(() => expect(result.current.queries[0].isSuccess).toBe(true));
+
+    let outcome: unknown;
     await act(async () => {
-      await result.current.mutateAsync();
+      outcome = await result.current.mutation.mutateAsync();
     });
 
     expect(authedPost).toHaveBeenCalledWith(umtServiceUrls.releaseChunkRetriggerDockerBuild(7), "token", null);
-    expect(invalidatedKeys(invalidateQueries)).toEqual(
-      expect.arrayContaining(["umt-release-chunk-docker-build-status", "umt-release-chunk-status"]),
-    );
+    expect(invalidatedKeys(invalidateQueries)).toContain("umt-release-chunk-docker-build-status");
+    expect(chunkStatus).toHaveBeenCalledTimes(2);
+    expect(outcome).toEqual({ statusRefreshed: true });
+  });
+
+  it("still resolves, but reports the status as unrefreshed, when this chunk's status can't be refetched", async () => {
+    const chunkStatus = vi
+      .fn<() => Promise<unknown>>()
+      .mockResolvedValueOnce({ id: 7, status: "releasingDockerFailed" })
+      .mockRejectedValue(new Error("status unavailable"));
+    const { result } = renderMutation(() => useWithChunkStatuses({ 7: chunkStatus }));
+    await waitFor(() => expect(result.current.queries[0].isSuccess).toBe(true));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.mutation.mutateAsync();
+    });
+
+    expect(outcome).toEqual({ statusRefreshed: false });
+  });
+
+  it("leaves other chunks' statuses alone, so their failures don't count against this one", async () => {
+    const thisChunk = vi.fn(async () => ({ id: 7, status: "retriggering" }));
+    const otherChunk = vi
+      .fn<() => Promise<unknown>>()
+      .mockResolvedValueOnce({ id: 8, status: "created" })
+      .mockRejectedValue(new Error("status unavailable"));
+    const { result } = renderMutation(() => useWithChunkStatuses({ 7: thisChunk, 8: otherChunk }));
+    await waitFor(() => expect(result.current.queries.every((query) => query.isSuccess)).toBe(true));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.mutation.mutateAsync();
+    });
+
+    expect(otherChunk).toHaveBeenCalledTimes(1);
+    expect(outcome).toEqual({ statusRefreshed: true });
+  });
+
+  // Invalidation settles without fetching when there is no active query to
+  // refetch, so neither case below may be reported as a refreshed status.
+  it("reports the status as unrefreshed when nothing is observing this chunk's status", async () => {
+    const { result } = renderMutation(() => useUmtRetriggerDockerBuild(7));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.mutateAsync();
+    });
+
+    expect(authedPost).toHaveBeenCalledWith(umtServiceUrls.releaseChunkRetriggerDockerBuild(7), "token", null);
+    expect(outcome).toEqual({ statusRefreshed: false });
+  });
+
+  it("reports the status as unrefreshed when this chunk's status query is disabled", async () => {
+    const chunkStatus = vi.fn(async () => ({ id: 7, status: "retriggering" }));
+    const { result } = renderMutation(() => {
+      useQueries({
+        queries: [
+          {
+            queryKey: ["umt-release-chunk-status", undefined, 7],
+            queryFn: chunkStatus,
+            enabled: false,
+            retry: false,
+          },
+        ],
+      });
+      return useUmtRetriggerDockerBuild(7);
+    });
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.mutateAsync();
+    });
+
+    expect(chunkStatus).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ statusRefreshed: false });
   });
 });
 
