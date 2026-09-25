@@ -15,6 +15,7 @@
 // under the License.
 
 import type {
+  AccountType,
   Employee,
   EmployeePersonalInfo,
   PromotionHistoryEntry,
@@ -26,6 +27,15 @@ import type {
 // one place instead of being sprinkled across components.
 
 export const DASH = "—";
+
+// One shared label per Account Type — the card, the panel, and the
+// edit/add dialog all name the same three types and previously each kept
+// their own byte-identical copy of this map.
+export const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
+  SALARY: "Salary",
+  CONSULTANCY: "Consultancy",
+  REIMBURSEMENT: "Reimbursement",
+};
 
 export function display(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return DASH;

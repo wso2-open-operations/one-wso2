@@ -20,19 +20,14 @@ import { LandmarkIcon } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink } from "react-router";
 import DetailRow from "@components/detail-row/DetailRow";
 import Pager from "@features/people-ops/components/Pager";
-import type { AccountType, BankAccount } from "../api/types";
+import { ACCOUNT_TYPE_LABEL } from "../api/derive";
+import type { BankAccount } from "../api/types";
 import {
   isBankingBackendConfigured,
   useBankAccounts,
 } from "../api/useBankAccounts";
 
 const PAGE_SIZE = 2;
-
-const TYPE_LABEL: Record<AccountType, string> = {
-  SALARY: "Salary",
-  REIMBURSEMENT: "Reimbursement",
-  CONSULTANCY: "Consultancy",
-};
 
 // Live bank-accounts card in ConnectedServices. Reads from banking-app's
 // GET /employee/accounts?employeeWorkEmail=<me>. Currently read-only —
@@ -106,7 +101,7 @@ export default function BankAccountsCard({ ownerEmail }: { ownerEmail?: string }
           <DetailRow
             key={a.accountId}
             icon={<LandmarkIcon size={14} />}
-            title={`${a.bankName ?? "Bank"} · ${TYPE_LABEL[a.accountType] ?? a.accountType}`}
+            title={`${a.bankName ?? "Bank"} · ${ACCOUNT_TYPE_LABEL[a.accountType] ?? a.accountType}`}
             meta={`${maskAccountNumber(a.accountNumber)}${a.branchName ? ` · ${a.branchName}` : ""}`}
             last={idx === visible.length - 1}
           />

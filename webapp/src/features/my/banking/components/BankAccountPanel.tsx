@@ -15,7 +15,7 @@
 // under the License.
 
 import { Box, Button, Card, Stack, Typography } from "@wso2/oxygen-ui";
-import { display } from "../../api/derive";
+import { ACCOUNT_TYPE_LABEL, display } from "../../api/derive";
 import type { AccountType, BankAccount } from "../../api/types";
 
 // One field row's label + the BankAccount key it reads. Mirrors
@@ -25,12 +25,6 @@ interface FieldConfig {
   key: keyof BankAccount;
   label: string;
 }
-
-const ACCOUNT_TYPE_TITLE: Record<AccountType, string> = {
-  SALARY: "Salary",
-  CONSULTANCY: "Consultancy",
-  REIMBURSEMENT: "Reimbursement",
-};
 
 // Consultancy is paid differently from a Salary or Reimbursement account,
 // so its field set differs from the other two: payment method + effective
@@ -88,7 +82,7 @@ export default function BankAccountPanel({
     <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
         <Typography sx={{ fontWeight: 600, fontSize: 14, flex: 1 }}>
-          {ACCOUNT_TYPE_TITLE[accountType]}
+          {ACCOUNT_TYPE_LABEL[accountType]}
         </Typography>
         <Button
           variant="outlined"

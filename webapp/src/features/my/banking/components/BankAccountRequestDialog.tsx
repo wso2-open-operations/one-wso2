@@ -32,6 +32,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { describeError } from "@api/errors";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
+import { ACCOUNT_TYPE_LABEL } from "../../api/derive";
 import { useBanks } from "../../api/useBanks";
 import { useCreateBankAccountRequest } from "../../api/useCreateBankAccountRequest";
 import type { AccountType, Bank } from "../../api/types";
@@ -54,12 +55,6 @@ const BLANK_VALUES: BankAccountFormValues = {
   bankAddress: "",
   branchName: "",
   branchCode: "",
-};
-
-const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
-  SALARY: "Salary",
-  CONSULTANCY: "Consultancy",
-  REIMBURSEMENT: "Reimbursement",
 };
 
 type DialogStep = "lookup" | "details" | "review";
