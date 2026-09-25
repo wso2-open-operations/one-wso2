@@ -104,6 +104,12 @@ vi.mock("@features/par/api/useParData", () => ({
 vi.mock("@features/par/api/useParIsAdmin", () => ({
   useParIsAdmin: () => ({ isAdmin: false, isLoading: false }),
 }));
+vi.mock("@features/infra/api/useInfraGate", () => ({
+  useInfraGate: () => ({ ...other, ...noFailure, isAuthorized: false, isAdmin: false }),
+}));
+vi.mock("@features/umt/api/useUmtGate", () => ({
+  useUmtGate: () => ({ ...other, ...noFailure, isAuthorized: false, isAdmin: false }),
+}));
 
 const { usePerspectiveVisibility } = await import("@components/side-rail/usePerspectiveVisibility");
 
