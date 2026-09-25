@@ -1860,7 +1860,7 @@ accepted, and left item 4 open behind the stage service's own failures (item 1).
 
    **First authenticated call, 2026-09-23, staging: the gateway refuses it, and not for the token.**
    Signed in to One WSO2 on `localhost:3000` against stage, both `GET /user-info` and
-   `GET /app-configs` on `apis-stg.wso2.com/dvig/mis-arr-backend/…/v1.0` answer **`403`** with
+   `GET /app-configs` on `apis-stg.wso2.com/<component>/mis-arr-backend/v1.0` answer **`403`** with
    code **`900908`**: *"User is NOT authorized to access the Resource. API Subscription validation
    failed."* That code is the Choreo/API Manager gateway's, raised after the token has validated. A
    bad or foreign token would be a `401` with `900901`. So the gateway accepted One WSO2's token and
@@ -1910,7 +1910,7 @@ accepted, and left item 4 open behind the stage service's own failures (item 1).
 2. ~~**Are the three gateway hostnames under `*.wso2.com`?**~~ **ANSWERED, and the answer differs by
    environment.**
 
-   *Production* is clean: all three are `https://apis.wso2.com/dvig/mis-{arr,flash,admin}-backend/endpoint-9090-803/`**`v1`**,
+   *Production* is clean: all three are `https://apis.wso2.com/<component>/mis-{arr,flash,admin}-backend/`**`v1`**,
    inside the existing `connect-src` allowlist, matching all nine of One WSO2's own backend URLs.
 
    *Staging is not.* MIS's `Stage` config-map points ARR and Flash at

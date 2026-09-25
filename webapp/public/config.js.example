@@ -118,7 +118,7 @@ window.config = {
   // behind the `mis` preview flag (ONE_WSO2_PREVIEW_FEATURES, below) until it
   // has run against the live backends.
   //
-  // ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1",
+  // ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/<component>/mis-arr-backend/v1",
 
   // leave-app frontend base URL (not its backend) — used to deep-link into
   // flows this webapp doesn't replicate (e.g. sabbatical requests).

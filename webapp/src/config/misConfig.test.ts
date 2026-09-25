@@ -42,9 +42,9 @@ afterEach(() => {
 // below able to fail.
 const STAGING = {
   ONE_WSO2_MIS_ARR_BACKEND_URL:
-    "https://apis-stg.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1.0",
+    "https://apis-stg.wso2.com/<component>/mis-arr-backend/v1.0",
   ONE_WSO2_MIS_FLASH_BACKEND_URL:
-    "https://apis-stg.wso2.com/dvig/mis-flash-backend/endpoint-9090-803/v1.0",
+    "https://apis-stg.wso2.com/<component>/mis-flash-backend/v1.0",
   ONE_WSO2_MIS_ADMIN_BACKEND_URL: "",
 };
 
@@ -66,10 +66,10 @@ describe("the Finance MIS backend", () => {
   // 404s is up to the gateway. Same reasoning as marketingOpsBackendUrl.
   it("tolerates a trailing slash on a pasted URL", async () => {
     const c = await loadWith({
-      ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1/",
+      ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/<component>/mis-arr-backend/v1/",
     });
     expect(c.misArrServiceUrls.userInfo).toBe(
-      "https://apis.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1/user-info",
+      "https://apis.wso2.com/<component>/mis-arr-backend/v1/user-info",
     );
   });
 
@@ -79,7 +79,7 @@ describe("the Finance MIS backend", () => {
   it("serves /user-info from the ARR backend", async () => {
     const c = await loadWith(STAGING);
     expect(c.misArrServiceUrls.userInfo).toBe(
-      "https://apis-stg.wso2.com/dvig/mis-arr-backend/endpoint-9090-803/v1.0/user-info",
+      "https://apis-stg.wso2.com/<component>/mis-arr-backend/v1.0/user-info",
     );
   });
 
