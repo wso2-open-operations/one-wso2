@@ -115,8 +115,8 @@ window.config = {
   // (docs/adr/0005-flash-dashboard-stays-in-mis.md), so they have no key.
   //
   // Configuring the URLs is not enough to show MIS: every MIS screen is also
-  // behind the `mis` preview flag (ONE_WSO2_PREVIEW_FEATURES, below) until it
-  // has run against the live backends.
+  // behind the `mis` preview flag (ONE_WSO2_PREVIEW_FEATURES, below) until
+  // Finance has signed off its parity check (docs/ported-apps/mis.md §10.37).
   //
   // ONE_WSO2_MIS_ARR_BACKEND_URL: "https://apis.wso2.com/<component>/mis-arr-backend/v1",
 

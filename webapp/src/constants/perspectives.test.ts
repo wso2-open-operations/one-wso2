@@ -40,10 +40,9 @@ afterEach(() => {
 
 const keys = (perspectives: readonly { key: string }[]) => perspectives.map((p) => p.key);
 
-// Finance MIS has not yet shown a figure from its live backends — One WSO2's
-// token is accepted, but the stage service's own lookups fail behind it — so it
-// lands the way every other port in that state does: behind its own flag, as a
-// whole.
+// Finance MIS has shown live figures on stage but not yet had its parity check,
+// Finance comparing it with the running MIS — so it lands the way every other
+// unreleased port does: behind its own flag, as a whole.
 describe("Finance MIS's rail entries", () => {
   const misIdsIn = (perspectives: Perspectives) =>
     (perspectives.findPerspectiveByKey("finance")?.sections ?? [])

@@ -391,10 +391,9 @@ than something the client appends.
 **Rollout.** Every MIS screen is behind the `mis` preview flag, rail entries and routes alike
 (`config/previewFeatures.ts`), so a deployment shows MIS only when its config carries
 `ONE_WSO2_PREVIEW_FEATURES: { mis: true }` as well as the backend URL. That is upstream's rule for
-a port that has not yet run against its live backends, and MIS has not shown a figure from them: the
-signed-in visit was made and One WSO2's token is accepted (§11.1), but on stage the ARR service's own
-lookups fail behind it, and ticket 19's parity check has not happened. The flag comes out when MIS
-has shown live figures and Finance has signed off that check. It holds back MIS's backend calls as
+a port that has not yet been proven against its live backends. MIS has since run against them: on
+stage on 2026-09-25 every screen showed live figures (§11.1). What the flag waits on now is the
+parity check (§10.37), and it comes out when Finance has signed that off. It holds back MIS's backend calls as
 well as its screens: with the flag off, the Finance perspective asks the ARR service nothing, even
 where the URL is configured. Added when this branch was rebased onto upstream's shell (2026-09-23),
 after the Finance perspective began forwarding its landing to the first visible item.
@@ -1843,10 +1842,11 @@ one that most changes the plan. The full record — production URLs, component s
 is in the gitignored `My Findings Finance MIS.md` at the repo root.
 
 **Ticket 01 (the shell wiring) is built.** It did not close item 1 or 4 — neither can be closed by
-code — but it *instruments* both: `/finance/mis/arr-build` now renders the raw `privileges` array
-`GET /user-info` returned and what it resolved to, so one signed-in visit answers both at once. That
-visit has been made, on stage on 2026-09-23: it settled the premise, since One WSO2's token is
-accepted, and left item 4 open behind the stage service's own failures (item 1).
+code — but it *instrumented* both: `/finance/mis/arr-build` rendered the raw `privileges` array
+`GET /user-info` returned, until ticket 06 put figures there. The signed-in visit has been made: on
+stage on 2026-09-23 it settled the premise, since One WSO2's token is accepted, and on 2026-09-25,
+once the stage service's own failures were fixed, every screen showed live figures (item 1). Item 4
+is still open.
 
 1. **Can One WSO2's Asgardeo token reach the three MIS services at all?** They sit behind Choreo's
    gateway expecting `x-jwt-assertion` and enforce a WSO2 email-domain regex. Same tenant? Same
@@ -1907,6 +1907,15 @@ accepted, and left item 4 open behind the stage service's own failures (item 1).
    because each asks `/user-info` first. On screen, the ARR Build settles on
    *"Couldn't check your MIS access. Unable to retrieve employee information"* with Retry: an error,
    not a denial.
+
+   **Third visit, 2026-09-25, stage, after the stage certificate was updated: every call answers.**
+   `GET /user-info` returns 200 in about 0.4s and `GET /app-configs` 200 in about 3s, with
+   `productsUsageEnabled: true`; the Builds' `POST /arr-summary` returns 201. The ARR, QRR and MRR
+   Builds and ARR Analysis render live figures, the first this port has shown. The visit also found
+   a port bug the suites could not: ARR Analysis redirected to ARR Build on every visit, because
+   `useMisAppConfigs` took "the session's sub is still being read" for a settled answer. Fixed, and
+   §2.4's redirect rule is unchanged. §11.4 is still open: it needs a sign-in from someone without
+   MIS access.
 2. ~~**Are the three gateway hostnames under `*.wso2.com`?**~~ **ANSWERED, and the answer differs by
    environment.**
 
@@ -2042,8 +2051,8 @@ accepted, and left item 4 open behind the stage service's own failures (item 1).
     **one per industry** over six — all in parallel, all on one filter change. The debounce collapses
     a burst of changes into one such round; it does nothing about the size of the round. That is the
     source's shape and presumably survives in production today, but One WSO2 reaches these services
-    through a different client, and no figure has reached it yet (§11.1: the token is accepted, the
-    stage service's own lookups fail), so it is worth watching on the first visit that shows figures
+    through a different client. On the first visit that showed figures (2026-09-25, stage) the round
+    completed and both charts rendered, but one visit is not load, so it is still worth watching
     rather than assuming. The one place to change it for every table at once is
     `useColumnQueries`, which already carries this note for the Build's columns (§7).
 

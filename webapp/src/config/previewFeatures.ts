@@ -71,12 +71,10 @@ export type PreviewFeature =
   /**
    * Finance → Finance MIS, the whole of what is ported — the ARR, QRR and MRR
    * Builds and ARR Analysis, rail entries and routes alike. (The Flash
-   * Dashboard stays in the MIS app: ADR 0005.) Built, but it has not yet shown
-   * a figure from its live backends: One WSO2's token is accepted
-   * (docs/ported-apps/mis.md §11.1), but the stage service's own lookups fail
-   * behind it, and ticket 19's parity check — Finance comparing it with the
-   * running MIS, figure for figure — has not happened. Held back as a whole
-   * until both have. `useMisGate`'s own
+   * Dashboard stays in the MIS app: ADR 0005.) Built, and it has shown live
+   * figures on stage (docs/ported-apps/mis.md §11.1), but its parity check —
+   * Finance comparing it with the running MIS, figure for figure (§10.37) —
+   * has not happened. Held back as a whole until it has. `useMisGate`'s own
    * privilege check is unrelated and keeps working the same either way.
    */
   | "mis";
