@@ -17,7 +17,8 @@
 import { useState } from "react";
 import { Alert, Box, Skeleton, Snackbar, Tooltip, Typography } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { useMeProfile } from "../../api/useMeProfile";
+import { useAsgardeoUser } from "@hooks/useAsgardeoUser";
+import { useBankingEmployee } from "../../api/useBankingEmployee";
 import { isBankingBackendConfigured, useBankAccounts } from "../../api/useBankAccounts";
 import { useBankingConfig } from "../../api/useBankingConfig";
 import { useBankingGate } from "../../api/useBankingGate";
@@ -35,8 +36,11 @@ import BankAccountRequestDialog from "../components/BankAccountRequestDialog";
 // shown on MyProfilePage, so repeating it would just be a second,
 // driftable copy.
 export default function MyAccountsTab() {
-  const profile = useMeProfile();
-  const ownerEmail = profile.data?.employee.workEmail;
+  // Email from the sign-in token and everything else from the banking
+  // backend, as in the source app.
+  const asgardeoUser = useAsgardeoUser();
+  const ownerEmail = asgardeoUser.email;
+  const employee = useBankingEmployee(ownerEmail);
   const accounts = useBankAccounts(ownerEmail);
   const config = useBankingConfig();
   const gate = useBankingGate();
@@ -66,14 +70,18 @@ export default function MyAccountsTab() {
     );
   }
 
-  if (profile.isLoading || accounts.isLoading) {
+  if (!asgardeoUser.ready || employee.isLoading || accounts.isLoading) {
     return <PanelsSkeleton />;
   }
 
-  if (profile.isError) {
+  if (!ownerEmail) {
+    return <ErrorNotice>Couldn&apos;t determine your work email from your sign-in.</ErrorNotice>;
+  }
+
+  if (employee.isError) {
     return (
-      <ErrorNotice error={profile.error} onRetry={() => profile.refetch()}>
-        Couldn&apos;t load your profile.
+      <ErrorNotice error={employee.error} onRetry={() => employee.refetch()}>
+        Couldn&apos;t load your employee details.
       </ErrorNotice>
     );
   }
@@ -86,7 +94,7 @@ export default function MyAccountsTab() {
     );
   }
 
-  const workLocation = profile.data?.employee.workLocation;
+  const workLocation = employee.data?.location;
   const today = new Date();
 
   const activeAccountOf = (type: AccountType) =>

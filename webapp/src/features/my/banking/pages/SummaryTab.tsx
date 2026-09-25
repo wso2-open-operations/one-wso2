@@ -32,7 +32,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { useMeProfile } from "../../api/useMeProfile";
+import { useAsgardeoUser } from "@hooks/useAsgardeoUser";
 import { isBankingBackendConfigured, useBankAccounts } from "../../api/useBankAccounts";
 import { display, formatDate } from "../../api/derive";
 import type { AccountStatus, AccountType, BankAccount } from "../../api/types";
@@ -81,8 +81,9 @@ const compareText = new Intl.Collator(undefined, { numeric: true, sensitivity: "
 // the My Accounts tab already makes (react-query shares the cached result).
 // Rows keep the order the backend returns them in.
 export default function SummaryTab() {
-  const profile = useMeProfile();
-  const accounts = useBankAccounts(profile.data?.employee.workEmail);
+  const asgardeoUser = useAsgardeoUser();
+  const ownerEmail = asgardeoUser.email;
+  const accounts = useBankAccounts(ownerEmail);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(ROWS_PER_PAGE_OPTIONS[0]);
   const [sort, setSort] = useState<SortState>(null);
@@ -97,16 +98,12 @@ export default function SummaryTab() {
     );
   }
 
-  if (profile.isLoading || accounts.isLoading) {
+  if (!asgardeoUser.ready || accounts.isLoading) {
     return <Skeleton variant="rectangular" height={280} sx={{ borderRadius: 1.5 }} />;
   }
 
-  if (profile.isError) {
-    return (
-      <ErrorNotice error={profile.error} onRetry={() => profile.refetch()}>
-        Couldn&apos;t load your profile.
-      </ErrorNotice>
-    );
+  if (!ownerEmail) {
+    return <ErrorNotice>Couldn&apos;t determine your work email from your sign-in.</ErrorNotice>;
   }
 
   if (accounts.isError) {

@@ -165,6 +165,15 @@ export interface BankAccountsResponse {
   count: number;
 }
 
+// GET /employee-info on the banking backend — only what the Banking page
+// reads from it: the employee's HR location (drives the Reimbursement gate
+// and the Bank Location options).
+export interface BankingEmployeeInfo {
+  employeeId: string;
+  workEmail: string;
+  location: string;
+}
+
 // One `customLocationMap` entry: for an employee whose work location is
 // `location`, the Consultancy Bank Location dropdown offers `customMap`.
 export interface CustomLocationMapEntry {

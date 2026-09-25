@@ -69,9 +69,16 @@ function renderSummary() {
 // — no QueryClientProvider needed since nothing here touches react-query
 // directly, only these hook modules.
 
-const useMeProfileMock = vi.fn();
-vi.mock("../../api/useMeProfile", () => ({
-  useMeProfile: () => useMeProfileMock(),
+// The signed-in identity comes from the id_token; the employee record
+// (location) comes from the banking backend's own /employee-info.
+const useAsgardeoUserMock = vi.fn();
+vi.mock("@hooks/useAsgardeoUser", () => ({
+  useAsgardeoUser: () => useAsgardeoUserMock(),
+}));
+
+const useBankingEmployeeMock = vi.fn();
+vi.mock("../../api/useBankingEmployee", () => ({
+  useBankingEmployee: (email: string | undefined) => useBankingEmployeeMock(email),
 }));
 
 const useBankAccountsMock = vi.fn();
@@ -103,9 +110,13 @@ vi.mock("../../api/useCreateBankAccountRequest", () => ({
   }),
 }));
 
-function profile(workLocation = "Colombo") {
+function signedInUser(email: string | null = "person@wso2.com", ready = true) {
+  return { ready, email: email ?? undefined, initials: "PP" };
+}
+
+function profile(location = "Colombo") {
   return {
-    data: { employee: { workEmail: "person@wso2.com", workLocation } },
+    data: { employeeId: "E1", workEmail: "person@wso2.com", location },
     isLoading: false,
     isError: false,
     error: null,
@@ -198,7 +209,8 @@ function banks(list: Bank[]) {
 }
 
 beforeEach(() => {
-  useMeProfileMock.mockReturnValue(profile());
+  useAsgardeoUserMock.mockReturnValue(signedInUser());
+  useBankingEmployeeMock.mockReturnValue(profile());
   useBankAccountsMock.mockReturnValue(accounts([]));
   useBankingConfigMock.mockReturnValue(config());
   useBankingGateMock.mockReturnValue(gate());
@@ -264,6 +276,62 @@ async function completeUpToReview(
   }
   await user.click(screen.getByRole("button", { name: "Continue" }));
 }
+
+describe("Where the page gets its data", () => {
+  it("looks accounts and the employee record up by the email in the sign-in token", () => {
+    useAsgardeoUserMock.mockReturnValue(signedInUser("token.person@wso2.com"));
+    renderPage();
+
+    expect(useBankAccountsMock).toHaveBeenCalled();
+    expect(useBankingEmployeeMock).toHaveBeenCalledWith("token.person@wso2.com");
+  });
+
+  it("takes the work location from the banking backend's employee record", async () => {
+    useBankingEmployeeMock.mockReturnValue(profile("Maldives"));
+    renderPage();
+    const user = userEvent.setup();
+    await openDialogFor(user, "Consultancy");
+
+    // Consultancy's only allowed location is the employee record's location.
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Account Holder's Name"), "P Person");
+    await user.type(screen.getByLabelText("Account Holder's Address"), "No 23, Galle Road, Colombo");
+    await user.click(screen.getByRole("combobox", { name: "Account Holder's Country" }));
+    await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+    await user.type(screen.getByLabelText("Account No"), "1234567890");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("combobox", { name: "Bank Location" })).toHaveValue("Maldives");
+  });
+
+  it("offers a retry when the employee record fails to load", () => {
+    const refetch = vi.fn();
+    useBankingEmployeeMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("boom"),
+      refetch,
+    });
+    renderPage();
+
+    expect(screen.getByText(/Couldn't load your employee details/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("says so when the sign-in token carries no email", () => {
+    useAsgardeoUserMock.mockReturnValue(signedInUser(null));
+    renderPage();
+
+    expect(screen.getByText(/Couldn't determine your work email/)).toBeInTheDocument();
+  });
+
+  it("holds a skeleton, not an error, until the sign-in identity has been read", () => {
+    useAsgardeoUserMock.mockReturnValue(signedInUser(null, false));
+    renderPage();
+
+    expect(screen.queryByText(/Couldn't determine your work email/)).not.toBeInTheDocument();
+  });
+});
 
 describe("Edit/Add popup", () => {
   it("opens a dialog scoped to the clicked panel's Account Type", async () => {
@@ -526,7 +594,7 @@ describe("Edit/Add popup", () => {
           bank(),
         ]),
       );
-      useMeProfileMock.mockReturnValue(profile("US"));
+      useBankingEmployeeMock.mockReturnValue(profile("US"));
       renderPage();
       const user = userEvent.setup();
       await toBankInfo(user);
@@ -748,7 +816,7 @@ describe("Consultancy Restriction", () => {
 
 describe("Reimbursement Eligibility", () => {
   it("disables the Reimbursement panel's Edit action for an ineligible work location", () => {
-    useMeProfileMock.mockReturnValue(profile("Nowhereville"));
+    useBankingEmployeeMock.mockReturnValue(profile("Nowhereville"));
     useBankingConfigMock.mockReturnValue(config({ reimbursementsAllowedCountries: ["Colombo"] }));
 
     renderPage();
@@ -763,7 +831,7 @@ describe("Reimbursement Eligibility", () => {
   });
 
   it("leaves it enabled for an eligible work location", () => {
-    useMeProfileMock.mockReturnValue(profile("Colombo"));
+    useBankingEmployeeMock.mockReturnValue(profile("Colombo"));
     useBankingConfigMock.mockReturnValue(config({ reimbursementsAllowedCountries: ["Colombo"] }));
 
     renderPage();
