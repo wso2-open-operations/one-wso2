@@ -110,6 +110,11 @@ const vitestConfig = defineVitestConfig({
         inline: [
           "@wso2/oxygen-ui",
           "@wso2/oxygen-ui-icons-react",
+          // `@asgardeo/react` too, not just `/browser`: left external, Node
+          // loads it itself and follows its `buffer/` import with the ESM
+          // resolver, which refuses a directory import before any alias here
+          // gets a say. Inlining the whole chain keeps that resolution in vite.
+          "@asgardeo/react",
           "@asgardeo/browser",
           // Oxygen re-exports MUI X DataGrid, which ships a bare `.css` import
           // Node can't resolve. Rendering ANY Oxygen component pulls it in, so

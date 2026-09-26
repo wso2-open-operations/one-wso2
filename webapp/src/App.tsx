@@ -125,6 +125,10 @@ import CcApprovePage from "@features/finance/cc/pages/CcApprovePage";
 import CcHistoryPage from "@features/finance/cc/pages/CcHistoryPage";
 import CcSettingsPage from "@features/finance/cc/pages/CcSettingsPage";
 import ExpenseNewClaimPage from "@features/finance/expense/pages/ExpenseNewClaimPage";
+import MisArrBuildPage from "@features/finance/mis/pages/MisArrBuildPage";
+import MisSession from "@features/finance/mis/components/MisSession";
+import { MIS_PERIODS } from "@features/finance/mis/util/misViewVocabulary";
+import MisArrAnalysisPage from "@features/finance/mis/pages/MisArrAnalysisPage";
 import ExpenseClaimsTab from "@features/finance/expense/pages/ExpenseHistoryPage";
 import ClaimApprovalPage, {
   ClaimApprovalIndex,
@@ -343,6 +347,61 @@ export default function App() {
           <Route path="finance/cc/history" element={<CcHistoryPage />} />
           <Route path="finance/cc/settings" element={<CcSettingsPage />} />
           <Route path="finance/opd/dashboard" element={<OpdDashboardScreen />} />
+          {/* Finance MIS. Nested under /finance/ rather than the source app's
+              /finance-mis/, because findPerspectiveByPath matches with a bare
+              pathname.startsWith — "/finance-mis" resolves to the finance
+              perspective and would render its rail around a MIS screen.
+              See docs/ported-apps/mis.md §7.
+
+              All four screens are routed, and each joined the registry in the
+              same change that gave it a route — the rail renders every visible
+              child of a group whether or not it carries a path, so an entry
+              without one is a row that silently does nothing.
+
+              Access is NOT enforced here: MisShell asks useMisGate, so typing a
+              URL you may not use gives a legible locked state rather than a
+              redirect that leaves the reader guessing.
+
+              ARR Analysis is the one exception, and it is a different question.
+              `productsUsageEnabled` decides whether that screen EXISTS rather
+              than who may read it, so with the flag off its route redirects to
+              ARR Build — see MisArrAnalysisPage, which holds the redirect
+              itself so that a flag not yet known is neither. */}
+          {/* Behind the same preview flag as its rail entries — hiding only the
+              entries would leave every MIS screen reachable by URL. See
+              previewFeatures.ts for what the flag is waiting on. */}
+          {isPreviewEnabled("mis") && (
+            <>
+              {/* A layout route for one reason: the session Years Back. A reader
+                  who has set three years keeps three years across MIS screens, and
+                  it is held in memory alone (it dies with the tab, like the Redux
+                  slice it is ported from) — so its provider has to outlive any one
+                  screen. Inside MisShell it would be remounted on every navigation
+                  between these two. See YearsBackSessionContext. */}
+              {/* All three Builds INSIDE `MisSession`, not beside it. The session
+                  Years Back lives in that layout route, and a Period switch is a
+                  NAVIGATION rather than a tab — so a Build mounted outside it would
+                  lose the reader's Years Back on the way over, which is precisely
+                  the journey the value exists for. Quarterly and Monthly default to
+                  1 where Annually defaults to 5, so a missed route shows up as a
+                  Build that silently re-narrows itself. */}
+              <Route element={<MisSession />}>
+                <Route
+                  path="finance/mis/arr-build"
+                  element={<MisArrBuildPage period={MIS_PERIODS.ANNUALLY} />}
+                />
+                <Route
+                  path="finance/mis/qrr-build"
+                  element={<MisArrBuildPage period={MIS_PERIODS.QUARTERLY} />}
+                />
+                <Route
+                  path="finance/mis/mrr-build"
+                  element={<MisArrBuildPage period={MIS_PERIODS.MONTHLY} />}
+                />
+                <Route path="finance/mis/analysis" element={<MisArrAnalysisPage />} />
+              </Route>
+            </>
+          )}
           <Route path="people-ops" element={<PerspectiveLanding />} />
           {/* People Ops → Org Chart: the company's reporting hierarchy, ported
               from the standalone org-chart app. Unlike every other People Ops

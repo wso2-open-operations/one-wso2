@@ -67,6 +67,12 @@ vi.mock("@features/marketing-ops/api/useMarketingOpsGate", () => ({
 vi.mock("@features/subscriptions/api/useSubscriptionGate", () => ({
   useSubscriptionGate: () => ({ ...gate, isAdmin: true, isCommuteAdmin: true, isLunchAdmin: true }),
 }));
+// Every gate the rail consults has to be mocked here, not just the ones this
+// suite asserts on: an unmocked one reaches its real useQuery and throws for
+// want of a QueryClient, which fails the file rather than an assertion.
+vi.mock("@features/finance/mis/api/useMisGate", () => ({
+  useMisGate: () => ({ ...gate, isError: false, retry: () => {} }),
+}));
 
 /** The selector a named step carries, so a rename fails here rather than silently. */
 function selectorFor(fragment: string): string {

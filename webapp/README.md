@@ -37,6 +37,8 @@ Internal cross-persona portal for WSO2. React 19 + TypeScript + Vite SPA that po
 
 `public/config.js` is git-ignored — never commit env-specific values. At deploy time, Choreo (or whatever hosts the static bundle) injects a fresh `config.js` per environment; the same build serves any env.
 
+> **Porting Finance MIS?** [`scripts/mis-port-facts.sh`](../scripts/mis-port-facts.sh) walks the Choreo and Asgardeo consoles for the values that app needs, checks each backend hostname against the production CSP, and probes whether a One WSO2 token is actually accepted by its ARR service. Run it from the repo root; it answers the open questions in [the MIS port spec](../docs/ported-apps/mis.md) §11.
+
 ### Development
 
 ```bash
@@ -75,6 +77,7 @@ Runtime config is read from `window.config` set by `public/config.js`. Build-tim
 | `ONE_WSO2_AUTH_SIGN_OUT_REDIRECT_URL` | Sign-out callback URL | `http://localhost:3000` |
 | `ONE_WSO2_PEOPLE_BACKEND_URL` | people-ops-suite people-app backend base URL (Choreo gateway) — powers the live My profile page | `<people-app-backend-url>` |
 | `ONE_WSO2_MENU_BACKEND_URL` | Cafeteria menu backend — daily menu, lunch feedback, dinner orders (Workspace → Menu) | `<menu-app-backend-url>` |
+| `ONE_WSO2_MIS_ARR_BACKEND_URL` | Finance MIS ARR backend base URL (Choreo gateway), version segment included — production ends `/v1`, staging `/v1.0`. MIS also needs `mis` in `ONE_WSO2_PREVIEW_FEATURES` to show | `<mis-arr-backend-url>` |
 | `ONE_WSO2_LEAVE_WEB_APP_URL` | leave-app frontend base URL (not its backend) — deep-links into flows this webapp doesn't replicate (e.g. sabbatical requests). Optional — when absent, that link is hidden | `<your-leave-app-frontend-url>` |
 | `ONE_WSO2_THEME` | Theme name — `wso2`, `acrylicOrange`, `acrylicPurple`, `classic`, `highContrast`, `paleIndigo`, `paleGray`. Default `wso2` (Oxygen's WSO2-branded theme, and the only one whose dark mode is WSO2 blue rather than a neutral black). `oneWso2` is a retired alias that still resolves to `acrylicOrange`, so saved preferences keep working | `wso2` |
 | `ONE_WSO2_DEV_BYPASS_AUTH` | Dev-only escape hatch — when `true`, AuthGuard renders without ever calling Asgardeo. **Never** set in prod. | `false` |
@@ -85,6 +88,8 @@ Use `@`-prefixed aliases instead of relative imports beyond one level (defined i
 
 | Alias | Points to |
 |---|---|
+| `@` | `src` |
+| `@api` | `src/api` |
 | `@components` | `src/components` |
 | `@config` | `src/config` |
 | `@constants` | `src/constants` |
@@ -92,6 +97,7 @@ Use `@`-prefixed aliases instead of relative imports beyond one level (defined i
 | `@features` | `src/features` |
 | `@hooks` | `src/hooks` |
 | `@layouts` | `src/layouts` |
+| `@utils` | `src/utils` |
 
 ## Directory Layout
 
@@ -110,6 +116,8 @@ webapp/
 │   ├── context/             → PerspectiveContext, ThemeModeContext
 │   ├── layouts/             → AuthGuard, AppLayout (shell)
 │   ├── components/          → shell chrome (TopBar, SideRail, WaffleOverlay, AskNoveraPalette)
+│   ├── hooks/               → cross-feature hooks (useDocumentTitle, useUrlViewState)
+│   ├── utils/               → cross-feature pure helpers (localDate, queryState)
 │   └── features/            → feature-sliced folders
 │       ├── people-ops/      → flagship perspective (hiring, candidates, performance, ops)
 │       ├── my/              → profile perspective (live data via people-app backend)

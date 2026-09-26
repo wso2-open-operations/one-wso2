@@ -21,7 +21,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // file.
 type Perspectives = typeof import("./perspectives");
 
-async function load(preview: { umt?: boolean; infra?: boolean } = {}): Promise<Perspectives> {
+async function load(
+  preview: { umt?: boolean; infra?: boolean; mis?: boolean } = {},
+): Promise<Perspectives> {
   vi.resetModules();
   window.config = {
     ...(window.config ?? {}),
@@ -37,6 +39,30 @@ afterEach(() => {
 });
 
 const keys = (perspectives: readonly { key: string }[]) => perspectives.map((p) => p.key);
+
+// Finance MIS has shown live figures on stage but not yet had its parity check,
+// Finance comparing it with the running MIS — so it lands the way every other
+// unreleased port does: behind its own flag, as a whole.
+describe("Finance MIS's rail entries", () => {
+  const misIdsIn = (perspectives: Perspectives) =>
+    (perspectives.findPerspectiveByKey("finance")?.sections ?? [])
+      .flatMap((section) => [section, ...(section.children ?? [])])
+      .map((section) => section.id)
+      .filter((id) => id.startsWith("mis-"));
+
+  it("are there once staging switches the flag on", async () => {
+    expect(misIdsIn(await load({ mis: true }))).toContain("mis-arr-build");
+  });
+
+  it("are gone when the flag is off", async () => {
+    expect(misIdsIn(await load({ mis: false }))).toEqual([]);
+  });
+
+  // Production sets no preview config at all — absent has to mean off.
+  it("are gone when nobody has mentioned the flag", async () => {
+    expect(misIdsIn(await load({}))).toEqual([]);
+  });
+});
 
 // PAR shipped out of preview once the Lead Portal, Admin Portal, Report
 // Chain and F2F all followed the Employee Portal over — see

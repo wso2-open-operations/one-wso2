@@ -26,6 +26,7 @@ import {
 } from "@constants/perspectives";
 import { capabilitiesFromPrivileges, type Capability } from "@constants/appMenu";
 import { FINANCE_ITEM_IDS } from "@constants/financeApps";
+import { MIS_ITEM_IDS } from "@constants/misApps";
 import { LEAVE_ITEM_IDS } from "@constants/meApps";
 import { PAR_EMPLOYEE_ITEM_ID } from "@constants/parApps";
 import { DUE_DILIGENCE_ITEM_IDS } from "@constants/dueDiligenceApps";
@@ -33,9 +34,11 @@ import { SECURITY_ITEM_IDS } from "@constants/securityApps";
 import { INFRA_ITEM_IDS } from "@constants/infraApps";
 import { useInfraGate } from "@features/infra/api/useInfraGate";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
+import { isPreviewEnabled } from "@config/previewFeatures";
 import { useUserInfo } from "@api/useUserInfo";
 import { useMeProfile } from "@features/my/api/useMeProfile";
 import { useFinanceGate } from "@features/finance/api/useFinanceGate";
+import { useMisGate } from "@features/finance/mis/api/useMisGate";
 import { useLeaveGate } from "@features/leave/api/useLeaveGate";
 import { useMarketingOpsGate } from "@features/marketing-ops/api/useMarketingOpsGate";
 import { useDueDiligenceGate } from "@features/due-diligence/api/useDueDiligenceGate";
@@ -89,10 +92,10 @@ export interface PerspectiveVisibility {
    * someone as a verdict — "you have nothing here" and "we could not find out"
    * are different sentences, and only one of them is worth a Retry button.
    *
-   * Partial, and deliberately so: only four of the gates report a failure at
-   * all (Marketing Ops, Due Diligence, Subscriptions, Infra Portal). Finance, Leave and
-   * Security fold a failed privilege read into "no privileges" — their source
-   * apps do the same, and unpicking that is its own change. So this means
+   * Partial, and deliberately so: only five of the gates report a failure at
+   * all (Marketing Ops, Due Diligence, Subscriptions, Infra Portal, Finance MIS).
+   * Finance, Leave and Security fold a failed privilege read into "no privileges" —
+   * their source apps do the same, and unpicking that is its own change. So this means
    * "something we needed definitely failed", never "everything else succeeded".
    */
   isError: boolean;
@@ -118,6 +121,22 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   // approval is under Finance. One gate answers for both, so it has to be
   // asked in either place.
   const financeGate = useFinanceGate(active.key === "me" || active.key === "finance");
+
+  // Finance MIS, also under Finance, but a different backend again — the MIS
+  // ARR service's own /user-info. It cannot share the finance gate above: that
+  // one answers for the three claim apps and would fall through to its open
+  // default for every MIS id.
+  //
+  // It especially cannot fall through to `sectionAllowed`. MIS privilege 987
+  // and this app's PRIVILEGE.EMPLOYEE 987 are the same number meaning opposite
+  // things, so a MIS id reaching the capability check would show company-wide
+  // revenue reporting to every signed-in employee.
+  //
+  // And only while the `mis` preview flag is on. The flag holds MIS back as a
+  // whole, backend included: with the ARR URL set and the flag off, a gate that
+  // still asked would hold every Finance landing on /user-info, and report its
+  // failure as Finance's, for screens nobody can open.
+  const misGate = useMisGate(active.key === "finance" && isPreviewEnabled("mis"));
 
   // Leave is the same problem again: its backend numbers LEAD 879 /
   // PEOPLE_OPS_TEAM 789, unrelated to people-app's 993 / 999. Reading
@@ -230,6 +249,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
     if (SECURITY_ITEM_IDS.has(s.id)) return securityGate.canSee(s.id);
     if (SALES_ITEM_IDS.has(s.id)) return salesGate.canSee(s.id);
     if (FINANCE_ITEM_IDS.has(s.id)) return financeGate.canSee(s.id);
+    if (MIS_ITEM_IDS.has(s.id)) return misGate.canSee(s.id);
     if (LEAVE_ITEM_IDS.has(s.id)) return leaveGate.canSee(s.id);
     if (SUBSCRIPTION_ITEM_IDS.has(s.id)) return subscriptionCanSee(s.id);
     if (s.id === PAR_LEAD_PORTAL_ITEM_ID) return parLeadPortalGate.canSee;
@@ -254,6 +274,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   const isResolving =
     userInfo.isLoading ||
     financeGate.isResolving ||
+    misGate.isResolving ||
     leaveGate.isResolving ||
     marketingOpsGate.isResolving ||
     dueDiligenceGate.isResolving ||
@@ -271,19 +292,22 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
     marketingOpsGate.isError ||
     dueDiligenceGate.isError ||
     infraGate.isError ||
-    subscriptionGate.isError;
+    subscriptionGate.isError ||
+    misGate.isError;
   const error = userInfo.isError
     ? userInfo.error
     : marketingOpsGate.errorMessage ??
       dueDiligenceGate.errorMessage ??
       infraGate.errorMessage ??
-      subscriptionGate.errorMessage;
+      subscriptionGate.errorMessage ??
+      misGate.errorMessage;
   const retry = (): void => {
     if (userInfo.isError) void userInfo.refetch();
     if (marketingOpsGate.isError) marketingOpsGate.retry();
     if (dueDiligenceGate.isError) dueDiligenceGate.retry();
     if (subscriptionGate.isError) subscriptionGate.retry();
     if (infraGate.isError) infraGate.retry();
+    if (misGate.isError) misGate.retry();
   };
 
   return { resolveVisible, isResolving, visibleLeaves, isError, error, retry };
