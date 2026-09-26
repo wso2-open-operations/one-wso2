@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { Box, Typography, Paper, Stack, Chip, CircularProgress, Alert, Button, Tooltip, ToggleButton, ToggleButtonGroup, Table, TableHead, TableBody, TableRow, TableCell, TableContainer, useTheme } from "@wso2/oxygen-ui";
@@ -120,11 +120,23 @@ function DailyCostChart({ data, mode }: { data: DayPoint[]; mode: "cost" | "toke
   const gridColor = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
   const emptyBarColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
 
-  const W = 720;
+  // Fill the card: the width follows the container rather than a fixed 720px.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(720);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setW(Math.max(480, Math.floor(entry.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const H = 220;
-  const padX = 32;
+  // Wide enough on the left for a four decimal price label like "$0.0081".
+  const padLeft = 56;
+  const padRight = 16;
   const padY = 24;
-  const innerW = W - padX * 2;
+  const innerW = W - padLeft - padRight;
   const innerH = H - padY * 2;
 
   const values = data.map((d) => (mode === "cost" ? d.cost_usd : d.input_tokens + d.output_tokens));
@@ -134,7 +146,7 @@ function DailyCostChart({ data, mode }: { data: DayPoint[]; mode: "cost" | "toke
   const yTicks = 4;
 
   return (
-    <Box sx={{ overflowX: "auto" }}>
+    <Box ref={boxRef} sx={{ overflowX: "auto" }}>
       <svg width={W} height={H} role="img" aria-label="Daily cost chart" style={{ display: "block" }}>
         {/* y grid */}
         {Array.from({ length: yTicks + 1 }, (_, i) => {
@@ -142,8 +154,8 @@ function DailyCostChart({ data, mode }: { data: DayPoint[]; mode: "cost" | "toke
           const y = padY + (innerH * i) / yTicks;
           return (
             <g key={i}>
-              <line x1={padX} y1={y} x2={padX + innerW} y2={y} stroke={gridColor} strokeWidth="1" />
-              <text x={padX - 6} y={y + 3} fontSize="9" textAnchor="end" fill={axisColor}>
+              <line x1={padLeft} y1={y} x2={padLeft + innerW} y2={y} stroke={gridColor} strokeWidth="1" />
+              <text x={padLeft - 6} y={y + 3} fontSize="9" textAnchor="end" fill={axisColor}>
                 {mode === "cost" ? `$${v.toFixed(v < 0.01 ? 4 : 2)}` : formatTokens(Math.round(v))}
               </text>
             </g>
@@ -154,7 +166,7 @@ function DailyCostChart({ data, mode }: { data: DayPoint[]; mode: "cost" | "toke
         {data.map((d, i) => {
           const v = mode === "cost" ? d.cost_usd : d.input_tokens + d.output_tokens;
           const h = max > 0 ? (v / max) * innerH : 0;
-          const x = padX + i * barW + barW * 0.15;
+          const x = padLeft + i * barW + barW * 0.15;
           const w = barW * 0.7;
           const y = padY + innerH - h;
           const showLabel = data.length <= 30 ? i % Math.max(1, Math.ceil(data.length / 10)) === 0 : i % Math.max(1, Math.ceil(data.length / 8)) === 0;
@@ -325,7 +337,7 @@ export default function Cost() {
     <Box>
       <Box sx={{ mb: 3 }}>
         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2}>
-          <Typography variant="h4" gutterBottom>
+          <Typography variant="h4" fontWeight={700} gutterBottom>
             Cost & Usage
           </Typography>
           <Button variant="outlined" size="small" onClick={() => setResetDialogOpen(true)} sx={{ mt: 0.5 }}>

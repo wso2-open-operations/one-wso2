@@ -31,7 +31,7 @@ function StepHeader({ step, children }: { step: number; children: ReactNode }) {
   return (
     <Stack direction="row" alignItems="center" spacing={1.25}>
       <Chip label={`STEP ${step}`} size="small" color="primary" sx={{ fontWeight: 700, height: 22 }} />
-      <Typography variant="subtitle2" color="text.secondary"
+      <Typography variant="subtitle2" fontWeight={600} color="text.secondary"
         sx={{ textTransform: "uppercase", letterSpacing: "0.04em", fontSize: "0.72rem" }}>
         {children}
       </Typography>
@@ -120,7 +120,7 @@ export default function SubmitEvidence() {
         >
           <ArrowUp size={28} />
         </Box>
-        <Typography variant="h4" gutterBottom>Submit Evidence</Typography>
+        <Typography variant="h4" fontWeight={700} gutterBottom>Submit Evidence</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 560, mx: "auto" }}>
           Upload up to 4 files and link them to a compliance control.
         </Typography>

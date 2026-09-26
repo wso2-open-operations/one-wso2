@@ -152,7 +152,7 @@ export default function Dashboard() {
     <Box>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1, flexWrap: "wrap", gap: 2 }}>
         <Box>
-          <Typography variant="h4" gutterBottom>
+          <Typography variant="h4" fontWeight={700} gutterBottom>
             Dashboard
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -225,7 +225,7 @@ export default function Dashboard() {
         </Grid>
   
         <Stack direction="row" alignItems="baseline" justifyContent="space-between" sx={{ mb: 1.5 }}>
-          <Typography variant="h6">Recent Submissions</Typography>
+          <Typography variant="h6" fontWeight={700}>Recent Submissions</Typography>
           <Link component={RouterLink} to={evidencePortalPaths.evidence} underline="hover" sx={{ fontSize: "0.875rem", fontWeight: 500 }}>
             View all →
           </Link>

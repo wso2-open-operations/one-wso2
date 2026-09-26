@@ -422,7 +422,7 @@ export default function Catalogue() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant="h4" fontWeight={700} gutterBottom>
         Catalogue
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

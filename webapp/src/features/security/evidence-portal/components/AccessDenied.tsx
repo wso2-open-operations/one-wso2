@@ -75,7 +75,7 @@ export default function AccessDenied({ message }: AccessDeniedProps) {
           below it. It used to read "You don't have access to the Evidence
           App", which is the first sentence of `message` word for word, so
           the page opened by saying the same thing twice. */}
-      <Typography variant="h4">No role assigned yet</Typography>
+      <Typography variant="h4" fontWeight={700}>No role assigned yet</Typography>
       <Typography color="text.secondary" sx={{ maxWidth: 480 }}>
         {message}
       </Typography>

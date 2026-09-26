@@ -612,7 +612,7 @@ export default function AgentRunner() {
         >
           <Zap size={28} />
         </Box>
-        <Typography variant="h4" gutterBottom>AI Agent Runner</Typography>
+        <Typography variant="h4" fontWeight={700} gutterBottom>AI Agent Runner</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 560, mx: "auto" }}>
           Describe what to navigate and capture. Your local runner will control a real browser
           automatically. Optionally link the screenshot to a compliance control to auto-create
@@ -655,7 +655,7 @@ export default function AgentRunner() {
         <Stack spacing={2.5}>
           <Stack direction="row" alignItems="center" spacing={1.25} flexWrap="wrap">
             <Chip label="STEP 1" size="small" color="primary" sx={{ fontWeight: 700, height: 22 }} />
-            <Typography variant="subtitle2" color="text.secondary"
+            <Typography variant="subtitle2" fontWeight={600} color="text.secondary"
               sx={{ textTransform: "uppercase", letterSpacing: "0.04em", fontSize: "0.72rem" }}>
               Link to compliance control
             </Typography>
@@ -700,7 +700,7 @@ export default function AgentRunner() {
         <Stack spacing={2.5}>
           <Stack direction="row" alignItems="center" spacing={1.25}>
             <Chip label="STEP 2" size="small" color="primary" sx={{ fontWeight: 700, height: 22 }} />
-            <Typography variant="subtitle2" color="text.secondary"
+            <Typography variant="subtitle2" fontWeight={600} color="text.secondary"
               sx={{ textTransform: "uppercase", letterSpacing: "0.04em", fontSize: "0.72rem" }}>
               Open browser &amp; log in manually
             </Typography>
@@ -785,7 +785,7 @@ export default function AgentRunner() {
           <Divider sx={{ my: 1 }} />
 
           <Stack direction="row" alignItems="center" spacing={1.25}>
-            <Typography variant="subtitle2" color="text.secondary"
+            <Typography variant="subtitle2" fontWeight={600} color="text.secondary"
               sx={{ textTransform: "uppercase", letterSpacing: "0.04em", fontSize: "0.72rem" }}>
               Environment context
             </Typography>
@@ -821,7 +821,7 @@ export default function AgentRunner() {
         <Stack spacing={2.5}>
           <Stack direction="row" alignItems="center" spacing={1.25}>
             <Chip label="STEP 3" size="small" color="primary" sx={{ fontWeight: 700, height: 22 }} />
-            <Typography variant="subtitle2" color="text.secondary"
+            <Typography variant="subtitle2" fontWeight={600} color="text.secondary"
               sx={{ textTransform: "uppercase", letterSpacing: "0.04em", fontSize: "0.72rem" }}>
               Run the AI agent
             </Typography>
