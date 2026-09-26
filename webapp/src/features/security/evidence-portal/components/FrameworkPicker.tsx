@@ -73,17 +73,17 @@ export default function FrameworkPicker({
   });
 
   // Lazy-loaded for cascade-impact display
-  const { data: allControls = [], isLoading: isControlsLoading } = useQuery<Control[]>({
+  const { data: allControls = [], isFetching: isControlsLoading } = useQuery<Control[]>({
     queryKey: ["controls"],
     queryFn: () => controlsApi.list(),
     enabled: !!deleteTarget,
   });
-  const { data: allEvidence = [], isLoading: isEvidenceLoading } = useQuery<Evidence[]>({
+  const { data: allEvidence = [], isFetching: isEvidenceLoading } = useQuery<Evidence[]>({
     queryKey: ["evidence"],
     queryFn: evidenceApi.list,
     enabled: !!deleteTarget,
   });
-  const { data: allSubmissions = [], isLoading: isSubmissionsLoading } = useQuery<Submission[]>({
+  const { data: allSubmissions = [], isFetching: isSubmissionsLoading } = useQuery<Submission[]>({
     queryKey: ["submissions"],
     queryFn: submissionsApi.list,
     enabled: !!deleteTarget,
@@ -91,7 +91,7 @@ export default function FrameworkPicker({
   // Only fetched while the delete dialog is open, so we can warn about an
   // agent run that's still (or claims to be) in progress against a control
   // under this framework.
-  const { data: allTasks = [], isLoading: isTasksLoading } = useQuery<AgentTask[]>({
+  const { data: allTasks = [], isFetching: isTasksLoading } = useQuery<AgentTask[]>({
     queryKey: ["agent-tasks"],
     queryFn: () => agentApi.listTasks(500),
     enabled: !!deleteTarget,

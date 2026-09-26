@@ -80,7 +80,11 @@ function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 function shortDate(iso: string) {
-  const d = new Date(iso);
+  // A date-only value ("2026-09-24") is the backend's calendar day. new Date()
+  // would read it as UTC midnight and show the day before west of UTC, so
+  // build the label from its parts instead.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso);
   return `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`;
 }
 

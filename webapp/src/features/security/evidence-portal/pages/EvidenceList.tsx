@@ -640,7 +640,9 @@ export default function EvidenceList() {
   // free to interrupt. The total work is the same; what changes is that the
   // browser is no longer blocked from painting while it happens.
   const deferredRows = useDeferredValue(pageRows, NO_ROWS);
-  const isDrawingRows = deferredRows !== pageRows;
+  // Skeletons only on that first render. On a later filter or page change the
+  // previous rows stay on screen until the new ones are ready.
+  const isDrawingRows = deferredRows === NO_ROWS && pageRows.length > 0;
 
   const stats = useMemo(() => {
     const total = enriched.length;

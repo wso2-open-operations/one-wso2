@@ -243,7 +243,9 @@ export default function ImportControlsDialog({
   }
 
   const importing = phase.step === "importing";
-  const pluralize = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const pluralize = (n: number, word: string) => `${n} ${nounFor(n, word)}`;
+  // The word alone, for where the count is already shown in bold beside it.
+  const nounFor = (n: number, word: string) => `${word}${n === 1 ? "" : "s"}`;
 
   return (
     <Dialog open={open} onClose={importing ? undefined : handleClose} maxWidth="sm" fullWidth>
@@ -333,7 +335,7 @@ export default function ImportControlsDialog({
             <Alert severity="info" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
               <Stack spacing={0.25}>
                 <Typography variant="body2">
-                  • <strong>{phase.toCreate.length}</strong> {pluralize(phase.toCreate.length, "control")} will
+                  • <strong>{phase.toCreate.length}</strong> {nounFor(phase.toCreate.length, "control")} will
                   be created
                 </Typography>
                 <Typography variant="body2">
@@ -342,7 +344,7 @@ export default function ImportControlsDialog({
                 </Typography>
                 {phase.unusableRowCount > 0 && (
                   <Typography variant="body2">
-                    • <strong>{phase.unusableRowCount}</strong> {pluralize(phase.unusableRowCount, "row")} in
+                    • <strong>{phase.unusableRowCount}</strong> {nounFor(phase.unusableRowCount, "row")} in
                     the file could not be used
                   </Typography>
                 )}

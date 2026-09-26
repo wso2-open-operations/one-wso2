@@ -78,22 +78,22 @@ export default function ProductPicker({
 
   // Load dependent data only when delete is being considered, so we can show
   // accurate cascade impact in the confirm dialog.
-  const { data: allFrameworks = [], isLoading: isFrameworksLoading } = useQuery<Framework[]>({
+  const { data: allFrameworks = [], isFetching: isFrameworksLoading } = useQuery<Framework[]>({
     queryKey: ["frameworks"],
     queryFn: () => frameworksApi.list(),
     enabled: !!deleteTarget,
   });
-  const { data: allControls = [], isLoading: isControlsLoading } = useQuery<Control[]>({
+  const { data: allControls = [], isFetching: isControlsLoading } = useQuery<Control[]>({
     queryKey: ["controls"],
     queryFn: () => controlsApi.list(),
     enabled: !!deleteTarget,
   });
-  const { data: allEvidence = [], isLoading: isEvidenceLoading } = useQuery<Evidence[]>({
+  const { data: allEvidence = [], isFetching: isEvidenceLoading } = useQuery<Evidence[]>({
     queryKey: ["evidence"],
     queryFn: evidenceApi.list,
     enabled: !!deleteTarget,
   });
-  const { data: allSubmissions = [], isLoading: isSubmissionsLoading } = useQuery<Submission[]>({
+  const { data: allSubmissions = [], isFetching: isSubmissionsLoading } = useQuery<Submission[]>({
     queryKey: ["submissions"],
     queryFn: submissionsApi.list,
     enabled: !!deleteTarget,
@@ -101,7 +101,7 @@ export default function ProductPicker({
   // Only fetched while the delete dialog is open, so we can warn about an
   // agent run that's still (or claims to be) in progress against a control
   // under this product.
-  const { data: allTasks = [], isLoading: isTasksLoading } = useQuery<AgentTask[]>({
+  const { data: allTasks = [], isFetching: isTasksLoading } = useQuery<AgentTask[]>({
     queryKey: ["agent-tasks"],
     queryFn: () => agentApi.listTasks(500),
     enabled: !!deleteTarget,

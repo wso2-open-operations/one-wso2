@@ -216,7 +216,7 @@ export default function Catalogue() {
   // Product, so this is the query the impact calculation uses — never the
   // product-filtered `frameworks` query above, which is for rendering the
   // column only.
-  const { data: allFrameworks = [], isLoading: isAllFrameworksLoading } = useQuery<Framework[]>({
+  const { data: allFrameworks = [], isFetching: isAllFrameworksLoading } = useQuery<Framework[]>({
     queryKey: ["frameworks"],
     queryFn: () => frameworksApi.list(),
     enabled: !!deleteTarget,
@@ -229,17 +229,17 @@ export default function Catalogue() {
   // allFrameworks above and matching what ControlPicker's own delete flow
   // fetches for itself.
   const productOrFrameworkDeleteTarget = !!deleteTarget || !!deleteFrameworkTarget;
-  const { data: allControls = [], isLoading: isControlsLoading } = useQuery<Control[]>({
+  const { data: allControls = [], isFetching: isControlsLoading } = useQuery<Control[]>({
     queryKey: ["controls"],
     queryFn: () => controlsApi.list(),
     enabled: productOrFrameworkDeleteTarget,
   });
-  const { data: allEvidence = [], isLoading: isEvidenceLoading } = useQuery<Evidence[]>({
+  const { data: allEvidence = [], isFetching: isEvidenceLoading } = useQuery<Evidence[]>({
     queryKey: ["evidence"],
     queryFn: evidenceApi.list,
     enabled: anyDeleteTarget,
   });
-  const { data: allSubmissions = [], isLoading: isSubmissionsLoading } = useQuery<Submission[]>({
+  const { data: allSubmissions = [], isFetching: isSubmissionsLoading } = useQuery<Submission[]>({
     queryKey: ["submissions"],
     queryFn: submissionsApi.list,
     enabled: anyDeleteTarget,
@@ -247,7 +247,7 @@ export default function Catalogue() {
   // Only fetched while a delete dialog is open, so we can warn about an
   // agent run that's still (or claims to be) in progress against a control
   // under this product or framework.
-  const { data: allTasks = [], isLoading: isTasksLoading } = useQuery<AgentTask[]>({
+  const { data: allTasks = [], isFetching: isTasksLoading } = useQuery<AgentTask[]>({
     queryKey: ["agent-tasks"],
     queryFn: () => agentApi.listTasks(500),
     enabled: anyDeleteTarget,
