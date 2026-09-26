@@ -17,13 +17,27 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
-import { Box, Typography, Paper, Stack, TextField, Button, IconButton, Alert } from "@wso2/oxygen-ui";
-import { Plus, Trash2, CircleCheckBig } from "@wso2/oxygen-ui-icons-react";
+import type { ReactNode } from "react";
+import { Box, Typography, Paper, Stack, TextField, Button, IconButton, Alert, Chip } from "@wso2/oxygen-ui";
+import { Plus, Trash2, CircleCheckBig, ArrowUp } from "@wso2/oxygen-ui-icons-react";
 import { evidenceApi } from "../api/client";
 import ControlPicker from "../components/ControlPicker";
 import ProductPicker from "../components/ProductPicker";
 import FrameworkPicker from "../components/FrameworkPicker";
 import { validateSubmissionFiles } from "../utils/validateSubmissionFiles";
+
+// Same step header as the Agent Runner page, so the two forms read as one app.
+function StepHeader({ step, children }: { step: number; children: ReactNode }) {
+  return (
+    <Stack direction="row" alignItems="center" spacing={1.25}>
+      <Chip label={`STEP ${step}`} size="small" color="primary" sx={{ fontWeight: 700, height: 22 }} />
+      <Typography variant="subtitle2" color="text.secondary"
+        sx={{ textTransform: "uppercase", letterSpacing: "0.04em", fontSize: "0.72rem" }}>
+        {children}
+      </Typography>
+    </Stack>
+  );
+}
 
 export default function SubmitEvidence() {
   const queryClient = useQueryClient();
@@ -97,10 +111,17 @@ export default function SubmitEvidence() {
   return (
     <Box sx={{ width: "100%", maxWidth: 760, mx: "auto" }}>
       <Box sx={{ textAlign: "center", mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Submit Evidence
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Box
+          sx={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 56, height: 56, borderRadius: "50%",
+            backgroundColor: "rgba(255,115,0,0.10)", color: "primary.main", mb: 1.5,
+          }}
+        >
+          <ArrowUp size={28} />
+        </Box>
+        <Typography variant="h4" gutterBottom>Submit Evidence</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 560, mx: "auto" }}>
           Upload up to 4 files and link them to a compliance control.
         </Typography>
       </Box>
@@ -127,9 +148,13 @@ export default function SubmitEvidence() {
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 } }}>
-        <Box component="form" onSubmit={handleSubmit}>
+      <Box component="form" onSubmit={handleSubmit}>
+        <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 }, mb: 3 }}>
           <Stack spacing={2.5}>
+            <StepHeader step={1}>Choose the control</StepHeader>
+            <Typography variant="body2" color="text.secondary">
+              Pick the product this evidence belongs to, then its framework and control.
+            </Typography>
             <ProductPicker
               value={productId}
               onChange={(id) => {
@@ -138,9 +163,7 @@ export default function SubmitEvidence() {
                 setControlId("");
               }}
               required
-              helperText="Pick the product this evidence belongs to."
             />
-
             <FrameworkPicker
               productId={productId}
               value={frameworkId}
@@ -150,14 +173,18 @@ export default function SubmitEvidence() {
               }}
               required
             />
-
             <ControlPicker
               frameworkId={frameworkId}
               controlId={controlId}
               onControlChange={(id) => setControlId(id)}
               required
             />
+          </Stack>
+        </Paper>
 
+        <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 }, mb: 3 }}>
+          <Stack spacing={2.5}>
+            <StepHeader step={2}>Describe it</StepHeader>
             <TextField
               label="Title"
               value={title}
@@ -166,7 +193,6 @@ export default function SubmitEvidence() {
               required
               fullWidth
             />
-
             <TextField
               label="Description"
               value={description}
@@ -176,11 +202,16 @@ export default function SubmitEvidence() {
               rows={3}
               fullWidth
             />
+          </Stack>
+        </Paper>
 
+        <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 } }}>
+          <Stack spacing={2.5}>
+            <StepHeader step={3}>Attach files</StepHeader>
+            <Typography variant="body2" color="text.secondary">
+              Add up to 4 files, such as screenshots, exports or documents.
+            </Typography>
             <Box>
-              <Typography variant="caption" color="text.secondary" display="block" mb={0.75} fontWeight={600}>
-                FILES *
-              </Typography>
               <Button
                 component="label"
                 variant="outlined"
@@ -235,19 +266,18 @@ export default function SubmitEvidence() {
                 </Stack>
               )}
             </Box>
-
             <Button
               type="submit"
               variant="contained"
               disabled={mutation.isPending}
               size="large"
-              sx={{ mt: 1, py: 1.25 }}
+              sx={{ py: 1.25 }}
             >
               {mutation.isPending ? "Uploading..." : "Submit Evidence"}
             </Button>
           </Stack>
-        </Box>
-      </Paper>
+        </Paper>
+      </Box>
     </Box>
   );
 }
