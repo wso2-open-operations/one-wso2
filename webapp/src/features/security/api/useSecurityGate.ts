@@ -15,10 +15,11 @@
 // under the License.
 
 import { isEvidencePortalBackendConfigured, isSecurityBackendConfigured } from "@config/apiConfig";
-import { EVIDENCE_ITEM_IDS, SECURITY_ITEM_PRIVILEGE } from "@constants/securityApps";
+import { EVIDENCE_ADMIN_ONLY_ITEM_IDS, EVIDENCE_ITEM_IDS, SECURITY_ITEM_PRIVILEGE } from "@constants/securityApps";
 import { useRiskPrivileges } from "@features/security/grc/modules/risk/hooks/useRiskPrivileges";
 import { useAuditPrivileges } from "@features/security/grc/modules/audit/hooks/useAuditPrivileges";
 import { useAdminPrivileges } from "@features/security/grc/modules/admin/hooks/useAdminPrivileges";
+import { useCurrentUser } from "@features/security/evidence-portal/hooks/useCurrentUser";
 
 export interface SecurityGate {
   canSee: (itemId: string) => boolean;
@@ -60,7 +61,32 @@ export function useSecurityGate(enabled = true): SecurityGate {
   const audit = useAuditPrivileges(active);
   const admin = useAdminPrivileges(active);
 
-  const isResolving = active && (risk.loading || audit.loading || admin.loading);
+  // Evidence Portal's own gate, independent of `active` above: it has its own
+  // backend and its own address setting (isEvidencePortalBackendConfigured),
+  // unrelated to the GRC one isSecurityBackendConfigured checks. Off whenever
+  // the gate itself is disabled or that address is unset — same reasoning as
+  // `active`, so a user with no Security access at all still makes no
+  // Evidence request either.
+  //
+  // useCurrentUser (not a fresh query) is the SAME hook the Evidence pages
+  // call for their own admin/engineer UI — sharing it, rather than a second
+  // reimplementation, is what keeps the rail and the pages from disagreeing,
+  // same reasoning as composing the three GRC hooks above. It reads One
+  // WSO2's access token directly (see its own comment) rather than through
+  // `registerAuth`, because this gate runs on every Security page — long
+  // before the Evidence route layout that calls `registerAuth` ever mounts —
+  // and both share the exact same react-query key ("me"), so whichever one
+  // asks first, the other reuses the answer instead of asking again.
+  const evidenceActive = enabled && isEvidencePortalBackendConfigured();
+  const evidence = useCurrentUser(evidenceActive);
+  const evidenceResolving = evidenceActive && !evidence.isLoaded;
+
+  // Kept apart from the GRC-only value below: Evidence resolves on its own
+  // schedule (its own backend, its own query), and folding it into the same
+  // flag would make a Risk/Audit/Admin item flicker to "hidden" while ONLY
+  // Evidence is still answering — the one thing this ticket must not change.
+  const grcResolving = active && (risk.loading || audit.loading || admin.loading);
+  const isResolving = grcResolving || evidenceResolving;
 
   // Routed by prefix because each module has its own hook and its own cache.
   // All three fetch the SAME endpoint and would answer identically — the split
@@ -72,28 +98,35 @@ export function useSecurityGate(enabled = true): SecurityGate {
     return admin.can(privilege);
   };
 
+  // The real rule ticket 03 adds, replacing ticket 02's "configured means
+  // visible" placeholder: an engineer sees every Evidence item except the
+  // admin-only ones (Catalogue, Cost — EVIDENCE_ADMIN_ONLY_ITEM_IDS); an
+  // admin sees all of them; a 403 (isForbidden) or any role /api/me did not
+  // return "engineer" or "admin" for hides everything; and, like every GRC
+  // check below, this fails closed while unconfigured, disabled, or still
+  // resolving.
+  const canSeeEvidence = (itemId: string): boolean => {
+    if (!evidenceActive || evidenceResolving) return false;
+    if (evidence.isForbidden || !(evidence.isAdmin || evidence.isEngineer)) return false;
+    if (EVIDENCE_ADMIN_ONLY_ITEM_IDS.has(itemId)) return evidence.isAdmin;
+    return true;
+  };
+
   const canSee = (itemId: string): boolean => {
-    // TEMPORARY, for this ticket only — ticket 03 replaces this with the
-    // Evidence backend's own identity/role check (the spec's "access
-    // decision"), folded in the same way the GRC privileges are below. Until
-    // then, an Evidence item is visible whenever the Evidence backend has an
-    // address configured, full stop: no privilege lookup, no role check,
-    // and — unlike the GRC items below — no dependency on `active`/
-    // `isResolving`, because nothing here calls the Evidence backend at all
-    // yet. `enabled` alone still applies: a disabled gate shows nothing,
-    // Evidence included.
-    if (EVIDENCE_ITEM_IDS.has(itemId)) return enabled && isEvidencePortalBackendConfigured();
+    if (EVIDENCE_ITEM_IDS.has(itemId)) return canSeeEvidence(itemId);
 
     // Fail closed while resolving, while inactive, and for an id nobody mapped —
     // an unmapped item is a registry mistake, not an invitation.
-    if (!active || isResolving) return false;
+    if (!active || grcResolving) return false;
     const required = SECURITY_ITEM_PRIVILEGE[itemId];
     return required ? can(required) : false;
   };
 
+  const allItemIds = [...Object.keys(SECURITY_ITEM_PRIVILEGE), ...EVIDENCE_ITEM_IDS];
+
   return {
     canSee,
-    isAuthorized: Object.keys(SECURITY_ITEM_PRIVILEGE).some((id) => canSee(id)),
+    isAuthorized: allItemIds.some((id) => canSee(id)),
     isResolving,
   };
 }

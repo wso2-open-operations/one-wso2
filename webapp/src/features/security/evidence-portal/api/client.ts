@@ -113,7 +113,19 @@ api.interceptors.response.use(
 );
 
 export const meApi = {
-  whoami: () => api.get("/me").then((r) => r.data as { email: string; role: string }),
+  // `bearerToken`, when passed, is attached directly rather than left to the
+  // request interceptor above. useCurrentUser passes one so /api/me works
+  // for a caller that has not (or not yet) called registerAuth — the
+  // Security side rail's gate, which asks this same question on every
+  // Security page, long before the Evidence route layout that calls
+  // registerAuth ever mounts. See useCurrentUser's comment for the full
+  // reasoning. The interceptor still wins when it has its own token (it
+  // only overwrites the header when getAuthToken() resolves to one), so a
+  // caller inside the Evidence layout gets no different behaviour.
+  whoami: (bearerToken?: string) =>
+    api
+      .get("/me", bearerToken ? { headers: { Authorization: `Bearer ${bearerToken}` } } : undefined)
+      .then((r) => r.data as { email: string; role: string }),
 };
 
 export const productsApi = {

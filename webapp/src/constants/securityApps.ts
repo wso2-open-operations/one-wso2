@@ -125,7 +125,7 @@ export const SECURITY_APPS: readonly MenuApp[] = [
  * Evidence Portal items are deliberately ABSENT here — there is no GRC
  * privilege for them to map to. useSecurityGate special-cases
  * EVIDENCE_ITEM_IDS before it ever looks in this map; see that gate's
- * temporary visibility rule and the comment on EVIDENCE_ITEM_IDS below.
+ * Evidence visibility rule and the comment on EVIDENCE_ITEM_IDS below.
  */
 export const SECURITY_ITEM_PRIVILEGE: Readonly<Record<string, string>> = {
   "security-audit-dashboard": "AUDIT_VIEW_AUDITS",
@@ -140,18 +140,38 @@ export const SECURITY_ITEM_PRIVILEGE: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Catalogue and Cost's own ids, admin-only like the Admin Console items
+ * above — but there is no nav entry for either yet (ticket 06 adds them).
+ * Defined here now, ahead of that nav entry, purely so useSecurityGate's
+ * admin-only rule has something concrete to dispatch on: EVIDENCE_ITEM_IDS
+ * below already includes both, so the gate hides them correctly for an
+ * engineer even before ticket 06 makes them reachable at all.
+ */
+export const EVIDENCE_CATALOGUE_ITEM_ID = "security-evidence-catalogue";
+export const EVIDENCE_COST_ITEM_ID = "security-evidence-cost";
+
+export const EVIDENCE_ADMIN_ONLY_ITEM_IDS: ReadonlySet<string> = new Set([
+  EVIDENCE_CATALOGUE_ITEM_ID,
+  EVIDENCE_COST_ITEM_ID,
+]);
+
+/**
  * Evidence Portal's own item ids, kept apart from SECURITY_ITEM_PRIVILEGE's
  * privilege map because there is nothing GRC-shaped to put in it: the
- * Evidence backend has no /me/privileges of its own to ask, so this ticket's
- * gate rule for these ids is "is the backend configured at all", not a
- * privilege lookup. Ticket 03 replaces that rule with the real one (the
- * Evidence backend's own identity/role check) and this set is what it will
- * dispatch on, the same way SECURITY_ITEM_IDS below dispatches
- * usePerspectiveVisibility to useSecurityGate in the first place.
+ * Evidence backend has no /me/privileges of its own to ask. useSecurityGate
+ * special-cases these ids before it ever looks in that map, and answers them
+ * from the Evidence backend's own /api/me — its role decides engineer vs
+ * admin, and EVIDENCE_ADMIN_ONLY_ITEM_IDS above decides which ids need the
+ * admin role specifically. See that gate for the full rule.
+ *
+ * Includes EVIDENCE_ADMIN_ONLY_ITEM_IDS even though Catalogue and Cost have
+ * no nav entry yet — the gate must recognise both ids as Evidence's own
+ * before ticket 06 wires them into SECURITY_APPS, not after.
  */
-export const EVIDENCE_ITEM_IDS: ReadonlySet<string> = new Set(
-  SECURITY_APPS.find((app) => app.key === "evidence-portal")?.items.map((it) => it.id) ?? [],
-);
+export const EVIDENCE_ITEM_IDS: ReadonlySet<string> = new Set([
+  ...(SECURITY_APPS.find((app) => app.key === "evidence-portal")?.items.map((it) => it.id) ?? []),
+  ...EVIDENCE_ADMIN_ONLY_ITEM_IDS,
+]);
 
 /** Ids the rail must route through useSecurityGate rather than `requires`. */
 export const SECURITY_ITEM_IDS: ReadonlySet<string> = new Set(

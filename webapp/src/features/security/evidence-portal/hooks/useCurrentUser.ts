@@ -16,6 +16,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
+import { useAccessToken } from "@hooks/useAccessToken";
 import { meApi } from "../api/client";
 
 export type CurrentUser = { email: string; role: string };
@@ -29,16 +30,36 @@ const FALLBACK_FORBIDDEN_MESSAGE =
  * Returns the currently logged-in user (from /api/me) — the Asgardeo JWT
  * principal, resolved by the backend from the Bearer token.
  *
+ * `enabled` (default true) lets a caller that only sometimes needs this
+ * answer — the Security gate, when the Evidence backend isn't configured or
+ * the gate itself is disabled — skip the request entirely rather than fire
+ * it and throw the result away.
+ *
+ * Reads the access token itself via One WSO2's own `useAccessToken`, the
+ * same accessor `useEvidencePortalAuth` hands to `registerAuth`, rather than
+ * relying on `registerAuth` having already been called. The Evidence route
+ * layout (EvidencePortalLayout) is the ONLY thing that calls `registerAuth`,
+ * and it is mounted only under /security/evidence/* — but the Security side
+ * rail asks this same question (via the gate, folding this hook in) on
+ * EVERY Security page, well before that layout exists. Fetching the token
+ * directly here, the same way the lifted GRC hooks fetch theirs
+ * (shim/useAuthApiClient.ts) rather than through a shared registration,
+ * means this works identically whichever caller mounts first — and because
+ * the query key stays exactly "me", the gate and a mounted Evidence page
+ * still share one cached answer instead of asking twice.
+ *
  * Convenience flags:
  *   isAdmin          — show admin UI (Cost page, delete buttons, etc.)
  *   isLoaded         — first /me roundtrip has finished
  *   isForbidden      — /me came back 403: signed in, but no role in this app
  *   forbiddenMessage — the backend's own explanation, for isForbidden
  */
-export function useCurrentUser() {
+export function useCurrentUser(enabled = true) {
+  const getAccessToken = useAccessToken();
   const query = useQuery<CurrentUser>({
     queryKey: ["me"],
-    queryFn: meApi.whoami,
+    queryFn: async () => meApi.whoami(await getAccessToken()),
+    enabled,
     staleTime: 5 * 60 * 1000, // 5 min — identity rarely changes within a session
     // A 403 leaves the query with no data, and by default a newly mounted
     // component re-runs a failed query like that, which resets it to
