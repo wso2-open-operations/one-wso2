@@ -135,6 +135,7 @@ import DecidedTab from "@features/finance/approvals/DecidedTab";
 import { riskRoutes } from "@features/security/grc/modules/risk/routes";
 import { auditRoutes } from "@features/security/grc/modules/audit/routes";
 import { adminRoutes } from "@features/security/grc/modules/admin/routes";
+import { evidenceRoutes } from "@features/security/evidence-portal/routes";
 import PartnersListPage from "@features/due-diligence/partners/pages/PartnersListPage";
 import PartnerPendingPage from "@features/due-diligence/partners/pages/PartnerPendingPage";
 import PartnerDashboardPage from "@features/due-diligence/partners/pages/PartnerDashboardPage";
@@ -711,11 +712,17 @@ export default function App() {
               /security/admin/*
               without touching either file. Their per-route PrivilegeGuards come
               along with them, including the deliberate absence of one on
-              Risk Registers. */}
+              Risk Registers.
+
+              evidenceRoutes is a second, separate lift — Evidence Portal, from
+              grc-tools/apps/evidence-app rather than grc-platform — spread the
+              same way to turn its own /evidence/* into /security/evidence/*.
+              See @features/security/evidence-portal/routes for what it mounts. */}
           <Route path="security">
             <Route index element={<PerspectiveLanding />} />
             {auditRoutes}
             {riskRoutes}
+            {evidenceRoutes}
             {adminRoutes}
           </Route>
           {/* Due Diligence — ported from digiops-finance/apps/due_diligence's

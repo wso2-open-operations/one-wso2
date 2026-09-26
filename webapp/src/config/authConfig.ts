@@ -107,6 +107,11 @@ declare global {
       // screens are lifted rather than rewritten and a GRC deployment already
       // publishes this exact key. See apiConfig.ts.
       ONE_WSO2_GRC_PLATFORM_BACKEND_URL?: string;
+      // Base URL for the grc-tools evidence-app backend — the Evidence
+      // Portal, the third app under the Security perspective, lifted
+      // alongside GRC Platform above. Optional/"not connected" like the
+      // others. See apiConfig.ts's evidencePortalBackendUrl.
+      ONE_WSO2_EVIDENCE_PORTAL_BACKEND_URL?: string;
       // Base URL for the standalone Updates Manager service. Optional — when
       // absent, UmtShell shows a not-connected state and makes no UMT requests.
       // Its /update/user-info roles are local to UMT, not People capabilities.

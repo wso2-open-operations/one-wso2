@@ -1,0 +1,283 @@
+// Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AxiosError } from "axios";
+import type { ReactNode } from "react";
+import { Box, Typography, Paper, Stack, TextField, Button, IconButton, Alert, Chip } from "@wso2/oxygen-ui";
+import { Plus, Trash2, CircleCheckBig, ArrowUp } from "@wso2/oxygen-ui-icons-react";
+import { evidenceApi } from "../api/client";
+import ControlPicker from "../components/ControlPicker";
+import ProductPicker from "../components/ProductPicker";
+import FrameworkPicker from "../components/FrameworkPicker";
+import { validateSubmissionFiles } from "../utils/validateSubmissionFiles";
+
+// Same step header as the Agent Runner page, so the two forms read as one app.
+function StepHeader({ step, children }: { step: number; children: ReactNode }) {
+  return (
+    <Stack direction="row" alignItems="center" spacing={1.25}>
+      <Chip label={`STEP ${step}`} size="small" color="primary" sx={{ fontWeight: 700, height: 22 }} />
+      <Typography variant="subtitle2" fontWeight={600} color="text.secondary"
+        sx={{ textTransform: "uppercase", letterSpacing: "0.04em", fontSize: "0.72rem" }}>
+        {children}
+      </Typography>
+    </Stack>
+  );
+}
+
+export default function SubmitEvidence() {
+  const queryClient = useQueryClient();
+  const [productId, setProductId] = useState<number | "">("");
+  const [frameworkId, setFrameworkId] = useState<number | "">("");
+  const [controlId, setControlId] = useState<number | "">("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [success, setSuccess] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: evidenceApi.create,
+    onSuccess: () => {
+      setSuccess(true);
+      queryClient.invalidateQueries({ queryKey: ["evidence"] });
+      queryClient.invalidateQueries({ queryKey: ["submissions"] });
+      setTitle("");
+      setDescription("");
+      setFiles([]);
+      setProductId("");
+      setFrameworkId("");
+      setControlId("");
+    },
+  });
+
+  const uploadError = mutation.isError
+    ? (mutation.error as AxiosError<{ detail?: string }>)?.response?.data?.detail ||
+      "Upload failed. Please check the files and try again."
+    : null;
+
+  const handleFilesChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const chosen = Array.from(e.target.files ?? []);
+    // Appended, not replaced, so clicking to add more keeps what was already
+    // chosen. Clearing the input's own value lets picking the same file
+    // again after removing it register as a change.
+    setFiles((prev) => [...prev, ...chosen]);
+    e.target.value = "";
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // The server holds the real limits (also 4 files, also 20 MB); this is
+    // only here so a doomed upload never starts.
+    const filesCheck = validateSubmissionFiles(files);
+    if (!filesCheck.valid) {
+      setValidationError(filesCheck.message);
+      return;
+    }
+    if (!controlId) {
+      setValidationError("Please select a control.");
+      return;
+    }
+    setValidationError(null);
+    setSuccess(false);
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("description", description);
+    formData.append("control_id", String(controlId));
+    for (const file of files) {
+      formData.append("file", file);
+    }
+    mutation.mutate(formData);
+  };
+
+  return (
+    <Box sx={{ width: "100%", maxWidth: 760, mx: "auto" }}>
+      <Box sx={{ textAlign: "center", mb: 4 }}>
+        <Box
+          sx={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 56, height: 56, borderRadius: "50%",
+            backgroundColor: "rgba(255,115,0,0.10)", color: "primary.main", mb: 1.5,
+          }}
+        >
+          <ArrowUp size={28} />
+        </Box>
+        <Typography variant="h4" fontWeight={700} gutterBottom>Submit Evidence</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 560, mx: "auto" }}>
+          Upload up to 4 files and link them to a compliance control.
+        </Typography>
+      </Box>
+
+      {success && (
+        <Alert
+          severity="success"
+          icon={<CircleCheckBig size={18} />}
+          sx={{ mb: 3 }}
+        >
+          Evidence submitted successfully.
+        </Alert>
+      )}
+
+      {uploadError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {uploadError}
+        </Alert>
+      )}
+
+      {validationError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {validationError}
+        </Alert>
+      )}
+
+      <Box component="form" onSubmit={handleSubmit}>
+        <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 }, mb: 3 }}>
+          <Stack spacing={2.5}>
+            <StepHeader step={1}>Choose the control</StepHeader>
+            <Typography variant="body2" color="text.secondary">
+              Pick the product this evidence belongs to, then its framework and control.
+            </Typography>
+            <ProductPicker
+              value={productId}
+              onChange={(id) => {
+                setProductId(id);
+                setFrameworkId("");
+                setControlId("");
+              }}
+              required
+            />
+            <FrameworkPicker
+              productId={productId}
+              value={frameworkId}
+              onChange={(id) => {
+                setFrameworkId(id);
+                setControlId("");
+              }}
+              required
+            />
+            <ControlPicker
+              frameworkId={frameworkId}
+              controlId={controlId}
+              onControlChange={(id) => setControlId(id)}
+              required
+            />
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 }, mb: 3 }}>
+          <Stack spacing={2.5}>
+            <StepHeader step={2}>Describe it</StepHeader>
+            <TextField
+              label="Title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Evidence title"
+              required
+              fullWidth
+            />
+            <TextField
+              label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional description"
+              multiline
+              rows={3}
+              fullWidth
+            />
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 } }}>
+          <Stack spacing={2.5}>
+            <StepHeader step={3}>Attach files</StepHeader>
+            <Typography variant="body2" color="text.secondary">
+              Add up to 4 files, such as screenshots, exports or documents.
+            </Typography>
+            <Box>
+              <Button
+                component="label"
+                variant="outlined"
+                fullWidth
+                startIcon={<Plus size={18} />}
+                sx={{
+                  py: 1.75,
+                  borderStyle: "dashed",
+                  borderColor: "divider",
+                  color: files.length > 0 ? "text.primary" : "text.secondary",
+                  justifyContent: "flex-start",
+                  px: 2,
+                  "&:hover": { borderStyle: "dashed", borderColor: "primary.main", backgroundColor: "rgba(255,115,0,0.04)" },
+                }}
+              >
+                {files.length > 0 ? "Add more files" : "Click to select files"}
+                <input
+                  type="file"
+                  hidden
+                  multiple
+                  onChange={handleFilesChosen}
+                />
+              </Button>
+
+              {files.length > 0 && (
+                <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+                  {files.map((f, index) => (
+                    <Stack
+                      key={`${f.name}-${index}`}
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      sx={{
+                        px: 1.5,
+                        py: 0.75,
+                        borderRadius: 1,
+                        backgroundColor: "action.hover",
+                      }}
+                    >
+                      <Typography variant="body2" noWrap sx={{ mr: 1 }}>
+                        {f.name}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        aria-label={`Remove ${f.name}`}
+                        onClick={() => handleRemoveFile(index)}
+                      >
+                        <Trash2 size={14} />
+                      </IconButton>
+                    </Stack>
+                  ))}
+                </Stack>
+              )}
+            </Box>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={mutation.isPending}
+              size="large"
+              sx={{ py: 1.25 }}
+            >
+              {mutation.isPending ? "Uploading..." : "Submit Evidence"}
+            </Button>
+          </Stack>
+        </Paper>
+      </Box>
+    </Box>
+  );
+}

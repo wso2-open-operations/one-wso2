@@ -23,6 +23,11 @@ import path from "path";
 // (lh3.googleusercontent.com and friends) rather than a gateway URL, so
 // img-src also allows Google's avatar CDN.
 //
+// The Evidence Portal shows evidence screenshots straight from Azure Blob
+// Storage: its backend hands out short-lived signed (SAS) URLs and has no
+// route that streams a single file's bytes, so img-src allows
+// *.blob.core.windows.net.
+//
 // The Lead Portal's evidence-attachment picker (useGoogleDrivePicker.ts)
 // loads Google Identity Services + the Picker API at runtime, needing three
 // more origins: script-src for the two loaded scripts, connect-src for the
@@ -36,7 +41,7 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self' https://accounts.google.com https://apis.google.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.wso2.com https://wso2.cachefly.net https://*.asgardeo.io https://*.googleusercontent.com",
+  "img-src 'self' data: blob: https://*.wso2.com https://wso2.cachefly.net https://*.asgardeo.io https://*.googleusercontent.com https://*.blob.core.windows.net",
   "font-src 'self' data: https://wso2.cachefly.net",
   "connect-src 'self' https://*.wso2.com https://*.asgardeo.io https://*.googleapis.com https://accounts.google.com",
   "media-src 'self' https://*.choreoapis.dev",

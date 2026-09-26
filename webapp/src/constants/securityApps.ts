@@ -35,8 +35,20 @@
 // No `requires` on any item, deliberately. That vocabulary is people-app
 // privilege NUMBERS, which say nothing about GRC grants — and an Action Owner
 // may hold neither. The real decision is useSecurityGate, asked by id.
+//
+// A FOURTH APP, Evidence Portal, sits after Risk Hub — a separate lift from a
+// separate source (grc-tools/apps/evidence-app, not grc-platform), added by
+// this port rather than transcribed from anything upstream. Its item order
+// here is the port's own screenshot order (Dashboard, Evidence, Submit
+// Evidence, Agent Runner, then the admin-only Catalogue and Cost), not a rule
+// borrowed from the GRC source.
 
-import { ShieldAlertIcon, ShieldCheckIcon, SlidersHorizontalIcon } from "@wso2/oxygen-ui-icons-react";
+import {
+  ClipboardCheckIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
+  SlidersHorizontalIcon,
+} from "@wso2/oxygen-ui-icons-react";
 import type { MenuApp } from "@constants/appMenu";
 
 export const SECURITY_APPS: readonly MenuApp[] = [
@@ -70,6 +82,25 @@ export const SECURITY_APPS: readonly MenuApp[] = [
     ],
   },
   {
+    key: "evidence-portal",
+    name: "Evidence Portal",
+    icon: ClipboardCheckIcon,
+    purpose:
+      "Compliance evidence — collect, review and hand off the evidence an audit needs, whether an agent captured it or someone submitted it by hand.",
+    alwaysGroup: true,
+    items: [
+      // Dashboard, Evidence, Submit Evidence and Agent Runner are
+      // engineer-visible; Cost and Catalogue are admin-only, like Admin
+      // Console above (see EVIDENCE_ADMIN_ONLY_ITEM_IDS).
+      { id: "security-evidence-dashboard", label: "Dashboard", desc: "Evidence status at a glance — coverage, pending review and recent activity.", path: "/security/evidence/dashboard" },
+      { id: "security-evidence-evidence", label: "Evidence", desc: "Every Evidence item, with filters, screenshots, and approve, reject and download.", path: "/security/evidence/evidence" },
+      { id: "security-evidence-submit", label: "Submit Evidence", desc: "Upload up to four files by hand and link them to a compliance control.", path: "/security/evidence/submit" },
+      { id: "security-evidence-agent", label: "Agent Runner", desc: "Start an automated run and watch its progress stream live.", path: "/security/evidence/agent" },
+      { id: "security-evidence-cost", label: "Cost", desc: "Agent run spend over time, with a Reset that filters the view without deleting anything.", path: "/security/evidence/cost" },
+      { id: "security-evidence-catalogue", label: "Catalogue", desc: "Frameworks, Products and Controls, including CSV import of Controls.", path: "/security/evidence/catalogue" },
+    ],
+  },
+  {
     key: "admin-console",
     name: "Admin Console",
     icon: SlidersHorizontalIcon,
@@ -93,6 +124,11 @@ export const SECURITY_APPS: readonly MenuApp[] = [
  *
  * Registers maps to RISK_VIEW_RISKS, which a grant-less Action Owner receives
  * synthetically — see the source's mergeRiskPrivileges.
+ *
+ * Evidence Portal items are deliberately ABSENT here — there is no GRC
+ * privilege for them to map to. useSecurityGate special-cases
+ * EVIDENCE_ITEM_IDS before it ever looks in this map; see that gate's
+ * Evidence visibility rule and the comment on EVIDENCE_ITEM_IDS below.
  */
 export const SECURITY_ITEM_PRIVILEGE: Readonly<Record<string, string>> = {
   "security-audit-dashboard": "AUDIT_VIEW_AUDITS",
@@ -105,6 +141,32 @@ export const SECURITY_ITEM_PRIVILEGE: Readonly<Record<string, string>> = {
   "security-admin-audit-hub": "MANAGE_AUDIT_HUB",
   "security-admin-risk-hub": "MANAGE_RISK_HUB",
 };
+
+/**
+ * Catalogue and Cost's own ids, admin-only like the Admin Console items
+ * above. useSecurityGate's admin-only rule dispatches on this set.
+ */
+export const EVIDENCE_CATALOGUE_ITEM_ID = "security-evidence-catalogue";
+export const EVIDENCE_COST_ITEM_ID = "security-evidence-cost";
+
+export const EVIDENCE_ADMIN_ONLY_ITEM_IDS: ReadonlySet<string> = new Set([
+  EVIDENCE_CATALOGUE_ITEM_ID,
+  EVIDENCE_COST_ITEM_ID,
+]);
+
+/**
+ * Evidence Portal's own item ids, kept apart from SECURITY_ITEM_PRIVILEGE's
+ * privilege map because there is nothing GRC-shaped to put in it: the
+ * Evidence backend has no /me/privileges of its own to ask. useSecurityGate
+ * special-cases these ids before it ever looks in that map, and answers them
+ * from the Evidence backend's own /api/me — its role decides engineer vs
+ * admin, and EVIDENCE_ADMIN_ONLY_ITEM_IDS above decides which ids need the
+ * admin role specifically. See that gate for the full rule.
+ */
+export const EVIDENCE_ITEM_IDS: ReadonlySet<string> = new Set([
+  ...(SECURITY_APPS.find((app) => app.key === "evidence-portal")?.items.map((it) => it.id) ?? []),
+  ...EVIDENCE_ADMIN_ONLY_ITEM_IDS,
+]);
 
 /** Ids the rail must route through useSecurityGate rather than `requires`. */
 export const SECURITY_ITEM_IDS: ReadonlySet<string> = new Set(
