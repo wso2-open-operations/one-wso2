@@ -42,8 +42,8 @@
 // here is the port's own screenshot order (Dashboard, Evidence, Submit
 // Evidence, Agent Runner, then the admin-only Catalogue and Cost), not a rule
 // borrowed from the GRC source. Dashboard and Evidence arrive with tickets 03
-// and 04; Submit Evidence, Agent Runner, Catalogue and Cost arrive with later
-// tickets.
+// and 04; Submit Evidence and Agent Runner arrive with ticket 05; Catalogue
+// and Cost arrive with ticket 06.
 
 import {
   ClipboardCheckIcon,
@@ -91,12 +91,14 @@ export const SECURITY_APPS: readonly MenuApp[] = [
       "Compliance evidence — collect, review and hand off the evidence an audit needs, whether an agent captured it or someone submitted it by hand.",
     alwaysGroup: true,
     items: [
-      // Dashboard and Evidence for this ticket. Submit Evidence and Agent
-      // Runner (engineer-visible) and Catalogue and Cost (admin-only, like
-      // Admin Console above) arrive with later tickets, in that screenshot
+      // Dashboard, Evidence, Submit Evidence and Agent Runner for this
+      // ticket — all engineer-visible. Catalogue and Cost (admin-only, like
+      // Admin Console above) arrive with ticket 06, in that screenshot
       // order.
       { id: "security-evidence-dashboard", label: "Dashboard", desc: "Evidence status at a glance — coverage, pending review and recent activity.", path: "/security/evidence/dashboard" },
       { id: "security-evidence-evidence", label: "Evidence", desc: "Every Evidence item, with filters, screenshots, and approve, reject and download.", path: "/security/evidence/evidence" },
+      { id: "security-evidence-submit", label: "Submit Evidence", desc: "Upload up to four files by hand and link them to a compliance control.", path: "/security/evidence/submit" },
+      { id: "security-evidence-agent", label: "Agent Runner", desc: "Start an automated run and watch its progress stream live.", path: "/security/evidence/agent" },
     ],
   },
   {

@@ -24,10 +24,10 @@
 // scattered across pages — see Dashboard.tsx's "view all" link for the one
 // this ticket fixes.
 //
-// Every segment is listed now, including submit/agent/cost/catalogue, which
-// have no route yet (tickets 05 and 06 add them) — a page that links to one
-// of them today should already point at its final address, not a path this
-// module will have to grep for and rewrite later.
+// Every segment is listed now, including cost/catalogue, which have no route
+// yet (ticket 06 adds them) — a page that links to one of them today should
+// already point at its final address, not a path this module will have to
+// grep for and rewrite later.
 const EVIDENCE_BASE = "/security/evidence";
 
 export const evidencePortalPaths = {
