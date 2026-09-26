@@ -600,7 +600,7 @@ export default function AgentRunner() {
   const runState = taskOut ? buildRunState(taskOut) : null;
 
   return (
-    <Box sx={{ width: "100%", maxWidth: 880, mx: "auto" }}>
+    <Box sx={{ width: "100%", maxWidth: 760, mx: "auto" }}>
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <Box sx={{ textAlign: "center", mb: 4 }}>
         <Box
