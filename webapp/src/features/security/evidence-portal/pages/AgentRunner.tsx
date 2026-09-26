@@ -96,7 +96,7 @@ function parseSubtasksClient(prompt: string): string[] {
 // ── Changing step banner text ───────────────────────────────────────────────
 // Turns detectChangingSteps' plain data into the sentence shown above the
 // primary button. Never echoes the prompt text — only step numbers and verb
-// group names, both of which are safe and short. See chala2001/grc-tools#140.
+// group names, both of which are safe and short.
 
 function joinWithAnd(items: string[]): string {
   if (items.length === 1) return items[0];
@@ -264,7 +264,7 @@ export default function AgentRunner() {
   // a fresh decision, not arrive already acknowledged. Deliberately not a
   // boolean flag either — "acknowledged" is derived below by comparing this
   // against the current prompt, so editing the prompt clears it with no
-  // extra bookkeeping. See chala2001/grc-tools#140.
+  // extra bookkeeping.
   const [acknowledgedPrompt, setAcknowledgedPrompt] = useState<string | null>(null);
 
   const parsedTasks = parseSubtasksClient(prompt);
@@ -273,8 +273,7 @@ export default function AgentRunner() {
   const isDone = taskOut ? ["completed", "failed", "cancelled"].includes(taskOut.status) : false;
 
   // Steps that look like they change something, from the same parsed list
-  // rendered below — never re-parses the prompt itself. See
-  // chala2001/grc-tools#140.
+  // rendered below — never re-parses the prompt itself.
   const changingSteps = detectChangingSteps(parsedTasks);
   const changingStepsAcknowledged = acknowledgedPrompt === prompt;
 
@@ -393,7 +392,7 @@ export default function AgentRunner() {
         try {
           const token = await getAuthToken();
           // Bypasses axios (no interceptors for SSE), so it needs the same
-          // dual-mode base client.ts uses — see issue #90.
+          // dual-mode base client.ts uses.
           const resp = await fetch(`${BACKEND_BASE_URL}/api/agent/tasks/${taskId}/stream`, {
             headers: {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -526,7 +525,7 @@ export default function AgentRunner() {
     // Refuses whenever the primary button itself would refuse — including
     // once a task has finished, when the button's face has moved on to New
     // Task. Keeps the rule in one place (computeAgentRunnerFormState)
-    // instead of restating it here. See chala2001/grc-tools#139.
+    // instead of restating it here.
     if (formState.primaryAction !== "queue" || !formState.primaryActionEnabled) return;
     setQueueing(true);
     setError(null);
@@ -587,8 +586,7 @@ export default function AgentRunner() {
     // prompt above and run again" is actually true. useVision and
     // maxActionsPerStep used to be dropped from session storage here without
     // their state being reset, so they stayed on screen and then quietly
-    // reverted on the next reload; they are simply left alone now. See
-    // chala2001/grc-tools#139.
+    // reverted on the next reload; they are simply left alone now.
     clearSessionState("taskId", "taskOut");
     setTaskId(null);
     setTaskOut(null);
@@ -638,7 +636,7 @@ export default function AgentRunner() {
           Never faded, never locked: which Control an Engineer is here to
           collect Evidence for has nothing to do with whether a browser
           session exists yet, and this is the thing they arrive with in
-          mind. See chala2001/grc-tools#151.
+          mind.
 
           Reads its editability from the form state function rather than
           being left plainly unlocked, so "never locked" is a rule the page
@@ -1013,8 +1011,7 @@ export default function AgentRunner() {
 
           {/* Only shown while the form can actually queue — a finished,
               locked task has nothing left for this warning to govern, and
-              formState.promptEditable is false in exactly that state. See
-              chala2001/grc-tools#140. */}
+              formState.promptEditable is false in exactly that state. */}
           {formState.promptEditable && changingSteps.length > 0 && (
             <Alert severity="warning">
               <Typography variant="body2" sx={{ mb: 1 }}>
@@ -1043,7 +1040,7 @@ export default function AgentRunner() {
               preventDefault is a second lock so a future edit that
               reintroduces type="submit" still can't bring it back. The form
               keeps its own onSubmit, so Enter in a single line field
-              behaves exactly as before. See chala2001/grc-tools#139. */}
+              behaves exactly as before. */}
           <Button
             type="button"
             onClick={(e) => {

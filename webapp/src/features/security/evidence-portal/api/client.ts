@@ -26,7 +26,7 @@ export const getFileUrl = (fileUrl: string): string => fileUrl;
 // Dual-mode: an empty/absent BACKEND_BASE_URL collapses this to exactly
 // "/api" — the relative form a reverse proxy (index.js, or the Vite dev
 // server) forwards. A set value produces an absolute URL for hosting with
-// no such proxy in front (e.g. Choreo's React buildpack). See issue #90.
+// no such proxy in front (e.g. Choreo's React buildpack).
 export const api = axios.create({
   baseURL: `${BACKEND_BASE_URL}/api`,
 });

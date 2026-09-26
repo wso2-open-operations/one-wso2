@@ -62,7 +62,7 @@ export type ComputeDeleteImpactResult = {
  *
  * Used to live as two near-identical copies inside each of ProductPicker,
  * FrameworkPicker and ControlPicker. Pulled out here so the counting rules
- * and the warning wording exist in exactly one place — see ticket #115.
+ * and the warning wording exist in exactly one place.
  */
 export function computeDeleteImpact({
   level,

@@ -27,7 +27,7 @@ export type Product = { id: number; name: string; description?: string | null };
  * The single create/edit form for a Product. Used to live as its own
  * private component inside ProductPicker; pulled out here so the coming
  * Admin page can render the same form instead of growing a second one that
- * drifts from this one — see ticket #116.
+ * drifts from this one.
  */
 export default function ProductFormDialog({
   open,

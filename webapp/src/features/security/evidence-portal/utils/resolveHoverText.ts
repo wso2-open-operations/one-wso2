@@ -33,7 +33,7 @@ export type HoverTextFramework = { name: string; description?: string | null };
  * description exists, showing it alone avoids making the reader read that
  * same sentence twice. Where a record has no description at all, which is
  * possible for one added by hand, the title or name is the only thing left
- * to show — see spec #129.
+ * to show.
  */
 export function resolveHoverText(
   record: HoverTextControl | HoverTextProduct | HoverTextFramework

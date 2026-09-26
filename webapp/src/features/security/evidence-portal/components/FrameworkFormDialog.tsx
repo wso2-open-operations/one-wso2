@@ -27,7 +27,7 @@ export type Framework = { id: number; product_id: number; name: string; descript
  * The single create/edit form for a Framework. Used to live as its own
  * private component inside FrameworkPicker; pulled out here so the coming
  * Admin page can render the same form instead of growing a second one that
- * drifts from this one — see ticket #116.
+ * drifts from this one.
  */
 export default function FrameworkFormDialog({
   open,

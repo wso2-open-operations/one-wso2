@@ -22,8 +22,7 @@ export type AgentRunnerTaskStatus = "queued" | "running" | "completed" | "failed
 // What the primary button on the run form is offering right now. "queue" is
 // the resting state — everything else is either something already in flight
 // (which is also, today, exactly when the button shows a spinner instead of
-// the arrow icon) or, for "newTask", a finished task waiting to be cleared —
-// see ticket chala2001/grc-tools#139.
+// the arrow icon) or, for "newTask", a finished task waiting to be cleared.
 export type AgentRunnerPrimaryAction = "queue" | "queuing" | "waitingForRunner" | "runningAgent" | "newTask";
 
 export type ComputeAgentRunnerFormStateArgs = {
@@ -40,7 +39,6 @@ export type ComputeAgentRunnerFormStateArgs = {
   // (detectChangingSteps found one) that the Engineer has not yet
   // acknowledged for the CURRENT prompt text. Ignored once a task is
   // finished — a locked prompt has nothing left for the warning to govern.
-  // See chala2001/grc-tools#140.
   unacknowledgedChangingSteps: boolean;
 };
 
@@ -51,7 +49,7 @@ export type AgentRunnerFormState = {
   // browser session exists yet. Named as a constant rather than left out of
   // this type, so "the Control panel is never locked" is a decision this
   // function states and a test can assert, not a fact someone has to notice
-  // by its absence. See chala2001/grc-tools#150.
+  // by its absence.
   controlLinkEditable: boolean;
   // Whether the run panel (prompt, complexity, Advanced settings, Queue)
   // accepts input. Mirrors loginDone directly: nothing can run without a
@@ -59,13 +57,13 @@ export type AgentRunnerFormState = {
   // unclickable until login is confirmed. This used to be tested inline in
   // AgentRunner.tsx's markup; moved here so the page has one place to read
   // "what's locked" from instead of re-deriving it against loginDone
-  // itself. See chala2001/grc-tools#150.
+  // itself.
   runSectionEditable: boolean;
   // Whether the prompt field accepts typing. False once a task has finished
   // — there is nothing left to queue against, so the box says so rather than
   // accepting text it can't submit. True the rest of the time, including
   // while a task is queued or running: a run takes minutes and drafting the
-  // next prompt during one is worth keeping. See chala2001/grc-tools#139.
+  // next prompt during one is worth keeping.
   promptEditable: boolean;
   // Whether the Advanced settings panel can be opened and its controls
   // changed. False while a task is running or has finished, so a setting
@@ -91,7 +89,7 @@ export type AgentRunnerFormState = {
  * Used to be five separate ad hoc checks against two booleans ("a task is
  * running", "a task has finished"), each restated at its own call site in
  * AgentRunner.tsx, roughly ten of them. Pulled out here so the rule for each
- * lives in one place — see ticket chala2001/grc-tools#138.
+ * lives in one place.
  *
  * Deliberately does not cover the effects that poll the Agent Task and
  * subscribe to its live updates. Those decide whether to keep talking to
@@ -128,8 +126,7 @@ export function computeAgentRunnerFormState({
   // It still needs loginDone, because the whole form is made unclickable
   // without it: an enabled button inside an unclickable form looks
   // pressable and isn't, which is worse than a disabled one. The button
-  // below the result stays available either way. See
-  // chala2001/grc-tools#139 and chala2001/grc-tools#140.
+  // below the result stays available either way.
   const primaryActionEnabled = isDone
     ? loginDone
     : loginDone && !promptEmpty && !queueing && !isRunning && !unacknowledgedChangingSteps;

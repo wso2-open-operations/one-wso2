@@ -120,7 +120,7 @@ export default function ControlPicker({
 
   // The hover box content for a Control, shared by the option rows below and
   // by the field itself once a Control is selected. Two lines, not one
-  // joined with a separator: the spec (#129) is explicit that no wording is
+  // joined with a separator: the spec is explicit that no wording is
   // invented around the record's own values.
   const hoverContent = (control: Control) => (
     <Stack spacing={0.25} sx={{ py: 0.25 }}>

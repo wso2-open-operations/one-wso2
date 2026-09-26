@@ -33,7 +33,7 @@ export type Control = {
  * The single create/edit form for a Control. Used to live as its own
  * private component inside ControlPicker; pulled out here so the coming
  * Admin page can render the same form instead of growing a second one that
- * drifts from this one — see ticket #116.
+ * drifts from this one.
  */
 export default function ControlFormDialog({
   open,

@@ -33,9 +33,8 @@ type ChangingVerbGroupRow = {
 
 // One row per group of changing verbs the Agent Runner should pause on.
 //
-// These are matched ANYWHERE in a step, not only as its first word — see
-// chala2001/grc-tools#136. An earlier version read the leading verb only, on
-// the reasoning that "screenshot the delete protection setting" is an
+// These are matched ANYWHERE in a step, not only as its first word. An
+// earlier version read the leading verb only, on the reasoning that "screenshot the delete protection setting" is an
 // ordinary Evidence prompt and should stay silent. That reasoning holds if
 // the warning BLOCKS. It does not: the warning is a banner and a tick box,
 // and the Engineer always gets through. So a false positive costs one tick
@@ -144,7 +143,7 @@ const GROUP_PATTERNS: { group: ChangingVerbGroup; regex: RegExp }[] = CHANGING_V
 
 export type ChangingStepFlag = {
   // 1 based, matching the numbers the page already shows next to the
-  // parsed task list — see chala2001/grc-tools#140.
+  // parsed task list.
   stepNumber: number;
   group: ChangingVerbGroup;
 };
@@ -154,7 +153,7 @@ export type ChangingStepFlag = {
  * something rather than only looking at it. Takes the same subtask list the
  * Agent Runner page already parses out of the prompt and renders as its
  * numbered list, so a step number named here is always a step number that
- * exists on screen — see chala2001/grc-tools#140.
+ * exists on screen.
  *
  * A step is flagged when any form of a changing verb appears anywhere in it.
  * That deliberately includes ordinary capture prompts that merely name a

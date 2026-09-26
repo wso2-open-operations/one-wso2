@@ -25,5 +25,5 @@
 // A trailing slash is already stripped by evidencePortalBackendUrl. Every
 // caller here still appends a path beginning with "/" (api/client.ts and the
 // SSE fetch in pages/AgentRunner.tsx), so an empty value collapses to just
-// "/api...", the relative form a reverse proxy forwards — see issue #90.
+// "/api...", the relative form a reverse proxy forwards.
 export { evidencePortalBackendUrl as BACKEND_BASE_URL } from "@config/apiConfig";
