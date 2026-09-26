@@ -21,13 +21,7 @@
 // in-app link needs the full path. Keeping it here, once, is what stops a
 // link back to the old standalone app's paths ("/", "/evidence", "/submit",
 // "/agent", "/cost", "/catalogue", "/history") from surviving the port
-// scattered across pages — see Dashboard.tsx's "view all" link for the one
-// this ticket fixes.
-//
-// Every segment is listed now, including cost/catalogue, which have no route
-// yet (ticket 06 adds them) — a page that links to one of them today should
-// already point at its final address, not a path this module will have to
-// grep for and rewrite later.
+// scattered across pages — see Dashboard.tsx's "view all" link.
 const EVIDENCE_BASE = "/security/evidence";
 
 export const evidencePortalPaths = {

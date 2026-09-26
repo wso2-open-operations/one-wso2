@@ -717,8 +717,7 @@ export default function App() {
               evidenceRoutes is a second, separate lift — Evidence Portal, from
               grc-tools/apps/evidence-app rather than grc-platform — spread the
               same way to turn its own /evidence/* into /security/evidence/*.
-              See @features/security/evidence-portal/routes for what it mounts
-              today and what later tickets add under it. */}
+              See @features/security/evidence-portal/routes for what it mounts. */}
           <Route path="security">
             <Route index element={<PerspectiveLanding />} />
             {auditRoutes}

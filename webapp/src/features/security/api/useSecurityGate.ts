@@ -84,7 +84,7 @@ export function useSecurityGate(enabled = true): SecurityGate {
   // Kept apart from the GRC-only value below: Evidence resolves on its own
   // schedule (its own backend, its own query), and folding it into the same
   // flag would make a Risk/Audit/Admin item flicker to "hidden" while ONLY
-  // Evidence is still answering — the one thing this ticket must not change.
+  // Evidence is still answering.
   const grcResolving = active && (risk.loading || audit.loading || admin.loading);
   const isResolving = grcResolving || evidenceResolving;
 
@@ -98,8 +98,7 @@ export function useSecurityGate(enabled = true): SecurityGate {
     return admin.can(privilege);
   };
 
-  // The real rule ticket 03 adds, replacing ticket 02's "configured means
-  // visible" placeholder: an engineer sees every Evidence item except the
+  // Evidence visibility: an engineer sees every Evidence item except the
   // admin-only ones (Catalogue, Cost — EVIDENCE_ADMIN_ONLY_ITEM_IDS); an
   // admin sees all of them; a 403 (isForbidden) or any role /api/me did not
   // return "engineer" or "admin" for hides everything; and, like every GRC

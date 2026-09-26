@@ -41,9 +41,7 @@
 // this port rather than transcribed from anything upstream. Its item order
 // here is the port's own screenshot order (Dashboard, Evidence, Submit
 // Evidence, Agent Runner, then the admin-only Catalogue and Cost), not a rule
-// borrowed from the GRC source. Dashboard and Evidence arrive with tickets 03
-// and 04; Submit Evidence and Agent Runner arrive with ticket 05; Catalogue
-// and Cost arrive with ticket 06.
+// borrowed from the GRC source.
 
 import {
   ClipboardCheckIcon,
@@ -91,14 +89,15 @@ export const SECURITY_APPS: readonly MenuApp[] = [
       "Compliance evidence — collect, review and hand off the evidence an audit needs, whether an agent captured it or someone submitted it by hand.",
     alwaysGroup: true,
     items: [
-      // Dashboard, Evidence, Submit Evidence and Agent Runner for this
-      // ticket — all engineer-visible. Catalogue and Cost (admin-only, like
-      // Admin Console above) arrive with ticket 06, in that screenshot
-      // order.
+      // Dashboard, Evidence, Submit Evidence and Agent Runner are
+      // engineer-visible; Cost and Catalogue are admin-only, like Admin
+      // Console above (see EVIDENCE_ADMIN_ONLY_ITEM_IDS).
       { id: "security-evidence-dashboard", label: "Dashboard", desc: "Evidence status at a glance — coverage, pending review and recent activity.", path: "/security/evidence/dashboard" },
       { id: "security-evidence-evidence", label: "Evidence", desc: "Every Evidence item, with filters, screenshots, and approve, reject and download.", path: "/security/evidence/evidence" },
       { id: "security-evidence-submit", label: "Submit Evidence", desc: "Upload up to four files by hand and link them to a compliance control.", path: "/security/evidence/submit" },
       { id: "security-evidence-agent", label: "Agent Runner", desc: "Start an automated run and watch its progress stream live.", path: "/security/evidence/agent" },
+      { id: "security-evidence-cost", label: "Cost", desc: "Agent run spend over time, with a Reset that filters the view without deleting anything.", path: "/security/evidence/cost" },
+      { id: "security-evidence-catalogue", label: "Catalogue", desc: "Frameworks, Products and Controls, including CSV import of Controls.", path: "/security/evidence/catalogue" },
     ],
   },
   {
@@ -145,11 +144,7 @@ export const SECURITY_ITEM_PRIVILEGE: Readonly<Record<string, string>> = {
 
 /**
  * Catalogue and Cost's own ids, admin-only like the Admin Console items
- * above — but there is no nav entry for either yet (ticket 06 adds them).
- * Defined here now, ahead of that nav entry, purely so useSecurityGate's
- * admin-only rule has something concrete to dispatch on: EVIDENCE_ITEM_IDS
- * below already includes both, so the gate hides them correctly for an
- * engineer even before ticket 06 makes them reachable at all.
+ * above. useSecurityGate's admin-only rule dispatches on this set.
  */
 export const EVIDENCE_CATALOGUE_ITEM_ID = "security-evidence-catalogue";
 export const EVIDENCE_COST_ITEM_ID = "security-evidence-cost";
@@ -167,10 +162,6 @@ export const EVIDENCE_ADMIN_ONLY_ITEM_IDS: ReadonlySet<string> = new Set([
  * from the Evidence backend's own /api/me — its role decides engineer vs
  * admin, and EVIDENCE_ADMIN_ONLY_ITEM_IDS above decides which ids need the
  * admin role specifically. See that gate for the full rule.
- *
- * Includes EVIDENCE_ADMIN_ONLY_ITEM_IDS even though Catalogue and Cost have
- * no nav entry yet — the gate must recognise both ids as Evidence's own
- * before ticket 06 wires them into SECURITY_APPS, not after.
  */
 export const EVIDENCE_ITEM_IDS: ReadonlySet<string> = new Set([
   ...(SECURITY_APPS.find((app) => app.key === "evidence-portal")?.items.map((it) => it.id) ?? []),

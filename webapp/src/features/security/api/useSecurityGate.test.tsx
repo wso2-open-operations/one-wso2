@@ -151,8 +151,7 @@ describe("useSecurityGate", () => {
     expect(result.current.canSee("security-not-a-real-item")).toBe(false);
   });
 
-  // The real rule ticket 03 adds, replacing ticket 02's "configured means
-  // visible" placeholder: Evidence's own /api/me — folded into this same
+  // Evidence's own /api/me — folded into this same
   // gate via useCurrentUser — decides engineer vs admin vs no access at all.
   describe("the Evidence item's real visibility rule", () => {
     it("shows an engineer every Evidence item except the admin-only ones", async () => {
@@ -207,8 +206,7 @@ describe("useSecurityGate", () => {
     });
 
     // Risk/Audit/Admin must not start reporting "hidden" just because
-    // Evidence's own, independent query is still in flight — the one thing
-    // this ticket must not change about the GRC half of the gate. Evidence
+    // Evidence's own, independent query is still in flight. Evidence
     // is left permanently pending, so this only passes if Risk's own answer
     // does not wait on it.
     it("does not hold Risk/Audit/Admin visibility hostage to a slow Evidence answer", async () => {
