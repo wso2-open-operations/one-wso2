@@ -84,6 +84,12 @@ window.config = {
   // src/config/apiConfig.ts.
   // ONE_WSO2_GRC_PLATFORM_BACKEND_URL: "<your-grc-platform-backend-url>",
 
+  // grc-tools evidence-app backend base URL — the Evidence Portal, the
+  // third app under Security and Compliance, lifted alongside GRC Platform
+  // above. Optional — when absent the Evidence Portal shows a not connected
+  // notice and makes no requests. Same audience requirement as GRC Platform.
+  // ONE_WSO2_EVIDENCE_PORTAL_BACKEND_URL: "<your-evidence-app-backend-url>",
+
   // digiops-finance backend base URLs — the three apps in the Finance
   // perspective. Each is a separate Ballerina service with its own
   // /user-info + role scheme. Optional — when a URL is absent, that app's

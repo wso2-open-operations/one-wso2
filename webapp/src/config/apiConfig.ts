@@ -1329,6 +1329,21 @@ export function isSecurityBackendConfigured(): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Evidence Portal backend — the third app under Security and Compliance,
+// lifted from grc-tools/apps/evidence-app alongside the GRC Platform above.
+// A separate service with its own backend, so its own key and its own
+// trailing-slash strip (every endpoint below it is built by appending a
+// leading "/", the same convention securityBackendUrl and every other
+// backend URL in this file follow).
+export const evidencePortalBackendUrl: string = (
+  window.config?.ONE_WSO2_EVIDENCE_PORTAL_BACKEND_URL ?? ""
+).replace(/\/+$/, "");
+
+export function isEvidencePortalBackendConfigured(): boolean {
+  return Boolean(evidencePortalBackendUrl);
+}
+
+// ---------------------------------------------------------------------------
 // Sales backend. Sales is the One WSO2 perspective for the call-review
 // experience; the service behind it is people-ops-suite's meet-app backend,
 // reused unchanged. The naming difference is deliberate and worth knowing: the
