@@ -14,7 +14,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type { ReactNode } from "react";
 import { Navigate, Route } from "react-router";
 import EvidencePortalLayout from "./components/EvidencePortalLayout";
 import Dashboard from "./pages/Dashboard";
@@ -23,8 +22,7 @@ import SubmitEvidence from "./pages/SubmitEvidence";
 import AgentRunner from "./pages/AgentRunner";
 import Cost from "./pages/Cost";
 import Catalogue from "./pages/Catalogue";
-import { useCurrentUser } from "./hooks/useCurrentUser";
-import { evidencePortalPaths } from "./paths";
+import AdminOnly from "./components/AdminOnly";
 
 // Evidence Portal routes, mounted under /security/evidence by App.tsx —
 // same idea as the GRC modules' own routes.tsx fragments beside it. Owned by
@@ -41,15 +39,6 @@ import { evidencePortalPaths } from "./paths";
 // (grc-tools/apps/evidence-app/webapp/src/App.tsx: `/history` -> `/evidence`),
 // carried across at the same relative depth so a bookmark of the old URL
 // still lands on the list once rewritten under this prefix.
-// Cost and Catalogue are admin only, as in the standalone app. Wait for the
-// first /me round trip before deciding, so an admin is never bounced off their
-// own page while their role is still loading.
-function AdminOnly({ children }: { children: ReactNode }) {
-  const { isAdmin, isLoaded } = useCurrentUser();
-  if (!isLoaded) return null;
-  return isAdmin ? children : <Navigate to={evidencePortalPaths.dashboard} replace />;
-}
-
 export const evidenceRoutes = (
   <Route path="evidence" element={<EvidencePortalLayout />}>
     <Route index element={<Navigate to="dashboard" replace />} />
