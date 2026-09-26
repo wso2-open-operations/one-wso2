@@ -1,0 +1,35 @@
+// Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+import { Navigate, Route } from "react-router";
+import EvidencePortalLayout from "./components/EvidencePortalLayout";
+import Dashboard from "./pages/Dashboard";
+
+// Evidence Portal routes, mounted under /security/evidence by App.tsx —
+// same idea as the GRC modules' own routes.tsx fragments beside it. Owned by
+// this module: add its remaining pages (Evidence, Submit Evidence, Agent
+// Runner, and the admin-only Catalogue and Cost) here as later tickets bring
+// them in, without touching App.tsx.
+//
+// EvidencePortalLayout wraps the whole subtree once — the auth wiring and the
+// not-connected notice both belong above every leaf page, not repeated on
+// each one as they arrive.
+export const evidenceRoutes = (
+  <Route path="evidence" element={<EvidencePortalLayout />}>
+    <Route index element={<Navigate to="dashboard" replace />} />
+    <Route path="dashboard" element={<Dashboard />} />
+  </Route>
+);

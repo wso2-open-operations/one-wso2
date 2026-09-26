@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { isSecurityBackendConfigured } from "@config/apiConfig";
-import { SECURITY_ITEM_PRIVILEGE } from "@constants/securityApps";
+import { isEvidencePortalBackendConfigured, isSecurityBackendConfigured } from "@config/apiConfig";
+import { EVIDENCE_ITEM_IDS, SECURITY_ITEM_PRIVILEGE } from "@constants/securityApps";
 import { useRiskPrivileges } from "@features/security/grc/modules/risk/hooks/useRiskPrivileges";
 import { useAuditPrivileges } from "@features/security/grc/modules/audit/hooks/useAuditPrivileges";
 import { useAdminPrivileges } from "@features/security/grc/modules/admin/hooks/useAdminPrivileges";
@@ -73,6 +73,17 @@ export function useSecurityGate(enabled = true): SecurityGate {
   };
 
   const canSee = (itemId: string): boolean => {
+    // TEMPORARY, for this ticket only — ticket 03 replaces this with the
+    // Evidence backend's own identity/role check (the spec's "access
+    // decision"), folded in the same way the GRC privileges are below. Until
+    // then, an Evidence item is visible whenever the Evidence backend has an
+    // address configured, full stop: no privilege lookup, no role check,
+    // and — unlike the GRC items below — no dependency on `active`/
+    // `isResolving`, because nothing here calls the Evidence backend at all
+    // yet. `enabled` alone still applies: a disabled gate shows nothing,
+    // Evidence included.
+    if (EVIDENCE_ITEM_IDS.has(itemId)) return enabled && isEvidencePortalBackendConfigured();
+
     // Fail closed while resolving, while inactive, and for an id nobody mapped —
     // an unmapped item is a registry mistake, not an invitation.
     if (!active || isResolving) return false;

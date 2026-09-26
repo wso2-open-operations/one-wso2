@@ -35,8 +35,21 @@
 // No `requires` on any item, deliberately. That vocabulary is people-app
 // privilege NUMBERS, which say nothing about GRC grants — and an Action Owner
 // may hold neither. The real decision is useSecurityGate, asked by id.
+//
+// A FOURTH APP, Evidence Portal, sits after Risk Hub — a separate lift from a
+// separate source (grc-tools/apps/evidence-app, not grc-platform), added by
+// this port rather than transcribed from anything upstream. Its item order
+// here is the port's own screenshot order (Dashboard, Evidence, Submit
+// Evidence, Agent Runner, then the admin-only Catalogue and Cost), not a rule
+// borrowed from the GRC source. This ticket adds only Dashboard; the rest
+// arrive with later tickets.
 
-import { ShieldAlertIcon, ShieldCheckIcon, SlidersHorizontalIcon } from "@wso2/oxygen-ui-icons-react";
+import {
+  ClipboardCheckIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
+  SlidersHorizontalIcon,
+} from "@wso2/oxygen-ui-icons-react";
 import type { MenuApp } from "@constants/appMenu";
 
 export const SECURITY_APPS: readonly MenuApp[] = [
@@ -70,6 +83,21 @@ export const SECURITY_APPS: readonly MenuApp[] = [
     ],
   },
   {
+    key: "evidence-portal",
+    name: "Evidence Portal",
+    icon: ClipboardCheckIcon,
+    purpose:
+      "Compliance evidence — collect, review and hand off the evidence an audit needs, whether an agent captured it or someone submitted it by hand.",
+    alwaysGroup: true,
+    items: [
+      // Dashboard only for this ticket. Evidence, Submit Evidence and Agent
+      // Runner (engineer-visible) and Catalogue and Cost (admin-only, like
+      // Admin Console above) arrive with later tickets, in that screenshot
+      // order.
+      { id: "security-evidence-dashboard", label: "Dashboard", desc: "Evidence status at a glance — coverage, pending review and recent activity.", path: "/security/evidence/dashboard" },
+    ],
+  },
+  {
     key: "admin-console",
     name: "Admin Console",
     icon: SlidersHorizontalIcon,
@@ -93,6 +121,11 @@ export const SECURITY_APPS: readonly MenuApp[] = [
  *
  * Registers maps to RISK_VIEW_RISKS, which a grant-less Action Owner receives
  * synthetically — see the source's mergeRiskPrivileges.
+ *
+ * Evidence Portal items are deliberately ABSENT here — there is no GRC
+ * privilege for them to map to. useSecurityGate special-cases
+ * EVIDENCE_ITEM_IDS before it ever looks in this map; see that gate's
+ * temporary visibility rule and the comment on EVIDENCE_ITEM_IDS below.
  */
 export const SECURITY_ITEM_PRIVILEGE: Readonly<Record<string, string>> = {
   "security-audit-dashboard": "AUDIT_VIEW_AUDITS",
@@ -105,6 +138,20 @@ export const SECURITY_ITEM_PRIVILEGE: Readonly<Record<string, string>> = {
   "security-admin-audit-hub": "MANAGE_AUDIT_HUB",
   "security-admin-risk-hub": "MANAGE_RISK_HUB",
 };
+
+/**
+ * Evidence Portal's own item ids, kept apart from SECURITY_ITEM_PRIVILEGE's
+ * privilege map because there is nothing GRC-shaped to put in it: the
+ * Evidence backend has no /me/privileges of its own to ask, so this ticket's
+ * gate rule for these ids is "is the backend configured at all", not a
+ * privilege lookup. Ticket 03 replaces that rule with the real one (the
+ * Evidence backend's own identity/role check) and this set is what it will
+ * dispatch on, the same way SECURITY_ITEM_IDS below dispatches
+ * usePerspectiveVisibility to useSecurityGate in the first place.
+ */
+export const EVIDENCE_ITEM_IDS: ReadonlySet<string> = new Set(
+  SECURITY_APPS.find((app) => app.key === "evidence-portal")?.items.map((it) => it.id) ?? [],
+);
 
 /** Ids the rail must route through useSecurityGate rather than `requires`. */
 export const SECURITY_ITEM_IDS: ReadonlySet<string> = new Set(

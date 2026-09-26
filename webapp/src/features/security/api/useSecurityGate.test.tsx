@@ -25,9 +25,11 @@ vi.mock("@features/security/grc/shim/useAuthApiClient", () => ({
 }));
 
 let configured = true;
+let evidenceConfigured = true;
 vi.mock("@config/apiConfig", () => ({
   isSecurityBackendConfigured: () => configured,
   securityBackendUrl: "https://example.invalid",
+  isEvidencePortalBackendConfigured: () => evidenceConfigured,
 }));
 
 import { useSecurityGate } from "./useSecurityGate";
@@ -38,6 +40,7 @@ function jsonOnce(body: unknown) {
 
 beforeEach(() => {
   configured = true;
+  evidenceConfigured = true;
   authFetch.mockReset();
   authFetch.mockImplementation((url: string) =>
     String(url).includes("involvement") ? jsonOnce({ namedOnRisk: false }) : jsonOnce({ privileges: [] }),
@@ -94,5 +97,26 @@ describe("useSecurityGate", () => {
     const { result } = renderHook(() => useSecurityGate(true));
     await waitFor(() => expect(result.current.isResolving).toBe(false));
     expect(result.current.canSee("security-not-a-real-item")).toBe(false);
+  });
+
+  // The temporary rule this ticket adds: Evidence items answer off the
+  // Evidence backend's own config flag, not the GRC privilege map above, and
+  // not the GRC hooks' loading state either — it does not wait on them.
+  describe("the Evidence item's temporary visibility rule", () => {
+    it("shows the Evidence dashboard once the Evidence backend is configured", () => {
+      const { result } = renderHook(() => useSecurityGate(true));
+      expect(result.current.canSee("security-evidence-dashboard")).toBe(true);
+    });
+
+    it("hides the Evidence dashboard when the Evidence backend has no address", () => {
+      evidenceConfigured = false;
+      const { result } = renderHook(() => useSecurityGate(true));
+      expect(result.current.canSee("security-evidence-dashboard")).toBe(false);
+    });
+
+    it("hides the Evidence dashboard while the gate itself is disabled", () => {
+      const { result } = renderHook(() => useSecurityGate(false));
+      expect(result.current.canSee("security-evidence-dashboard")).toBe(false);
+    });
   });
 });
