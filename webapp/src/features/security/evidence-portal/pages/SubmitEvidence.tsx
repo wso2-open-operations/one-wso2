@@ -95,7 +95,7 @@ export default function SubmitEvidence() {
   };
 
   return (
-    <Box sx={{ maxWidth: 640, mx: "auto" }}>
+    <Box sx={{ maxWidth: 880, mx: "auto" }}>
       <Box sx={{ textAlign: "center", mb: 4 }}>
         <Typography variant="h4" gutterBottom>
           Submit Evidence
