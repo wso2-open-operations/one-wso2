@@ -20,6 +20,7 @@ import { Link as RouterLink } from "react-router";
 import { Box, Grid, Card, CardContent, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Stack, FormControl, InputLabel, Select, MenuItem, Tooltip, Link, Alert, Button } from "@wso2/oxygen-ui";
 import { FileText, Mail, Network, Clock, Zap, CircleUser } from "@wso2/oxygen-ui-icons-react";
 import { evidenceApi, submissionsApi, frameworksApi, productsApi, controlsApi } from "../api/client";
+import { evidencePortalPaths } from "../paths";
 
 type Product = { id: number; name: string };
 type Framework = { id: number; name: string; product_id: number };
@@ -225,7 +226,7 @@ export default function Dashboard() {
   
         <Stack direction="row" alignItems="baseline" justifyContent="space-between" sx={{ mb: 1.5 }}>
           <Typography variant="h6">Recent Submissions</Typography>
-          <Link component={RouterLink} to="/evidence" underline="hover" sx={{ fontSize: "0.875rem", fontWeight: 500 }}>
+          <Link component={RouterLink} to={evidencePortalPaths.evidence} underline="hover" sx={{ fontSize: "0.875rem", fontWeight: 500 }}>
             View all →
           </Link>
         </Stack>

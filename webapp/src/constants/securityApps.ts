@@ -41,8 +41,9 @@
 // this port rather than transcribed from anything upstream. Its item order
 // here is the port's own screenshot order (Dashboard, Evidence, Submit
 // Evidence, Agent Runner, then the admin-only Catalogue and Cost), not a rule
-// borrowed from the GRC source. This ticket adds only Dashboard; the rest
-// arrive with later tickets.
+// borrowed from the GRC source. Dashboard and Evidence arrive with tickets 03
+// and 04; Submit Evidence, Agent Runner, Catalogue and Cost arrive with later
+// tickets.
 
 import {
   ClipboardCheckIcon,
@@ -90,11 +91,12 @@ export const SECURITY_APPS: readonly MenuApp[] = [
       "Compliance evidence — collect, review and hand off the evidence an audit needs, whether an agent captured it or someone submitted it by hand.",
     alwaysGroup: true,
     items: [
-      // Dashboard only for this ticket. Evidence, Submit Evidence and Agent
+      // Dashboard and Evidence for this ticket. Submit Evidence and Agent
       // Runner (engineer-visible) and Catalogue and Cost (admin-only, like
       // Admin Console above) arrive with later tickets, in that screenshot
       // order.
       { id: "security-evidence-dashboard", label: "Dashboard", desc: "Evidence status at a glance — coverage, pending review and recent activity.", path: "/security/evidence/dashboard" },
+      { id: "security-evidence-evidence", label: "Evidence", desc: "Every Evidence item, with filters, screenshots, and approve, reject and download.", path: "/security/evidence/evidence" },
     ],
   },
   {

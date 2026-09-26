@@ -17,19 +17,27 @@
 import { Navigate, Route } from "react-router";
 import EvidencePortalLayout from "./components/EvidencePortalLayout";
 import Dashboard from "./pages/Dashboard";
+import EvidenceList from "./pages/EvidenceList";
 
 // Evidence Portal routes, mounted under /security/evidence by App.tsx —
 // same idea as the GRC modules' own routes.tsx fragments beside it. Owned by
-// this module: add its remaining pages (Evidence, Submit Evidence, Agent
-// Runner, and the admin-only Catalogue and Cost) here as later tickets bring
-// them in, without touching App.tsx.
+// this module: add its remaining pages (Submit Evidence, Agent Runner, and
+// the admin-only Catalogue and Cost) here as later tickets bring them in,
+// without touching App.tsx.
 //
 // EvidencePortalLayout wraps the whole subtree once — the auth wiring and the
 // not-connected notice both belong above every leaf page, not repeated on
 // each one as they arrive.
+//
+// "history" is the old standalone app's own redirect
+// (grc-tools/apps/evidence-app/webapp/src/App.tsx: `/history` -> `/evidence`),
+// carried across at the same relative depth so a bookmark of the old URL
+// still lands on the list once rewritten under this prefix.
 export const evidenceRoutes = (
   <Route path="evidence" element={<EvidencePortalLayout />}>
     <Route index element={<Navigate to="dashboard" replace />} />
     <Route path="dashboard" element={<Dashboard />} />
+    <Route path="evidence" element={<EvidenceList />} />
+    <Route path="history" element={<Navigate to="evidence" replace />} />
   </Route>
 );
