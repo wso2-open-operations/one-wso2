@@ -121,6 +121,13 @@ window.config = {
   // preserves that prefix.
   // ONE_WSO2_MARKETINGOPS_BACKEND_URL: "<your-marketing-ops-backend-url>",
 
+  // digiops-marketing agenda-organizer backend base URL — the Event Platform
+  // screens under Marketing Ops. A service of its own, not part of the
+  // marketing-ops backend above, though access is still decided by that
+  // backend's /api/me. Routes live under /api/*. Optional — when absent, the
+  // Event Platform screens show a "not connected" state.
+  // ONE_WSO2_EVENT_PLATFORM_BACKEND_URL: "<your-event-platform-backend-url>",
+
   // Due Diligence backend, surfaced under both the Finance and Legal
   // perspectives.
   // ONE_WSO2_DUE_DILIGENCE_BACKEND_URL: "<your-due-diligence-backend-url>",
