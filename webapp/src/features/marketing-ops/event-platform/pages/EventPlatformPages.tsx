@@ -57,8 +57,7 @@ function useEventPlatformGate() {
   return useMarketingOpsGate(isMarketingOpsBackendConfigured());
 }
 
-const ADMIN_GATE: EventPlatformGateId = "mops-event-platform-admin";
-const SHOP_GATE: EventPlatformGateId = "mops-event-platform-shop";
+const EVENTS_GATE: EventPlatformGateId = "mops-event-platform-events";
 
 /** `/marketing-ops/event-platform/*` outside an event: Events or Speakers, picked in the rail. */
 export function EventPlatformHomePage() {
@@ -72,7 +71,7 @@ export function EventPlatformHomePage() {
     // below renders — and no redirect fires — on an unanswered gate.
     <EventPlatformShell title={tab?.label ?? "Event Platform"} subtitle={kind?.subtitle}>
       {tabs.length === 0 ? (
-        <NoTopLevelTabs canOpenShop={gate.canSee(SHOP_GATE)} />
+        <Alert severity="info">This isn&apos;t available for your role.</Alert>
       ) : (
         <>
           {tab && (
@@ -89,24 +88,6 @@ export function EventPlatformHomePage() {
   );
 }
 
-// A shop-only user has no top-level screen: the source gave them no events
-// list, only the shop of an event they were sent to. Say so rather than
-// showing the bare refusal, which would read as having no access at all.
-//
-// Whether shop users should get a list to pick from is an open question in the
-// port plan; until it is settled this is the honest answer.
-function NoTopLevelTabs({ canOpenShop }: { canOpenShop: boolean }) {
-  if (canOpenShop) {
-    return (
-      <Alert severity="info">
-        Your role covers event shops. Open the shop from a link to its event — the events list is
-        for Event Platform admins.
-      </Alert>
-    );
-  }
-  return <Alert severity="info">This isn&apos;t available for your role.</Alert>;
-}
-
 /** `/marketing-ops/event-platform/events/:eventId/*`: Sessions | Shop | Settings. */
 export function EventPlatformEventPage() {
   const gate = useEventPlatformGate();
@@ -114,9 +95,9 @@ export function EventPlatformEventPage() {
   const { pathname } = useLocation();
   const tabs = visibleTabs(EVENT_TABS, gate.canSee);
   const { tab, kind } = parseEventPlatformPath(pathname);
-  // Back to the list only for those who may open it — a shop user following
-  // it would be refused on arrival.
-  const canSeeList = gate.canSee(ADMIN_GATE);
+  // Back to the list for whoever may open it, which is both roles; the check is
+  // the list route's own gate, so the link and the route cannot disagree.
+  const canSeeList = gate.canSee(EVENTS_GATE);
 
   return (
     <EventPlatformShell title={tab?.label ?? "Event"} subtitle={kind?.subtitle}>

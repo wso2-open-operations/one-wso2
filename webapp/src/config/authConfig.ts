@@ -135,9 +135,10 @@ declare global {
       // absent, MarketingOpsShell shows a "not connected" state.
       ONE_WSO2_MARKETINGOPS_BACKEND_URL?: string;
       // Base URL for the digiops-marketing agenda-organizer backend — the
-      // Event Platform screens under Marketing Ops. Its own service; access is
-      // still decided by the marketing-ops /api/me. Optional — when absent,
-      // the Event Platform shell shows a "not connected" state.
+      // Event Platform screens under Marketing Ops. Its own service: the
+      // marketing-ops /api/me decides what the UI shows, and this backend
+      // enforces its own roles. Optional — when absent, the Event Platform
+      // shell shows a "not connected" state.
       ONE_WSO2_EVENT_PLATFORM_BACKEND_URL?: string;
       // ISAC's own base URL — a separate marketing application, linked to
       // from the top of the Marketing Ops rail and opened in a new tab.

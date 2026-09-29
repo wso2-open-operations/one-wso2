@@ -82,10 +82,11 @@ const ITEM_CAPABILITY: Record<
   // `designstudio` group.
   "mops-design-studio-post-builder": "designstudio",
   // Event Platform. The first two are its rail items — All Events opens for
-  // either role so a shop user has a way in; the other two are the gate ids
-  // its tabs ask (see event-platform/eventPlatformTabs.ts). The shop takes
-  // either capability because the source let admin OR shop into it (its
-  // router.tsx) and everything else to admin alone.
+  // either role so a shop user has a way in, and its route asks the same id,
+  // so the two cannot disagree; the other two are the gate ids its tabs ask
+  // (see event-platform/eventPlatformTabs.ts). The shop takes either
+  // capability because the source let admin OR shop into it (its router.tsx)
+  // and everything else to admin alone.
   "mops-event-platform-events": ["eventplatform", "eventplatform-shop"],
   "mops-event-platform-speakers": "eventplatform",
   "mops-event-platform-admin": "eventplatform",

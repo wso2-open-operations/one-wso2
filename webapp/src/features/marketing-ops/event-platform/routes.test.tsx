@@ -45,8 +45,13 @@ function gateAllowing(...ids: string[]): MarketingOpsGate {
   };
 }
 
-const ADMIN = gateAllowing("mops-event-platform-admin", "mops-event-platform-shop");
-const SHOP_ONLY = gateAllowing("mops-event-platform-shop");
+const ADMIN = gateAllowing(
+  "mops-event-platform-admin",
+  "mops-event-platform-events",
+  "mops-event-platform-shop",
+);
+const SHOP_ONLY = gateAllowing("mops-event-platform-events", "mops-event-platform-shop");
+const NOBODY = gateAllowing();
 
 function UrlProbe() {
   return <div data-testid="url">{useLocation().pathname}</div>;
@@ -81,8 +86,8 @@ describe("the Event Platform routes", () => {
   it("land a shop-only user inside an event at its inventory", async () => {
     await visit("/marketing-ops/event-platform/events/42", SHOP_ONLY);
     expect(url()).toBe("/marketing-ops/event-platform/events/42/shop/inventory");
-    // The list would refuse them, so it is not offered.
-    expect(screen.queryByRole("link", { name: /All events/ })).not.toBeInTheDocument();
+    // The list is open to them too, so the way back is offered.
+    expect(screen.getByRole("link", { name: /All events/ })).toBeInTheDocument();
   });
 
   it("send a shop-only user who types an admin URL to the shop instead", async () => {
@@ -96,13 +101,30 @@ describe("the Event Platform routes", () => {
     expect(screen.getByText("Shop orders")).toBeInTheDocument();
   });
 
-  it("tell a shop-only user at the top level where the shop is", () => {
-    gate.value = SHOP_ONLY;
+  // The All Events rail item is open to shop users, so its route must be too —
+  // otherwise the rail offers a dead end.
+  it("land a shop-only user at the top level on the events list", async () => {
+    await visit("/marketing-ops/event-platform", SHOP_ONLY);
+    expect(url()).toBe("/marketing-ops/event-platform/events");
+  });
+
+  it("send a shop-only user who types the speaker library URL to the events list", async () => {
+    await visit("/marketing-ops/event-platform/speakers", SHOP_ONLY);
+    expect(url()).toBe("/marketing-ops/event-platform/events");
+  });
+
+  it("tell someone with neither role that nothing is available", () => {
+    gate.value = NOBODY;
     render(
       <MemoryRouter initialEntries={["/marketing-ops/event-platform"]}>
         <Routes>{eventPlatformRoutes}</Routes>
       </MemoryRouter>,
     );
-    expect(screen.getByText(/Your role covers event shops/)).toBeInTheDocument();
+    expect(screen.getByText(/isn.t available for your role/)).toBeInTheDocument();
+  });
+
+  it("render a malformed event id instead of blanking the app", async () => {
+    await visit("/marketing-ops/event-platform/events/%E0/settings", ADMIN);
+    expect(url()).toBe("/marketing-ops/event-platform/events/%E0/settings");
   });
 });

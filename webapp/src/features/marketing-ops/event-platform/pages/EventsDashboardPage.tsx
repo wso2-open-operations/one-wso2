@@ -18,6 +18,10 @@ import ComingSoon from "../components/ComingSoon";
 
 // The source's EventsDashboard: every event, and creating one.
 // A placeholder until phase 3 ports it; the route, tab and guard are real.
+// The route admits both roles (see eventPlatformTabs.ts), so phase 3 branches
+// here: admins get the full dashboard, shop users a read-only list whose cards
+// open that event's `shop/inventory`, with create checked against
+// `mops-event-platform-admin`.
 export default function EventsDashboardPage() {
   return <ComingSoon screen="Events" phase={3} />;
 }

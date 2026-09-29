@@ -42,13 +42,20 @@ export const EVENT_PLATFORM_ITEM_IDS = {
 } as const;
 
 /**
- * Permissions, resolved by `useMarketingOpsGate().canSee`. Two, because the
- * source had two roles: admin (everything) and shop (the shop, and nothing
- * else). The marketing-ops `isAdmin` master key opens both.
+ * Permissions, resolved by `useMarketingOpsGate().canSee`. The source had two
+ * roles: admin (everything) and shop (the shop, and nothing else). The
+ * marketing-ops `isAdmin` master key opens every one of these.
+ *
+ * The events list has an id of its own, the same one as its rail item: a shop
+ * user needs the list to reach an event's shop, so it takes either role, and
+ * sharing the rail's id means the rail can never offer an entry the route then
+ * refuses.
  */
 export type EventPlatformGateId =
   /** `eventplatform` — the source's admin role. */
   | "mops-event-platform-admin"
+  /** `eventplatform` OR `eventplatform-shop` — the All Events rail item and its route. */
+  | typeof EVENT_PLATFORM_ITEM_IDS.events
   /** `eventplatform` OR `eventplatform-shop`. */
   | "mops-event-platform-shop";
 
@@ -80,9 +87,11 @@ export const TOP_LEVEL_TABS: readonly EventPlatformTabDef[] = [
       {
         kind: "events",
         label: "Events",
-        // router.tsx — behind AdminGuard. A shop user has no list; see
-        // EventPlatformHomePage for what they are told instead.
-        gateId: "mops-event-platform-admin",
+        // router.tsx — behind AdminGuard. Opened to shop users here, so they
+        // have a list to reach an event's shop from (the port spec's Q1). The
+        // page itself decides what each role gets: admins the full dashboard,
+        // shop users a read-only list whose cards open `shop/inventory`.
+        gateId: EVENT_PLATFORM_ITEM_IDS.events,
         subtitle: "Every event on the platform. Open one to plan its agenda or run its shop.",
       },
     ],
@@ -230,10 +239,9 @@ export function visibleTabs(
  * Where to land: the first tab this person may open, at its first kind they
  * may open. Top level without an `eventId`, inside that event with one.
  *
- * `undefined` at the top level is a real answer, not an edge case: a shop-only
- * user has no top-level tab at all, because the source gave them no events
- * list. Drives the index redirects and the guards' refusals both, so they
- * cannot disagree.
+ * `undefined` means there is nowhere to go — someone holding neither role.
+ * Drives the index redirects and the guards' refusals both, so they cannot
+ * disagree.
  */
 export function firstAllowedPath(
   canSee: (id: string) => boolean,
@@ -267,7 +275,7 @@ export function parseEventPlatformPath(pathname: string): {
   const segments = rest.replace(/^\//, "").split("/");
 
   if (segments[0] === "events" && segments[1]) {
-    const eventId = decodeURIComponent(segments[1]);
+    const eventId = decodeSegment(segments[1]);
     const tab = segments[2] ? eventTab(segments[2]) : undefined;
     if (!tab) return { eventId };
     return { eventId, tab, kind: kindOf(tab, segments[3]) };
@@ -276,6 +284,18 @@ export function parseEventPlatformPath(pathname: string): {
   const tab = segments[0] ? topLevelTab(segments[0]) : undefined;
   if (!tab) return {};
   return { tab, kind: kindOf(tab, segments[1]) };
+}
+
+// A typed URL can carry a malformed escape (`%E0`), and decodeURIComponent
+// throws on one. The pages parse the path while rendering, so a throw here
+// would take down the whole tree; fall back to the raw segment, as React
+// Router's own path decoding does.
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 // A single-kind tab has no kind segment, so its one kind is implied.

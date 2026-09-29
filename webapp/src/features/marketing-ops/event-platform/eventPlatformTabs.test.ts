@@ -34,10 +34,14 @@ import { MARKETING_OPS_APPS } from "@constants/marketingOpsApps";
 const allowing = (...ids: string[]) => (id: string) => ids.includes(id);
 
 // What useMarketingOpsGate answers for each role: an `eventplatform` holder
-// (or a marketing-ops admin) passes both gate ids, an `eventplatform-shop`
-// holder only the shop one.
-const ADMIN = allowing("mops-event-platform-admin", "mops-event-platform-shop");
-const SHOP_ONLY = allowing("mops-event-platform-shop");
+// (or a marketing-ops admin) passes every gate id, an `eventplatform-shop`
+// holder the events list and the shop.
+const ADMIN = allowing(
+  "mops-event-platform-admin",
+  "mops-event-platform-events",
+  "mops-event-platform-shop",
+);
+const SHOP_ONLY = allowing("mops-event-platform-events", "mops-event-platform-shop");
 const NOBODY = allowing();
 
 describe("the shape of the Event Platform", () => {
@@ -71,6 +75,14 @@ describe("the shape of the Event Platform", () => {
         expect(kind.subtitle.length, `${tab.segment}/${kind.kind}`).toBeGreaterThan(0);
       }
     }
+  });
+
+  // The rail item and the route it opens ask the same id, so the rail cannot
+  // offer a shop user an entry the route then refuses.
+  it("gates the events list on its rail item's own id", () => {
+    expect(topLevelTab("events")!.kinds.map((k) => k.gateId)).toEqual([
+      EVENT_PLATFORM_ITEM_IDS.events,
+    ]);
   });
 
   // The source let a shop user into the two shop screens and nothing else.
@@ -111,6 +123,14 @@ describe("paths", () => {
     const path = eventPath("a/b", eventTab("settings")!);
     expect(path).toBe("/marketing-ops/event-platform/events/a%2Fb/settings");
     expect(parseEventPlatformPath(path).eventId).toBe("a/b");
+  });
+
+  // A typed URL with a malformed escape must not throw: the pages parse the
+  // path while rendering, and a throw there blanks the whole app.
+  it("keeps a malformed event id as it was typed rather than throwing", () => {
+    const parsed = parseEventPlatformPath("/marketing-ops/event-platform/events/%E0/settings");
+    expect(parsed.eventId).toBe("%E0");
+    expect(parsed.tab?.segment).toBe("settings");
   });
 
   it("round-trips top-level tabs through parseEventPlatformPath", () => {
@@ -175,8 +195,8 @@ describe("what each role is offered", () => {
     ]);
   });
 
-  it("gives a shop-only user the Shop tab and nothing else", () => {
-    expect(visibleTabs(TOP_LEVEL_TABS, SHOP_ONLY)).toEqual([]);
+  it("gives a shop-only user the events list and the Shop tab, nothing else", () => {
+    expect(visibleTabs(TOP_LEVEL_TABS, SHOP_ONLY).map((t) => t.segment)).toEqual(["events"]);
     expect(visibleTabs(EVENT_TABS, SHOP_ONLY).map((t) => t.segment)).toEqual(["shop"]);
     expect(visibleKinds(eventTab("shop")!, SHOP_ONLY).map((k) => k.kind)).toEqual([
       "inventory",
@@ -204,10 +224,10 @@ describe("where each role lands", () => {
     );
   });
 
-  // The source gave a shop user no events list, so there is no top-level
-  // screen to send them to — the home page explains instead.
-  it("sends a shop-only user nowhere at the top level", () => {
-    expect(firstAllowedPath(SHOP_ONLY)).toBeUndefined();
+  // The source gave a shop user no events list; the port does (spec Q1), so
+  // they land where they can pick an event.
+  it("sends a shop-only user to the events list at the top level", () => {
+    expect(firstAllowedPath(SHOP_ONLY)).toBe("/marketing-ops/event-platform/events");
   });
 
   it("sends someone who may see nothing nowhere at all", () => {

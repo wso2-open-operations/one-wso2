@@ -56,6 +56,7 @@ function leaf(gateId: EventPlatformGateId, Page: LazyExoticComponent<ComponentTy
 // the tabs OFFER, these decide what the routes ALLOW, and the tests there pin
 // which kinds belong to the shop.
 const ADMIN: EventPlatformGateId = "mops-event-platform-admin";
+const EVENTS: EventPlatformGateId = "mops-event-platform-events";
 const SHOP: EventPlatformGateId = "mops-event-platform-shop";
 
 // Event Platform routes, spread into App.tsx. Owned by the feature, as the GRC
@@ -65,7 +66,7 @@ export const eventPlatformRoutes = (
   <Route path={EVENT_PLATFORM_PATH.slice(1)}>
     <Route element={<EventPlatformHomePage />}>
       <Route index element={<EventPlatformIndex />} />
-      <Route path="events" element={leaf(ADMIN, EventsDashboardPage)} />
+      <Route path="events" element={leaf(EVENTS, EventsDashboardPage)} />
       <Route path="speakers" element={leaf(ADMIN, SpeakerLibraryPage)} />
     </Route>
 

@@ -1037,9 +1037,10 @@ export const marketingOpsServiceUrls = {
 
 // The Event Platform backend (digiops-marketing/apps/conference/agenda-organizer)
 // — its own service, NOT a router of the Marketing Ops backend above, so it has a
-// key of its own. Who may use it is still decided by the Marketing Ops gate
-// (/api/me capabilities `eventplatform` and `eventplatform-shop`); this URL is
-// only where the data lives.
+// key of its own. The Marketing Ops gate (/api/me capabilities `eventplatform`
+// and `eventplatform-shop`) decides only what the UI offers. It runs in the
+// browser and is not the enforcement point: the agenda-organizer checks the
+// admin and shop roles itself, on every route, against the token it is sent.
 //
 // Like Marketing Ops, its routes are namespaced under `/api/*`. Same
 // trailing-slash strip, for the same reason.
