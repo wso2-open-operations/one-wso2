@@ -15,10 +15,17 @@
 // under the License.
 
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, useLocation } from "react-router";
 import type { MarketingOpsGate } from "@features/marketing-ops/api/useMarketingOpsGate";
 import { eventPlatformRoutes } from "./routes";
+import {
+  EVENT_TABS,
+  TOP_LEVEL_TABS,
+  eventPath,
+  eventPlatformPath,
+  type EventPlatformKindDef,
+} from "./eventPlatformTabs";
 
 // eventPlatformTabs.test.ts pins what the tabs OFFER. This pins what the ROUTES
 // allow, which is the part that is access control: the gate ids are written
@@ -123,8 +130,50 @@ describe("the Event Platform routes", () => {
     expect(screen.getByText(/isn.t available for your role/)).toBeInTheDocument();
   });
 
+  // A tab's parent path goes through its index, not a guarded leaf, so it
+  // needs the same fallback: the shop user has no Sessions kind to land on.
+  it("send a shop-only user who types a tab they cannot use to the shop", async () => {
+    await visit("/marketing-ops/event-platform/events/42/sessions", SHOP_ONLY);
+    expect(url()).toBe("/marketing-ops/event-platform/events/42/shop/inventory");
+  });
+
   it("render a malformed event id instead of blanking the app", async () => {
     await visit("/marketing-ops/event-platform/events/%E0/settings", ADMIN);
     expect(url()).toBe("/marketing-ops/event-platform/events/%E0/settings");
+  });
+});
+
+// Every leaf, read off the tab definitions: the routes spell their gate ids out
+// separately, so walk each kind and check its route asks exactly that id. A
+// leaf wired to the wrong gate (a shop gate on Settings, say) fails here.
+const LEAVES: { path: string; kind: EventPlatformKindDef }[] = [
+  ...TOP_LEVEL_TABS.flatMap((tab) =>
+    tab.kinds.map((kind) => ({ path: eventPlatformPath(tab, kind.kind), kind })),
+  ),
+  ...EVENT_TABS.flatMap((tab) =>
+    tab.kinds.map((kind) => ({ path: eventPath("42", tab, kind.kind), kind })),
+  ),
+];
+const ALL_GATE_IDS = [...new Set(LEAVES.map((l) => l.kind.gateId))];
+
+describe("each Event Platform leaf", () => {
+  it.each(LEAVES)("opens $path to its own gate id", async ({ path, kind }) => {
+    await visit(path, gateAllowing(kind.gateId));
+    expect(url()).toBe(path);
+  });
+
+  it.each(LEAVES)("refuses $path to everyone but its own gate id", async ({ path, kind }) => {
+    gate.value = gateAllowing(...ALL_GATE_IDS.filter((id) => id !== kind.gateId));
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <UrlProbe />
+        <Routes>{eventPlatformRoutes}</Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      const refused =
+        url() !== path || screen.queryByText(/isn.t available for your role/) !== null;
+      expect(refused).toBe(true);
+    });
   });
 });

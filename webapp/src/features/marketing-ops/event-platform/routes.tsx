@@ -53,8 +53,9 @@ function leaf(gateId: EventPlatformGateId, Page: LazyExoticComponent<ComponentTy
 }
 
 // The gate ids repeat eventPlatformTabs.ts on purpose — that file decides what
-// the tabs OFFER, these decide what the routes ALLOW, and the tests there pin
-// which kinds belong to the shop.
+// the tabs OFFER, these decide what the routes ALLOW. routes.test.tsx walks
+// every tab and kind there and checks each leaf here asks the same gate id, so
+// the two lists cannot drift apart unnoticed.
 const ADMIN: EventPlatformGateId = "mops-event-platform-admin";
 const EVENTS: EventPlatformGateId = "mops-event-platform-events";
 const SHOP: EventPlatformGateId = "mops-event-platform-shop";

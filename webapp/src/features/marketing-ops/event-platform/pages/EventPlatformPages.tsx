@@ -205,15 +205,19 @@ export function EventPlatformIndex() {
 
 /**
  * A multi-kind in-event tab reached without a kind —
- * `/events/42/sessions`. Sends the visitor to the first kind they may open.
+ * `/events/42/sessions`. Sends the visitor to the first kind they may open,
+ * or, when they may open none of this tab's, to the event's own landing — the
+ * same answer EventPlatformRoute gives a refused leaf, so a typed parent path
+ * cannot strand them on an empty frame.
  */
 export function EventTabIndex({ segment }: { segment: string }) {
   const gate = useEventPlatformGate();
   const { eventId = "" } = useParams<{ eventId: string }>();
   const tab = eventTab(segment);
-  const first = tab ? visibleKinds(tab, gate.canSee)[0] : undefined;
-  if (!tab || !first) return null;
-  return <Navigate to={eventPath(eventId, tab, first.kind)} replace />;
+  if (!tab) return null;
+  const first = visibleKinds(tab, gate.canSee)[0];
+  const target = first ? eventPath(eventId, tab, first.kind) : firstAllowedPath(gate.canSee, eventId);
+  return target ? <Navigate to={target} replace /> : null;
 }
 
 /**
