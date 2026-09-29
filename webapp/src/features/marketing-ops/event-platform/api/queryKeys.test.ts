@@ -66,6 +66,7 @@ describe("the Event Platform query keys", () => {
     expect(startsWith(keys.trackTopics("e1"), keys.trackTopicsRoot)).toBe(true);
     expect(startsWith(keys.activities("e1"), keys.activitiesRoot)).toBe(true);
     expect(startsWith(keys.trackSections("t1"), keys.trackSectionsRoot)).toBe(true);
+    expect(startsWith(keys.keynoteSections("d1"), keys.keynoteSectionsRoot)).toBe(true);
   });
 
   it("read a session list's filters back off its key", () => {

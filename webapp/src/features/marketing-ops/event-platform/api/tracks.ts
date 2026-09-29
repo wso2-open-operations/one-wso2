@@ -116,6 +116,10 @@ export function useUpdateTrack() {
     onSettled: (_data, _err, vars) => {
       qc.invalidateQueries({ queryKey: keys.tracks(vars.dayId) });
       qc.invalidateQueries({ queryKey: keys.allTracks });
+      // The PATCH re-derives the room of every non-manual session on the track.
+      // Left stale, the item form would send the old roomId back, and the
+      // server reads a supplied roomId as manual, pinning the old room.
+      qc.invalidateQueries({ queryKey: keys.sessionsRoot });
     },
   });
 }

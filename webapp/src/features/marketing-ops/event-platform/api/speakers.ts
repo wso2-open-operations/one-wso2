@@ -100,7 +100,13 @@ export function useDeleteSpeaker() {
       qc.setQueryData(keys.speakers, ctx?.previous);
       notifyFailure("Couldn't delete the speaker — changes reverted.", err);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.speakers }),
+    // The server cascades the speaker off every session. Cached sessions would
+    // otherwise keep embedding it, and the next save of one would send the dead
+    // id back and fail.
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: keys.speakers });
+      qc.invalidateQueries({ queryKey: keys.sessionsRoot });
+    },
   });
 }
 

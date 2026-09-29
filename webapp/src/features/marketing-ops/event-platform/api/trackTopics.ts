@@ -96,8 +96,8 @@ export function useUpdateTrackTopic() {
 }
 
 // References to the topic are nulled server side. The topic lists are patched
-// optimistically; sessions and sections are left to their own refetch, as in
-// the source.
+// optimistically; sessions and sections are refetched, since they never go
+// stale on their own and a later save would send the dead topicId back.
 export function useDeleteTrackTopic() {
   const { getAccessToken } = useEventPlatformBase();
   const qc = useQueryClient();
@@ -114,6 +114,11 @@ export function useDeleteTrackTopic() {
     onError: (_err, _vars, ctx) => {
       ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.trackTopicsRoot }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: keys.trackTopicsRoot });
+      qc.invalidateQueries({ queryKey: keys.sessionsRoot });
+      qc.invalidateQueries({ queryKey: keys.trackSectionsRoot });
+      qc.invalidateQueries({ queryKey: keys.keynoteSectionsRoot });
+    },
   });
 }

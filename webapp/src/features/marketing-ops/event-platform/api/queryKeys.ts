@@ -41,6 +41,7 @@ export const eventPlatformKeys = {
   allTracks: [...ROOT, "tracks", "all"] as const,
   trackSectionsRoot: [...ROOT, "track-sections"] as const,
   trackSections: (trackId: string) => [...ROOT, "track-sections", trackId] as const,
+  keynoteSectionsRoot: [...ROOT, "keynote-sections"] as const,
   keynoteSections: (dayId: string) => [...ROOT, "keynote-sections", dayId] as const,
   footnotes: (dayId: string) => [...ROOT, "footnotes", dayId] as const,
   trackTopicsRoot: [...ROOT, "track-topics"] as const,
