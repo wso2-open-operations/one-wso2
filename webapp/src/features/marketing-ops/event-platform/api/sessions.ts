@@ -21,7 +21,7 @@
 // session belongs in (sessionMatchesFilters), since the lists are now scoped to
 // one event.
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { authedDelete, authedGet, authedPatch, authedPost, authedPut } from "@api/http";
 import { httpRetry } from "@api/errors";
 import { eventPlatformServiceUrls as urls } from "@config/apiConfig";
@@ -36,9 +36,10 @@ import {
 import { expectBody } from "@features/marketing-ops/event-platform/api/responses";
 import {
   applyPlacement,
+  collectSessions,
+  refileSessions,
   removeById,
   replaceById,
-  sessionMatchesFilters,
   type Placement,
 } from "@features/marketing-ops/event-platform/api/cacheUpdates";
 import type {
@@ -80,6 +81,16 @@ export interface CreateSessionInput extends SessionFields {
   slotIndex?: number | null;
 }
 
+// Files changed sessions into every cached session list at once: moved into
+// the lists they now belong in and out of the ones they left. What placement,
+// create and the track and section deletes all need.
+export function refileEverywhere(qc: QueryClient, changed: readonly Session[]) {
+  if (!changed.length) return;
+  for (const [key, data] of qc.getQueriesData<Session[]>({ queryKey: keys.sessionsRoot })) {
+    if (data) qc.setQueryData<Session[]>(key, refileSessions(data, sessionFiltersOf(key), changed));
+  }
+}
+
 // `configId` is required (see SessionFilters): the source called this unscoped,
 // so the agenda palette and the Event speakers page saw every event's sessions.
 export function useListSessions(filters: SessionFilters) {
@@ -101,17 +112,10 @@ export function useCreateSession() {
   return useMutation({
     mutationFn: async (input: CreateSessionInput) =>
       expectBody(await authedPost<Session>(urls.sessions(), await getAccessToken(), input)),
-    onSuccess: (created) => {
-      // Appended only to lists it belongs in. The source appended to every
-      // cached list, which with scoped lists would drop a new session into
-      // another event's palette.
-      for (const [key, data] of qc.getQueriesData<Session[]>({ queryKey: keys.sessionsRoot })) {
-        const filters = sessionFiltersOf(key);
-        if (data && filters && sessionMatchesFilters(created, filters)) {
-          qc.setQueryData<Session[]>(key, [...data, created]);
-        }
-      }
-    },
+    // Appended only to lists it belongs in. The source appended to every
+    // cached list, which with scoped lists would drop a new session into
+    // another event's palette.
+    onSuccess: (created) => refileEverywhere(qc, [created]),
   });
 }
 
@@ -131,7 +135,13 @@ export function useUpdateSession() {
 
 // Moves a session on the grid, or off it (UNPLACED). Optimistic, because it
 // follows a drop: the card must land where it was dropped, not a round trip
-// later.
+// later. A move changes which lists the session is in, so it is re-filed, not
+// patched in place.
+//
+// A failure puts back only THIS session, not a snapshot of every list: drops
+// overlap, and a snapshot taken before this one would also undo any drop that
+// succeeded after it started. The lists are then refetched, so the cache ends
+// on what the server holds.
 export function useUpdatePlacement() {
   const { getAccessToken } = useEventPlatformBase();
   const notifyFailure = useNotifyFailure();
@@ -148,20 +158,18 @@ export function useUpdatePlacement() {
       ),
     onMutate: async ({ id, ...placement }) => {
       await qc.cancelQueries({ queryKey: keys.sessionsRoot });
-      const snapshots = qc.getQueriesData<Session[]>({ queryKey: keys.sessionsRoot });
-      qc.setQueriesData<Session[]>({ queryKey: keys.sessionsRoot }, (old) =>
-        old ? old.map((s) => (s.id === id ? applyPlacement(s, placement) : s)) : old,
+      const [previous] = collectSessions(
+        qc.getQueriesData<Session[]>({ queryKey: keys.sessionsRoot }),
+        (s) => s.id === id,
       );
-      return { snapshots };
+      if (previous) refileEverywhere(qc, [applyPlacement(previous, placement)]);
+      return { previous };
     },
-    onSuccess: (updated) => {
-      // The server's answer also carries the room the mappings resolved to.
-      qc.setQueriesData<Session[]>({ queryKey: keys.sessionsRoot }, (old) =>
-        old ? replaceById(old, updated) : old,
-      );
-    },
+    // The server's answer also carries the room the mappings resolved to.
+    onSuccess: (updated) => refileEverywhere(qc, [updated]),
     onError: (err, _vars, ctx) => {
-      ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
+      if (ctx?.previous) refileEverywhere(qc, [ctx.previous]);
+      qc.invalidateQueries({ queryKey: keys.sessionsRoot });
       notifyFailure("Couldn't move the session — placement reverted.", err);
     },
   });

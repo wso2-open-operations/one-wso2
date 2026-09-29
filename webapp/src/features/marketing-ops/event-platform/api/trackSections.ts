@@ -30,11 +30,14 @@ import {
 } from "@features/marketing-ops/event-platform/api/base";
 import { expectBody } from "@features/marketing-ops/event-platform/api/responses";
 import {
+  applyPlacement,
+  collectSessions,
   removeById,
   replaceById,
   UNPLACED,
-  unplaceWhere,
+  unplaceEach,
 } from "@features/marketing-ops/event-platform/api/cacheUpdates";
+import { refileEverywhere } from "@features/marketing-ops/event-platform/api/sessions";
 import {
   toTrackSectionBody,
   toTrackSectionPatch,
@@ -178,9 +181,17 @@ export function useUpdateTrackSection() {
   });
 }
 
-// Unplaces the section's sessions FIRST, then deletes it — the reverse of a
-// track delete, as in the source. The caller passes the session ids, since it
-// is the one holding the day's sessions.
+// Deletes the section FIRST, then unplaces its sessions — the order a track
+// delete uses. The source did it the other way round, which meant a failed PUT
+// or DELETE left sessions unscheduled on the server under a toast saying the
+// changes were reverted. Deleting first is safe: the backend clears the
+// sessions' section, track and slot as part of the delete, and the PUTs only
+// finish the job (clearing the day, so they return to the palette).
+//
+// So a failure that reaches onError is the DELETE's, and nothing changed; a
+// failed PUT after it is reported on its own, and the section stays deleted.
+// The caller passes the session ids, since it is the one holding the day's
+// sessions.
 export function useDeleteTrackSection() {
   const { getAccessToken } = useEventPlatformBase();
   const notifyFailure = useNotifyFailure();
@@ -188,10 +199,10 @@ export function useDeleteTrackSection() {
   return useMutation({
     mutationFn: async ({ id, sessionIds = [] }: SectionParent & { id: string; sessionIds?: string[] }) => {
       const token = await getAccessToken();
-      await Promise.all(
-        sessionIds.map((sid) => authedPut<Session>(urls.sessionPlacement(sid), token, UNPLACED)),
-      );
       await authedDelete(urls.trackSection(id), token);
+      return unplaceEach(sessionIds, (sid) =>
+        authedPut<Session>(urls.sessionPlacement(sid), token, UNPLACED),
+      );
     },
     onMutate: async ({ id, trackId, dayId }) => {
       await Promise.all([
@@ -200,10 +211,21 @@ export function useDeleteTrackSection() {
         qc.cancelQueries({ queryKey: keys.sessionsRoot }),
       ]);
 
-      const prev = trackId
+      // Each cache its own snapshot: a track section also carries a day, and
+      // one shared snapshot would write the track's sections into the day's
+      // keynote list on a failure.
+      const prevTrack = trackId
         ? qc.getQueryData<TrackSection[]>(keys.trackSections(trackId))
-        : qc.getQueryData<TrackSection[]>(keys.keynoteSections(dayId ?? ""));
-      const prevSessions = qc.getQueriesData<Session[]>({ queryKey: keys.sessionsRoot });
+        : undefined;
+      const prevKeynote = dayId
+        ? qc.getQueryData<TrackSection[]>(keys.keynoteSections(dayId))
+        : undefined;
+      // Only these sessions are put back on failure, not a snapshot of every
+      // list, so an unrelated drop that lands meanwhile isn't undone.
+      const affected = collectSessions(
+        qc.getQueriesData<Session[]>({ queryKey: keys.sessionsRoot }),
+        (s) => s.sectionId === id,
+      );
 
       if (trackId) {
         qc.setQueryData<TrackSection[]>(keys.trackSections(trackId), (old = []) => removeById(old, id));
@@ -211,17 +233,25 @@ export function useDeleteTrackSection() {
       if (dayId) {
         qc.setQueryData<TrackSection[]>(keys.keynoteSections(dayId), (old = []) => removeById(old, id));
       }
-      qc.setQueriesData<Session[]>({ queryKey: keys.sessionsRoot }, (old) =>
-        old ? unplaceWhere(old, (s) => s.sectionId === id) : old,
+      refileEverywhere(
+        qc,
+        affected.map((s) => applyPlacement(s, UNPLACED)),
       );
 
-      return { prev, prevSessions };
+      return { prevTrack, prevKeynote, affected };
+    },
+    onSuccess: ({ failed, firstError }) => {
+      if (!failed.length) return;
+      notifyFailure(
+        `The section was deleted, but ${failed.length} of its sessions couldn't be unscheduled — reload the agenda and move them by hand.`,
+        firstError,
+      );
     },
     onError: (err, { trackId, dayId }, ctx) => {
       if (ctx) {
-        if (trackId) qc.setQueryData(keys.trackSections(trackId), ctx.prev);
-        if (dayId) qc.setQueryData(keys.keynoteSections(dayId), ctx.prev);
-        ctx.prevSessions.forEach(([key, data]) => qc.setQueryData(key, data));
+        if (trackId) qc.setQueryData(keys.trackSections(trackId), ctx.prevTrack);
+        if (dayId) qc.setQueryData(keys.keynoteSections(dayId), ctx.prevKeynote);
+        refileEverywhere(qc, ctx.affected);
       }
       notifyFailure("Couldn't delete the section — changes reverted.", err);
     },

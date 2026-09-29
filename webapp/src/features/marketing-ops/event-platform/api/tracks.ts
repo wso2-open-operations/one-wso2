@@ -27,11 +27,14 @@ import {
 } from "@features/marketing-ops/event-platform/api/base";
 import { expectBody } from "@features/marketing-ops/event-platform/api/responses";
 import {
+  applyPlacement,
+  collectSessions,
   removeById,
   replaceById,
   UNPLACED,
-  unplaceWhere,
+  unplaceEach,
 } from "@features/marketing-ops/event-platform/api/cacheUpdates";
+import { refileEverywhere } from "@features/marketing-ops/event-platform/api/sessions";
 import type { ColorToken } from "@features/marketing-ops/event-platform/types/colorTokens";
 import type {
   Session,
@@ -118,9 +121,16 @@ export function useUpdateTrack() {
 }
 
 // Removes the track at once, with its sections and its sessions unplaced, and
-// rolls every cache back if the delete fails. Once the delete lands, the
+// rolls the caches back if the DELETE fails. Once the delete lands, the
 // sessions that sat in the track are unplaced on the server too — one PUT each,
 // which counts against the backend's rate limit on a busy track.
+//
+// The fan-out never throws. TanStack routes a rejected onSuccess to onError,
+// which would put back a track the server has already deleted and say "changes
+// reverted" when they weren't. So every PUT is waited on, and any that fail
+// are reported as what they are: the track is gone, those sessions still point
+// at it until someone moves them. onSettled then refetches, so the cache ends
+// on what the server holds.
 export function useDeleteTrack() {
   const { getAccessToken } = useEventPlatformBase();
   const notifyFailure = useNotifyFailure();
@@ -138,44 +148,53 @@ export function useDeleteTrack() {
 
       const prevDayTracks = qc.getQueryData<Track[]>(keys.tracks(dayId));
       const prevAllTracks = qc.getQueryData<Track[]>(keys.allTracks);
-      const prevSessions = qc.getQueriesData<Session[]>({ queryKey: keys.sessionsRoot });
       const prevTrackSections = qc.getQueryData<TrackSection[]>(keys.trackSections(id));
-
-      // Captured before the optimistic write below wipes their trackId. One
-      // session can sit in several cached lists, hence the de-duplication.
-      const affected = new Map<string, Session>();
-      for (const [, data] of prevSessions) {
-        for (const s of data ?? []) if (s.trackId === id) affected.set(s.id, s);
-      }
+      // Captured before the optimistic write below wipes their trackId. Only
+      // these sessions are put back on failure, not a snapshot of every list,
+      // so an unrelated drop that lands meanwhile isn't undone with them.
+      const affected = collectSessions(
+        qc.getQueriesData<Session[]>({ queryKey: keys.sessionsRoot }),
+        (s) => s.trackId === id,
+      );
 
       qc.setQueryData<Track[]>(keys.tracks(dayId), (old = []) => removeById(old, id));
       qc.setQueryData<Track[]>(keys.allTracks, (old = []) => removeById(old, id));
       qc.removeQueries({ queryKey: keys.trackSections(id) });
-      qc.setQueriesData<Session[]>({ queryKey: keys.sessionsRoot }, (old) =>
-        old ? unplaceWhere(old, (s) => s.trackId === id) : old,
+      refileEverywhere(
+        qc,
+        affected.map((s) => applyPlacement(s, UNPLACED)),
       );
 
-      return {
-        prevDayTracks,
-        prevAllTracks,
-        prevSessions,
-        prevTrackSections,
-        affectedSessionIds: [...affected.keys()],
-      };
+      return { prevDayTracks, prevAllTracks, prevTrackSections, affected };
     },
     onSuccess: async (_data, _vars, ctx) => {
-      if (!ctx?.affectedSessionIds.length) return;
-      const token = await getAccessToken();
-      await Promise.all(
-        ctx.affectedSessionIds.map((sid) => authedPut<Session>(urls.sessionPlacement(sid), token, UNPLACED)),
-      );
+      if (!ctx?.affected.length) return;
+      const ids = ctx.affected.map((s) => s.id);
+      let outcome: Awaited<ReturnType<typeof unplaceEach>>;
+      try {
+        const token = await getAccessToken();
+        outcome = await unplaceEach(ids, (sid) =>
+          authedPut<Session>(urls.sessionPlacement(sid), token, UNPLACED),
+        );
+      } catch (err) {
+        // No token, so no PUT went out at all.
+        outcome = { failed: ids, firstError: err };
+      }
+      if (outcome.failed.length) {
+        notifyFailure(
+          `The track was deleted, but ${outcome.failed.length} of its sessions couldn't be unscheduled — reload the agenda and move them by hand.`,
+          outcome.firstError,
+        );
+      }
     },
+    // Only the DELETE reaches here, and a failed DELETE changed nothing on the
+    // server, so putting the caches back is the truth.
     onError: (err, { id, dayId }, ctx) => {
       if (ctx) {
         qc.setQueryData(keys.tracks(dayId), ctx.prevDayTracks);
         qc.setQueryData(keys.allTracks, ctx.prevAllTracks);
-        ctx.prevSessions.forEach(([key, data]) => qc.setQueryData(key, data));
         qc.setQueryData(keys.trackSections(id), ctx.prevTrackSections);
+        refileEverywhere(qc, ctx.affected);
       }
       notifyFailure("Couldn't delete the track — changes reverted.", err);
     },
