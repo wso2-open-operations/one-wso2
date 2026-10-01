@@ -102,8 +102,16 @@ export type PreviewFeature =
    * verified its figures. `useMisGate`'s own privilege check is unrelated and
    * keeps working the same either way.
    */
-  | "mis";
-
+  | "mis"
+  /**
+   * Marketing Ops → Event Platform, the whole app — its rail group and every
+   * route under `/marketing-ops/event-platform`. Held back as a whole, the
+   * same way Finance MIS is: the port lands screen by screen, and what must
+   * stay preview-only is the app's presence, not one route inside it. Its own backend roles (`eventplatform`, `eventplatform-shop`)
+   * still decide who sees what once this is on. See
+   * docs/ported-apps/event-platform.md.
+   */
+  | "eventPlatform";
 
 /**
  * Whether a preview feature should be shown.

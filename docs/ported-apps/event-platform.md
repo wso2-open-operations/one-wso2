@@ -94,6 +94,9 @@ label becomes **Shop**, which is what its routes and backend already call it.
 - Code lives in `features/marketing-ops/event-platform/`, routes exported as an
   `eventPlatformRoutes` fragment spread into `App.tsx`. Menu ids use `mops-event-platform-*` so they
   cannot clash with the existing, unrelated `features/marketing-ops/events` (`mops-events-*`).
+- The whole app sits behind the `eventPlatform` preview flag (`@config/previewFeatures`). With
+  `ONE_WSO2_PREVIEW_FEATURES.eventPlatform` absent or false, neither the rail group nor any route
+  under `/marketing-ops/event-platform` exists. Delete the flag when the port ships.
 
 ---
 
