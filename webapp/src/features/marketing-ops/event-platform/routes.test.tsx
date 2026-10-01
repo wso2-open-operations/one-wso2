@@ -58,11 +58,26 @@ vi.mock("./pages/EventSpeakersPage", async () => {
   const { default: ComingSoon } = await import("./components/ComingSoon");
   return { default: () => <ComingSoon screen="Speakers" phase={3} /> };
 });
+vi.mock("./pages/RoomsPage", async () => {
+  const { default: ComingSoon } = await import("./components/ComingSoon");
+  return { default: () => <ComingSoon screen="Rooms" phase={4} /> };
+});
+vi.mock("./pages/ActivitiesPage", async () => {
+  const { default: ComingSoon } = await import("./components/ComingSoon");
+  return { default: () => <ComingSoon screen="Activities" phase={4} /> };
+});
 
 const gate = vi.hoisted(() => ({ value: {} as MarketingOpsGate }));
 vi.mock("@features/marketing-ops/api/useMarketingOpsGate", () => ({
   useMarketingOpsGate: () => gate.value,
 }));
+
+// The finished Settings screen needs a QueryClient and a signed-in session; the routes are
+// under test here, so it is swapped for the placeholder the visits wait for.
+vi.mock("./pages/EventSettingsPage", async () => {
+  const { default: ComingSoon } = await import("./components/ComingSoon");
+  return { default: () => <ComingSoon screen="Settings" phase={4} /> };
+});
 
 function gateAllowing(...ids: string[]): MarketingOpsGate {
   return {
