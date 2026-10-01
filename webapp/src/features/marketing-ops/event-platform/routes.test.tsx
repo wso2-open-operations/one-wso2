@@ -43,6 +43,22 @@ vi.mock("@features/marketing-ops/event-platform/api/events", () => ({
   useListEvents: () => ({ data: [], isLoading: false }),
 }));
 
+// The routes are under test here, not the screens. The finished screens
+// need a QueryClient and more of the API than the mocks above, so they are
+// swapped for the placeholder the visits below wait for.
+vi.mock("./pages/EventsDashboardPage", async () => {
+  const { default: ComingSoon } = await import("./components/ComingSoon");
+  return { default: () => <ComingSoon screen="Events" phase={3} /> };
+});
+vi.mock("./pages/SpeakerLibraryPage", async () => {
+  const { default: ComingSoon } = await import("./components/ComingSoon");
+  return { default: () => <ComingSoon screen="Speaker library" phase={3} /> };
+});
+vi.mock("./pages/EventSpeakersPage", async () => {
+  const { default: ComingSoon } = await import("./components/ComingSoon");
+  return { default: () => <ComingSoon screen="Speakers" phase={3} /> };
+});
+
 const gate = vi.hoisted(() => ({ value: {} as MarketingOpsGate }));
 vi.mock("@features/marketing-ops/api/useMarketingOpsGate", () => ({
   useMarketingOpsGate: () => gate.value,
