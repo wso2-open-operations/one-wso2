@@ -220,6 +220,8 @@ import EngineeringVersionsPage from "@features/engineering/pages/EngineeringVers
 import EngineeringOverviewPage from "@features/engineering/pages/EngineeringOverviewPage";
 import InfraHomePage from "@features/infra/pages/InfraHomePage";
 import InfraNewRepositoryPage from "@features/infra/pages/InfraNewRepositoryPage";
+import InfraGitHubCallbackPage from "@features/infra/pages/InfraGitHubCallbackPage";
+import InfraRepositoryAccessPage from "@features/infra/pages/InfraRepositoryAccessPage";
 
 export default function App() {
   return (
@@ -258,6 +260,11 @@ export default function App() {
               <Route
                   path="infra/github/repository-requests"
                   element={<InfraNewRepositoryPage />}
+              />
+              <Route path="infra/github/callback" element={<InfraGitHubCallbackPage />} />
+              <Route
+                path="infra/github/repository-access-requests"
+                element={<InfraRepositoryAccessPage />}
               />
             </>
           )}
