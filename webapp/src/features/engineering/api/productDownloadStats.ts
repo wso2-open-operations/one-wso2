@@ -92,11 +92,19 @@ export interface DailyResponse {
   series: DailySeries[];
 }
 
+export interface RepositorySnapshot {
+  stargazersCount: number;
+  forksCount: number;
+  watchersCount: number;
+  openIssuesCount: number;
+}
+
 export interface TrackedRepository {
   id: number;
   repoName: string;
   productName: string | null;
   isActive?: boolean;
+  latestSnapshot?: RepositorySnapshot | null;
 }
 
 export interface RepositoriesResponse {
@@ -284,6 +292,68 @@ export function getPackageVersions(
   });
   return authedGet(
     `${credentialedBase()}/api/v1/stats/packages/${query.repoId}/versions?${params}`,
+    accessToken,
+  );
+}
+
+export type RepositoryMeasure = "stars" | "forks" | "watchers" | "openIssues";
+
+export interface MetricSeriesResponse {
+  series: DailySeries[];
+}
+
+export interface ClonePoint {
+  date: string;
+  count: number;
+  uniques: number;
+}
+
+export interface CloneSeriesItem {
+  repoId: number;
+  repoName: string;
+  points: ClonePoint[];
+}
+
+export interface CloneSeriesResponse {
+  series: CloneSeriesItem[];
+}
+
+function statsQuery(query: {
+  from: string;
+  to: string;
+  repos: number[];
+  interval?: ReleaseDownloadGrain;
+  metric?: RepositoryMeasure;
+}): string {
+  const params = new URLSearchParams({ from: query.from, to: query.to });
+  if (query.interval) params.set("interval", query.interval);
+  if (query.metric) params.set("metric", query.metric);
+  if (query.repos.length > 0) params.set("repos", query.repos.join(","));
+  return params.toString();
+}
+
+export function getMetricSeries(
+  accessToken: string,
+  query: {
+    metric: RepositoryMeasure;
+    from: string;
+    to: string;
+    interval: ReleaseDownloadGrain;
+    repos: number[];
+  },
+): Promise<MetricSeriesResponse> {
+  return authedGet(
+    `${credentialedBase()}/api/v1/stats/metric?${statsQuery(query)}`,
+    accessToken,
+  );
+}
+
+export function getCloneSeries(
+  accessToken: string,
+  query: { from: string; to: string; repos: number[] },
+): Promise<CloneSeriesResponse> {
+  return authedGet(
+    `${credentialedBase()}/api/v1/stats/clones?${statsQuery(query)}`,
     accessToken,
   );
 }
