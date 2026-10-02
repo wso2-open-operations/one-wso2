@@ -172,3 +172,106 @@ export function nextStatus(view: ApproverView, decision: "approve" | "reject"): 
   if (view === "LEAD") return decision === "approve" ? "PENDING_FINANCE" : "LEAD_REJECTED";
   return decision === "approve" ? "APPROVED" : "FINANCE_REJECTED";
 }
+
+// ---- dashboard ---------------------------------------------------------
+//
+// DTOs mirrored from digiops-finance/apps/expense-claims/backend's own
+// `ClaimsReport` (modules/dashboard), via its port in
+// apps/expense-claims/webapp/src/utils/types.ts. GET /claims-report — the
+// one org-wide, aggregated report behind this entire dashboard — is gated on
+// the backend's own `allowedAdminRoles`, the SAME check that produces
+// `enableFinanceView` above (service.bal:75). So the flag this feature's own
+// visibility already reads is the correct gate for this dashboard too; see
+// useFinanceGate's `finance-overview` case.
+
+/** `/subsidiaries` on the expense-claims backend — a different response from
+ *  Master Data's own `/subsidiaries` (a different backend entirely), so this
+ *  is its own type rather than reusing masterDataTypes' `Subsidiary`. */
+export interface ExpenseSubsidiarySummary {
+  id: number;
+  code: string;
+  legalName: string;
+  currencyCode: string;
+  country: string;
+}
+
+export interface ExpenseReportTotals {
+  claimCount: number;
+  totalValue: number;
+  averageClaimValue: number;
+}
+
+export interface ExpenseReportStatusItem {
+  status: string;
+  count: number;
+  averageDaysPending: number;
+}
+
+export interface ExpenseReportEntityItem {
+  businessEntity: string;
+  legalName: string;
+  claimCount: number;
+  totalValue: number;
+  averageClaimValue: number;
+  totalValueChangePercentage: number;
+}
+
+export interface ExpenseReportTypeAmount {
+  expenseType: string;
+  amount: number;
+}
+
+export interface ExpenseReportMonthlyItem {
+  month: string;
+  label: string;
+  amounts: ExpenseReportTypeAmount[];
+  total: number;
+  percentageOfTotal: number;
+}
+
+export interface ExpenseReportEmployeeItem {
+  employeeEmail: string;
+  employeeName: string;
+  claimCount: number;
+  pendingCount: number;
+  claimsPerMonth: number;
+  totalValue: number;
+}
+
+export interface ExpenseClaimsReport {
+  reportingCurrency: string;
+  current: ExpenseReportTotals;
+  prior: ExpenseReportTotals;
+  // Absent for an open-ended period ("All Time"), which has no prior period
+  // to compare against.
+  claimCountChangePercentage?: number;
+  totalValueChangePercentage?: number;
+  averageClaimValueChangePercentage?: number;
+  statusBreakdown: ExpenseReportStatusItem[];
+  entityBreakdown: ExpenseReportEntityItem[];
+  expenseTypeColumns: string[];
+  monthlyBreakdown: ExpenseReportMonthlyItem[];
+  employeeBreakdown: ExpenseReportEmployeeItem[];
+  availableSalesRegions: string[];
+}
+
+/** GET /claims-report query params. `status` is one value per request, not
+ *  an array — the backend's own `string[]? status` binds a bare repeated
+ *  `status=` query key, not axios/fetch's `status[]=` array encoding. */
+export interface ExpenseClaimsReportFilter {
+  startDate?: string;
+  endDate: string;
+  status?: string;
+  businessEntity?: string;
+  expenseTypeId?: number;
+  salesRegion?: string;
+}
+
+export const EXPENSE_DASHBOARD_PERIODS = [
+  "Monthly",
+  "Quarterly",
+  "Annually",
+  "All Time",
+  "Custom",
+] as const;
+export type ExpenseDashboardPeriod = (typeof EXPENSE_DASHBOARD_PERIODS)[number];

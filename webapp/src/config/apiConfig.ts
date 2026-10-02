@@ -566,6 +566,13 @@ export const expenseServiceUrls = {
     `${expenseBackendUrl}/claims/${encodeURIComponent(email)}/transactions/receipts/file`,
   receiptFile: (fileName: string) =>
     `${expenseBackendUrl}/claims/transactions/receipts/file/${encodeURIComponent(fileName)}`,
+  // The dashboard's two reference lists + its one report. `/expense-types`
+  // here is a DIFFERENT resource from `expenseTypes()` above — that one is
+  // `/user-configurations/expense-types`, scoped by travel job; this is the
+  // plain, unscoped list the dashboard's category filter and CSV need.
+  subsidiaries: `${expenseBackendUrl}/subsidiaries`,
+  dashboardExpenseTypes: `${expenseBackendUrl}/expense-types`,
+  claimsReport: `${expenseBackendUrl}/claims-report`,
 };
 
 // Finance master data — ONE_WSO2_FINANCE_MASTER_DATA_BACKEND_URL.

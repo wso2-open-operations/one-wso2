@@ -216,4 +216,8 @@ export const FINANCE_EYEBROW = {
   // preview flag, and with it off the lookup would fall back to the generic
   // "Finance" chip — wrong for a route still reachable directly by URL.
   opd: { icon: StethoscopeIcon, label: "OPD Claims" },
+  // Also a literal: the expense dashboard is reached through Overview, the
+  // same as OPD's, and is not itself an app in the registry `eyebrowFor`
+  // looks up by key.
+  expense: { icon: ReceiptTextIcon, label: "Expense Claims" },
 } as const;

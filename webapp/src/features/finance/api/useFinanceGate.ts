@@ -90,6 +90,7 @@ export interface FinanceGate {
   ccHasOwnCard: boolean;
   opdFinance: boolean;
   opdErrored: boolean;
+  expenseFinance: boolean;
 }
 
 /**
@@ -137,12 +138,13 @@ export function useFinanceGate(enabled = true, caps?: ReadonlySet<Capability>): 
         return ccLeadOrFinance;
       case "cc-settings":
         return ccFinance;
-      // Finance → Overview. One rail entry for both dashboards now — see
-      // FinanceOverviewPage. Hidden entirely when NEITHER tab would have
-      // anything to show: no card of the reader's own (or team/company view
-      // via a CC lead/finance role) AND no OPD finance-approver role. A
-      // reader with only one of the two still opens straight onto that tab's
-      // content; there is no per-tab hiding inside the page.
+      // Finance → Overview. One rail entry for all three dashboards now —
+      // see FinanceOverviewPage. Hidden entirely when NONE of the three would
+      // have anything to show: no card of the reader's own (or team/company
+      // view via a CC lead/finance role), no OPD finance-approver role, and
+      // no expense finance role. A reader with only one of the three still
+      // opens straight onto that tab's content; there is no per-tab hiding
+      // inside the page.
       //
       // A FAILED lookup is not a yes. This used to read `|| opdErrored`, on
       // the reasoning that a bad minute from OPD's backend should not hide a
@@ -157,7 +159,7 @@ export function useFinanceGate(enabled = true, caps?: ReadonlySet<Capability>): 
       // until a backend can actually answer for it: a role is the only thing
       // that opens this now.
       case "finance-overview":
-        return ccHasOwnCard || opdFinance;
+        return ccHasOwnCard || opdFinance || expenseFinance;
       // The four master-data tables. Finance reference data that the other
       // apps read and only finance writes, so all four answer the same way —
       // listed individually rather than as a prefix match so that a new tab
@@ -220,7 +222,7 @@ export function useFinanceGate(enabled = true, caps?: ReadonlySet<Capability>): 
       hasAnswered(expense, isExpenseBackendConfigured())
     );
 
-  return { canSee, isResolving, ccHasOwnCard, opdFinance, opdErrored };
+  return { canSee, isResolving, ccHasOwnCard, opdFinance, opdErrored, expenseFinance };
 }
 
 /** Rail and landing facts. Dashboard-tab fields stay on FinanceGate. */

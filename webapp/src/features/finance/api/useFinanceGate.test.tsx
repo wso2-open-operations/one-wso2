@@ -209,6 +209,21 @@ describe("the Finance Overview entry", () => {
     expect(gate().canSee("finance-overview")).toBe(true);
   });
 
+  it("opens for the expense finance role alone", () => {
+    roles.expenseFinance = true;
+    expect(gate().canSee("finance-overview")).toBe(true);
+  });
+
+  // The expense LEAD flag is not this role — it opens Claim Approval, but
+  // the Expense Claims dashboard is gated on the finance role specifically
+  // (the same `enableFinanceView`/`allowedAdminRoles` check its own backend
+  // enforces on GET /claims-report), so a lead holding nothing else does not
+  // get an Overview entry they would only find empty.
+  it("is not opened by the expense lead role alone", () => {
+    roles.expenseLead = true;
+    expect(gate().canSee("finance-overview")).toBe(false);
+  });
+
   // THE regression this entry was reported for. `foldIdentityError` reports
   // EVERY one of these queries as `isError` whenever identity itself fails to
   // resolve — a token-refresh hiccup is enough — so an entry that opened on a

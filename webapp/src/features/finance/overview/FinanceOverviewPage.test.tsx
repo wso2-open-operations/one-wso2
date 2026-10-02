@@ -18,16 +18,18 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-// The gate is this screen's only input, so it is the whole fixture. The two
-// dashboards are stubbed to a marker each: what matters here is WHICH of them
-// is reachable and WHEN, not what either draws.
+// The gate is this screen's only input, so it is the whole fixture. All
+// three dashboards are stubbed to a marker each: what matters here is WHICH
+// of them is reachable and WHEN, not what any of them draws.
 const gate = {
   canSee: (id: string): boolean => id === "",
   isResolving: false,
   ccHasOwnCard: false,
   opdFinance: false,
   opdErrored: false,
+  expenseFinance: false,
 };
 
 vi.mock("../api/useFinanceGate", () => ({ useFinanceGate: () => gate }));
@@ -41,6 +43,11 @@ vi.mock("../opd/dashboard/OpdDashboardScreen", () => ({
     <div data-testid="opd-dashboard">{headerActions}</div>
   ),
 }));
+vi.mock("../expense/dashboard/ExpenseDashboardScreen", () => ({
+  default: ({ headerActions }: { headerActions?: React.ReactNode }) => (
+    <div data-testid="expense-dashboard">{headerActions}</div>
+  ),
+}));
 
 const { default: FinanceOverviewPage } = await import("./FinanceOverviewPage");
 
@@ -51,9 +58,11 @@ function settled(access: Partial<typeof gate>) {
     ccHasOwnCard: false,
     opdFinance: false,
     opdErrored: false,
+    expenseFinance: false,
     ...access,
   });
-  gate.canSee = (id) => id === "finance-overview" && (gate.ccHasOwnCard || gate.opdFinance);
+  gate.canSee = (id) =>
+    id === "finance-overview" && (gate.ccHasOwnCard || gate.opdFinance || gate.expenseFinance);
 }
 
 beforeEach(() => {
@@ -61,7 +70,9 @@ beforeEach(() => {
 });
 
 const aDashboard = () =>
-  screen.queryByTestId("cc-dashboard") ?? screen.queryByTestId("opd-dashboard");
+  screen.queryByTestId("cc-dashboard") ??
+  screen.queryByTestId("opd-dashboard") ??
+  screen.queryByTestId("expense-dashboard");
 
 // The reason this screen exists in the shape it does: it is the content pane
 // for a rail row that is itself hidden until the gate settles. Anything drawn
@@ -161,5 +172,39 @@ describe("what the switcher offers", () => {
     render(<FinanceOverviewPage />);
 
     expect(screen.getByTestId("opd-dashboard")).toBeInTheDocument();
+  });
+
+  // Lands straight on Expense Claims for a reader who holds only that role —
+  // same reasoning as the OPD-only case above, extended to the third tab.
+  it("opens the Expense Claims dashboard for an expense-finance-only reader", () => {
+    settled({ expenseFinance: true });
+    render(<FinanceOverviewPage />);
+
+    expect(screen.getByTestId("expense-dashboard")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveTextContent("Expense Claims");
+    expect(screen.queryByTestId("cc-dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("opd-dashboard")).not.toBeInTheDocument();
+  });
+
+  it("offers all three to a reader holding every role", async () => {
+    settled({ ccHasOwnCard: true, opdFinance: true, expenseFinance: true });
+    render(<FinanceOverviewPage />);
+
+    // MUI's Select renders its options into a closed popper — not in the DOM
+    // at all until opened — so the combobox has to be opened first.
+    await userEvent.click(screen.getByRole("combobox"));
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(options).toEqual(["Credit Card", "OPD Claims", "Expense Claims"]);
+  });
+
+  // Picking Expense Claims would only ever land on its own denial notice for
+  // a reader who does not hold the role — the dropdown must not offer it.
+  it("does not offer Expense Claims to a reader without the role", async () => {
+    settled({ ccHasOwnCard: true });
+    render(<FinanceOverviewPage />);
+
+    await userEvent.click(screen.getByRole("combobox"));
+    await screen.findAllByRole("option");
+    expect(screen.queryByText("Expense Claims")).not.toBeInTheDocument();
   });
 });
