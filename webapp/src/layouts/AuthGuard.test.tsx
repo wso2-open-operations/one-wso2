@@ -142,7 +142,7 @@ describe("AuthGuard and the sign-in loop", () => {
     redirectedAgo(2_000);
     renderAt();
 
-    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(auth.signIn).toHaveBeenCalledTimes(1);
   });
 
@@ -161,6 +161,21 @@ describe("AuthGuard and the sign-in loop", () => {
 
     expect(screen.getByText("the app")).toBeInTheDocument();
     expect(sessionStorage.getItem(SIGN_IN_REDIRECT_KEY)).toBeNull();
+  });
+
+  // The page load that came back from sign-in stays open, and the session is
+  // lost later (the refresh token revoked at the IdP). That is not a loop.
+  it("redirects when a page that signed in fine loses the session later", async () => {
+    redirectedAgo(2_000);
+    auth.isSignedIn = true;
+    const { rerender } = renderAt();
+    expect(screen.getByText("the app")).toBeInTheDocument();
+
+    auth.isSignedIn = false;
+    rerender(guarded());
+
+    await waitFor(() => expect(auth.signIn).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/couldn.t sign you in/i)).toBeNull();
   });
 
   // The SDK is still exchanging the code on the returning page load. That is a

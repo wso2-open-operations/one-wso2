@@ -17,14 +17,13 @@
 import { useAsgardeo } from "@asgardeo/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
-import { Box, CircularProgress } from "@wso2/oxygen-ui";
+import { Box, Button, CircularProgress, Typography } from "@wso2/oxygen-ui";
 import {
   getRenewalInFlightSnapshot,
   SDK_SESSION_PICKUP_MS,
   sdkHasSession,
   subscribeRenewal,
 } from "@api/authBridge";
-import ErrorNotice from "@components/error-notice/ErrorNotice";
 import {
   forgetSignInRedirect,
   rememberSignInRedirect,
@@ -54,7 +53,10 @@ export default function AuthGuard() {
   const renewing = useSyncExternalStore(subscribeRenewal, getRenewalInFlightSnapshot);
   // Whether this page load is the return from a sign-in this tab started moments
   // ago. Read once, before this page can record a redirect of its own.
-  const [returnedFromRecentSignIn] = useState(signInRedirectIsRecent);
+  const [returnedFromRecentSignIn, setReturnedFromRecentSignIn] = useState(signInRedirectIsRecent);
+  // That sign-in worked, so losing the session later on this page load (a
+  // refresh token revoked hours on, say) is not a loop and gets its redirect.
+  if (returnedFromRecentSignIn && isSignedIn) setReturnedFromRecentSignIn(false);
   const reportedLoopRef = useRef(false);
   const signInLooped = returnedFromRecentSignIn && !isLoading && !isSignedIn;
 
@@ -143,8 +145,28 @@ export default function AuthGuard() {
       signIn();
     };
     return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", px: 2 }}>
-        <ErrorNotice onRetry={retrySignIn}>We couldn&apos;t sign you in.</ErrorNotice>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 2,
+          height: "100vh",
+          px: 3,
+          textAlign: "center",
+        }}
+      >
+        <Typography component="h1" variant="h4" fontWeight={700}>
+          We couldn&apos;t sign you in
+        </Typography>
+        <Typography color="text.secondary" sx={{ maxWidth: 420 }}>
+          The sign-in didn&apos;t finish. Try again, and if it keeps happening, open One WSO2 in a new
+          tab.
+        </Typography>
+        <Button variant="contained" onClick={retrySignIn} sx={{ mt: 1 }}>
+          Try again
+        </Button>
       </Box>
     );
   }
