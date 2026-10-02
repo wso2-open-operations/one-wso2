@@ -353,7 +353,9 @@ export default function UmtPrAnalysisStep({ id, update }: { id: string; update: 
             </>
           )}
 
-          <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "flex-end", mt: 3 }}>
+          {updateType !== "instructionsOnlyUpdate" && <Divider sx={{ mt: 2 }} />}
+
+          <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "flex-end", mt: 2 }}>
             {isBusy && <CircularProgress size={22} />}
             {updateType !== "instructionsOnlyUpdate" && (
               <Stack sx={{ flex: 1, minWidth: 0 }}>

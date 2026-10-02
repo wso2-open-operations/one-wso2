@@ -42,6 +42,7 @@ import type { UmtUpdateSummary, UmtWorstCaseEstimateLogEntry } from "../api/umtU
 import type { UmtUpdateFieldChange } from "../api/useUmtUpdateFieldMutation";
 import { useUmtWorstCaseEstimateLog } from "../api/useUmtWorstCaseEstimateLog";
 import { formatCalendarDate, formatTimestamp } from "../lib/umtDates";
+import { renderLinkValue } from "./umtViewSectionPrimitives";
 
 const { DatePicker, LocalizationProvider } = DatePickers;
 const { DataGrid: DataGridComponent } = DataGrid;
@@ -148,11 +149,11 @@ export default function UmtUpdateDetailsGrid({
           loading={loading}
           value={update?.highlightInstructions}
         />
-        <UpdateField
-          label="QA Artifacts Location"
-          loading={loading}
-          value={update?.qaArtifactsLocation}
-        />
+        <UpdateField label="QA Artifacts Location" loading={loading}>
+          <Typography variant="body1" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+            {renderLinkValue(update?.qaArtifactsLocation)}
+          </Typography>
+        </UpdateField>
       </Grid>
     </Stack>
   );
@@ -285,6 +286,7 @@ function EditableWorstCaseDate({
   const [editing, setEditing] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [draft, setDraft] = useState<Date | null>(() => parseDate(value));
+  const [reason, setReason] = useState(UMT_DEFAULT_ETA_REASON);
   const etaLog = useUmtWorstCaseEstimateLog(id, logOpen);
 
   // Same reasoning as EditableUserField above.
@@ -299,13 +301,24 @@ function EditableWorstCaseDate({
 
   const cancel = () => {
     setDraft(parseDate(value));
+    setReason(UMT_DEFAULT_ETA_REASON);
     setEditing(false);
   };
 
+  // The picker enforces these rules only on its calendar; its text field also
+  // accepts a typed date, which must pass the same checks before it is saved.
+  const minSelectableDate = parseDate(value) ?? new Date();
+  const isSelectableDate = (date: Date | null): date is Date => {
+    if (!date || Number.isNaN(date.getTime())) return false;
+    if (date.getDay() !== UMT_RELEASE_WEEKDAY) return false;
+    return startOfDay(date) >= startOfDay(minSelectableDate);
+  };
+
   const save = async () => {
-    if (!draft || Number.isNaN(draft.getTime())) return;
+    if (!isSelectableDate(draft) || !reason.trim()) return;
     try {
-      await onSave({ field: "worstCaseEstimate", value: toDateInputValue(draft) });
+      await onSave({ field: "worstCaseEstimate", value: toDateInputValue(draft), reason: reason.trim() });
+      setReason(UMT_DEFAULT_ETA_REASON);
       setEditing(false);
     } catch {
       // The page-level notification explains the backend error. Keep the
@@ -334,6 +347,7 @@ function EditableWorstCaseDate({
                     size="small"
                     onClick={() => {
                       setDraft(parseDate(value));
+                      setReason(UMT_DEFAULT_ETA_REASON);
                       setEditing(true);
                     }}
                   >
@@ -354,21 +368,32 @@ function EditableWorstCaseDate({
           )}
         </>
       ) : (
-        <Stack spacing={1}>
+        <Stack spacing={2} useFlexGap>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <DatePicker
               label={label}
               value={draft}
               onChange={setDraft}
-              minDate={parseDate(value) ?? new Date()}
-              shouldDisableDate={(date) => date.getDay() !== 4}
+              minDate={minSelectableDate}
+              shouldDisableDate={(date) => date.getDay() !== UMT_RELEASE_WEEKDAY}
               slotProps={{ textField: { required: true, size: "small" } }}
             />
           </LocalizationProvider>
+          <TextField
+            label="Reason for extending ETA"
+            multiline
+            required
+            rows={3}
+            size="small"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            error={!reason.trim()}
+            helperText={!reason.trim() ? "A reason is required" : undefined}
+          />
           <EditActions
             label={label}
             saving={saving}
-            saveDisabled={!draft || Number.isNaN(draft.getTime())}
+            saveDisabled={!isSelectableDate(draft) || !reason.trim()}
             onCancel={cancel}
             onSave={() => void save()}
           />
@@ -402,7 +427,7 @@ function EtaLogDialog({
   onRetry: () => void;
 }) {
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
       <DialogTitle>ETA Log</DialogTitle>
       <DialogContent>
         {loading ? (
@@ -448,6 +473,7 @@ const etaLogColumns: DataGrid.GridColDef[] = [
   etaLogColumn("newDate", "New Date", 140, formatCalendarDate),
   etaLogColumn("timestamp", "Updated Timestamp", 200, formatTimestamp),
   etaLogColumn("changedBy", "Changed By", 180, displayValue),
+  etaLogColumn("reason", "Reason", 260, displayValue, 2),
 ];
 
 function etaLogColumn(
@@ -455,10 +481,11 @@ function etaLogColumn(
   headerName: string,
   minWidth: number,
   format: (value: string | null | undefined) => string,
+  flex = 1,
 ): DataGrid.GridColDef {
   return {
     field,
-    flex: 1,
+    flex,
     headerName,
     minWidth,
     sortable: false,
@@ -471,10 +498,19 @@ function etaLogColumn(
 }
 
 function EtaLogEmptyState() {
-  return <Typography color="text.secondary">No ETA changes recorded.</Typography>;
+  return (
+    <Stack sx={{ alignItems: "center", color: "text.secondary", height: "100%", justifyContent: "center", py: 3 }}>
+      <Typography variant="body2">No ETA changes recorded.</Typography>
+    </Stack>
+  );
 }
 
-const etaLogGridSx = { border: 0, minHeight: 100 } as const;
+// Reasons are free text, so cells wrap instead of clipping with an ellipsis.
+const etaLogGridSx = {
+  border: 0,
+  minHeight: 100,
+  "& .MuiDataGrid-cell": { overflowWrap: "anywhere", whiteSpace: "normal" },
+} as const;
 
 function EditActions({
   label,
@@ -593,6 +629,20 @@ function toDateInputValue(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+// Pre-filled so the common case needs no typing; it is recorded in the ETA log.
+const UMT_DEFAULT_ETA_REASON =
+  "This update has been delayed due to unforeseen circumstances. Please find the new ETA below. Sorry for the inconvenience caused.";
+
+// UMT releases on Thursdays; Date.getDay() numbers Sunday 0..Saturday 6.
+const UMT_RELEASE_WEEKDAY = 4;
+
+// Day-granularity comparison, matching how the DatePicker applies `minDate`:
+// comparing raw timestamps would reject today whenever `minDate` defaults to
+// `new Date()`, which carries the current time of day.
+function startOfDay(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
 function displayValue(value: string | number | null | undefined): string {

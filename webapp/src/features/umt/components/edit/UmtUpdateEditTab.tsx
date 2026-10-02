@@ -35,6 +35,7 @@ import { isDescriptionInstructionComplete } from "../../lib/umtDescriptionInstru
 import { isIntegrationTestsComplete } from "../../lib/umtIntegrationTests";
 import { isTestingComplete } from "../../lib/umtTesting";
 import { useUmtStagingTestResults } from "../../api/useUmtTesting";
+import { useUmtLifecycleHistory } from "../../api/useUmtLifecycleHistory";
 import UmtEditStepActions from "./UmtEditStepActions";
 import UmtEditStepPlaceholder from "./UmtEditStepPlaceholder";
 import UmtEditStepper from "./UmtEditStepper";
@@ -68,25 +69,42 @@ export default function UmtUpdateEditTab({
   const backendActiveIndex = umtActiveStepIndex(update.lifecycleState, steps);
   const backendActiveId = steps[backendActiveIndex]?.id;
 
+  // Identifies this particular stay in the current lifecycle state: the
+  // lifecycle log gains an entry on every transition, so a demotion followed
+  // by a promotion back to the same state still reads as a different stay.
+  // Undefined until the log has loaded.
+  const lifecycleHistory = useUmtLifecycleHistory(id);
+  const lifecycleStay = lifecycleHistory.isSuccess
+    ? `${update.lifecycleState ?? ""}#${lifecycleHistory.data.length}`
+    : undefined;
+
   // A small step-position override: some adjacent steps share one backend
   // lifecycleState value (see umtEditSteps.ts), so a step whose Proceed only
   // advances locally (advancesLocallyToNextStep) moves this pointer instead
   // of calling the real transition. Persisted per update id, so a refresh
   // doesn't kick the user back to the backend-derived default (the first of
-  // the ambiguous steps). Reset
-  // whenever the backend-derived step id itself changes — that only happens
-  // after a real transition actually fires.
-  const [localStepOverride, setLocalStepOverride] = useState<UmtEditStepId | null>(
-    () => readPersistedEditStep(id) as UmtEditStepId | null,
-  );
-  // Persist from an effect, not from the setter: two of the four call sites run
-  // during render (the backend-step resync below and the stale-override
-  // discard), and a localStorage write is a side effect render isn't allowed to
-  // perform — it re-runs under StrictMode's double-invoke and on any render
-  // React replays.
+  // the ambiguous steps). It is stored with the stay it was reached in and
+  // restored only within that same stay, so an update that has moved since
+  // (even out and back again) opens on its real step. Any change of stay
+  // while the page is open clears it too.
+  const [localStepOverride, setLocalStepOverride] = useState<UmtEditStepId | null>(null);
+  const [overrideStay, setOverrideStay] = useState<string | undefined>(undefined);
+  if (lifecycleStay !== undefined && lifecycleStay !== overrideStay) {
+    const persisted = overrideStay === undefined ? readPersistedEditStep(id) : null;
+    setOverrideStay(lifecycleStay);
+    setLocalStepOverride(
+      persisted && persisted.stayKey === lifecycleStay ? (persisted.stepId as UmtEditStepId) : null,
+    );
+  }
+  // Persist from an effect, not from the setter: the call sites above and
+  // below run during render, and a localStorage write is a side effect render
+  // isn't allowed to perform — it re-runs under StrictMode's double-invoke and
+  // on any render React replays. Nothing is written before the stored value
+  // has been read back, so a slow log load can't clear it first.
   useEffect(() => {
-    writePersistedEditStep(id, localStepOverride);
-  }, [id, localStepOverride]);
+    if (overrideStay === undefined) return;
+    writePersistedEditStep(id, localStepOverride ? { stayKey: overrideStay, stepId: localStepOverride } : null);
+  }, [id, localStepOverride, overrideStay]);
 
   const [lastBackendActiveId, setLastBackendActiveId] = useState(backendActiveId);
   if (backendActiveId !== lastBackendActiveId) {
@@ -103,6 +121,7 @@ export default function UmtUpdateEditTab({
   const currentStep = steps[activeIndex];
 
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [securityAdvisoryDirty, setSecurityAdvisoryDirty] = useState(false);
 
   const isFileApproval = currentStep.id === "file-approval";
   const isCloudDevelopment = currentStep.id === "cloud-development";
@@ -140,8 +159,18 @@ export default function UmtUpdateEditTab({
   // has no working transition in this pass, so Proceed stays disabled for
   // all of them uniformly.
   const verifyingReady = !isVerifying || update.lifecycleState === "Released";
+  // A security update can't reach UAT without an advisory, so Next waits for
+  // at least one saved advisory rather than letting the gap surface later,
+  // and for any unsaved changes, which leaving the step would discard.
+  const securityAdvisoryReady =
+    !isSecurityAdvisory || ((update.securityAdvisories?.length ?? 0) > 0 && !securityAdvisoryDirty);
   const stepReady =
-    productAnalysisReady && descriptionInstructionReady && integrationTestsReady && testingReady && verifyingReady;
+    productAnalysisReady &&
+    descriptionInstructionReady &&
+    integrationTestsReady &&
+    securityAdvisoryReady &&
+    testingReady &&
+    verifyingReady;
   // File Approval, Cloud Support's Development step, Product Analysis,
   // Description and Instruction, and Integration Tests are wired
   // (currentStep.proceedWired); every other step's Proceed is a stub. Cloud
@@ -167,6 +196,7 @@ export default function UmtUpdateEditTab({
     update.lifecycleState,
     update.isHotfix ?? false,
     gate.isAdmin,
+    update.demoteStages,
   );
   const handleDemote = async (target: string) => {
     try {
@@ -212,7 +242,7 @@ export default function UmtUpdateEditTab({
         ) : currentStep.id === "description-instruction" ? (
           <UmtDescriptionInstructionStep id={id} update={update} />
         ) : currentStep.id === "security-advisory" ? (
-          <UmtSecurityAdvisoryStep id={id} update={update} />
+          <UmtSecurityAdvisoryStep id={id} update={update} onDirtyChange={setSecurityAdvisoryDirty} />
         ) : currentStep.id === "integration-tests" ? (
           <UmtIntegrationTestsStep id={id} update={update} />
         ) : currentStep.id === "testing" ? (
@@ -263,13 +293,17 @@ export default function UmtUpdateEditTab({
                     ? "Every product needs a description and instruction before proceeding."
                     : !integrationTestsReady
                       ? "Every product needs a Test PR or an ignore reason before proceeding (or a Helm Chart Tag for a containerized update)."
-                      : !testingReady
-                        ? update.lifecycleState !== "Staging"
-                          ? "Waiting for the testing environment to reach Staging before proceeding."
-                          : "Every product needs a submitted test result before proceeding."
-                        : !verifyingReady
-                          ? "This state has no further action available yet."
-                          : undefined
+                      : !securityAdvisoryReady
+                        ? securityAdvisoryDirty
+                          ? "Save your security advisory changes before proceeding."
+                          : "Save at least one security advisory before proceeding."
+                        : !testingReady
+                          ? update.lifecycleState !== "Staging"
+                            ? "Waiting for the testing environment to reach Staging before proceeding."
+                            : "Every product needs a submitted test result before proceeding."
+                          : !verifyingReady
+                            ? "This state has no further action available yet."
+                            : undefined
           }
           onProceed={() => void handleProceed()}
           onBack={canGoBack ? handleBack : undefined}

@@ -197,6 +197,9 @@ export function useUmtReleaseChunk(chunkId: number) {
         queryClient.invalidateQueries({ queryKey: ["umt-release-chunks"] }),
         queryClient.invalidateQueries({ queryKey: ["umt-release-chunk-status"] }),
         queryClient.invalidateQueries({ queryKey: ["umt-released-chunks"] }),
+        // Releasing moves the chunk's updates out of UAT.
+        queryClient.invalidateQueries({ queryKey: ["umt-updates"] }),
+        queryClient.invalidateQueries({ queryKey: ["umt-update"] }),
       ]);
     },
   });

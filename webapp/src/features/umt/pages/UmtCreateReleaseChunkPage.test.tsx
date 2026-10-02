@@ -24,7 +24,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 const state = vi.hoisted(() => ({
   uat: undefined as unknown,
@@ -139,4 +139,39 @@ describe("UmtCreateReleaseChunkPage", () => {
     expect(state.create).not.toHaveBeenCalled();
   });
 
+  it("restores the selection kept in its history entry", () => {
+    state.uat = { recordsTotal: 0, recordsFiltered: 0, data: [] };
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/umt/release-chunks/new", state: { selectedIds: [11] } }]}>
+        <UmtCreateReleaseChunkPage />
+      </MemoryRouter>,
+    );
+
+    const [, rowCheckbox] = screen.getAllByRole("checkbox");
+    expect(rowCheckbox).toBeChecked();
+    expect(createButton()).toBeEnabled();
+  });
+
+  it("links to an update with a way back that keeps the selection", async () => {
+    state.uat = { recordsTotal: 0, recordsFiltered: 0, data: [] };
+    function LocationState() {
+      return <pre data-testid="location-state">{JSON.stringify(useLocation().state)}</pre>;
+    }
+    render(
+      <MemoryRouter initialEntries={["/umt/release-chunks/new"]}>
+        <Routes>
+          <Route path="/umt/release-chunks/new" element={<UmtCreateReleaseChunkPage />} />
+          <Route path="/umt/updates/:id" element={<LocationState />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await selectTheUpdate();
+    await userEvent.click(screen.getByRole("link", { name: "View update 11" }));
+
+    expect(JSON.parse(screen.getByTestId("location-state").textContent ?? "null")).toEqual({
+      backTo: "/umt/release-chunks/new",
+      backState: { selectedIds: [11] },
+    });
+  });
 });

@@ -31,6 +31,7 @@ export function computeUmtDemoteActions(
   lifecycleState: string | null | undefined,
   isHotfix: boolean,
   isAdmin: boolean,
+  demoteStages: readonly string[] | null | undefined,
 ): UmtDemoteAction[] {
   switch (stepId) {
     case "product-analysis":
@@ -51,7 +52,12 @@ export function computeUmtDemoteActions(
       return isAdmin ? [{ label: "Demote to Staging", targetLifecycleState: "Staging" }] : [];
     case "testing":
     case "validate":
-      return [{ label: "Demote to Development", targetLifecycleState: "Development" }];
+      // The valid targets differ across the testing states (Staging, for one,
+      // can only request a demotion), so they come from the backend.
+      return (demoteStages ?? []).map((stage) => ({
+        label: umtDemoteStageLabel(stage),
+        targetLifecycleState: stage,
+      }));
     case "verifying":
       if (lifecycleState === "UATStaging") {
         return [{ label: "Demote to Testing", targetLifecycleState: "Staging" }];
@@ -63,4 +69,13 @@ export function computeUmtDemoteActions(
     default:
       return [];
   }
+}
+
+// A staging demotion is requested rather than applied directly; the update
+// ends up back in Development once it completes, which is what the user asked
+// for.
+function umtDemoteStageLabel(stage: string): string {
+  if (stage === "DemoteStagingRequested") return "Demote to Development";
+  if (stage === "OnHold") return "Change to On Hold";
+  return `Demote to ${stage}`;
 }

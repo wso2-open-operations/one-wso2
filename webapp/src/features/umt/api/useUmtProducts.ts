@@ -27,7 +27,7 @@ const BASE_PRODUCTS_QUERY_KEY = "umt-base-products";
 
 // GET /update/base-product — the admin-only Product Management catalog. The
 // endpoint returns the whole list at once (no pagination), so this is a
-// plain fetch-once query, same shape as useUmtBranches.
+// plain fetch-once query.
 export function useUmtBaseProducts() {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();

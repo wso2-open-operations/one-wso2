@@ -55,6 +55,7 @@ vi.mock("../../api/useUmtGate", () => ({
 }));
 
 vi.mock("../../api/useUmtReleaseChunks", () => ({
+  useFetchFreshUmtReleaseChunkBuildStatus: () => async () => undefined,
   useUmtReleaseChunks: () => ({
     data: [CHUNK],
     isError: false,

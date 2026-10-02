@@ -15,7 +15,7 @@
 // under the License.
 
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
 import {
   Alert,
   Box,
@@ -47,6 +47,7 @@ import { useUmtUserInfo } from "../api/useUmtUserInfo";
 import { readPersistedSelectedTab, writePersistedSelectedTab } from "../lib/umtLocalState";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import UmtShell from "../components/UmtShell";
+import { umtBackLink } from "../lib/umtBackLink";
 import UmtUpdateDetailsGrid from "../components/UmtUpdateDetailsGrid";
 import UmtUpdateEditTab from "../components/edit/UmtUpdateEditTab";
 import UmtLifecycleHistory from "../components/UmtLifecycleHistory";
@@ -62,9 +63,10 @@ const UPDATE_VIEW_CHIP_SX = {
 
 export default function UmtUpdateView() {
   const { id } = useParams<{ id: string }>();
+  const { backTo, backState } = umtBackLink(useLocation().state);
 
   return (
-    <UmtShell title="Update Information" backTo="/umt/updates">
+    <UmtShell title="Update Information" backTo={backTo} backState={backState}>
       {/* React Router reuses this element across a params-only change (Back /
           Forward between two detail pages, an edited URL, or the list's own
           openUpdateOnTab while already on a detail page), so every piece of

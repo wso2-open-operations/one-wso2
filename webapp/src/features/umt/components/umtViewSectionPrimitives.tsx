@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Alert,
   Button,
@@ -33,6 +33,10 @@ export interface DenseColumn<Row> {
   key: string;
   label: string;
   render: (row: Row, index: number) => ReactNode;
+  width?: number;
+  // Share of the free width, relative to the default of 1.
+  flex?: number;
+  minWidth?: number;
 }
 
 export function TableSection({ title, children }: { title: string; children: ReactNode }) {
@@ -79,14 +83,21 @@ export function DenseTable<Row>({
   // Carry the position through so a renderer can address a row by index, not
   // just by value — these lists can legitimately contain duplicates.
   const gridRows = rows.map((row, index) => ({ id: rowKey(row, index), value: row, index }));
+  // Widths the user dragged to. The column definitions are rebuilt on every
+  // render, and the grid re-applies `flex` whenever they change, so a resize
+  // only sticks if it is fed back in as a fixed width.
+  const [resizedWidths, setResizedWidths] = useState<Record<string, number>>({});
   const gridColumns: DataGrid.GridColDef[] = columns.map((column) => ({
     field: column.key,
-    flex: 1,
+    ...(resizedWidths[column.key] !== undefined
+      ? { flex: 0, width: resizedWidths[column.key], minWidth: column.minWidth ?? 160 }
+      : column.width === undefined
+        ? { flex: column.flex ?? 1, minWidth: column.minWidth ?? 160 }
+        : { flex: 0, width: column.width }),
     headerName: hideHeader ? "" : column.label,
-    minWidth: 160,
-    // A single-column table has nothing to resize against, so its header
-    // resize handle only misleads.
-    resizable: columns.length > 1,
+    // Only tables with more than two columns have enough to rebalance; a
+    // fixed-width column (e.g. a delete button) keeps its width.
+    resizable: columns.length > 2 && column.width === undefined,
     sortable: false,
     renderCell: (params) => (
       <GridCellContent>
@@ -106,6 +117,9 @@ export function DenseTable<Row>({
         getRowHeight={() => "auto"}
         hideFooter
         rows={gridRows}
+        onColumnWidthChange={(params) =>
+          setResizedWidths((widths) => ({ ...widths, [params.colDef.field]: params.width }))
+        }
         aria-label={ariaLabel}
         sx={denseDataGridSx}
       />

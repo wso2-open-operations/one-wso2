@@ -38,11 +38,14 @@ import UmtLocked from "./UmtLocked";
 export default function UmtShell({
   title,
   backTo,
+  backState,
   requireAdmin = false,
   children,
 }: {
   title: string;
   backTo?: string;
+  /** Location state for the back link, for a page that restores itself from it. */
+  backState?: unknown;
   /** Page-level gate for UMT_ADMIN-only screens (e.g. Product Management). Hiding
    * a rail item alone is not an authorization boundary, so admin-only pages
    * must opt into this rather than relying on navigation alone. */
@@ -56,7 +59,7 @@ export default function UmtShell({
     <Box sx={{ display: "flex", flex: 1, flexDirection: "column", minHeight: 0 }}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2.25, mt: 0 }}>
         {backTo && (
-          <IconButton component={RouterLink} to={backTo} size="small" aria-label="Back">
+          <IconButton component={RouterLink} to={backTo} state={backState} size="small" aria-label="Back">
             <ArrowLeftIcon size={18} />
           </IconButton>
         )}

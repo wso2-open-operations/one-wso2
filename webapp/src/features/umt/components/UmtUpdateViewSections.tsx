@@ -237,8 +237,8 @@ function HotfixSection({ query }: { query: ViewQueryState<UmtHotfixInfo> }) {
 // feature (Manual Files, Bundle Info, Pull Requests, Security Advisories).
 
 const productColumns: DenseColumn<UmtUpdateProduct>[] = [
-  { key: "product", label: "Product", render: (row) => displayValue(row.product?.name) },
-  { key: "version", label: "Version", render: (row) => displayValue(row.product?.version) },
+  { key: "product", label: "Product", flex: 0.5, render: (row) => displayValue(row.product?.name) },
+  { key: "version", label: "Version", flex: 0.5, render: (row) => displayValue(row.product?.version) },
   { key: "description", label: "Description", render: (row) => displayValue(row.description) },
   { key: "instruction", label: "Instruction", render: (row) => displayValue(row.instruction) },
   { key: "test-pr", label: "Test PR", render: (row) => renderLinkValue(row.testPr) },

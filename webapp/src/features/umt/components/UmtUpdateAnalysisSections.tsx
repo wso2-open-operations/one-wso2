@@ -172,7 +172,7 @@ const pullRequestAnalysisColumns: DenseColumn<UmtPullRequestAnalysisItem>[] = [
 ];
 
 const fileOperationColumns: DenseColumn<UmtFileOperation>[] = [
-  { key: "file", label: "Files", render: (row) => displayValue(row.file) },
-  { key: "operation", label: "Operation", render: (row) => displayValue(row.operation) },
+  { key: "file", label: "Files", flex: 0.5, render: (row) => displayValue(row.file) },
+  { key: "operation", label: "Operation", flex: 0.25, minWidth: 90, render: (row) => displayValue(row.operation) },
   { key: "source", label: "Source", render: (row) => renderLinkValue(row.downloadURL) },
 ];

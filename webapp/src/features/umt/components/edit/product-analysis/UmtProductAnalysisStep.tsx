@@ -376,6 +376,7 @@ export default function UmtProductAnalysisStep({ id, update }: { id: string; upd
             autoHeight
             columnHeaderHeight={40}
             disableColumnMenu
+            disableColumnResize
             disableRowSelectionOnClick
             getRowHeight={() => "auto"}
             getRowId={(row: UmtUpdateProduct) => productKey(row.product?.name, row.product?.version)}

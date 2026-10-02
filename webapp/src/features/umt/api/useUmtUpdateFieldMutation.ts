@@ -24,6 +24,9 @@ export type UmtEditableUpdateField = "assignedTo" | "developedBy" | "worstCaseEs
 export interface UmtUpdateFieldChange {
   field: UmtEditableUpdateField;
   value: string;
+  // Why the ETA moved. Sent only with a worstCaseEstimate change, where the
+  // backend records it in the update's ETA log.
+  reason?: string;
 }
 
 export function useUmtUpdateFieldMutation(id: string) {
@@ -31,19 +34,23 @@ export function useUmtUpdateFieldMutation(id: string) {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, UmtUpdateFieldChange>({
-    mutationFn: async ({ field, value }) => {
+    mutationFn: async ({ field, value, reason }) => {
       const accessToken = await getAccessToken();
       const url =
         field === "worstCaseEstimate"
           ? umtServiceUrls.updateWorstCaseEstimate(id)
           : umtServiceUrls.update(id);
 
-      await authedPut(url, accessToken, { [field]: value });
+      const body = field === "worstCaseEstimate" ? { worstCaseEstimate: value, reason } : { [field]: value };
+      await authedPut(url, accessToken, body);
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, { field }) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["umt-update"] }),
         queryClient.invalidateQueries({ queryKey: ["umt-updates"] }),
+        // Every ETA change adds an entry to the update's ETA log.
+        field === "worstCaseEstimate" &&
+          queryClient.invalidateQueries({ queryKey: ["umt-update-worst-case-estimate-log"] }),
       ]);
     },
   });
