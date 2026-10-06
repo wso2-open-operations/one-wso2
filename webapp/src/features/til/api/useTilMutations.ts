@@ -33,14 +33,24 @@ function useTilSubmissionsKey(): unknown[] {
   return ["til-submissions", state.status === "ready" ? state.sub : undefined];
 }
 
-/** POST /submissions. The backend derives the submitter's email from the id_token. */
+/** POST /submissions. The backend derives the submitter's email from the id_token.
+ *
+ * X-Til-Client identifies THIS entry point to the backend -- the backend uses
+ * it to decide whether to broadcast a Novera DM notification for this specific
+ * submission (only entries created here, not via the Chat App Dialog or
+ * Novera's own share_til_entry tool, should trigger that broadcast). Every
+ * other behavior (storage, the Chat Space webhook post, validation) is
+ * identical regardless of this header -- it's purely a routing signal for
+ * the one Novera-notification decision. */
 export function useCreateTilSubmission() {
   const getAccessToken = useAccessToken();
   const qc = useQueryClient();
   const submissionsKey = useTilSubmissionsKey();
   return useMutation<void, Error, TilSubmissionPayload>({
     mutationFn: async (payload) => {
-      await authedPost<unknown>(tilServiceUrls.submissions, await getAccessToken(), payload);
+      await authedPost<unknown>(tilServiceUrls.submissions, await getAccessToken(), payload, {
+        "X-Til-Client": "one-wso2-webapp",
+      });
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: submissionsKey });
