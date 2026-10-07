@@ -18,10 +18,15 @@ import type { VisibilityAnswer } from "@components/side-rail/visibilityFold";
 import {
   isCcBackendConfigured,
   isExpenseBackendConfigured,
+  isFinanceMasterDataBackendConfigured,
   isOpdBackendConfigured,
 } from "@config/apiConfig";
 import { FINANCE_APPS } from "@constants/financeApps";
-import type { Capability } from "@constants/appMenu";
+import {
+  masterDataHasAccess,
+  useMasterDataUserInfo,
+  type MasterDataUserInfo,
+} from "../masterdata/useMasterDataAccess";
 import { useCcUserInfo } from "../cc/useCc";
 import { ccHasAccess } from "../cc/ccTypes";
 import { useOpdUserInfo } from "../opd/useOpd";
@@ -39,27 +44,28 @@ const RESTRICTED_IDS = new Set(
 );
 
 /**
- * Whether Master Data is open to this reader — pulled out of the `canSee`
- * switch below so a caller can ask this ONE question without mounting the
- * rest of this hook's cc/opd/expense queries to get an answer.
+ * Whether Master Data is open to this reader.
  *
- * `MasterDataRoute` is exactly that caller: those three backends have
- * nothing to do with whether someone may open Master Data (see the
- * master-data case's own comment), so a route guard built on the full
- * `useFinanceGate` was blocking on THEIR `isLoading` — a slow or erroring
- * CC/OPD/Expense backend in some environment held the page on a blank
- * screen for a reader who was always going to be let in, once identity
- * resolves. Exported so both the switch case and the route call the same
- * check — two independent copies of `caps.has("admin")` is how one of them
- * quietly drifts from the other.
+ * Takes the master-data backend's own `/user-info` rather than the portal's
+ * capability set. It used to be `caps.has("admin")` — people-app privilege
+ * 999 — which was the only signal available while this backend's `/user-info`
+ * returned nothing but an email and an avatar. That made it wrong in both
+ * directions: 999 is the portal's GENERIC administrator privilege, so a
+ * portal admin saw all four rail rows and was then refused by the backend
+ * (which gates on the `app-finance-masterdata-admin` group), while the finance
+ * staff who hold that group saw no rows at all. See
+ * `masterdata/useMasterDataAccess.ts` for the whole account.
  *
- * `admin` is the whole rule. These tables were briefly held behind a
- * "finance-master-data" preview flag as well, so an environment had to opt
- * in before the rows appeared; the feature has shipped, so the flag is gone
- * and the per-reader permission is all that is left to check.
+ * Still a plain function over already-fetched data, and still exported, for
+ * the reason it always was: `MasterDataRoute` asks this ONE question and must
+ * not mount the cc/opd/expense queries to get an answer — a slow or erroring
+ * one of those held the page on a blank screen for a reader who was always
+ * going to be let in. The route reaches it through `useMasterDataAccess`,
+ * which wraps the same `masterDataHasAccess` this case calls, so the rail and
+ * the route cannot drift apart.
  */
-export function canSeeMasterData(caps: ReadonlySet<Capability> | undefined): boolean {
-  return caps?.has("admin") ?? false;
+export function canSeeMasterData(user: MasterDataUserInfo | undefined): boolean {
+  return masterDataHasAccess(user);
 }
 
 // Role-gates the Finance menu items (surfaced under Me) against each app's
@@ -94,15 +100,21 @@ export interface FinanceGate {
 }
 
 /**
- * @param caps The portal's coarse capabilities, for the finance items that
- *   have no backend role of their own — currently just master data. Passed
- *   in rather than read here: the rail has already derived it from the
- *   existing identity query this hook would otherwise call a second time.
+ * Every finance item's visibility, each decided by the backend that owns it.
+ *
+ * The portal's coarse capability set used to be passed in here, for the one
+ * item that had no backend role of its own — master data. That backend now
+ * answers for itself (`useMasterDataUserInfo`), so there is no finance item
+ * left that people-app privileges decide, and the parameter is gone rather
+ * than kept unused: a `caps` argument still in the signature is an invitation
+ * to gate the next finance item on a portal-wide privilege too, which is the
+ * mistake this change exists to undo.
  */
-export function useFinanceGate(enabled = true, caps?: ReadonlySet<Capability>): FinanceGate {
+export function useFinanceGate(enabled = true): FinanceGate {
   const cc = useCcUserInfo(enabled);
   const opd = useOpdUserInfo(enabled);
   const expense = useExpenseAppData(enabled);
+  const masterData = useMasterDataUserInfo(enabled);
 
   const ccLeadOrFinance = ccHasAccess(cc.data, "lead") || ccHasAccess(cc.data, "finance");
   const ccFinance = ccHasAccess(cc.data, "finance");
@@ -166,14 +178,15 @@ export function useFinanceGate(enabled = true, caps?: ReadonlySet<Capability>): 
       // has to be named here before it appears, the same fail-closed rule
       // the default case enforces.
       //
-      // Gated on `admin` alone now that the feature has shipped — the
-      // "finance-master-data" preview flag that used to sit in front of it
-      // is gone, along with the entry in previewFeatures.ts.
+      // Gated on this backend's OWN answer, like every other case here — not
+      // on the portal's `admin` privilege, which is what it used to read and
+      // which no finance role maps onto. `canSeeMasterData`'s comment has the
+      // full reasoning.
       case "master-data-subsidiaries":
       case "master-data-departments":
       case "master-data-expense-types":
       case "master-data-credit-cards":
-        return canSeeMasterData(caps);
+        return canSeeMasterData(masterData.data);
       default:
         // Per-user views (New / Pending / History) are open; any other item
         // that declares `requires` but reaches here fails closed rather than
@@ -219,7 +232,13 @@ export function useFinanceGate(enabled = true, caps?: ReadonlySet<Capability>): 
     !(
       hasAnswered(cc, isCcBackendConfigured()) &&
       hasAnswered(opd, isOpdBackendConfigured()) &&
-      hasAnswered(expense, isExpenseBackendConfigured())
+      hasAnswered(expense, isExpenseBackendConfigured()) &&
+      // Counted here too, now that a master-data row waits on a real request
+      // rather than on an identity field the rail already had. Left out, the
+      // rail would call the four rows resolved while this query was still in
+      // flight and render them hidden, then show them when it landed — the
+      // appearing-and-vanishing row this hook's comments above are about.
+      hasAnswered(masterData, isFinanceMasterDataBackendConfigured())
     );
 
   return { canSee, isResolving, ccHasOwnCard, opdFinance, opdErrored, expenseFinance };

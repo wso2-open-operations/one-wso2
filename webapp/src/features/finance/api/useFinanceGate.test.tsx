@@ -18,15 +18,24 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
-import type { Capability } from "@constants/appMenu";
+import type { MasterDataAccessLevel } from "../masterdata/useMasterDataAccess";
 
-// Three backends, three vocabularies, none of them the people-app roles the
+/** The four master-data rail ids, which answer as one. */
+const MASTER_DATA_IDS = [
+  "master-data-subsidiaries",
+  "master-data-departments",
+  "master-data-expense-types",
+  "master-data-credit-cards",
+] as const;
+
+// Four backends, four vocabularies, none of them the people-app roles the
 // rail normally reads. These are the rules the standalone apps enforce, so they
 // are asserted against what those apps actually do:
 //
-//   OPD      userSlice.ts:38-40   role 555 approves, 444 is submit-only
-//   Expense  appDataSlice.ts:99-103   two independent booleans
-//   CC       privilege names on /user-info
+//   OPD          userSlice.ts:38-40   role 555 approves, 444 is submit-only
+//   Expense      appDataSlice.ts:99-103   two independent booleans
+//   CC           privilege names on /user-info
+//   Master data  privilege names on /user-info, from its JWT group check
 
 const roles = {
   /** OPD `userRoles`. 444 = submitter, 555 = finance approver. */
@@ -45,6 +54,8 @@ const roles = {
   betweenRetries: false,
   /** The OPD lookup came back a failure rather than a role. */
   opdErrored: false,
+  /** The master-data backend's own `privileges` — `["admin"]` or empty. */
+  masterData: [] as MasterDataAccessLevel[],
 };
 
 // `isSuccess`/`isError` are what the gate reads to decide whether a backend
@@ -74,6 +85,16 @@ vi.mock("../expense/useExpense", () => ({
     ...answered(),
   }),
 }));
+// The master-data backend's own /user-info, which is what the four table rows
+// are gated on now — not the portal's `admin` capability. `masterDataHasAccess`
+// is the real implementation; only the query is faked.
+vi.mock("../masterdata/useMasterDataAccess", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../masterdata/useMasterDataAccess")>()),
+  useMasterDataUserInfo: () => ({
+    data: { image: null, email: "someone@wso2.com", privileges: roles.masterData },
+    ...answered(),
+  }),
+}));
 
 // Every backend has a URL in this suite unless a test says otherwise; the
 // gate treats an unconfigured one as having already answered.
@@ -81,6 +102,7 @@ vi.mock("@config/apiConfig", () => ({
   isCcBackendConfigured: () => true,
   isOpdBackendConfigured: () => true,
   isExpenseBackendConfigured: () => true,
+  isFinanceMasterDataBackendConfigured: () => true,
 }));
 
 const { useFinanceGate, canSeeMasterData } = await import("./useFinanceGate");
@@ -276,46 +298,61 @@ describe("Credit Card Expenses' submitter-facing items", () => {
   });
 });
 
-// Master Data is gated on TWO things that answer two different questions, and
-// both have to say yes: the preview flag ("does this environment have the
-// feature yet") and `admin` ("may this reader use it"). Neither alone is
-// enough, which is the whole point — turning the flag on in an environment
-// must not hand finance's reference tables to every employee in it, and
-// holding `admin` must not surface a feature the environment has not enabled.
+// Master Data is gated on the master-data backend's OWN verdict — the
+// `privileges` on its /user-info, derived there from the same
+// `app-finance-masterdata-admin` group check it enforces on every other
+// resource. It used to be the portal's `admin` capability (people-app
+// privilege 999), which is the portal's GENERIC administrator and no finance
+// role at all: that admitted portal admins this backend then refused, and
+// turned away the finance staff who actually maintain these tables.
 describe("the Master Data tables", () => {
-  const admin = new Set<Capability>(["employee", "admin"]);
-  const employee = new Set<Capability>(["employee"]);
-
-  it("opens for an admin", () => {
-    expect(canSeeMasterData(admin)).toBe(true);
+  const withPrivileges = (privileges: MasterDataAccessLevel[]) => ({
+    image: null,
+    email: "someone@wso2.com",
+    privileges,
   });
 
-  // `admin` is the whole rule now that the "finance-master-data" preview flag
-  // has been removed — so this is the only thing standing between finance's
-  // reference tables and everyone else.
-  it("stays shut for a non-admin", () => {
-    expect(canSeeMasterData(employee)).toBe(false);
+  it("opens for a reader the backend calls an admin", () => {
+    expect(canSeeMasterData(withPrivileges(["admin"]))).toBe(true);
   });
 
-  // Capabilities read as undefined until the identity query answers, and a
-  // restricted entry must fail closed while it does.
-  it("stays shut while capabilities are still unknown", () => {
+  // The backend answering with an EMPTY privilege list is a "no", not a
+  // failure — it is how a valid reader outside the finance group is reported,
+  // and the whole reason /user-info stopped returning a bare 401.
+  it("stays shut for a reader the backend grants nothing", () => {
+    expect(canSeeMasterData(withPrivileges([]))).toBe(false);
+  });
+
+  // The response reads as undefined until the query answers, and a restricted
+  // entry must fail closed while it does.
+  it("stays shut while the backend has not answered", () => {
     expect(canSeeMasterData(undefined)).toBe(false);
+  });
+
+  // A deployment still running the build whose /user-info returned only an
+  // email and an avatar sends no `privileges` at all. That must read as "no"
+  // rather than crash the rail or go open.
+  it("stays shut when the field is absent entirely", () => {
+    expect(canSeeMasterData({ image: null, email: "someone@wso2.com" })).toBe(false);
+  });
+
+  // The portal's own `admin` privilege no longer opens these rows — the point
+  // of the change. A portal admin with no finance group sees nothing here.
+  it("is not opened by the portal's admin capability", () => {
+    roles.masterData = [];
+    for (const id of MASTER_DATA_IDS) {
+      expect(gate().canSee(id)).toBe(false);
+    }
   });
 
   // The four tabs answer as one — listed individually in the switch so a new
   // table has to be named there before it appears, rather than matching a
   // prefix and going open by accident.
   it("answers the same for all four tables", () => {
-    for (const id of [
-      "master-data-subsidiaries",
-      "master-data-departments",
-      "master-data-expense-types",
-      "master-data-credit-cards",
-    ]) {
-      expect(renderHook(() => useFinanceGate(true, employee)).result.current.canSee(id)).toBe(false);
-      expect(renderHook(() => useFinanceGate(true, admin)).result.current.canSee(id)).toBe(true);
-    }
+    roles.masterData = [];
+    for (const id of MASTER_DATA_IDS) expect(gate().canSee(id)).toBe(false);
+    roles.masterData = ["admin"];
+    for (const id of MASTER_DATA_IDS) expect(gate().canSee(id)).toBe(true);
   });
 });
 

@@ -18,9 +18,7 @@ import type { JSX, ReactNode } from "react";
 import { Box } from "@wso2/oxygen-ui";
 import { Navigate } from "react-router";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { useUserInfo } from "@api/useUserInfo";
-import { capabilitiesFromPrivileges } from "@constants/appMenu";
-import { canSeeMasterData } from "@features/finance/api/useFinanceGate";
+import { useMasterDataAccess } from "@features/finance/masterdata/useMasterDataAccess";
 
 /**
  * Closes the four Master Data screens to everyone else, at the route.
@@ -30,22 +28,24 @@ import { canSeeMasterData } from "@features/finance/api/useFinanceGate";
  * unconditionally in App.tsx, so a direct URL (typed, bookmarked, or shared)
  * opened it for any signed-in user regardless of role.
  *
- * That gap matters more here than it would for, say, Credit Card Expenses:
- * this backend's own `/user-info` returns just an email and an avatar — no
- * roles at all (unlike cc-expenses/opd-claims, which enforce their own role
- * scheme server-side). The frontend's `admin` + preview-flag check is
- * therefore the ONLY access control in front of this data today, not a
- * convenience layered on top of a real one — so it has to hold at the route,
- * not just at the menu.
+ * The check is now this backend's OWN verdict, asked of its `/user-info`
+ * (`useMasterDataAccess`). It used to be people-app privilege 999 (`admin`),
+ * which was all the portal had while that endpoint returned nothing but an
+ * email and an avatar — and 999 is the portal's generic administrator, not a
+ * finance role, so it both admitted portal admins the backend then refused
+ * and turned away the finance staff who actually maintain these tables.
  *
- * Deliberately NOT built on the full `useFinanceGate`. That hook's
- * `isResolving` is `cc.isLoading || opd.isLoading || expense.isLoading` —
- * three backends that have nothing to do with this answer (see
- * `canSeeMasterData`'s own comment). A route guard calling it would hold
- * this page on a blank screen until CC, OPD and Expense Claims ALL settled,
- * so a slow or erroring one of those in some environment blocked a page
- * whose access question only ever depended on identity and the preview
- * flag. This waits on exactly those two things and nothing else.
+ * Note this guard is still the portal's own belt-and-braces, not the only
+ * control: the backend refuses every master-data resource to a reader outside
+ * `app-finance-masterdata-admin`. Keeping it means a reader who cannot use the
+ * screen is told so instead of being shown four tables that all error.
+ *
+ * Deliberately NOT built on the full `useFinanceGate`. That hook also mounts
+ * the cc/opd/expense queries, which have nothing to do with this answer, and
+ * a route guard calling it would hold this page on a blank screen until all
+ * three settled — so a slow or erroring one of those in some environment
+ * blocked a page whose access question only ever depended on identity and
+ * this one backend. `useMasterDataAccess` asks exactly that and nothing else.
  *
  * Same shape as SriLankaRoute / ParRequiresTeamLeadRoute:
  *
@@ -57,22 +57,21 @@ import { canSeeMasterData } from "@features/finance/api/useFinanceGate";
  *    act on and no way back in without reloading.
  */
 export default function MasterDataRoute({ children }: { children: ReactNode }): JSX.Element | null {
-  const userInfo = useUserInfo();
+  const access = useMasterDataAccess();
 
-  if (userInfo.isLoading) return null;
+  if (access.isResolving) return null;
 
-  if (userInfo.isError) {
+  if (access.isError) {
     return (
       <Box sx={{ p: 2 }}>
-        <ErrorNotice error={userInfo.error} onRetry={() => void userInfo.refetch()} retrying={userInfo.isFetching}>
+        <ErrorNotice error={access.error} onRetry={access.retry}>
           Couldn&apos;t check your access.
         </ErrorNotice>
       </Box>
     );
   }
 
-  const caps = capabilitiesFromPrivileges(userInfo.data?.privileges);
-  if (!canSeeMasterData(caps)) return <Navigate to="/finance" replace />;
+  if (!access.isAdmin) return <Navigate to="/finance" replace />;
 
   return <>{children}</>;
 }

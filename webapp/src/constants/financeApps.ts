@@ -161,9 +161,16 @@ export const FINANCE_MASTER_DATA_APPS: readonly MenuApp[] = [
     name: "Master Data",
     icon: DatabaseIcon,
     purpose: "Maintain the subsidiaries, departments, expense types and cards the finance apps refer to.",
-    // `requires: ["admin"]` on all four: this is finance-maintained reference
-    // data, same gate as cc Settings. It only forces useFinanceGate to answer
-    // for the id — see its master-data case.
+    // `requires: ["admin"]` on all four is a RESTRICTION MARKER, not the gate.
+    // For a finance-claimed id the finance adapter is the only decider
+    // (visibilityFold's `canSee` returns `owner.canSee(...)` without consulting
+    // `requires` at all), and these four are answered by the master-data
+    // backend's own `/user-info` — see useFinanceGate's master-data case. What
+    // the marker still buys is the fail-closed backstop: it puts these ids in
+    // `RESTRICTED_IDS`, so if one is ever renamed and stops matching its
+    // explicit case, it falls to the default and stays HIDDEN rather than
+    // becoming visible to everyone. Read "admin" here as "restricted"; the
+    // portal's 999 privilege no longer opens these rows.
     items: [
       { id: "master-data-subsidiaries", label: "Subsidiaries", desc: "WSO2 legal entities and their tax codes.", requires: ["admin"], path: masterDataPaths.subsidiaries },
       { id: "master-data-departments", label: "Departments", desc: "Departments, engagement codes and their GL codes.", requires: ["admin"], path: masterDataPaths.departments },
