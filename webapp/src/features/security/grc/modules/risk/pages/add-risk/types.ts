@@ -34,6 +34,43 @@ export interface ActionStep {
   description: string;
 }
 
+// Confidence is the model's own self-reported confidence, not a calibrated
+// probability. Held in form state from the moment "Suggest category" returns
+// a result until the form is actually submitted — nothing is persisted
+// server-side until then (see AICategorySuggestion's doc comment on the
+// backend, apps/grc-platform/backend/internal/risk/model/suggestion.go).
+export interface AICategorySuggestion {
+  categoryId: number;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+}
+
+// Likelihood counterpart to AICategorySuggestion — same reasoning, same
+// "nothing persisted until save" rule. Impact is deliberately never part of
+// this: only Likelihood is ever suggested (see
+// docs/plans/auto-categorisation-plan.md, "Confirmed: Likelihood only, not
+// Impact").
+export interface AILikelihoodSuggestion {
+  score: LikelihoodLevel;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+}
+
+// Action Plan counterpart to AICategorySuggestion/AILikelihoodSuggestion.
+// Unlike those two, there's no implicit "did they keep it" signal — Category
+// pre-fills a dropdown and Likelihood highlights a matrix row the user still
+// clicks a cell in, but Action Plan Description is free text, so `used` is
+// set explicitly: true only if the user clicks "Use this suggestion" to copy
+// the text into the field, false if a suggestion was fetched but that button
+// was never clicked. Always carries a suggestion that was actually requested
+// — never set from merely typing in the field.
+export interface AIActionPlanSuggestion {
+  description: string;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+  used: boolean;
+}
+
 import type { EvidenceAttachment } from "@features/security/grc/components/evidence-attachments/EvidenceAttachments";
 export type { EvidenceAttachment };
 
@@ -52,6 +89,11 @@ export interface AddRiskFormValues {
   // Integer ID of the selected risk_category row. Fetched from
   // GET /api/v1/risks/categories. Single-select today; the schema is M2M-capable.
   riskCategory: number | "";
+  // Set when the user clicks "Suggest category" and a result comes back;
+  // null if they never asked for one. Sent along with the final chosen
+  // riskCategory on submit so the backend can record whether it was kept or
+  // overridden.
+  aiCategorySuggestion: AICategorySuggestion | null;
   identifiedByType: IdentifiedByType;
   // Selected person/tool's name for all three identifiedByType values.
   // EMPLOYEE: picked from a live HR entity search (GET /api/v1/risks/employees/search),
@@ -70,6 +112,11 @@ export interface AddRiskFormValues {
   // ── Step 2: Risk Assessment ───────────────────────────────────────────────
   likelihood: LikelihoodLevel | null;
   impact: ImpactLevel | null;
+  // Set when the user clicks "Suggest Likelihood" and a result comes back;
+  // null if they never asked for one. Sent on submit so the backend can
+  // record whether the matrix cell they clicked kept the suggested
+  // Likelihood row or picked a different one.
+  aiLikelihoodSuggestion: AILikelihoodSuggestion | null;
   impactDescription: string;
   implementationDate: Date | null;
   reassessmentDate: Date | null;
@@ -86,6 +133,12 @@ export interface AddRiskFormValues {
   // User ID of the action owner. Fetched from GET /api/v1/risks/users.
   actionOwner: number | "";
   actionPlanDescription: string;
+  // Set when the user clicks "Generate Action Description" and a result
+  // comes back; null if they never asked for one. Sent on submit so the
+  // backend can record whether the suggested text was actually copied into
+  // actionPlanDescription (`used: true`, via "Use this suggestion") or left
+  // unused/overridden (`used: false`).
+  aiActionPlanSuggestion: AIActionPlanSuggestion | null;
   actionSteps: ActionStep[];
   treatmentStrategy: TreatmentStrategy | "";
   progress: string;

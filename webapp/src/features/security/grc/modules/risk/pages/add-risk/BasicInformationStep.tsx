@@ -18,8 +18,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import {
   AdapterDateFns,
+  Alert,
   Autocomplete,
   Box,
+  Button,
+  CircularProgress,
   ComplexSelect,
   DatePickers,
   Divider,
@@ -38,7 +41,7 @@ import {
 import type { JSX, ReactNode } from "react";
 import type { AddRiskFormValues } from "./types";
 import { QUARTERS, YEAR_OPTIONS } from "./constants";
-import { fetchRiskAssignerCandidates, searchEmployees } from "../../api/riskApi";
+import { fetchRiskAssignerCandidates, searchEmployees, suggestCategory } from "../../api/riskApi";
 import type { ComplianceReference, EmployeeOption, RiskCategory, RiskTeam, UserOption } from "../../api/riskApi";
 import { useAuthApiClient } from "@features/security/grc/shim/useAuthApiClient";
 import { BACKEND_BASE_URL } from "@features/security/grc/shim/apiConfig";
@@ -107,6 +110,48 @@ export default function BasicInformationStep({
   const quarter          = useWatch({ control, name: "quarter" });
   const sourceRegister   = useWatch({ control, name: "sourceRegister" });
   const identifiedByType = useWatch({ control, name: "identifiedByType" });
+
+  // ── Suggest category ─────────────────────────────────────────────────────
+  // Explicit button only, never automatic/debounced — an automatic call as
+  // the user types would burn AI Gateway usage on every abandoned or
+  // half-finished form, with no way to tell a real attempt from someone who
+  // typed a few words and navigated away.
+  const riskTitle = useWatch({ control, name: "riskTitle" });
+  const riskDescription = useWatch({ control, name: "riskDescription" });
+  const complianceReferences = useWatch({ control, name: "complianceReferences" });
+  const aiCategorySuggestion = useWatch({ control, name: "aiCategorySuggestion" });
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  const handleSuggestCategory = useCallback(async () => {
+    setSuggesting(true);
+    setSuggestError(null);
+    try {
+      const result = await suggestCategory(
+        authFetch,
+        riskTitle,
+        riskDescription,
+        complianceReferences ?? [],
+      );
+      setValue("riskCategory", result.category_id, { shouldValidate: true, shouldDirty: true });
+      setValue("aiCategorySuggestion", {
+        categoryId: result.category_id,
+        reason: result.reason,
+        confidence: result.confidence,
+      });
+      clearErrors("riskCategory");
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : undefined;
+      setSuggestError(
+        status === 404
+          ? "AI category suggestions aren't enabled yet."
+          : `Couldn't get a suggestion${message ? `: ${message}` : ""} — please pick a category manually.`,
+      );
+    } finally {
+      setSuggesting(false);
+    }
+  }, [authFetch, riskTitle, riskDescription, complianceReferences, setValue, clearErrors]);
 
   // Risk Assigned To is restricted to users who already hold RISK_CREATE in
   // the chosen source register — the same grant handleCreateRisk itself
@@ -476,7 +521,18 @@ export default function BasicInformationStep({
             rules={{ required: "Risk category is required" }}
             render={({ field, fieldState }) => (
               <Box>
-                <FieldLabel required>Risk Category</FieldLabel>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                  <FieldLabel required>Risk Category</FieldLabel>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleSuggestCategory}
+                    disabled={suggesting || !riskTitle || !riskDescription}
+                    startIcon={suggesting ? <CircularProgress size={14} /> : undefined}
+                  >
+                    {suggesting ? "Suggesting…" : "Suggest category"}
+                  </Button>
+                </Stack>
                 <ComplexSelect
                   {...field}
                   fullWidth
@@ -485,6 +541,19 @@ export default function BasicInformationStep({
                   onChange={(e) => {
                     field.onChange(e);
                     if (e.target.value) clearErrors("riskCategory");
+                    // Clear the suggestion banner once the user picks
+                    // something other than what was suggested — otherwise it
+                    // keeps showing a confidence/reason that no longer
+                    // matches the now-selected category. The actual
+                    // accept/override decision is still correct either way
+                    // (the backend compares against the real final value),
+                    // this only fixes what's displayed.
+                    if (
+                      aiCategorySuggestion &&
+                      e.target.value !== aiCategorySuggestion.categoryId
+                    ) {
+                      setValue("aiCategorySuggestion", null);
+                    }
                   }}
                 >
                   <ComplexSelect.MenuItem value="" disabled sx={{ display: "none" }}>
@@ -498,6 +567,19 @@ export default function BasicInformationStep({
                 </ComplexSelect>
                 {fieldState.error && (
                   <FormHelperText error>{fieldState.error.message}</FormHelperText>
+                )}
+                {suggestError && (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    {suggestError}
+                  </Alert>
+                )}
+                {!suggestError && aiCategorySuggestion && (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      <strong>Suggested</strong> ({aiCategorySuggestion.confidence} confidence):{" "}
+                      {aiCategorySuggestion.reason}
+                    </Typography>
+                  </Alert>
                 )}
               </Box>
             )}

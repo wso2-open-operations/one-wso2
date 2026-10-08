@@ -18,9 +18,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import type { FieldPath } from "react-hook-form";
 import {
+  Alert,
   Autocomplete,
   Box,
   Button,
+  CircularProgress,
   ComplexSelect,
   Divider,
   FormHelperText,
@@ -34,7 +36,13 @@ import type { JSX, ReactNode } from "react";
 import EvidenceAttachments from "@features/security/grc/components/evidence-attachments/EvidenceAttachments";
 import type { AddRiskFormValues } from "./types";
 import { TREATMENT_STRATEGIES } from "./constants";
-import { fetchManagementApprovers, fetchRiskOwnerCandidates, resolveUserByEmail, searchEmployees } from "../../api/riskApi";
+import {
+  fetchManagementApprovers,
+  fetchRiskOwnerCandidates,
+  resolveUserByEmail,
+  searchEmployees,
+  suggestActionPlan,
+} from "../../api/riskApi";
 import type { EmployeeOption, RiskTeam, UserOption } from "../../api/riskApi";
 import { useAuthApiClient } from "@features/security/grc/shim/useAuthApiClient";
 
@@ -170,6 +178,66 @@ export default function ActionPlanStep({
   const handleActionOwnerInputChange = (value: string): void => {
     if (actionOwnerDebounce.current) clearTimeout(actionOwnerDebounce.current);
     actionOwnerDebounce.current = setTimeout(() => runActionOwnerSearch(value), EMPLOYEE_SEARCH_DEBOUNCE_MS);
+  };
+
+  // ── Generate Action Description ──────────────────────────────────────────
+  // Explicit button only, same reasoning as Category/Likelihood's "Suggest"
+  // buttons. Unlike those two — Category pre-fills a dropdown, Likelihood
+  // highlights a matrix row the user still clicks a cell in — this is free
+  // text, so there's no implicit "did they keep it" signal: the suggestion
+  // snapshot is recorded as `used: false` the moment it's fetched, and only
+  // flipped to `used: true` if "Use this suggestion" is explicitly clicked
+  // (see AIActionPlanSuggestion's doc comment in ./types).
+  const riskTitle = useWatch({ control, name: "riskTitle" });
+  const riskDescription = useWatch({ control, name: "riskDescription" });
+  const riskCategory = useWatch({ control, name: "riskCategory" });
+  const complianceReferences = useWatch({ control, name: "complianceReferences" });
+  const treatmentStrategy = useWatch({ control, name: "treatmentStrategy" });
+  const aiActionPlanSuggestion = useWatch({ control, name: "aiActionPlanSuggestion" });
+  const [suggestingActionPlan, setSuggestingActionPlan] = useState(false);
+  const [actionPlanSuggestError, setActionPlanSuggestError] = useState<string | null>(null);
+
+  const canSuggestActionPlan = treatmentStrategy !== "" && riskCategory !== "";
+
+  const handleSuggestActionPlan = useCallback(async () => {
+    if (treatmentStrategy === "" || riskCategory === "") return;
+    setSuggestingActionPlan(true);
+    setActionPlanSuggestError(null);
+    try {
+      const result = await suggestActionPlan(
+        authFetch,
+        riskTitle,
+        riskDescription,
+        riskCategory,
+        complianceReferences ?? [],
+        treatmentStrategy,
+      );
+      // Recorded as `used: false` right away — flipped to true only if "Use
+      // this suggestion" below is clicked. This is the snapshot sent on
+      // submit if the user never clicks it.
+      setValue("aiActionPlanSuggestion", {
+        description: result.description,
+        reason: result.reason,
+        confidence: result.confidence,
+        used: false,
+      });
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : undefined;
+      setActionPlanSuggestError(
+        status === 404
+          ? "AI action plan suggestions aren't enabled yet."
+          : `Couldn't get a suggestion${message ? `: ${message}` : ""} — please write a description manually.`,
+      );
+    } finally {
+      setSuggestingActionPlan(false);
+    }
+  }, [authFetch, riskTitle, riskDescription, riskCategory, complianceReferences, treatmentStrategy, setValue]);
+
+  const handleUseActionPlanSuggestion = (): void => {
+    if (!aiActionPlanSuggestion) return;
+    setValue("actionPlanDescription", aiActionPlanSuggestion.description, { shouldValidate: true, shouldDirty: true });
+    setValue("aiActionPlanSuggestion", { ...aiActionPlanSuggestion, used: true });
   };
 
   return (
@@ -380,6 +448,62 @@ export default function ActionPlanStep({
         />
       </Stack>
 
+      {/* ── Treatment & Progress ────────────────────────────────────────────── */}
+      <Stack gap={3}>
+        <SectionHeader title="Treatment & Progress" />
+
+        {/* Treatment Strategy */}
+        <Controller
+          name="treatmentStrategy"
+          control={control}
+          render={({ field, fieldState }) => (
+            <Box>
+              <FieldLabel required>Treatment Strategy</FieldLabel>
+              <ComplexSelect
+                {...field}
+                fullWidth
+                error={!!fieldState.error}
+                displayEmpty
+                onChange={(e) => {
+                  field.onChange(e);
+                  if (e.target.value) clearErrors("treatmentStrategy");
+                }}
+              >
+                <ComplexSelect.MenuItem value="" disabled sx={{ display: "none" }}>
+                  Select a strategy
+                </ComplexSelect.MenuItem>
+                {TREATMENT_STRATEGIES.map((s) => (
+                  <ComplexSelect.MenuItem key={s.value} value={s.value}>
+                    {s.label}
+                  </ComplexSelect.MenuItem>
+                ))}
+              </ComplexSelect>
+              {fieldState.error && (
+                <FormHelperText error>{fieldState.error.message}</FormHelperText>
+              )}
+            </Box>
+          )}
+        />
+
+        {/* Progress */}
+        <Controller
+          name="progress"
+          control={control}
+          render={({ field, fieldState }) => (
+            <TextField
+              {...field}
+              label="Progress"
+              fullWidth
+              multiline
+              rows={3}
+              placeholder="Describe the current state of progress…"
+              error={!!fieldState.error}
+              helperText={fieldState.error?.message ?? "Current remediation progress (Optional)"}
+            />
+          )}
+        />
+      </Stack>
+
       {/* ── Action Plan ─────────────────────────────────────────────────────── */}
       <Stack gap={3}>
         <SectionHeader title="Action Plan" />
@@ -389,16 +513,57 @@ export default function ActionPlanStep({
           name="actionPlanDescription"
           control={control}
           render={({ field, fieldState }) => (
-            <TextField
-              {...field}
-              label="Action Plan Description"
-              fullWidth
-              multiline
-              rows={3}
-              placeholder="Summarise the overall approach for treating this risk…"
-              error={!!fieldState.error}
-              helperText={fieldState.error?.message ?? "High level description of the plan (Optional)"}
-            />
+            <Box>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <FieldLabel>Action Plan Description</FieldLabel>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleSuggestActionPlan}
+                  disabled={suggestingActionPlan || !canSuggestActionPlan}
+                  startIcon={suggestingActionPlan ? <CircularProgress size={14} /> : undefined}
+                >
+                  {suggestingActionPlan ? "Generating…" : "Generate Action Description"}
+                </Button>
+              </Stack>
+              <TextField
+                {...field}
+                fullWidth
+                multiline
+                rows={3}
+                placeholder="Summarise the overall approach for treating this risk…"
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message ?? "High level description of the plan (Optional)"}
+              />
+              {actionPlanSuggestError && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  {actionPlanSuggestError}
+                </Alert>
+              )}
+              {!actionPlanSuggestError && aiActionPlanSuggestion && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  <Stack gap={1}>
+                    <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                      <strong>Suggested</strong> ({aiActionPlanSuggestion.confidence} confidence):{" "}
+                      {aiActionPlanSuggestion.description}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {aiActionPlanSuggestion.reason}
+                    </Typography>
+                    <Box>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        onClick={handleUseActionPlanSuggestion}
+                        disabled={aiActionPlanSuggestion.used}
+                      >
+                        {aiActionPlanSuggestion.used ? "Suggestion in use" : "Use this suggestion"}
+                      </Button>
+                    </Box>
+                  </Stack>
+                </Alert>
+              )}
+            </Box>
           )}
         />
 
@@ -463,62 +628,6 @@ export default function ActionPlanStep({
             Add Step
           </Button>
         </Box>
-      </Stack>
-
-      {/* ── Treatment & Progress ────────────────────────────────────────────── */}
-      <Stack gap={3}>
-        <SectionHeader title="Treatment & Progress" />
-
-        {/* Treatment Strategy */}
-        <Controller
-          name="treatmentStrategy"
-          control={control}
-          render={({ field, fieldState }) => (
-            <Box>
-              <FieldLabel required>Treatment Strategy</FieldLabel>
-              <ComplexSelect
-                {...field}
-                fullWidth
-                error={!!fieldState.error}
-                displayEmpty
-                onChange={(e) => {
-                  field.onChange(e);
-                  if (e.target.value) clearErrors("treatmentStrategy");
-                }}
-              >
-                <ComplexSelect.MenuItem value="" disabled sx={{ display: "none" }}>
-                  Select a strategy
-                </ComplexSelect.MenuItem>
-                {TREATMENT_STRATEGIES.map((s) => (
-                  <ComplexSelect.MenuItem key={s.value} value={s.value}>
-                    {s.label}
-                  </ComplexSelect.MenuItem>
-                ))}
-              </ComplexSelect>
-              {fieldState.error && (
-                <FormHelperText error>{fieldState.error.message}</FormHelperText>
-              )}
-            </Box>
-          )}
-        />
-
-        {/* Progress */}
-        <Controller
-          name="progress"
-          control={control}
-          render={({ field, fieldState }) => (
-            <TextField
-              {...field}
-              label="Progress"
-              fullWidth
-              multiline
-              rows={3}
-              placeholder="Describe the current state of progress…"
-              error={!!fieldState.error}
-              helperText={fieldState.error?.message ?? "Current remediation progress (Optional)"}
-            />
-          )}
-        />
       </Stack>
 
       {/* ── References ──────────────────────────────────────────────────────── */}

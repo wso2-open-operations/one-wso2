@@ -142,6 +142,7 @@ export default function AddRisk(): JSX.Element {
       riskDescription: "",
       complianceReferences: [],
       riskCategory: "",
+      aiCategorySuggestion: null,
       identifiedByType: "EMPLOYEE",
       identifiedByName: "",
       identifiedByEmail: "",
@@ -150,6 +151,7 @@ export default function AddRisk(): JSX.Element {
       // ── Step 2 defaults ───────────────────────────────────────────────────
       likelihood: null,
       impact: null,
+      aiLikelihoodSuggestion: null,
       impactDescription: "",
       implementationDate: null,
       reassessmentDate: new Date(),
@@ -159,6 +161,7 @@ export default function AddRisk(): JSX.Element {
       managementApprover: "",
       actionOwner: "",
       actionPlanDescription: "",
+      aiActionPlanSuggestion: null,
       actionSteps: [{ description: "" }],
       treatmentStrategy: "",
       progress: "",

@@ -14,13 +14,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toDateOnlyString } from "@features/security/grc/utils/dateTime";
 import {
   AdapterDateFns,
   Alert,
   Box,
   Button,
+  CircularProgress,
   DatePickers,
   Dialog,
   DialogActions,
@@ -32,7 +33,9 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import type { JSX } from "react";
-import type { CreateAssessmentPayload, RiskScore, RiskScoreInfo } from "../../api/riskApi";
+import type { CreateAssessmentPayload, RiskDetail, RiskScore, RiskScoreInfo } from "../../api/riskApi";
+import { suggestLikelihood } from "../../api/riskApi";
+import { useAuthApiClient } from "@features/security/grc/shim/useAuthApiClient";
 import { dialogPaperSx } from "../cardStyles";
 import RiskScoreGrid from "./RiskScoreGrid";
 
@@ -50,6 +53,11 @@ interface ReassessmentDialogProps {
   // ever been recorded) — worded "Initial" rather than "Previous" since it
   // isn't a residual assessment at all.
   previousIsInitial: boolean;
+  // Full risk detail, source for "Suggest Likelihood"'s six inputs (Title,
+  // Description, Impact Description, Compliance References, Category, Source
+  // Register) — all already loaded by the caller to render the drawer this
+  // dialog opens from, so nothing new is fetched here.
+  riskDetail: RiskDetail;
   onClose: () => void;
   onSubmit: (payload: CreateAssessmentPayload) => Promise<void>;
 }
@@ -60,9 +68,11 @@ export default function ReassessmentDialog({
   riskScores,
   previousScore,
   previousIsInitial,
+  riskDetail,
   onClose,
   onSubmit,
 }: ReassessmentDialogProps): JSX.Element {
+  const authFetch = useAuthApiClient();
   const [likelihood, setLikelihood] = useState(0);
   const [impact, setImpact] = useState(0);
   const [progress, setProgress] = useState("");
@@ -70,6 +80,51 @@ export default function ReassessmentDialog({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState("");
+
+  // ── Suggest Likelihood ─────────────────────────────────────────────────
+  // Explicit button only — same reasoning as every other "Suggest" button in
+  // this feature (Category, the Add Risk flow's Likelihood suggestion).
+  const [suggestion, setSuggestion] = useState<{
+    score: number;
+    reason: string;
+    confidence: "high" | "medium" | "low";
+  } | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  // A risk whose category was later archived/deleted has an empty
+  // risk_categories array — suggestLikelihood needs a real category id, so
+  // the button stays disabled rather than silently sending category_id: 0.
+  const canSuggestLikelihood = riskDetail.risk_categories.length > 0;
+
+  const handleSuggestLikelihood = useCallback(async () => {
+    const categoryId = riskDetail.risk_categories[0]?.id;
+    if (categoryId == null) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    try {
+      const result = await suggestLikelihood(
+        authFetch,
+        riskDetail.risk_title,
+        riskDetail.risk_description,
+        riskDetail.impact_description ?? "",
+        riskDetail.compliance_references.map((r) => r.id),
+        categoryId,
+        riskDetail.source_register_id,
+      );
+      setSuggestion(result);
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : undefined;
+      setSuggestError(
+        status === 404
+          ? "AI likelihood suggestions aren't enabled yet."
+          : `Couldn't get a suggestion${message ? `: ${message}` : ""} — please pick a score manually.`,
+      );
+    } finally {
+      setSuggesting(false);
+    }
+  }, [authFetch, riskDetail]);
 
   const handleClose = () => {
     if (submitting) return;
@@ -79,6 +134,8 @@ export default function ReassessmentDialog({
     setReassessmentDate(null);
     setErrors({});
     setApiError("");
+    setSuggestion(null);
+    setSuggestError(null);
     onClose();
   };
 
@@ -107,6 +164,7 @@ export default function ReassessmentDialog({
         impact,
         progress: progress.trim(),
         reassessment_date: toDateOnlyString(reassessmentDate)!,
+        ai_likelihood_suggestion: suggestion ?? undefined,
       });
       handleClose();
     } catch (e: unknown) {
@@ -141,13 +199,40 @@ export default function ReassessmentDialog({
               <Typography variant="body2" fontWeight={600}>
                 Residual Risk Score <span style={{ color: "red" }}>*</span>
               </Typography>
-              {previousScore && (
-                <Typography variant="caption" color="text.secondary">
-                  {previousIsInitial ? "Initial" : "Previous"}:{" "}
-                  <strong>{previousScore.risk_level}</strong> · Score {previousScore.risk_rating}
-                </Typography>
-              )}
+              <Stack direction="row" alignItems="center" gap={1.5} flexWrap="wrap">
+                {previousScore && (
+                  <Typography variant="caption" color="text.secondary">
+                    {previousIsInitial ? "Initial" : "Previous"}:{" "}
+                    <strong>{previousScore.risk_level}</strong> · Score {previousScore.risk_rating}
+                  </Typography>
+                )}
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleSuggestLikelihood}
+                  disabled={suggesting || submitting || !canSuggestLikelihood}
+                  startIcon={suggesting ? <CircularProgress size={14} /> : undefined}
+                >
+                  {suggesting ? "Suggesting…" : "Suggest Likelihood"}
+                </Button>
+              </Stack>
             </Stack>
+
+            {suggestError && (
+              <Alert severity="warning" sx={{ mb: 1.5 }}>
+                {suggestError}
+              </Alert>
+            )}
+            {!suggestError && suggestion && (
+              <Alert severity="info" sx={{ mb: 1.5 }}>
+                <Typography variant="body2">
+                  <strong>Suggested Likelihood: {suggestion.score}</strong> ({suggestion.confidence}{" "}
+                  confidence): {suggestion.reason}. The highlighted row below is the suggestion — pick
+                  the cell in that row matching this risk's Impact.
+                </Typography>
+              </Alert>
+            )}
+
             <RiskScoreGrid
               riskScores={riskScores}
               likelihood={likelihood}
@@ -158,6 +243,7 @@ export default function ReassessmentDialog({
                 if (errors.grid) setErrors((prev) => ({ ...prev, grid: "" }));
               }}
               error={errors.grid}
+              suggestedLikelihood={suggestion?.score}
               previousLikelihood={previousScore?.likelihood}
               previousImpact={previousScore?.impact}
             />

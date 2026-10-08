@@ -872,7 +872,7 @@ function ActionFooter({
               fullWidth
               disabled={disabled}
               onClick={actions.onEscalate}
-              sx={{ mb: showComplete ? 1 : 0 }}
+              sx={{ mb: showAddPlan || showComplete ? 1 : 0 }}
             >
               Escalate
             </Button>
@@ -1172,6 +1172,20 @@ export default function RiskDetailDrawer({
                 ) : (
                   "Awaiting a review comment before this risk returns to its assigner."
                 )}
+              </Alert>
+            )}
+
+            {detail.pending_likelihood_suggestion && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="caption" fontWeight={700} display="block">
+                  This risk's score may need reassessment
+                </Typography>
+                <Typography variant="caption" display="block">
+                  A routine AI re-check found that current evidence suggests Likelihood{" "}
+                  {detail.pending_likelihood_suggestion.suggested_value}, which differs from this
+                  risk's score on record.{" "}
+                  {detail.pending_likelihood_suggestion.suggested_reason}
+                </Typography>
               </Alert>
             )}
 

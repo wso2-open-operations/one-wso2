@@ -20,6 +20,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -32,8 +33,9 @@ import {
 import { Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
 import type { JSX } from "react";
 import { useAuthApiClient } from "@features/security/grc/shim/useAuthApiClient";
-import { resolveUserByEmail, searchEmployees } from "../../api/riskApi";
-import type { EmployeeOption } from "../../api/riskApi";
+import { resolveUserByEmail, searchEmployees, suggestActionPlan } from "../../api/riskApi";
+import type { EmployeeOption, RiskDetail } from "../../api/riskApi";
+import type { AIActionPlanSuggestion } from "../add-risk/types";
 import { dialogPaperSx } from "../cardStyles";
 
 // Matches the floor used by the Standard action plan's own Action Owner
@@ -46,12 +48,25 @@ export interface ActionPlanPayload {
   description: string;
   actionOwnerId: number | null;
   steps: string[];
+  // Suggestion snapshot from "Generate Action Description" — same shape and
+  // "always sent once requested at all" rule as the Add Risk wizard's
+  // aiActionPlanSuggestion (see AIActionPlanSuggestion's doc comment in
+  // pages/add-risk/types.ts). Null if the user never clicked the button.
+  aiActionPlanSuggestion: AIActionPlanSuggestion | null;
 }
 
 interface ActionPlanDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (payload: ActionPlanPayload) => Promise<void>;
+  // Full risk detail, source for "Generate Action Description"'s read-only
+  // inputs (Title, Description, Category, Compliance References, Treatment
+  // Strategy) — all already loaded by the caller to render the drawer this
+  // dialog opens from, so nothing new is fetched here. Treatment Strategy
+  // itself isn't editable here — it's set once at risk creation — so unlike
+  // the wizard's ActionPlanStep, this dialog reads it rather than watching a
+  // form field for it.
+  riskDetail: RiskDetail;
 }
 
 // A step row, keyed by a stable local id — see the note by its useState call.
@@ -70,10 +85,60 @@ export default function ActionPlanDialog({
   open,
   onClose,
   onConfirm,
+  riskDetail,
 }: ActionPlanDialogProps): JSX.Element {
   const authFetch = useAuthApiClient();
 
   const [description, setDescription] = useState("");
+
+  // ── Generate Action Description ──────────────────────────────────────────
+  // Explicit button only, same reasoning as every other "Suggest"/"Generate"
+  // button in this feature. Free text, so there's no implicit "did they keep
+  // it" signal — the suggestion is recorded as `used: false` the instant it's
+  // fetched, and only flipped to `used: true` if "Use this suggestion" is
+  // clicked (see AIActionPlanSuggestion's doc comment in ../add-risk/types).
+  const [suggestion, setSuggestion] = useState<AIActionPlanSuggestion | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  // A risk whose category was later archived/deleted has an empty
+  // risk_categories array — suggestActionPlan needs a real category id, so
+  // the button stays disabled rather than silently sending category_id: 0.
+  const canSuggestActionPlan = riskDetail.risk_categories.length > 0;
+
+  const handleSuggestActionPlan = useCallback(async () => {
+    const categoryId = riskDetail.risk_categories[0]?.id;
+    if (categoryId == null) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    try {
+      const result = await suggestActionPlan(
+        authFetch,
+        riskDetail.risk_title,
+        riskDetail.risk_description,
+        categoryId,
+        riskDetail.compliance_references.map((r) => r.id),
+        riskDetail.treatment_strategy ?? "",
+      );
+      setSuggestion({ ...result, used: false });
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : undefined;
+      setSuggestError(
+        status === 404
+          ? "AI action plan suggestions aren't enabled yet."
+          : `Couldn't get a suggestion${message ? `: ${message}` : ""} — please write a description manually.`,
+      );
+    } finally {
+      setSuggesting(false);
+    }
+  }, [authFetch, riskDetail]);
+
+  const handleUseSuggestion = (): void => {
+    if (!suggestion) return;
+    setDescription(suggestion.description);
+    setSuggestion({ ...suggestion, used: true });
+  };
   // Rows are keyed by a stable id (not array index): removing a row shifts
   // every later index, and an index key would make React reconcile the
   // reused DOM node by position rather than by which step it semantically
@@ -127,6 +192,9 @@ export default function ActionPlanDialog({
     setOwnerId(null);
     setOwnerError(null);
     setApiError("");
+    setSuggestion(null);
+    setSuggesting(false);
+    setSuggestError(null);
   }
 
   // Belt-and-suspenders: this dialog doesn't currently unmount in practice
@@ -155,7 +223,12 @@ export default function ActionPlanDialog({
     setSubmitting(true);
     setApiError("");
     try {
-      await onConfirm({ description: description.trim(), actionOwnerId: ownerId, steps: trimmedSteps });
+      await onConfirm({
+        description: description.trim(),
+        actionOwnerId: ownerId,
+        steps: trimmedSteps,
+        aiActionPlanSuggestion: suggestion,
+      });
       resetState();
       onClose();
     } catch (e: unknown) {
@@ -191,17 +264,59 @@ export default function ActionPlanDialog({
           </Alert>
         )}
         <Stack gap={3} sx={{ pt: 1 }}>
-          <TextField
-            label="Action Plan Description"
-            fullWidth
-            multiline
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Summarise the management-directed remediation…"
-            disabled={submitting}
-            helperText="High level description of the plan (optional)"
-          />
+          <Box>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="body2" fontWeight={500} color="text.primary">
+                Action Plan Description
+              </Typography>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleSuggestActionPlan}
+                disabled={suggesting || submitting || !canSuggestActionPlan}
+                startIcon={suggesting ? <CircularProgress size={14} /> : undefined}
+              >
+                {suggesting ? "Generating…" : "Generate Action Description"}
+              </Button>
+            </Stack>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Summarise the management-directed remediation…"
+              disabled={submitting}
+              helperText="High level description of the plan (optional)"
+            />
+            {suggestError && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                {suggestError}
+              </Alert>
+            )}
+            {!suggestError && suggestion && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                <Stack gap={1}>
+                  <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                    <strong>Suggested</strong> ({suggestion.confidence} confidence): {suggestion.description}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {suggestion.reason}
+                  </Typography>
+                  <Box>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={handleUseSuggestion}
+                      disabled={suggestion.used || submitting}
+                    >
+                      {suggestion.used ? "Suggestion in use" : "Use this suggestion"}
+                    </Button>
+                  </Box>
+                </Stack>
+              </Alert>
+            )}
+          </Box>
 
           <Autocomplete
             options={ownerOptions}

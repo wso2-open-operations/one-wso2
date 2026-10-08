@@ -16,7 +16,7 @@
 
 import { BACKEND_BASE_URL } from "@features/security/grc/shim/apiConfig";
 import { toDateOnlyString } from "@features/security/grc/utils/dateTime";
-import type { AddRiskFormValues } from "../pages/add-risk/types";
+import type { AddRiskFormValues, LikelihoodLevel } from "../pages/add-risk/types";
 
 // ── Response types (mirror Go models) ─────────────────────────────────────────
 
@@ -273,6 +273,26 @@ export interface RiskDetail {
   // Only present on a single-risk fetch; list responses omit it, because it is
   // meaningless without one register in hand.
   effective_privileges: string[];
+  // Set when this risk has an unresolved LIKELIHOOD suggestion on record —
+  // written by the quarterly re-check sweep when live evidence no longer
+  // matches the Gross score on file. Render as an in-page "this risk's score
+  // may need reassessment" banner; there is no email for this, by design
+  // (see docs/plans/auto-categorisation-plan.md). Only present on a
+  // single-risk fetch, same reasoning as effective_privileges.
+  pending_likelihood_suggestion: RiskAISuggestion | null;
+}
+
+// Mirrors model.Suggestion on the backend.
+export interface RiskAISuggestion {
+  id: number;
+  risk_id: number;
+  feature: string;
+  suggested_value: string;
+  suggested_reason: string;
+  confidence: string;
+  status: string;
+  created_at: string;
+  decided_at: string | null;
 }
 
 export interface ListRisksParams {
@@ -336,6 +356,18 @@ export interface CreateAssessmentPayload {
   impact: number;
   progress: string;
   reassessment_date: string;
+  // Residual counterpart to buildCreateRiskPayload's ai_likelihood_suggestion
+  // (Gross). The backend already supports this (handleAssessRisk,
+  // apps/grc-platform/backend/internal/risk/handler/assessment.go) — the
+  // reassessment UI itself doesn't populate it yet; that's a "Suggest
+  // Likelihood" button on whatever renders this form (RiskRegisters.tsx),
+  // not yet built, same kind of gap as EditRiskDialog's missing Category
+  // field.
+  ai_likelihood_suggestion?: {
+    score: number;
+    reason: string;
+    confidence: "high" | "medium" | "low";
+  };
 }
 
 // ── Dashboard types (mirror model/dashboard.go) ────────────────────────────────
@@ -597,6 +629,101 @@ export async function fetchRiskCategories(authFetch: AuthFetch): Promise<RiskCat
   return handleResponse<RiskCategory[]>(res);
 }
 
+export interface SuggestCategoryResult {
+  category_id: number;
+  category_name: string;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+}
+
+// suggestCategory is stateless on the backend — nothing is persisted until
+// the risk itself is saved (see model.AICategorySuggestion's doc comment on
+// the backend). Responds 404 when AI_CATEGORIZATION_ENABLED is off; the
+// caller (BasicInformationStep) shows that as an inline message, not a crash.
+export async function suggestCategory(
+  authFetch: AuthFetch,
+  title: string,
+  description: string,
+  complianceReferenceIds: number[],
+): Promise<SuggestCategoryResult> {
+  const res = await authFetch(`${BACKEND_BASE_URL}/api/v1/risks/categories/suggest`, {
+    method: "POST",
+    body: JSON.stringify({
+      title,
+      description,
+      compliance_reference_ids: complianceReferenceIds,
+    }),
+  });
+  return handleResponse<SuggestCategoryResult>(res);
+}
+
+export interface SuggestLikelihoodResult {
+  score: LikelihoodLevel;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+}
+
+// suggestLikelihood is stateless on the backend, same reasoning as
+// suggestCategory — nothing is persisted until the risk (Gross) or
+// reassessment (Residual) itself is saved. Used for both: same six inputs
+// either way, only what the caller does with the result differs. Responds
+// 404 when AI_LIKELIHOOD_ENABLED is off.
+export async function suggestLikelihood(
+  authFetch: AuthFetch,
+  title: string,
+  description: string,
+  impactDescription: string,
+  complianceReferenceIds: number[],
+  categoryId: number,
+  sourceRegisterId: number,
+): Promise<SuggestLikelihoodResult> {
+  const res = await authFetch(`${BACKEND_BASE_URL}/api/v1/risks/likelihood/suggest`, {
+    method: "POST",
+    body: JSON.stringify({
+      title,
+      description,
+      impact_description: impactDescription,
+      compliance_reference_ids: complianceReferenceIds,
+      category_id: categoryId,
+      source_register_id: sourceRegisterId,
+    }),
+  });
+  return handleResponse<SuggestLikelihoodResult>(res);
+}
+
+export interface SuggestActionPlanResult {
+  description: string;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+}
+
+// suggestActionPlan is stateless on the backend, same reasoning as
+// suggestCategory/suggestLikelihood — nothing is persisted until the risk
+// (Add Risk) or action plan (ActionPlanDialog) itself is saved. Reasons
+// purely from the risk's own text (Title/Description/Category/Compliance
+// References/Treatment Strategy) — no web lookups. Responds 404 when
+// AI_ACTION_PLAN_ENABLED is off.
+export async function suggestActionPlan(
+  authFetch: AuthFetch,
+  title: string,
+  description: string,
+  categoryId: number,
+  complianceReferenceIds: number[],
+  treatmentStrategy: string,
+): Promise<SuggestActionPlanResult> {
+  const res = await authFetch(`${BACKEND_BASE_URL}/api/v1/risks/action-plans/suggest`, {
+    method: "POST",
+    body: JSON.stringify({
+      title,
+      description,
+      category_id: categoryId,
+      compliance_reference_ids: complianceReferenceIds,
+      treatment_strategy: treatmentStrategy,
+    }),
+  });
+  return handleResponse<SuggestActionPlanResult>(res);
+}
+
 // fetchManagementApprovers / fetchRiskOwnerCandidates return every user who
 // already holds the grant their approval action requires — GLOBAL, or scoped
 // to one of teamIds (pass the chosen source register and/or assignment team).
@@ -683,6 +810,13 @@ export function buildCreateRiskPayload(data: AddRiskFormValues): Record<string, 
     risk_description: data.riskDescription,
     compliance_reference_ids: data.complianceReferences,
     risk_category_ids: data.riskCategory !== "" ? [data.riskCategory] : undefined,
+    ai_category_suggestion: data.aiCategorySuggestion
+      ? {
+          category_id: data.aiCategorySuggestion.categoryId,
+          reason: data.aiCategorySuggestion.reason,
+          confidence: data.aiCategorySuggestion.confidence,
+        }
+      : undefined,
     identified_by_type: data.identifiedByType,
     identified_by_name: data.identifiedByName !== "" ? data.identifiedByName : undefined,
     // Only meaningful (and only required by the backend) for EMPLOYEE — the
@@ -696,6 +830,13 @@ export function buildCreateRiskPayload(data: AddRiskFormValues): Record<string, 
     risk_identified_date: toDateOnlyString(data.riskIdentifiedDate),
     likelihood: data.likelihood,
     impact: data.impact,
+    ai_likelihood_suggestion: data.aiLikelihoodSuggestion
+      ? {
+          score: data.aiLikelihoodSuggestion.score,
+          reason: data.aiLikelihoodSuggestion.reason,
+          confidence: data.aiLikelihoodSuggestion.confidence,
+        }
+      : undefined,
     impact_description: data.impactDescription,
     implementation_date: toDateOnlyString(data.implementationDate),
     reassessment_date: toDateOnlyString(data.reassessmentDate),
@@ -704,6 +845,14 @@ export function buildCreateRiskPayload(data: AddRiskFormValues): Record<string, 
     management_approver_id: data.managementApprover !== "" ? data.managementApprover : undefined,
     action_owner_id: data.actionOwner !== "" ? data.actionOwner : undefined,
     action_plan_description: data.actionPlanDescription,
+    ai_action_plan_suggestion: data.aiActionPlanSuggestion
+      ? {
+          description: data.aiActionPlanSuggestion.description,
+          reason: data.aiActionPlanSuggestion.reason,
+          confidence: data.aiActionPlanSuggestion.confidence,
+          used: data.aiActionPlanSuggestion.used,
+        }
+      : undefined,
     action_steps: data.actionSteps.map((s) => ({ description: s.description })),
     treatment_strategy: data.treatmentStrategy,
     progress: data.progress || undefined,
@@ -940,7 +1089,21 @@ export async function fetchActionPlans(authFetch: AuthFetch, riskId: number): Pr
 export async function createActionPlan(
   authFetch: AuthFetch,
   riskId: number,
-  payload: { description: string; action_owner_id: number | null; steps: string[] },
+  payload: {
+    description: string;
+    action_owner_id: number | null;
+    steps: string[];
+    // Suggestion snapshot, same shape/purpose as buildCreateRiskPayload's
+    // ai_action_plan_suggestion — present only when the caller asked for a
+    // suggestion on this plan at all (see AIActionPlanSuggestion's doc
+    // comment on the Add Risk wizard's counterpart in pages/add-risk/types.ts).
+    ai_action_plan_suggestion?: {
+      description: string;
+      reason: string;
+      confidence: "high" | "medium" | "low";
+      used: boolean;
+    };
+  },
 ): Promise<ActionPlan> {
   const res = await authFetch(`${BACKEND_BASE_URL}/api/v1/risks/${riskId}/action-plans`, {
     method: "POST",
@@ -950,6 +1113,7 @@ export async function createActionPlan(
       // Steps are created atomically with the plan on the backend, so a
       // failure can't leave an orphaned, stepless plan behind.
       steps: payload.steps,
+      ai_action_plan_suggestion: payload.ai_action_plan_suggestion,
     }),
   });
   return handleResponse<ActionPlan>(res);
@@ -1035,4 +1199,14 @@ export async function fetchEscalations(authFetch: AuthFetch, riskId: number): Pr
 export async function escalateRisk(authFetch: AuthFetch, riskId: number): Promise<Escalation> {
   const res = await authFetch(`${BACKEND_BASE_URL}/api/v1/risks/${riskId}/escalate`, { method: "POST" });
   return handleResponse<Escalation>(res);
+}
+
+// renotifyEscalation resends the escalation email for a risk that already has
+// an OPEN escalation — escalateRisk itself is rejected (409) in that case, by
+// design: one risk only ever has one open escalation at a time. Used by the
+// "already escalated — resend the notification?" confirmation. Creates no new
+// escalation row and does not change the risk's workflow status.
+export async function renotifyEscalation(authFetch: AuthFetch, riskId: number): Promise<void> {
+  const res = await authFetch(`${BACKEND_BASE_URL}/api/v1/risks/${riskId}/escalate/notify`, { method: "POST" });
+  await handleResponse<{ status: string }>(res);
 }

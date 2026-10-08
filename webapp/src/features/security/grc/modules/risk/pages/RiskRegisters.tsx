@@ -64,6 +64,7 @@ import {
   fetchEscalations,
   fetchRiskHistory,
   escalateRisk,
+  renotifyEscalation,
   fetchActionPlanSteps,
   fetchActionPlans,
   fetchAssignmentTeams,
@@ -104,6 +105,7 @@ import UpdateAssigneesDialog from "./risk-registers/UpdateAssigneesDialog";
 import ActionPlanDialog from "./risk-registers/ActionPlanDialog";
 import type { ActionPlanPayload } from "./risk-registers/ActionPlanDialog";
 import EscalationCommentDialog from "./risk-registers/EscalationCommentDialog";
+import ReescalateConfirmDialog from "./risk-registers/ReescalateConfirmDialog";
 import ColumnFilter from "./risk-registers/ColumnFilter";
 import DateRangeFilter from "./risk-registers/DateRangeFilter";
 import {
@@ -422,6 +424,7 @@ export default function RiskRegisters(): JSX.Element {
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [actionPlanOpen, setActionPlanOpen] = useState(false);
   const [escalationCommentOpen, setEscalationCommentOpen] = useState(false);
+  const [reescalateConfirmOpen, setReescalateConfirmOpen] = useState(false);
   // Escalation history for the open risk. Drives the drawer's escalation
   // banner and identifies which escalation a comment applies to.
   const [escalations, setEscalations] = useState<Escalation[]>([]);
@@ -802,11 +805,24 @@ export default function RiskRegisters(): JSX.Element {
     // Manual jump-the-queue trigger — same outcome as the daily job, just
     // immediate. Closes the drawer and reloads like any other
     // workflow-changing action, since the risk moves to the Overdue tab.
-    onEscalate: () =>
+    //
+    // The backend rejects a second escalate outright once an escalation is
+    // already OPEN (one risk, one open escalation at a time), which used to
+    // leave this button looking like it did nothing — the resulting error set
+    // actionError correctly, but the drawer sits on top of that banner as a
+    // modal. Checking for an open escalation here instead routes a second
+    // click to a confirm dialog that resends the notification, rather than
+    // repeating a call the backend will just reject again.
+    onEscalate: () => {
+      if (escalations.some((e) => e.status === "OPEN")) {
+        setReescalateConfirmOpen(true);
+        return;
+      }
       runAction(
         () => escalateRisk(authFetch, drawerDetail!.id).then(() => undefined),
         "Risk escalated.",
-      ),
+      );
+    },
   };
 
   const handleCreateActionPlan = async (payload: ActionPlanPayload) => {
@@ -818,6 +834,14 @@ export default function RiskRegisters(): JSX.Element {
       description: payload.description,
       action_owner_id: payload.actionOwnerId,
       steps: payload.steps,
+      ai_action_plan_suggestion: payload.aiActionPlanSuggestion
+        ? {
+            description: payload.aiActionPlanSuggestion.description,
+            reason: payload.aiActionPlanSuggestion.reason,
+            confidence: payload.aiActionPlanSuggestion.confidence,
+            used: payload.aiActionPlanSuggestion.used,
+          }
+        : undefined,
     });
     await loadActionPlans(drawerDetail.id);
     setActionSuccess("Action plan added.");
@@ -1229,17 +1253,27 @@ export default function RiskRegisters(): JSX.Element {
         {...drawerActions}
       />
 
-      <ActionPlanDialog
-        open={actionPlanOpen}
-        onClose={() => setActionPlanOpen(false)}
-        onConfirm={handleCreateActionPlan}
-      />
+      {drawerDetail && (
+        <ActionPlanDialog
+          open={actionPlanOpen}
+          onClose={() => setActionPlanOpen(false)}
+          onConfirm={handleCreateActionPlan}
+          riskDetail={drawerDetail}
+        />
+      )}
 
       <EscalationCommentDialog
         open={escalationCommentOpen}
         riskCode={drawerDetail?.risk_code ?? ""}
         onClose={() => setEscalationCommentOpen(false)}
         onConfirm={handleEscalationComment}
+      />
+
+      <ReescalateConfirmDialog
+        open={reescalateConfirmOpen}
+        riskCode={drawerDetail?.risk_code ?? ""}
+        onClose={() => setReescalateConfirmOpen(false)}
+        onConfirm={() => renotifyEscalation(authFetch, drawerDetail!.id)}
       />
 
       <RejectDialog
@@ -1257,6 +1291,7 @@ export default function RiskRegisters(): JSX.Element {
           riskScores={riskScores}
           previousScore={drawerDetail.effective_score ?? drawerDetail.gross_score}
           previousIsInitial={!drawerDetail.assessments.some((a) => !a.is_initial)}
+          riskDetail={drawerDetail}
           onClose={() => setAssessOpen(false)}
           onSubmit={handleAssessSubmit}
         />
