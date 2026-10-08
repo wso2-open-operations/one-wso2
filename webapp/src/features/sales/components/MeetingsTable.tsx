@@ -32,7 +32,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import type { Meeting, MeetingScope } from "../api/salesTypes";
 import { meetingCustomer, meetingTypeLabel } from "../api/salesTypes";
-import { formatDateTime, formatDuration } from "../util/salesTime";
+import { formatDateTime, formatDuration, parseUtc, splitParticipants } from "../util/salesTime";
 import MeetingCoverageCell from "../meddpicc/components/MeetingCoverageCell";
 import type { LetterKey, MeetingCoverage } from "../meddpicc/types";
 
@@ -47,19 +47,58 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20];
  */
 const COLUMNS = [
   { key: "title", label: "Title", width: "auto" },
-  { key: "customer", label: "Account", width: 180 },
-  { key: "type", label: "Call type", width: 130 },
+  { key: "customer", label: "Account", width: 260 },
   { key: "meddpicc", label: "MEDDPICC", width: 230 },
-  { key: "host", label: "Account Owner", width: 140 },
+  { key: "host", label: "Account Owner", width: 190 },
   { key: "start", label: "Start", width: 170 },
   { key: "attachments", label: "Files", width: 60, center: true },
 ] as const;
 
-/** The part of a work email before the @, which is all a WSO2-only column needs to show. */
-function emailName(email: string | null | undefined): string {
-  if (!email) return "";
-  const at = email.indexOf("@");
-  return at > 0 ? email.slice(0, at) : email;
+/** Start time in ms for ordering; a row with no readable start sorts last. */
+function startMs(meeting: Meeting): number {
+  return parseUtc(meeting.startTime)?.getTime() ?? Number.NEGATIVE_INFINITY;
+}
+
+/**
+ * Who the call was with, in one cell: the account on top, then the call type and the
+ * customer contact beneath it.
+ *
+ * The contact is the first external attendee's email, since that is the person on the
+ * customer side the backend records; a second or third shows as "+N", with the full list
+ * on hover. A meeting with no account (an internal one, say) leads with its call type.
+ */
+function AccountCell({ meeting }: { meeting: Meeting }) {
+  const account = meetingCustomer(meeting);
+  const typeLabel = meetingTypeLabel(meeting.meetingType);
+  const contacts = splitParticipants(meeting.externalParticipants);
+  const contact = contacts.length
+    ? contacts.length > 1
+      ? `${contacts[0]} +${contacts.length - 1}`
+      : contacts[0]
+    : null;
+  const headline = account ?? typeLabel;
+  const details = [account ? typeLabel : null, contact].filter(Boolean).join(" · ");
+  const hover = [account, typeLabel, contacts.join(", ")].filter(Boolean).join("\n");
+  const clip = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+
+  if (!headline && !details) return null;
+  return (
+    <Box sx={{ minWidth: 0 }} title={hover || undefined}>
+      {headline && (
+        <Typography
+          variant="body2"
+          sx={{ ...clip, color: account ? "text.primary" : "text.secondary", fontWeight: account ? 500 : 400 }}
+        >
+          {headline}
+        </Typography>
+      )}
+      {details && (
+        <Typography variant="caption" color="text.secondary" component="div" sx={clip}>
+          {details}
+        </Typography>
+      )}
+    </Box>
+  );
 }
 
 /**
@@ -122,6 +161,9 @@ export default function MeetingsTable({
   const showCancel = scope === "all";
   const showMeddpicc = coverage !== undefined;
   const baseColumns = showMeddpicc ? COLUMNS : COLUMNS.filter((column) => column.key !== "meddpicc");
+  // Latest first, whatever order a page arrives in. The backend already returns meetings
+  // newest first, so this keeps a page's rows in that order rather than reshuffling paging.
+  const rows = [...meetings].sort((a, b) => startMs(b) - startMs(a));
   const columns = showCancel
     ? [...baseColumns, { key: "cancel", label: "Cancel", width: 60, center: true } as const]
     : baseColumns;
@@ -136,8 +178,9 @@ export default function MeetingsTable({
       loading={loading}
     >
       <ListingTable.Container>
-        {/* Compact rows, as the audit log's table has: every cell is one line, so the
-            default padding only spreads a page of meetings over more scrolling. */}
+        {/* Compact rows, as the audit log's table has: the Account cell's two short lines
+            are the tallest thing in a row, so the default padding only spreads a page of
+            meetings over more scrolling. */}
         <ListingTable bordered size="small" density="compact">
           <ListingTable.Head>
             <ListingTable.Row>
@@ -166,11 +209,9 @@ export default function MeetingsTable({
                     ))}
                   </ListingTable.Row>
                 ))
-              : meetings.map((meeting) => {
+              : rows.map((meeting) => {
                   const cancellable = canCancel(meeting);
                   const isCancelled = meeting.meetingStatus === "CANCELLED";
-                  const customer = meetingCustomer(meeting);
-                  const typeLabel = meetingTypeLabel(meeting.meetingType);
                   const duration = formatDuration(meeting.startTime, meeting.endTime);
                   const meetingCoverage = coverage?.get(meeting.meetingId);
                   // The backend's link first: an included call belongs to a deal the
@@ -225,34 +266,13 @@ export default function MeetingsTable({
                         </Box>
                       </ListingTable.Cell>
 
-                      <ListingTable.Cell>
-                        {/* Blank rather than a dash when there is no link at all:
-                            a meeting scheduled through the old form was never
-                            linked to Salesforce, so there is nothing missing to
-                            point at. */}
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                          title={customer ?? undefined}
-                        >
-                          {customer ?? ""}
-                        </Typography>
-                      </ListingTable.Cell>
-
-                      <ListingTable.Cell>
-                        {/* Plain text rather than the chip this used to be in the
-                            title cell. A chip reads as a status — something
-                            notable about this row — but every linked meeting has
-                            a call type. */}
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                          title={typeLabel ?? undefined}
-                        >
-                          {typeLabel ?? ""}
-                        </Typography>
+                      <ListingTable.Cell sx={{ maxWidth: 260 }}>
+                        {/* Blank rather than a dash when there is no link at all: a
+                            meeting scheduled through the old form was never linked to
+                            Salesforce, so there is nothing missing to point at. The call
+                            type is plain text, not a chip: a chip reads as a status, but
+                            every linked meeting has a call type. */}
+                        <AccountCell meeting={meeting} />
                       </ListingTable.Cell>
 
                       {showMeddpicc && (
@@ -278,7 +298,7 @@ export default function MeetingsTable({
                           sx={{ overflow: "hidden", textOverflow: "ellipsis" }}
                           title={meeting.host}
                         >
-                          {emailName(meeting.host)}
+                          {meeting.host}
                         </Typography>
                       </ListingTable.Cell>
 
