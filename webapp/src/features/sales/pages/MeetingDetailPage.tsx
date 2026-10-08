@@ -110,7 +110,7 @@ export default function MeetingDetailPage() {
     >
       <Breadcrumbs sx={{ mb: 2 }}>
         <Link component={RouterLink} to="/sales" underline="hover" color="inherit">
-          Meetings
+          Echo
         </Link>
         <Typography color="text.primary" variant="body2">
           {meeting?.title ?? "…"}

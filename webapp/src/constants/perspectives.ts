@@ -530,10 +530,12 @@ export const UMT_ITEM_IDS: ReadonlySet<string> = new Set([
   UMT_SECTION.id,
   ...(UMT_SECTION.children ?? []).map((child) => child.id),
 ]);
-// Sales's rail: the meeting history, and CadO2 while its preview flag is on.
+// Sales's rail: Echo (the recorded meetings), Deals, and CadO2 while its preview flag is on.
 const SALES_MEETINGS_SECTION: PerspectiveSection = {
   id: "sales-meetings",
-  label: "Meetings",
+  // Echo is the name of the meeting-intelligence product; this row lists the recordings it
+  // captured. The id is an internal key and does not need to match the label.
+  label: "Echo",
   // NOT RadioIcon, which belongs to the perspective itself. SideRail renders
   // the Overview row with `active.icon`, so a section reusing the perspective
   // icon puts the same glyph on two adjacent rows and the rail stops being
@@ -547,7 +549,7 @@ const SALES_SECTIONS: PerspectiveSection[] = [
   SALES_MEETINGS_SECTION,
   {
     // One row per Opportunity with its MEDDPICC state, beside the calls it came from.
-    // Served by the MEDDPICC backend rather than meet-app, but gated like Meetings: it is
+    // Served by the MEDDPICC backend rather than meet-app, but gated like Echo: it is
     // the same sales team, and meet-app's answer is the one the rail already has.
     id: "sales-deals",
     label: "Deals",
@@ -563,9 +565,9 @@ const SALES_SECTIONS: PerspectiveSection[] = [
  * Sales rail ids, which the rail must route through useSalesRailGate rather than `requires`
  * -- the same shape as SECURITY_ITEM_IDS. Access is decided by the meet-app backend's own
  * groups, so the only way to know a caller has none is its 403; until this gate existed the
- * Meetings row stayed in the rail beside a "Nothing here for you yet" card.
+ * Echo row stayed in the rail beside a "Nothing here for you yet" card.
  *
- * Meetings and Deals: CadO2's rows sit in the same perspective but belong to its own adapter, and
+ * Echo and Deals: CadO2's rows sit in the same perspective but belong to its own adapter, and
  * two adapters claiming one id is a test failure (claimConflicts).
  */
 export const SALES_ITEM_IDS: ReadonlySet<string> = new Set([SALES_MEETINGS_SECTION.id, "sales-deals"]);
@@ -614,7 +616,7 @@ export interface PerspectiveDef {
    * person's own profile, which is a page someone stops and reads.
    *
    * ALSO covers the near case where the landing does not forward because it
-   * already IS the first row's destination -- Sales, whose Meetings row points
+   * already IS the first row's destination -- Sales, whose Echo row points
    * at `/sales` itself. The reason differs (nothing bounces) but the rail
    * problem is identical: two rows, one destination, and the reader has to work
    * out that they are the same place. The name is kept rather than split into a

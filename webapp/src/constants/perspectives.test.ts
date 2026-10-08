@@ -131,9 +131,9 @@ describe("CadO2's rail entries", () => {
     }
   });
 
-  it("never join the Meetings gate's ids", async () => {
+  it("never join the Echo gate's ids", async () => {
     const { SALES_ITEM_IDS } = await load({ cado2: true });
-    // Meetings and Deals are the meet-app-gated rows; nothing of CadO2's joins them.
+    // Echo and Deals are the meet-app-gated rows; nothing of CadO2's joins them.
     expect([...SALES_ITEM_IDS]).toEqual(["sales-meetings", "sales-deals"]);
   });
 });

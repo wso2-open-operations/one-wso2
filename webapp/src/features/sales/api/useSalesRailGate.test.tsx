@@ -70,7 +70,7 @@ beforeEach(() => {
 });
 
 describe("useSalesRailGate", () => {
-  it("shows the Meetings row to a caller meet-app lets in", () => {
+  it("shows the Echo row to a caller meet-app lets in", () => {
     expect(gate().canSee("sales-meetings")).toBe(true);
   });
 
