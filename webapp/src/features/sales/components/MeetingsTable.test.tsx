@@ -67,17 +67,20 @@ describe("MeetingsTable", () => {
     expect(titles).toEqual(["Newest", "Middle", "Oldest"]);
   });
 
-  it("shows the account, call type and customer contact in one cell", () => {
+  it("leads with the account and its call type, and leaves attendee emails out", () => {
     renderTable([
       meeting({
+        title: "Nordlys – budget sign-off",
         accountName: "Nordlys Energi AS",
         meetingType: "renewal",
-        externalParticipants: "lars.haugen@nordlys.example, ingrid@nordlys.example",
+        externalParticipants: "lars.haugen@nordlys.example",
       }),
     ]);
-    const row = bodyRows()[0];
-    expect(within(row).getByText("Nordlys Energi AS")).toBeInTheDocument();
-    expect(within(row).getByText("Renewal / convert · lars.haugen@nordlys.example +1")).toBeInTheDocument();
+    const cells = within(bodyRows()[0]).getAllByRole("cell");
+    expect(within(cells[0]).getByText("Nordlys Energi AS")).toBeInTheDocument();
+    expect(within(cells[0]).getByText("Renewal / convert")).toBeInTheDocument();
+    expect(within(cells[1]).getByRole("link")).toHaveTextContent("Nordlys – budget sign-off");
+    expect(screen.queryByText(/lars\.haugen/)).not.toBeInTheDocument();
   });
 
   it("leads with the call type when there is no account", () => {
@@ -89,6 +92,6 @@ describe("MeetingsTable", () => {
     renderTable([meeting({})]);
     expect(within(bodyRows()[0]).getByText("amal@wso2.com")).toBeInTheDocument();
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
-    expect(headers).toEqual(["Title", "Account", "Account Owner", "Start", "Files"]);
+    expect(headers).toEqual(["Account", "Title", "Account Owner", "Start", "Files"]);
   });
 });

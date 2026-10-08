@@ -32,7 +32,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import type { Meeting, MeetingScope } from "../api/salesTypes";
 import { meetingCustomer, meetingTypeLabel } from "../api/salesTypes";
-import { formatDateTime, formatDuration, parseUtc, splitParticipants } from "../util/salesTime";
+import { formatDateTime, formatDuration, parseUtc } from "../util/salesTime";
 import MeetingCoverageCell from "../meddpicc/components/MeetingCoverageCell";
 import type { LetterKey, MeetingCoverage } from "../meddpicc/types";
 
@@ -46,8 +46,10 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20];
  * time on hover.
  */
 const COLUMNS = [
+  // Account leads: it is what people remember a call by. The title sits beside it as
+  // the way into the meeting.
+  { key: "customer", label: "Account", width: 240 },
   { key: "title", label: "Title", width: "auto" },
-  { key: "customer", label: "Account", width: 260 },
   { key: "meddpicc", label: "MEDDPICC", width: 230 },
   { key: "host", label: "Account Owner", width: 190 },
   { key: "start", label: "Start", width: 170 },
@@ -60,25 +62,18 @@ function startMs(meeting: Meeting): number {
 }
 
 /**
- * Who the call was with, in one cell: the account on top, then the call type and the
- * customer contact beneath it.
+ * Who the call was with: the account on top, and the call type beneath it.
  *
- * The contact is the first external attendee's email, since that is the person on the
- * customer side the backend records; a second or third shows as "+N", with the full list
- * on hover. A meeting with no account (an internal one, say) leads with its call type.
+ * No attendee emails: nobody recalls a call by the customer's address, and the account
+ * already says who it was with. A meeting with no account (an internal one, say) leads
+ * with its call type.
  */
 function AccountCell({ meeting }: { meeting: Meeting }) {
   const account = meetingCustomer(meeting);
   const typeLabel = meetingTypeLabel(meeting.meetingType);
-  const contacts = splitParticipants(meeting.externalParticipants);
-  const contact = contacts.length
-    ? contacts.length > 1
-      ? `${contacts[0]} +${contacts.length - 1}`
-      : contacts[0]
-    : null;
   const headline = account ?? typeLabel;
-  const details = [account ? typeLabel : null, contact].filter(Boolean).join(" · ");
-  const hover = [account, typeLabel, contacts.join(", ")].filter(Boolean).join("\n");
+  const details = account ? typeLabel : null;
+  const hover = [account, typeLabel].filter(Boolean).join(" · ");
   const clip = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 
   if (!headline && !details) return null;
@@ -227,6 +222,15 @@ export default function MeetingsTable({
                       onClick={openDeal}
                       sx={openDeal ? { cursor: "pointer" } : undefined}
                     >
+                      <ListingTable.Cell sx={{ maxWidth: 240 }}>
+                        {/* Blank rather than a dash when there is no link at all: a
+                            meeting scheduled through the old form was never linked to
+                            Salesforce, so there is nothing missing to point at. The call
+                            type is plain text, not a chip: a chip reads as a status, but
+                            every linked meeting has a call type. */}
+                        <AccountCell meeting={meeting} />
+                      </ListingTable.Cell>
+
                       <ListingTable.Cell>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           {/* A link, not a row click: the title is the thing that names
@@ -264,15 +268,6 @@ export default function MeetingsTable({
                             />
                           )}
                         </Box>
-                      </ListingTable.Cell>
-
-                      <ListingTable.Cell sx={{ maxWidth: 260 }}>
-                        {/* Blank rather than a dash when there is no link at all: a
-                            meeting scheduled through the old form was never linked to
-                            Salesforce, so there is nothing missing to point at. The call
-                            type is plain text, not a chip: a chip reads as a status, but
-                            every linked meeting has a call type. */}
-                        <AccountCell meeting={meeting} />
                       </ListingTable.Cell>
 
                       {showMeddpicc && (
