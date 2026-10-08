@@ -53,7 +53,7 @@ function UrlProbe() {
   return <div data-testid="url">{useLocation().pathname}</div>;
 }
 
-function renderShell(g: Partial<MarketingOpsGate> = {}) {
+function renderShell(g: Partial<MarketingOpsGate> = {}, hideHeader = false) {
   gate.value = { ...AUTHORIZED, ...g };
   return render(
     <MemoryRouter initialEntries={["/marketing-ops/events/mine"]}>
@@ -62,7 +62,11 @@ function renderShell(g: Partial<MarketingOpsGate> = {}) {
         <Route
           path="/marketing-ops/events/mine"
           element={
-            <MarketingOpsShell title="My Events" subtitle={SUBTITLE}>
+            <MarketingOpsShell
+              title="My Events"
+              subtitle={SUBTITLE}
+              hideHeader={hideHeader}
+            >
               <div>the real page</div>
             </MarketingOpsShell>
           }
@@ -73,7 +77,10 @@ function renderShell(g: Partial<MarketingOpsGate> = {}) {
   );
 }
 
-const stayedPut = () => expect(screen.getByTestId("url")).toHaveTextContent("/marketing-ops/events/mine");
+const stayedPut = () =>
+  expect(screen.getByTestId("url")).toHaveTextContent(
+    "/marketing-ops/events/mine",
+  );
 
 beforeEach(() => {
   configured.value = true;
@@ -104,8 +111,14 @@ describe("MarketingOpsShell", () => {
   // a screen they can open.
 
   it("shows the spinner, not a redirect, while the check is in flight", () => {
-    renderShell({ isAuthorized: false, isResolving: true, canSee: () => false });
-    expect(screen.getByText(/checking your marketing ops access/i)).toBeInTheDocument();
+    renderShell({
+      isAuthorized: false,
+      isResolving: true,
+      canSee: () => false,
+    });
+    expect(
+      screen.getByText(/checking your marketing ops access/i),
+    ).toBeInTheDocument();
     stayedPut();
   });
 
@@ -116,7 +129,9 @@ describe("MarketingOpsShell", () => {
       errorMessage: "Gateway timed out.",
       canSee: () => false,
     });
-    expect(screen.getByText(/couldn't check your marketing ops access/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/couldn't check your marketing ops access/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
     stayedPut();
   });
@@ -126,5 +141,47 @@ describe("MarketingOpsShell", () => {
     renderShell({ isAuthorized: false, canSee: () => false });
     expect(screen.getByText(/isn't connected yet/i)).toBeInTheDocument();
     stayedPut();
+  });
+
+  // ---- hideHeader ----------------------------------------------------------
+
+  describe("with hideHeader", () => {
+    it("keeps the title as an h1 but drops the subtitle once the page renders", () => {
+      renderShell({}, true);
+      expect(
+        screen.getByRole("heading", { level: 1, name: "My Events" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(SUBTITLE)).not.toBeInTheDocument();
+      expect(screen.getByText("the real page")).toBeInTheDocument();
+    });
+
+    // The navigation that makes the header redundant lives in the children, so
+    // the degraded states, which do not render them, keep it.
+    it("keeps the header while the check is in flight", () => {
+      renderShell(
+        { isAuthorized: false, isResolving: true, canSee: () => false },
+        true,
+      );
+      expect(screen.getByText(SUBTITLE)).toBeInTheDocument();
+    });
+
+    it("keeps the header when the check fails", () => {
+      renderShell(
+        { isAuthorized: false, isError: true, canSee: () => false },
+        true,
+      );
+      expect(screen.getByText(SUBTITLE)).toBeInTheDocument();
+    });
+
+    it("keeps the header when the backend URL is unset", () => {
+      configured.value = false;
+      renderShell({ isAuthorized: false, canSee: () => false }, true);
+      expect(screen.getByText(SUBTITLE)).toBeInTheDocument();
+    });
+
+    it("still sends a locked caller back to the landing", () => {
+      renderShell({ isAuthorized: false, canSee: () => false }, true);
+      expect(screen.getByText("the landing")).toBeInTheDocument();
+    });
   });
 });

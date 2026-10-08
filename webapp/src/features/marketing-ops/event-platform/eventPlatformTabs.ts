@@ -66,8 +66,12 @@ export interface EventPlatformKindDef {
   label: string;
   /** Checked before the toggle offers it AND before its route renders. */
   gateId: EventPlatformGateId;
-  /** Shown under the page title while this kind is selected. */
-  subtitle: string;
+  /**
+   * Shown under the page title while this kind is selected. Only the top-level
+   * tabs have one: inside an event the header is hidden, so a subtitle there
+   * would be rendered nowhere.
+   */
+  subtitle?: string;
 }
 
 export interface EventPlatformTabDef {
@@ -92,7 +96,8 @@ export const TOP_LEVEL_TABS: readonly EventPlatformTabDef[] = [
         // page itself decides what each role gets: admins the full dashboard,
         // shop users a read-only list whose cards open `shop/inventory`.
         gateId: EVENT_PLATFORM_ITEM_IDS.events,
-        subtitle: "Every event on the platform. Open one to plan its agenda or run its shop.",
+        subtitle:
+          "Every event on the platform. Open one to plan its agenda or run its shop.",
       },
     ],
   },
@@ -104,7 +109,8 @@ export const TOP_LEVEL_TABS: readonly EventPlatformTabDef[] = [
         kind: "speakers",
         label: "Speakers",
         gateId: "mops-event-platform-admin",
-        subtitle: "The speaker library shared by every event. Add a speaker once and use them anywhere.",
+        subtitle:
+          "The speaker library shared by every event. Add a speaker once and use them anywhere.",
       },
     ],
   },
@@ -122,31 +128,26 @@ export const EVENT_TABS: readonly EventPlatformTabDef[] = [
         // Sessions, so the toggle names what the screen shows.
         label: "Agenda",
         gateId: "mops-event-platform-admin",
-        subtitle: "Lay out the event's days, tracks and sessions.",
       },
       {
         kind: "speakers",
         label: "Speakers",
         gateId: "mops-event-platform-admin",
-        subtitle: "The speakers taking part in this event, and the sessions they are on.",
       },
       {
         kind: "rooms",
         label: "Rooms",
         gateId: "mops-event-platform-admin",
-        subtitle: "The venue's rooms and which tracks run in each.",
       },
       {
         kind: "activities",
         label: "Activities",
         gateId: "mops-event-platform-admin",
-        subtitle: "Everything on the programme that is not a session: breaks, meals, side events.",
       },
       {
         kind: "export",
         label: "Export",
         gateId: "mops-event-platform-admin",
-        subtitle: "Download the agenda and speaker list, or a static page to publish.",
       },
     ],
   },
@@ -161,13 +162,11 @@ export const EVENT_TABS: readonly EventPlatformTabDef[] = [
         label: "Inventory",
         // router.tsx — outside AdminGuard: admin OR shop.
         gateId: "mops-event-platform-shop",
-        subtitle: "The items on offer at this event's shop, and how many are left.",
       },
       {
         kind: "orders",
         label: "Orders",
         gateId: "mops-event-platform-shop",
-        subtitle: "Orders placed at this event's shop, and their checkout state.",
       },
     ],
   },
@@ -179,7 +178,6 @@ export const EVENT_TABS: readonly EventPlatformTabDef[] = [
         kind: "settings",
         label: "Settings",
         gateId: "mops-event-platform-admin",
-        subtitle: "The event's name, dates, venue and other details.",
       },
     ],
   },
@@ -195,19 +193,30 @@ export function eventBasePath(eventId: string): string {
  * `/settings/settings`. The shape follows the tab's DEFINITION, not the
  * caller's permissions, so two people never see different URLs for one screen.
  */
-function tabPath(base: string, tab: EventPlatformTabDef, kind?: string): string {
+function tabPath(
+  base: string,
+  tab: EventPlatformTabDef,
+  kind?: string,
+): string {
   const path = `${base}/${tab.segment}`;
   if (tab.kinds.length < 2) return path;
   return kind ? `${path}/${kind}` : path;
 }
 
 /** The URL for one top-level tab. */
-export function eventPlatformPath(tab: EventPlatformTabDef, kind?: string): string {
+export function eventPlatformPath(
+  tab: EventPlatformTabDef,
+  kind?: string,
+): string {
   return tabPath(EVENT_PLATFORM_PATH, tab, kind);
 }
 
 /** The URL for one in-event tab, optionally at one kind. */
-export function eventPath(eventId: string, tab: EventPlatformTabDef, kind?: string): string {
+export function eventPath(
+  eventId: string,
+  tab: EventPlatformTabDef,
+  kind?: string,
+): string {
   return tabPath(eventBasePath(eventId), tab, kind);
 }
 
@@ -299,7 +308,10 @@ function decodeSegment(segment: string): string {
 }
 
 // A single-kind tab has no kind segment, so its one kind is implied.
-function kindOf(tab: EventPlatformTabDef, segment?: string): EventPlatformKindDef | undefined {
+function kindOf(
+  tab: EventPlatformTabDef,
+  segment?: string,
+): EventPlatformKindDef | undefined {
   if (tab.kinds.length < 2) return tab.kinds[0];
   return tab.kinds.find((k) => k.kind === segment);
 }

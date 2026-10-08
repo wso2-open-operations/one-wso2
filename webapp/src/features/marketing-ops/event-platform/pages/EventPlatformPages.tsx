@@ -15,8 +15,20 @@
 // under the License.
 
 import type { ReactNode } from "react";
-import { Link as RouterLink, Navigate, Outlet, useLocation, useParams } from "react-router";
-import { Alert, Link, Stack, ToggleButton, ToggleButtonGroup } from "@wso2/oxygen-ui";
+import {
+  Link as RouterLink,
+  Navigate,
+  Outlet,
+  useLocation,
+  useParams,
+} from "react-router";
+import {
+  Alert,
+  Link,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@wso2/oxygen-ui";
 import { ArrowLeftIcon } from "@wso2/oxygen-ui-icons-react";
 import RoutedTabs from "@components/routed-tabs/RoutedTabs";
 import { isMarketingOpsBackendConfigured } from "@config/apiConfig";
@@ -69,7 +81,10 @@ export function EventPlatformHomePage() {
   return (
     // MarketingOpsShell holds its children until the gate answers, so nothing
     // below renders — and no redirect fires — on an unanswered gate.
-    <EventPlatformShell title={tab?.label ?? "Event Platform"} subtitle={kind?.subtitle}>
+    <EventPlatformShell
+      title={tab?.label ?? "Event Platform"}
+      subtitle={kind?.subtitle}
+    >
       {tabs.length === 0 ? (
         <Alert severity="info">This isn&apos;t available for your role.</Alert>
       ) : (
@@ -101,8 +116,12 @@ export function EventPlatformEventPage() {
 
   return (
     // No visible header inside an event: the back link, the event switcher and
-    // the tab row already say where you are.
-    <EventPlatformShell title={tab?.label ?? "Event"} hideHeader>
+    // the tab row already say where you are. With no tabs there is none of
+    // that, so the header stays.
+    <EventPlatformShell
+      title={tab?.label ?? "Event"}
+      hideHeader={tabs.length > 0}
+    >
       {tabs.length === 0 ? (
         <Alert severity="info">This isn&apos;t available for your role.</Alert>
       ) : (
@@ -110,7 +129,11 @@ export function EventPlatformEventPage() {
           <Stack
             direction="row"
             spacing={1.5}
-            sx={{ alignItems: "center", justifyContent: "space-between", mb: 1.5 }}
+            sx={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 1.5,
+            }}
           >
             {canSeeList ? (
               <Link
@@ -129,7 +152,11 @@ export function EventPlatformEventPage() {
             )}
             <EventSwitcher eventId={eventId} />
           </Stack>
-          <RoutedTabs basePath={eventBasePath(eventId)} tabs={tabs} ariaLabel="Event sections" />
+          <RoutedTabs
+            basePath={eventBasePath(eventId)}
+            tabs={tabs}
+            ariaLabel="Event sections"
+          />
           {tab && (
             <KindToggle
               tab={tab}
@@ -170,7 +197,15 @@ function KindToggle({
       exclusive
       size="small"
       aria-label={`${tab.label} views`}
-      sx={{ mb: 2, "& .MuiToggleButton-root": { textTransform: "none", fontSize: 13, px: 1.5, py: 0.4 } }}
+      sx={{
+        mb: 2,
+        "& .MuiToggleButton-root": {
+          textTransform: "none",
+          fontSize: 13,
+          px: 1.5,
+          py: 0.4,
+        },
+      }}
     >
       {kinds.map((k) => (
         <ToggleButton
@@ -218,7 +253,9 @@ export function EventTabIndex({ segment }: { segment: string }) {
   const tab = eventTab(segment);
   if (!tab) return null;
   const first = visibleKinds(tab, gate.canSee)[0];
-  const target = first ? eventPath(eventId, tab, first.kind) : firstAllowedPath(gate.canSee, eventId);
+  const target = first
+    ? eventPath(eventId, tab, first.kind)
+    : firstAllowedPath(gate.canSee, eventId);
   return target ? <Navigate to={target} replace /> : null;
 }
 
@@ -245,7 +282,9 @@ export function EventPlatformRoute({
   if (!gate.canSee(gateId)) {
     const first = firstAllowedPath(gate.canSee, eventId);
     if (first) return <Navigate to={first} replace />;
-    return <Alert severity="info">This isn&apos;t available for your role.</Alert>;
+    return (
+      <Alert severity="info">This isn&apos;t available for your role.</Alert>
+    );
   }
   return <>{children}</>;
 }

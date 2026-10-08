@@ -47,7 +47,10 @@ afterEach(() => {
 });
 
 /** A gate that allows exactly the ids given. */
-const allowing = (...ids: string[]) => (id: string) => ids.includes(id);
+const allowing =
+  (...ids: string[]) =>
+  (id: string) =>
+    ids.includes(id);
 
 // What useMarketingOpsGate answers for each role: an `eventplatform` holder
 // (or a marketing-ops admin) passes every gate id, an `eventplatform-shop`
@@ -57,7 +60,10 @@ const ADMIN = allowing(
   "mops-event-platform-events",
   "mops-event-platform-shop",
 );
-const SHOP_ONLY = allowing("mops-event-platform-events", "mops-event-platform-shop");
+const SHOP_ONLY = allowing(
+  "mops-event-platform-events",
+  "mops-event-platform-shop",
+);
 const NOBODY = allowing();
 
 describe("the shape of the Event Platform", () => {
@@ -65,8 +71,14 @@ describe("the shape of the Event Platform", () => {
     const app = await eventPlatformApp();
     expect(app?.alwaysGroup).toBe(true);
     expect(app?.items.map((i) => [i.id, i.path])).toEqual([
-      [EVENT_PLATFORM_ITEM_IDS.events, eventPlatformPath(topLevelTab("events")!)],
-      [EVENT_PLATFORM_ITEM_IDS.speakers, eventPlatformPath(topLevelTab("speakers")!)],
+      [
+        EVENT_PLATFORM_ITEM_IDS.events,
+        eventPlatformPath(topLevelTab("events")!),
+      ],
+      [
+        EVENT_PLATFORM_ITEM_IDS.speakers,
+        eventPlatformPath(topLevelTab("speakers")!),
+      ],
     ]);
   });
 
@@ -83,14 +95,24 @@ describe("the shape of the Event Platform", () => {
     }
   });
 
-  it("gives every kind of every tab a gate and a subtitle", () => {
+  it("gives every kind of every tab a gate", () => {
     for (const tab of [...TOP_LEVEL_TABS, ...EVENT_TABS]) {
-      expect(tab.kinds.length, `${tab.segment} has no kinds`).toBeGreaterThan(0);
-      for (const kind of tab.kinds) {
+      expect(tab.kinds.length, `${tab.segment} has no kinds`).toBeGreaterThan(
+        0,
+      );
+      for (const kind of tab.kinds)
         expect(kind.gateId, `${tab.segment}/${kind.kind}`).toBeTruthy();
-        expect(kind.subtitle.length, `${tab.segment}/${kind.kind}`).toBeGreaterThan(0);
-      }
     }
+  });
+
+  // Only the top-level pages show a header; inside an event it is hidden.
+  it("gives every top-level kind a subtitle and no in-event kind one", () => {
+    for (const tab of TOP_LEVEL_TABS)
+      for (const kind of tab.kinds)
+        expect(kind.subtitle, `${tab.segment}/${kind.kind}`).toBeTruthy();
+    for (const tab of EVENT_TABS)
+      for (const kind of tab.kinds)
+        expect(kind.subtitle, `${tab.segment}/${kind.kind}`).toBeUndefined();
   });
 
   // The rail item and the route it opens ask the same id, so the rail cannot
@@ -106,7 +128,9 @@ describe("the shape of the Event Platform", () => {
     for (const tab of [...TOP_LEVEL_TABS, ...EVENT_TABS]) {
       for (const kind of tab.kinds) {
         const shop = kind.gateId === "mops-event-platform-shop";
-        expect(shop, `${tab.segment}/${kind.kind}`).toBe(tab.segment === "shop");
+        expect(shop, `${tab.segment}/${kind.kind}`).toBe(
+          tab.segment === "shop",
+        );
       }
     }
   });
@@ -114,8 +138,12 @@ describe("the shape of the Event Platform", () => {
 
 describe("paths", () => {
   it("builds top-level paths without a kind segment", () => {
-    expect(eventPlatformPath(topLevelTab("events")!)).toBe("/marketing-ops/event-platform/events");
-    expect(eventPlatformPath(topLevelTab("speakers")!)).toBe("/marketing-ops/event-platform/speakers");
+    expect(eventPlatformPath(topLevelTab("events")!)).toBe(
+      "/marketing-ops/event-platform/events",
+    );
+    expect(eventPlatformPath(topLevelTab("speakers")!)).toBe(
+      "/marketing-ops/event-platform/speakers",
+    );
   });
 
   it("names the kind for an in-event tab that offers several", () => {
@@ -144,7 +172,9 @@ describe("paths", () => {
   // A typed URL with a malformed escape must not throw: the pages parse the
   // path while rendering, and a throw there blanks the whole app.
   it("keeps a malformed event id as it was typed rather than throwing", () => {
-    const parsed = parseEventPlatformPath("/marketing-ops/event-platform/events/%E0/settings");
+    const parsed = parseEventPlatformPath(
+      "/marketing-ops/event-platform/events/%E0/settings",
+    );
     expect(parsed.eventId).toBe("%E0");
     expect(parsed.tab?.segment).toBe("settings");
   });
@@ -152,7 +182,9 @@ describe("paths", () => {
   it("round-trips top-level tabs through parseEventPlatformPath", () => {
     for (const tab of TOP_LEVEL_TABS) {
       for (const kind of tab.kinds) {
-        const parsed = parseEventPlatformPath(eventPlatformPath(tab, kind.kind));
+        const parsed = parseEventPlatformPath(
+          eventPlatformPath(tab, kind.kind),
+        );
         expect(parsed.eventId).toBeUndefined();
         expect(parsed.tab?.segment).toBe(tab.segment);
         expect(parsed.kind?.kind).toBe(kind.kind);
@@ -163,7 +195,9 @@ describe("paths", () => {
   it("round-trips in-event tabs through parseEventPlatformPath", () => {
     for (const tab of EVENT_TABS) {
       for (const kind of tab.kinds) {
-        const parsed = parseEventPlatformPath(eventPath("evt-7", tab, kind.kind));
+        const parsed = parseEventPlatformPath(
+          eventPath("evt-7", tab, kind.kind),
+        );
         expect(parsed.eventId).toBe("evt-7");
         expect(parsed.tab?.segment).toBe(tab.segment);
         expect(parsed.kind?.kind).toBe(kind.kind);
@@ -173,22 +207,37 @@ describe("paths", () => {
 
   // `/events` is the top-level list; `/events/<id>` is inside an event.
   it("tells the events list apart from an event", () => {
-    expect(parseEventPlatformPath("/marketing-ops/event-platform/events").tab?.segment).toBe("events");
-    const inside = parseEventPlatformPath("/marketing-ops/event-platform/events/42");
+    expect(
+      parseEventPlatformPath("/marketing-ops/event-platform/events").tab
+        ?.segment,
+    ).toBe("events");
+    const inside = parseEventPlatformPath(
+      "/marketing-ops/event-platform/events/42",
+    );
     expect(inside).toEqual({ eventId: "42" });
   });
 
   it("leaves the kind undefined for a multi-kind tab reached without one", () => {
-    const parsed = parseEventPlatformPath("/marketing-ops/event-platform/events/42/sessions");
+    const parsed = parseEventPlatformPath(
+      "/marketing-ops/event-platform/events/42/sessions",
+    );
     expect(parsed.tab?.segment).toBe("sessions");
     expect(parsed.kind).toBeUndefined();
   });
 
   it("returns nothing for a segment it does not know", () => {
-    expect(parseEventPlatformPath("/marketing-ops/event-platform/nonsense")).toEqual({});
-    expect(parseEventPlatformPath("/marketing-ops/event-platformx/events")).toEqual({});
+    expect(
+      parseEventPlatformPath("/marketing-ops/event-platform/nonsense"),
+    ).toEqual({});
+    expect(
+      parseEventPlatformPath("/marketing-ops/event-platformx/events"),
+    ).toEqual({});
     expect(parseEventPlatformPath("/somewhere/else")).toEqual({});
-    expect(parseEventPlatformPath("/marketing-ops/event-platform/events/42/nonsense")).toEqual({
+    expect(
+      parseEventPlatformPath(
+        "/marketing-ops/event-platform/events/42/nonsense",
+      ),
+    ).toEqual({
       eventId: "42",
     });
   });
@@ -196,28 +245,30 @@ describe("paths", () => {
 
 describe("what each role is offered", () => {
   it("gives an admin every tab", () => {
-    expect(visibleTabs(TOP_LEVEL_TABS, ADMIN).map((t) => t.segment)).toEqual(["events", "speakers"]);
+    expect(visibleTabs(TOP_LEVEL_TABS, ADMIN).map((t) => t.segment)).toEqual([
+      "events",
+      "speakers",
+    ]);
     expect(visibleTabs(EVENT_TABS, ADMIN).map((t) => t.segment)).toEqual([
       "sessions",
       "shop",
       "settings",
     ]);
-    expect(visibleKinds(eventTab("sessions")!, ADMIN).map((k) => k.kind)).toEqual([
-      "agenda",
-      "speakers",
-      "rooms",
-      "activities",
-      "export",
-    ]);
+    expect(
+      visibleKinds(eventTab("sessions")!, ADMIN).map((k) => k.kind),
+    ).toEqual(["agenda", "speakers", "rooms", "activities", "export"]);
   });
 
   it("gives a shop-only user the events list and the Shop tab, nothing else", () => {
-    expect(visibleTabs(TOP_LEVEL_TABS, SHOP_ONLY).map((t) => t.segment)).toEqual(["events"]);
-    expect(visibleTabs(EVENT_TABS, SHOP_ONLY).map((t) => t.segment)).toEqual(["shop"]);
-    expect(visibleKinds(eventTab("shop")!, SHOP_ONLY).map((k) => k.kind)).toEqual([
-      "inventory",
-      "orders",
+    expect(
+      visibleTabs(TOP_LEVEL_TABS, SHOP_ONLY).map((t) => t.segment),
+    ).toEqual(["events"]);
+    expect(visibleTabs(EVENT_TABS, SHOP_ONLY).map((t) => t.segment)).toEqual([
+      "shop",
     ]);
+    expect(
+      visibleKinds(eventTab("shop")!, SHOP_ONLY).map((k) => k.kind),
+    ).toEqual(["inventory", "orders"]);
   });
 
   it("gives someone with neither role nothing", () => {
@@ -228,7 +279,9 @@ describe("what each role is offered", () => {
 
 describe("where each role lands", () => {
   it("sends an admin to the events list, and into an event at its agenda", () => {
-    expect(firstAllowedPath(ADMIN)).toBe("/marketing-ops/event-platform/events");
+    expect(firstAllowedPath(ADMIN)).toBe(
+      "/marketing-ops/event-platform/events",
+    );
     expect(firstAllowedPath(ADMIN, "42")).toBe(
       "/marketing-ops/event-platform/events/42/sessions/agenda",
     );
@@ -243,7 +296,9 @@ describe("where each role lands", () => {
   // The source gave a shop user no events list; the port does (spec Q1), so
   // they land where they can pick an event.
   it("sends a shop-only user to the events list at the top level", () => {
-    expect(firstAllowedPath(SHOP_ONLY)).toBe("/marketing-ops/event-platform/events");
+    expect(firstAllowedPath(SHOP_ONLY)).toBe(
+      "/marketing-ops/event-platform/events",
+    );
   });
 
   it("sends someone who may see nothing nowhere at all", () => {
