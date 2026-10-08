@@ -32,23 +32,35 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import type { Meeting, MeetingScope } from "../api/salesTypes";
 import { meetingCustomer, meetingTypeLabel } from "../api/salesTypes";
-import { formatDateTime } from "../util/salesTime";
+import { formatDateTime, formatDuration } from "../util/salesTime";
 import MeetingCoverageCell from "../meddpicc/components/MeetingCoverageCell";
 import type { LetterKey, MeetingCoverage } from "../meddpicc/types";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20];
 
-/** Columns, declared once so the header and the skeleton rows can't drift. */
+/**
+ * Columns, declared once so the header and the skeleton rows can't drift.
+ *
+ * No End column: calls run minutes to a couple of hours, so when one started is what
+ * people scan for, and its length rides along in the Start cell with the exact end
+ * time on hover.
+ */
 const COLUMNS = [
   { key: "title", label: "Title", width: "auto" },
-  { key: "customer", label: "Account", width: 200 },
-  { key: "type", label: "Call type", width: 160 },
+  { key: "customer", label: "Account", width: 180 },
+  { key: "type", label: "Call type", width: 130 },
   { key: "meddpicc", label: "MEDDPICC", width: 230 },
-  { key: "host", label: "Account Owner", width: 180 },
-  { key: "start", label: "Start", width: 150 },
-  { key: "end", label: "End", width: 150 },
-  { key: "attachments", label: "Files", width: 80, center: true },
+  { key: "host", label: "Account Owner", width: 140 },
+  { key: "start", label: "Start", width: 170 },
+  { key: "attachments", label: "Files", width: 60, center: true },
 ] as const;
+
+/** The part of a work email before the @, which is all a WSO2-only column needs to show. */
+function emailName(email: string | null | undefined): string {
+  if (!email) return "";
+  const at = email.indexOf("@");
+  return at > 0 ? email.slice(0, at) : email;
+}
 
 /**
  * The meeting list.
@@ -111,7 +123,7 @@ export default function MeetingsTable({
   const showMeddpicc = coverage !== undefined;
   const baseColumns = showMeddpicc ? COLUMNS : COLUMNS.filter((column) => column.key !== "meddpicc");
   const columns = showCancel
-    ? [...baseColumns, { key: "cancel", label: "Cancel", width: 80, center: true } as const]
+    ? [...baseColumns, { key: "cancel", label: "Cancel", width: 60, center: true } as const]
     : baseColumns;
 
   return (
@@ -124,7 +136,9 @@ export default function MeetingsTable({
       loading={loading}
     >
       <ListingTable.Container>
-        <ListingTable bordered>
+        {/* Compact rows, as the audit log's table has: every cell is one line, so the
+            default padding only spreads a page of meetings over more scrolling. */}
+        <ListingTable bordered size="small" density="compact">
           <ListingTable.Head>
             <ListingTable.Row>
               {columns.map((column) => (
@@ -157,6 +171,7 @@ export default function MeetingsTable({
                   const isCancelled = meeting.meetingStatus === "CANCELLED";
                   const customer = meetingCustomer(meeting);
                   const typeLabel = meetingTypeLabel(meeting.meetingType);
+                  const duration = formatDuration(meeting.startTime, meeting.endTime);
                   const meetingCoverage = coverage?.get(meeting.meetingId);
                   // The backend's link first: an included call belongs to a deal the
                   // meeting row itself was never linked to.
@@ -257,23 +272,30 @@ export default function MeetingsTable({
                       )}
 
                       <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
-                        <Typography variant="body2" color="text.secondary">
-                          {meeting.host}
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ overflow: "hidden", textOverflow: "ellipsis" }}
+                          title={meeting.host}
+                        >
+                          {emailName(meeting.host)}
                         </Typography>
                       </ListingTable.Cell>
 
                       <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          title={meeting.endTime ? `Ends ${formatDateTime(meeting.endTime)}` : undefined}
+                        >
                           {formatDateTime(meeting.startTime)}
+                          {duration && (
+                            <Box component="span" sx={{ color: "text.disabled" }}>
+                              {` · ${duration}`}
+                            </Box>
+                          )}
                         </Typography>
                       </ListingTable.Cell>
-
-                      <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
-                        <Typography variant="body2" color="text.secondary">
-                          {formatDateTime(meeting.endTime)}
-                        </Typography>
-                      </ListingTable.Cell>
-
 
                       <ListingTable.Cell align="center">
                         <Tooltip title="View files" arrow>
