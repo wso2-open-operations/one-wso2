@@ -62,11 +62,7 @@ function renderShell(g: Partial<MarketingOpsGate> = {}, hideHeader = false) {
         <Route
           path="/marketing-ops/events/mine"
           element={
-            <MarketingOpsShell
-              title="My Events"
-              subtitle={SUBTITLE}
-              hideHeader={hideHeader}
-            >
+            <MarketingOpsShell title="My Events" subtitle={SUBTITLE} hideHeader={hideHeader}>
               <div>the real page</div>
             </MarketingOpsShell>
           }
@@ -77,10 +73,7 @@ function renderShell(g: Partial<MarketingOpsGate> = {}, hideHeader = false) {
   );
 }
 
-const stayedPut = () =>
-  expect(screen.getByTestId("url")).toHaveTextContent(
-    "/marketing-ops/events/mine",
-  );
+const stayedPut = () => expect(screen.getByTestId("url")).toHaveTextContent("/marketing-ops/events/mine");
 
 beforeEach(() => {
   configured.value = true;
@@ -111,14 +104,8 @@ describe("MarketingOpsShell", () => {
   // a screen they can open.
 
   it("shows the spinner, not a redirect, while the check is in flight", () => {
-    renderShell({
-      isAuthorized: false,
-      isResolving: true,
-      canSee: () => false,
-    });
-    expect(
-      screen.getByText(/checking your marketing ops access/i),
-    ).toBeInTheDocument();
+    renderShell({ isAuthorized: false, isResolving: true, canSee: () => false });
+    expect(screen.getByText(/checking your marketing ops access/i)).toBeInTheDocument();
     stayedPut();
   });
 
@@ -129,9 +116,7 @@ describe("MarketingOpsShell", () => {
       errorMessage: "Gateway timed out.",
       canSee: () => false,
     });
-    expect(
-      screen.getByText(/couldn't check your marketing ops access/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/couldn't check your marketing ops access/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
     stayedPut();
   });
@@ -148,9 +133,7 @@ describe("MarketingOpsShell", () => {
   describe("with hideHeader", () => {
     it("keeps the title as an h1 but drops the subtitle once the page renders", () => {
       renderShell({}, true);
-      expect(
-        screen.getByRole("heading", { level: 1, name: "My Events" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "My Events" })).toBeInTheDocument();
       expect(screen.queryByText(SUBTITLE)).not.toBeInTheDocument();
       expect(screen.getByText("the real page")).toBeInTheDocument();
     });
@@ -158,18 +141,12 @@ describe("MarketingOpsShell", () => {
     // The navigation that makes the header redundant lives in the children, so
     // the degraded states, which do not render them, keep it.
     it("keeps the header while the check is in flight", () => {
-      renderShell(
-        { isAuthorized: false, isResolving: true, canSee: () => false },
-        true,
-      );
+      renderShell({ isAuthorized: false, isResolving: true, canSee: () => false }, true);
       expect(screen.getByText(SUBTITLE)).toBeInTheDocument();
     });
 
     it("keeps the header when the check fails", () => {
-      renderShell(
-        { isAuthorized: false, isError: true, canSee: () => false },
-        true,
-      );
+      renderShell({ isAuthorized: false, isError: true, canSee: () => false }, true);
       expect(screen.getByText(SUBTITLE)).toBeInTheDocument();
     });
 

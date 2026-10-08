@@ -96,8 +96,7 @@ export const TOP_LEVEL_TABS: readonly EventPlatformTabDef[] = [
         // page itself decides what each role gets: admins the full dashboard,
         // shop users a read-only list whose cards open `shop/inventory`.
         gateId: EVENT_PLATFORM_ITEM_IDS.events,
-        subtitle:
-          "Every event on the platform. Open one to plan its agenda or run its shop.",
+        subtitle: "Every event on the platform. Open one to plan its agenda or run its shop.",
       },
     ],
   },
@@ -109,8 +108,7 @@ export const TOP_LEVEL_TABS: readonly EventPlatformTabDef[] = [
         kind: "speakers",
         label: "Speakers",
         gateId: "mops-event-platform-admin",
-        subtitle:
-          "The speaker library shared by every event. Add a speaker once and use them anywhere.",
+        subtitle: "The speaker library shared by every event. Add a speaker once and use them anywhere.",
       },
     ],
   },
@@ -193,30 +191,19 @@ export function eventBasePath(eventId: string): string {
  * `/settings/settings`. The shape follows the tab's DEFINITION, not the
  * caller's permissions, so two people never see different URLs for one screen.
  */
-function tabPath(
-  base: string,
-  tab: EventPlatformTabDef,
-  kind?: string,
-): string {
+function tabPath(base: string, tab: EventPlatformTabDef, kind?: string): string {
   const path = `${base}/${tab.segment}`;
   if (tab.kinds.length < 2) return path;
   return kind ? `${path}/${kind}` : path;
 }
 
 /** The URL for one top-level tab. */
-export function eventPlatformPath(
-  tab: EventPlatformTabDef,
-  kind?: string,
-): string {
+export function eventPlatformPath(tab: EventPlatformTabDef, kind?: string): string {
   return tabPath(EVENT_PLATFORM_PATH, tab, kind);
 }
 
 /** The URL for one in-event tab, optionally at one kind. */
-export function eventPath(
-  eventId: string,
-  tab: EventPlatformTabDef,
-  kind?: string,
-): string {
+export function eventPath(eventId: string, tab: EventPlatformTabDef, kind?: string): string {
   return tabPath(eventBasePath(eventId), tab, kind);
 }
 
@@ -308,10 +295,7 @@ function decodeSegment(segment: string): string {
 }
 
 // A single-kind tab has no kind segment, so its one kind is implied.
-function kindOf(
-  tab: EventPlatformTabDef,
-  segment?: string,
-): EventPlatformKindDef | undefined {
+function kindOf(tab: EventPlatformTabDef, segment?: string): EventPlatformKindDef | undefined {
   if (tab.kinds.length < 2) return tab.kinds[0];
   return tab.kinds.find((k) => k.kind === segment);
 }

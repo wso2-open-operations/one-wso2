@@ -14,16 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import {
-  Avatar,
-  Box,
-  Button,
-  Chip,
-  Drawer,
-  IconButton,
-  Typography,
-  alpha,
-} from "@wso2/oxygen-ui";
+import { Avatar, Box, Button, Chip, Drawer, IconButton, Typography, alpha } from "@wso2/oxygen-ui";
 import { Pencil as PencilIcon, X as XIcon } from "@wso2/oxygen-ui-icons-react";
 import RichText from "@features/marketing-ops/event-platform/components/RichText";
 import { useColorSchemeMode } from "@features/marketing-ops/event-platform/hooks/useColorSchemeMode";
@@ -55,54 +46,25 @@ const headingSx = {
 
 // What a click on a board card opens: the session read-only, with the way on
 // to its edit dialog or its artifacts.
-export default function SessionPreviewDrawer({
-  session,
-  activeDay,
-  onClose,
-  onEdit,
-  onEditArtifacts,
-}: Props) {
+export default function SessionPreviewDrawer({ session, activeDay, onClose, onEdit, onEditArtifacts }: Props) {
   const scheme = useColorSchemeMode();
-  const keynoteColor = session
-    ? itemColorHex(session, null, null, scheme)
-    : undefined;
+  const keynoteColor = session ? itemColorHex(session, null, null, scheme) : undefined;
 
   return (
     <Drawer
       anchor="right"
       open={session !== undefined}
       onClose={onClose}
-      slotProps={{
-        paper: {
-          sx: {
-            width: 380,
-            maxWidth: "100vw",
-            display: "flex",
-            flexDirection: "column",
-          },
-        },
-      }}
+      slotProps={{ paper: { sx: { width: 380, maxWidth: "100vw", display: "flex", flexDirection: "column" } } }}
     >
       {session && (
         <>
           {/* Close and Edit stay pinned to the top, so a long description
               cannot scroll them away. */}
           <Box
-            sx={{
-              flex: "none",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              px: 3,
-              pt: 3,
-              pb: 2.5,
-            }}
+            sx={{ flex: "none", display: "flex", justifyContent: "space-between", alignItems: "center", p: 3, pb: 2.5 }}
           >
-            <IconButton
-              size="small"
-              aria-label="Close preview"
-              onClick={onClose}
-            >
+            <IconButton size="small" aria-label="Close preview" onClick={onClose}>
               <XIcon size={18} />
             </IconButton>
             <IconButton size="small" aria-label="Edit session" onClick={onEdit}>
@@ -113,22 +75,15 @@ export default function SessionPreviewDrawer({
           {/* Everything that can run long scrolls; room, speakers and the
               actions stay pinned to the bottom. */}
           <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 3, pb: 2 }}>
+
             <Box sx={{ mb: 2 }}>
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}
-              >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
                 <Chip
                   label={session.kind === "keynote" ? "Keynote" : "Session"}
                   size="small"
                   sx={{
-                    bgcolor:
-                      session.kind === "keynote"
-                        ? alpha(keynoteColor!, 0.12)
-                        : "action.selected",
-                    color:
-                      session.kind === "keynote"
-                        ? keynoteColor
-                        : "text.secondary",
+                    bgcolor: session.kind === "keynote" ? alpha(keynoteColor!, 0.12) : "action.selected",
+                    color: session.kind === "keynote" ? keynoteColor : "text.secondary",
                     fontWeight: 600,
                     fontSize: 11,
                   }}
@@ -139,15 +94,8 @@ export default function SessionPreviewDrawer({
                   </Typography>
                 )}
               </Box>
-              <Typography
-                variant="h6"
-                sx={{ fontWeight: 600, lineHeight: 1.3 }}
-              >
-                <RichText
-                  html={session.title}
-                  component="span"
-                  variant="inline"
-                />
+              <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+                <RichText html={session.title} component="span" variant="inline" />
               </Typography>
             </Box>
 
@@ -167,50 +115,23 @@ export default function SessionPreviewDrawer({
 
             {(session.artifacts ?? []).length > 0 && (
               <Box>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ ...headingSx, mb: 1 }}
-                >
+                <Typography variant="caption" color="text.secondary" sx={{ ...headingSx, mb: 1 }}>
                   Artifacts
                 </Typography>
-                <Box
-                  sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}
-                >
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
                   {(session.artifacts ?? []).map((artifact) => (
-                    <Box
-                      key={artifact.label}
-                      sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 500, minWidth: 0 }}
-                        noWrap
-                      >
+                    <Box key={artifact.label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 0 }} noWrap>
                         {artifact.label}
                       </Typography>
                       {/* Only an http(s) URL is a link; anything else shows as text. */}
                       <Typography
                         {...(isHttpUrl(artifact.url)
-                          ? {
-                              component: "a",
-                              href: artifact.url,
-                              target: "_blank",
-                              rel: "noopener noreferrer",
-                            }
+                          ? { component: "a", href: artifact.url, target: "_blank", rel: "noopener noreferrer" }
                           : { component: "span" })}
                         variant="caption"
-                        color={
-                          isHttpUrl(artifact.url)
-                            ? "primary.main"
-                            : "text.secondary"
-                        }
-                        sx={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          flex: 1,
-                        }}
+                        color={isHttpUrl(artifact.url) ? "primary.main" : "text.secondary"}
+                        sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}
                       >
                         {artifact.url}
                       </Typography>
@@ -221,23 +142,10 @@ export default function SessionPreviewDrawer({
             )}
           </Box>
 
-          <Box
-            sx={{
-              flex: "none",
-              borderTop: 1,
-              borderColor: "divider",
-              px: 3,
-              pt: 2,
-              pb: 3,
-            }}
-          >
+          <Box sx={{ flex: "none", borderTop: 1, borderColor: "divider", px: 3, pt: 2, pb: 3 }}>
             {session.room && (
               <Box sx={{ mb: 2 }}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={headingSx}
-                >
+                <Typography variant="caption" color="text.secondary" sx={headingSx}>
                   Room
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 0.5 }}>
@@ -248,45 +156,21 @@ export default function SessionPreviewDrawer({
 
             {session.speakers.length > 0 && (
               <Box sx={{ mb: 2 }}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ ...headingSx, mb: 1 }}
-                >
+                <Typography variant="caption" color="text.secondary" sx={{ ...headingSx, mb: 1 }}>
                   Speakers
                 </Typography>
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 1,
-                    maxHeight: "30vh",
-                    overflowY: "auto",
-                  }}
-                >
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: "30vh", overflowY: "auto" }}>
                   {session.speakers.map(({ speaker, role }) => (
-                    <Box
-                      key={speaker.id}
-                      sx={{ display: "flex", alignItems: "center", gap: 1.5 }}
-                    >
+                    <Box key={speaker.id} sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                       <Avatar
                         src={speaker.photoUrl ?? undefined}
                         alt=""
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          fontSize: 14,
-                          bgcolor: "primary.main",
-                        }}
+                        sx={{ width: 32, height: 32, fontSize: 14, bgcolor: "primary.main" }}
                       >
                         {speaker.name.charAt(0).toUpperCase()}
                       </Avatar>
                       <Box sx={{ minWidth: 0 }}>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontWeight: 500, lineHeight: 1.2 }}
-                          noWrap
-                        >
+                        <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: 1.2 }} noWrap>
                           {speaker.name}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
@@ -300,21 +184,10 @@ export default function SessionPreviewDrawer({
             )}
 
             <Box sx={{ display: "flex", gap: 1 }}>
-              <Button
-                variant="outlined"
-                size="small"
-                fullWidth
-                onClick={onEditArtifacts}
-              >
+              <Button variant="outlined" size="small" fullWidth onClick={onEditArtifacts}>
                 Edit Artifacts
               </Button>
-              <Button
-                variant="contained"
-                size="small"
-                fullWidth
-                disableElevation
-                onClick={onEdit}
-              >
+              <Button variant="contained" size="small" fullWidth disableElevation onClick={onEdit}>
                 Edit Session
               </Button>
             </Box>

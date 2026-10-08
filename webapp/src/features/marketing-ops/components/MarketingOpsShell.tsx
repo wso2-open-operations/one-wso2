@@ -15,14 +15,7 @@
 // under the License.
 
 import type { ReactNode } from "react";
-import {
-  Alert,
-  Box,
-  Chip,
-  CircularProgress,
-  Stack,
-  Typography,
-} from "@wso2/oxygen-ui";
+import { Alert, Box, Chip, CircularProgress, Stack, Typography } from "@wso2/oxygen-ui";
 import type { LucideIcon } from "@wso2/oxygen-ui-icons-react";
 import { isMarketingOpsBackendConfigured } from "@config/apiConfig";
 import { Navigate } from "react-router";
@@ -133,11 +126,7 @@ export default function MarketingOpsShell({
         {title}
       </Typography>
       {subtitle && (
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ mb: 2.25, maxWidth: "70ch" }}
-        >
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2.25, maxWidth: "70ch" }}>
           {subtitle}
         </Typography>
       )}
@@ -190,11 +179,7 @@ function MarketingOpsBody({
   // denial at people who do have access, on every single load.
   if (gate.isResolving) {
     return (
-      <Stack
-        direction="row"
-        spacing={1.25}
-        sx={{ alignItems: "center", mt: 2 }}
-      >
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mt: 2 }}>
         <CircularProgress size={16} />
         <Typography variant="body2" color="text.secondary">
           Checking your Marketing Ops access…
