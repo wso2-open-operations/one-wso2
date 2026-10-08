@@ -91,3 +91,48 @@ describe("the Event Platform gate ids", () => {
     expect(canSee("mops-event-platform-shop")).toBe(false);
   });
 });
+
+// The Utilities need no capability, so they used to open to every authorized
+// caller — including someone outside marketing holding only Event Platform. The
+// backend now says who may use them (`canUseUtilities`); a backend that predates
+// the field omits it and the old rule holds.
+describe("the Utilities", () => {
+  const UTILITIES = ["mops-utm", "mops-asset-name"];
+  const OTHER_FEATURES = [
+    "mops-email-create",
+    "mops-ad-analytics",
+    "mops-events-mine",
+    "mops-crm-runs",
+    "mops-design-studio-post-builder",
+    "mops-admin-utm",
+  ];
+
+  it("shows an Event-Platform-only caller Event Platform and nothing else", () => {
+    const canSee = canSeeFor({ ...caller(["eventplatform"]), canUseUtilities: false });
+    for (const id of UTILITIES) expect(canSee(id), id).toBe(false);
+    for (const id of OTHER_FEATURES) expect(canSee(id), id).toBe(false);
+    expect(canSee("mops-event-platform-events")).toBe(true);
+    expect(canSee("mops-event-platform-speakers")).toBe(true);
+  });
+
+  it("hides them from a shop-only caller too", () => {
+    const canSee = canSeeFor({ ...caller(["eventplatform-shop"]), canUseUtilities: false });
+    for (const id of UTILITIES) expect(canSee(id), id).toBe(false);
+    expect(canSee("mops-event-platform-events")).toBe(true);
+  });
+
+  it("shows them to a caller the backend lets use them", () => {
+    const canSee = canSeeFor({ ...caller(["emailworkbench"]), canUseUtilities: true });
+    for (const id of UTILITIES) expect(canSee(id), id).toBe(true);
+  });
+
+  it("keeps the old rule when the backend omits the field", () => {
+    const canSee = canSeeFor(caller(["eventplatform"]));
+    for (const id of UTILITIES) expect(canSee(id), id).toBe(true);
+  });
+
+  it("still hides them from a caller the backend has not authorized", () => {
+    const canSee = canSeeFor({ ...caller([]), authorized: false, canUseUtilities: true });
+    for (const id of UTILITIES) expect(canSee(id), id).toBe(false);
+  });
+});

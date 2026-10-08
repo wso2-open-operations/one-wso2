@@ -78,6 +78,11 @@ export interface MarketingOpsMe {
   // The known tokens are the ones the gate can act on; an unrecognised one from
   // a newer backend arrives intact and matches nothing.
   capabilities: string[];
+  // May the caller use the Utilities (UTM and Asset Name generators). Not implied
+  // by `authorized`: a caller holding only Event Platform is authorized but gets
+  // no Utilities (the backend's rbac.can_use_utilities). Optional because a
+  // backend older than the field omits it, and the gate then keeps the old rule.
+  canUseUtilities?: boolean;
   // Present only when the backend runs with RBAC_DEBUG_CLAIMS=true — it echoes
   // the caller's own validated assertion claims so the real claim keys can be
   // confirmed against a live gateway. Off in staging as of 2026-08-17, and
