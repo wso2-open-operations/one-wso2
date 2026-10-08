@@ -109,8 +109,13 @@ export default function MeetingDetailPage() {
       forbidden={forbidden}
     >
       <Breadcrumbs sx={{ mb: 2 }}>
-        <Link component={RouterLink} to="/sales" underline="hover" color="inherit">
+        {/* Echo is the group the screen sits in, not a destination -- the rail
+            treats it the same way -- so it is a label here, not a link. */}
+        <Typography color="text.secondary" variant="body2">
           Echo
+        </Typography>
+        <Link component={RouterLink} to="/sales/meetings" underline="hover" color="inherit">
+          Meetings
         </Link>
         <Typography color="text.primary" variant="body2">
           {meeting?.title ?? "…"}

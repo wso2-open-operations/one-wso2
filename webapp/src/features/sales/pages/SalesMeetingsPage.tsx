@@ -143,7 +143,7 @@ export default function SalesMeetingsPage() {
 
   return (
     <SalesShell
-      title="Echo"
+      title="Meetings"
       subtitle="Recorded sales meetings, with their transcripts, notes and MEDDPICC evidence."
       configured={configured}
       configKey="ONE_WSO2_REVOPS_BACKEND_URL"

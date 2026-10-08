@@ -945,14 +945,17 @@ export default function App() {
             path="marketing-ops/design-studio/post-builder"
             element={<PostBuilderPage />}
           />
-          {/* Sales — auto-recorded meetings. The meeting history ported from
-              meet-app; scheduling stays in the calendar add-on and the
-              analytics dashboard was out of scope. No route-level guard: the
-              meet-app backend refuses a caller in no authorised group on
-              every endpoint, and SalesShell turns that 403 into an
+          {/* Sales opens on the first rail row the caller can see, which is
+              Echo → Meetings (`forwardsToFirstItem`); someone the backend
+              refuses is told so here, by PerspectiveLanding. */}
+          <Route path="sales" element={<PerspectiveLanding />} />
+          {/* Echo → Meetings: the recorded meetings. Scheduling stays in the
+              calendar add-on. No route-level guard: the backend behind
+              ONE_WSO2_REVOPS_BACKEND_URL refuses a caller in no authorised
+              group on every endpoint, and SalesShell turns that 403 into an
               explanation, so someone reaching this URL gets an answer rather
               than a blank page. */}
-          <Route path="sales" element={<SalesMeetingsPage />} />
+          <Route path="sales/meetings" element={<SalesMeetingsPage />} />
           {/* One meeting: the recording, and the call's details. A route rather than a
               dialog because a recording is something people send each other, and a dialog
               has no address — this survives a refresh, a bookmark and a paste into Slack.

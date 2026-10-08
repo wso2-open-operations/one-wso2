@@ -100,9 +100,19 @@ describe("the Sales perspective", () => {
   it("brings its rail, not just the tile", async () => {
     // The rail is what a deep link lands beside.
     const { findPerspectiveByKey } = await load();
-    expect(findPerspectiveByKey("sales")?.sections?.map((section) => section.id)).toContain(
-      "sales-meetings",
-    );
+    expect(findPerspectiveByKey("sales")?.sections?.map((section) => section.id)).toContain("sales-echo");
+  });
+
+  // Echo is a group of its screens, like CadO2: Meetings is the one so far, and the group
+  // stays a group so its name and the screen's both show in the rail.
+  it("lists Echo as a group with Meetings inside it", async () => {
+    const { findPerspectiveByKey } = await load();
+    const echo = findPerspectiveByKey("sales")?.sections?.find((s) => s.id === "sales-echo");
+    expect(echo?.label).toBe("Echo");
+    expect(echo?.alwaysGroup).toBe(true);
+    expect(echo?.children?.map((c) => [c.id, c.label, c.path])).toEqual([
+      ["sales-meetings", "Meetings", "/sales/meetings"],
+    ]);
   });
 });
 
@@ -127,14 +137,14 @@ describe("CadO2's rail entries", () => {
 
   it("are gone when the flag is off, or never mentioned", async () => {
     for (const preview of [{ cado2: false }, {}]) {
-      expect(salesIdsIn(await load(preview))).toEqual(["sales-meetings", "sales-deals"]);
+      expect(salesIdsIn(await load(preview))).toEqual(["sales-echo", "sales-meetings", "sales-deals"]);
     }
   });
 
   it("never join the Echo gate's ids", async () => {
     const { SALES_ITEM_IDS } = await load({ cado2: true });
     // Echo and Deals are the meet-app-gated rows; nothing of CadO2's joins them.
-    expect([...SALES_ITEM_IDS]).toEqual(["sales-meetings", "sales-deals"]);
+    expect([...SALES_ITEM_IDS]).toEqual(["sales-echo", "sales-meetings", "sales-deals"]);
   });
 });
 
