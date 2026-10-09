@@ -101,13 +101,13 @@ export default function CallMeddpiccStrip({
       insight.firstAnswered.length > 0 ? (
         <Typography key="new" variant="body2" sx={{ color: "success.dark" }}>
           <Box component="span" sx={{ fontWeight: 600 }}>
-            New:
+            New for this deal:
           </Box>{" "}
           {lettersInWords(insight.firstAnswered)}
         </Typography>
       ) : (
         <Typography key="new" variant="body2" color="text.secondary">
-          Nothing answered for the first time
+          Nothing new for this deal
         </Typography>
       ),
     );

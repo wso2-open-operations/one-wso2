@@ -36,9 +36,10 @@ import {
   SparklesIcon,
   Undo2Icon,
 } from "@wso2/oxygen-ui-icons-react";
-import type { DealField, FieldValue } from "../types";
+import type { DealField, EvidenceSourceType, FieldValue } from "../types";
 import type { ApprovalDraft } from "../util/approval";
 import { formatFieldValue, isEmptyValue, isRoleProposal, letterLabel } from "../util/meddpiccFormat";
+import { hasCustomerEvidence } from "../util/evidenceSource";
 import EvidenceList from "./EvidenceList";
 import FieldEditor from "./FieldEditor";
 
@@ -97,6 +98,7 @@ export default function DealFieldRow({
   onEdit,
   onUndo,
   onRoleMatch,
+  sourceFilter = null,
 }: {
   field: DealField;
   draft: ApprovalDraft;
@@ -106,6 +108,8 @@ export default function DealFieldRow({
   onUndo: (key: string) => void;
   /** A Contact id, or null for "not known — leave the role unset". */
   onRoleMatch: (key: string, contactId: string | null) => void;
+  /** Show evidence from one source only; null shows all. */
+  sourceFilter?: EvidenceSourceType | null;
 }) {
   const [editing, setEditing] = useState(false);
   const { proposal } = field;
@@ -146,6 +150,15 @@ export default function DealFieldRow({
         )}
         {field.notInSalesforce && (
           <Chip label="Not in Salesforce yet" size="small" color="default" sx={{ height: 18, fontSize: "0.65rem" }} />
+        )}
+        {field.attest && (
+          <Chip
+            label="You confirm"
+            size="small"
+            variant="outlined"
+            title="Only the account manager confirms this. The AI never proposes Yes on it."
+            sx={{ height: 18, fontSize: "0.65rem", fontWeight: 600 }}
+          />
         )}
       </Stack>
 
@@ -198,6 +211,15 @@ export default function DealFieldRow({
               </Typography>
             )}
 
+            {/* An attest field backed only by WSO2's words, or by words nobody could
+                attribute, is a claim about the customer rather than the customer's own
+                position: said plainly, before anyone approves it. */}
+            {field.attest && !hasCustomerEvidence(proposal.evidence) && (
+              <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: "warning.dark", fontWeight: 600 }}>
+                Needs customer evidence: no quote from the customer backs this yet.
+              </Typography>
+            )}
+
             {proposal.rationale && (
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                 {proposal.rationale}
@@ -205,7 +227,7 @@ export default function DealFieldRow({
             )}
 
             <Box sx={{ mt: 1 }}>
-              <EvidenceList evidence={proposal.evidence} />
+              <EvidenceList evidence={proposal.evidence} sourceFilter={sourceFilter} />
             </Box>
           </Box>
         )}

@@ -31,6 +31,7 @@ import type {
   MeetingCoverage,
   RoleProposalValue,
 } from "../types";
+import { occurredMs, sourceOf } from "./evidenceSource";
 import { LETTER_KEYS, letterLabel } from "./meddpiccFormat";
 
 /** One quote from this call, with the proposal it backs when it backs one. */
@@ -38,6 +39,8 @@ export interface CallEvidence {
   quote: string;
   speaker: string;
   offsetSeconds: number;
+  /** The quote as the backend sent it, with its source and who said it. */
+  original: EvidenceQuote;
   /** Present when the quote backs a proposal on a Gate field. */
   proposal?: {
     fieldKey: string;
@@ -68,7 +71,8 @@ export interface CallInsight {
   stageAtCall: string | null;
   coverage: Record<LetterKey, CoverageLevel> | null;
   /**
-   * Letters this call answered that no earlier call on the deal had answered. Null when
+   * Letters this call answered that nothing earlier on the deal had: no earlier call
+   * answered them, and no earlier email or activity backs a field they feed. Null when
    * that cannot be known: no deal, or this call is not among the deal's calls.
    */
   firstAnswered: LetterKey[] | null;
@@ -107,6 +111,8 @@ export function callInsight(
     if (existing) {
       // The coverage copy carries no proposal; the deal's copy of the same quote does.
       if (item.proposal && !existing.proposal) existing.proposal = item.proposal;
+      // Keep whichever copy knows who said it.
+      if (!existing.original.authorRole && item.original.authorRole) existing.original = item.original;
     } else {
       list.push(item);
     }
@@ -116,18 +122,21 @@ export function callInsight(
     quote: q.quote,
     speaker: q.speaker,
     offsetSeconds: q.offsetSeconds,
+    original: q,
   });
+  // A quote from this call: a call source with this meeting's id. An email's meetingId is 0.
+  const fromThisCall = (q: EvidenceQuote) => sourceOf(q).type === "CALL" && q.meetingId === meetingId;
 
   for (const letter of LETTER_KEYS) {
     for (const q of coverage?.quotes?.[letter] ?? []) {
-      if (q.meetingId === meetingId) add(letter, fromQuote(q));
+      if (fromThisCall(q)) add(letter, fromQuote(q));
     }
   }
 
   let pendingFromCall = 0;
   for (const field of detail?.fields ?? []) {
     const proposal = field.proposal;
-    const mine = proposal?.evidence.filter((q) => q.meetingId === meetingId) ?? [];
+    const mine = proposal?.evidence.filter(fromThisCall) ?? [];
     if (!proposal || mine.length === 0) continue;
     if (proposal.pending) pendingFromCall += 1;
     for (const q of mine) {
@@ -208,8 +217,20 @@ function firstAnswered(
     const start = parseUtc(call.start)?.getTime();
     return call.meetingId !== meetingId && start !== undefined && start < selfStart;
   });
+  // Letters backed before this call by something other than a call's coverage: an email
+  // or a Salesforce activity quoted as evidence for a field the Letter feeds.
+  const backedEarlier = new Set<LetterKey>();
+  for (const field of detail?.fields ?? []) {
+    const before = field.proposal?.evidence.some(
+      (q) => sourceOf(q).type !== "CALL" && occurredMs(q) < selfStart,
+    );
+    if (before) field.letters.forEach((letter) => backedEarlier.add(letter));
+  }
   return LETTER_KEYS.filter(
-    (letter) => own[letter] === 2 && !earlier.some((call) => call.coverage?.[letter] === 2),
+    (letter) =>
+      own[letter] === 2 &&
+      !backedEarlier.has(letter) &&
+      !earlier.some((call) => call.coverage?.[letter] === 2),
   );
 }
 

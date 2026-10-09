@@ -44,6 +44,7 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router";
 import DealPanel from "./DealPanel";
 import { mockMeddpiccClient, resetMockStore } from "../mock/mockStore";
 
@@ -52,7 +53,9 @@ function renderPanel(opportunityId: string) {
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    </MemoryRouter>
   );
   return render(<DealPanel opportunityId={opportunityId} onClose={() => {}} />, { wrapper });
 }

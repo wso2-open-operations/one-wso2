@@ -52,7 +52,7 @@ describe("CallMeddpiccStrip", () => {
     );
     const strip = screen.getByRole("region", { name: "MEDDPICC for this call" });
     expect(within(strip).getByText("Business Proof")).toBeInTheDocument();
-    expect(strip).toHaveTextContent("New: Economic Buyer, Paper Process");
+    expect(strip).toHaveTextContent("New for this deal: Economic Buyer, Paper Process");
     expect(strip).toHaveTextContent("Missed: Decision Criteria");
     expect(strip).toHaveTextContent("1 awaiting review");
   });

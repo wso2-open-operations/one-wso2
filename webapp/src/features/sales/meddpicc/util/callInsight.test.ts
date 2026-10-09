@@ -79,4 +79,36 @@ describe("callInsight", () => {
     expect(insight.missed).toEqual(["DC"]);
     expect(insight.stageAtCall).toBe("Business Proof");
   });
+
+  it("doesn't count a Letter as new when an earlier email already backed it", () => {
+    const backed = field({
+      proposal: {
+        value: "Ingrid Solberg", rationale: null, confidence: 0.9, pending: true,
+        evidence: [quote({
+          meetingId: 0, quote: "Ingrid signs off the budget.",
+          source: { type: "EMAIL", id: "02s1", title: "Re: budget", occurredAt: "2026-09-10T09:00:00Z", url: null },
+          authorRole: "CUSTOMER",
+        })],
+      },
+    });
+    // Without the email, E and P are new; the September email already backed E.
+    expect(callInsight(22, coverage(), detail({ fields: [backed] })).firstAnswered).toEqual(["P"]);
+  });
+
+  it("keeps an email quote out of this call's evidence and markers", () => {
+    const mailed = field({
+      key: "metrics", label: "Metrics", letters: ["M"],
+      proposal: {
+        value: "30% faster", rationale: null, confidence: 0.9, pending: true,
+        evidence: [quote({
+          meetingId: 0, quote: "Thirty percent faster.", offsetSeconds: 0,
+          source: { type: "EMAIL", id: "02s2", title: "Re: goals", occurredAt: "2026-09-30T09:00:00Z", url: null },
+        })],
+      },
+    });
+    const insight = callInsight(22, coverage(), detail({ fields: [field(), mailed] }));
+    expect(insight.evidence.map((g) => g.letter)).toEqual(["E"]);
+    expect(insight.markers).toHaveLength(1);
+  });
 });
+

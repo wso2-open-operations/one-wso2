@@ -15,6 +15,7 @@
 // under the License.
 
 import { useState, type ReactNode } from "react";
+import { Link as RouterLink } from "react-router";
 import {
   Accordion,
   AccordionDetails,
@@ -26,6 +27,7 @@ import {
   CircularProgress,
   Drawer,
   IconButton,
+  Link,
   Stack,
   Tooltip,
   Typography,
@@ -34,6 +36,9 @@ import {
   ArrowRightIcon,
   ChevronDownIcon,
   ExternalLinkIcon,
+  MailIcon,
+  NotebookPenIcon,
+  VideoIcon,
   XIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
@@ -48,7 +53,16 @@ import {
   useMoveStage,
   type MoveStageFailure,
 } from "../api/useMeddpiccMutations";
-import type { ApproveResult, DealDetail, DealField, FieldValue, LetterKey } from "../types";
+import type {
+  ApproveResult,
+  DealActivity,
+  DealDetail,
+  DealField,
+  EvidenceSourceType,
+  FieldValue,
+  LetterKey,
+} from "../types";
+import { activityOf, describeSources, sourcesOf } from "../util/evidenceSource";
 import {
   EMPTY_DRAFT,
   buildApproveRequest,
@@ -180,6 +194,8 @@ function DealPanelBody({
   const includeCalls = useIncludeCalls(deal.opportunityId);
 
   const [letter, setLetter] = useState<LetterKey | null>(initialLetter);
+  // Which source's evidence to show. Offered only once a deal has more than one kind.
+  const [sourceFilter, setSourceFilter] = useState<EvidenceSourceType | null>(null);
   const [edits, setEdits] = useState<ApprovalDraft["edits"]>(EMPTY_DRAFT.edits);
   // Only the AM's own picks. The suggested Contact is layered underneath at
   // render time rather than copied in, so a refetched deal with a new
@@ -285,8 +301,20 @@ function DealPanelBody({
       onEdit={setEdit}
       onUndo={undoEdit}
       onRoleMatch={matchRole}
+      sourceFilter={sourceFilter}
     />
   );
+
+  const sources = sourcesOf(detail);
+  const activity = activityOf(detail);
+  const coverageByMeeting = new Map(detail.calls.map((call) => [call.meetingId, call.coverage]));
+  const sourceKinds = (
+    [
+      ["CALL", "Calls", sources.calls],
+      ["EMAIL", "Emails", sources.emails],
+      ["ACTIVITY", "Activities", sources.activities],
+    ] as const
+  ).filter(([, , count]) => count > 0);
 
   return (
     <>
@@ -331,6 +359,36 @@ function DealPanelBody({
             Open in Salesforce
           </Button>
         </Stack>
+
+        {/* What the deal's evidence is drawn from. Calls only for now; emails and
+            Salesforce activities join here once the backend reads them. */}
+        {(sources.calls + sources.emails + sources.activities > 0) && (
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 0.5, mt: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              Evidence from {describeSources(sources)}
+              {sources.lastActivityAt && ` · last activity ${formatDateTime(sources.lastActivityAt)}`}
+            </Typography>
+            {sourceKinds.length > 1 && (
+              <Stack direction="row" spacing={0.5} role="group" aria-label="Show evidence from">
+                <Chip
+                  label="All"
+                  size="small"
+                  variant={sourceFilter === null ? "filled" : "outlined"}
+                  onClick={() => setSourceFilter(null)}
+                />
+                {sourceKinds.map(([type, label]) => (
+                  <Chip
+                    key={type}
+                    label={label}
+                    size="small"
+                    variant={sourceFilter === type ? "filled" : "outlined"}
+                    onClick={() => setSourceFilter(type)}
+                  />
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        )}
       </Box>
 
       {/* ---- Body -------------------------------------------------------- */}
@@ -500,26 +558,19 @@ function DealPanelBody({
             </Box>
           )}
 
-          {detail.calls.length > 0 && (
-            <Box>
-              <Typography variant="subtitle2">Calls ({detail.calls.length})</Typography>
-              <Stack spacing={0.75} sx={{ mt: 0.75 }}>
-                {detail.calls.map((call) => (
-                  <Stack
-                    key={call.meetingId}
-                    direction="row"
-                    spacing={1.5}
-                    sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 0.5 }}
-                  >
-                    <Typography variant="body2" sx={{ minWidth: 0 }}>
-                      {call.title}
-                      <Typography component="span" variant="caption" color="text.secondary">
-                        {" · "}
-                        {formatDateTime(call.start)}
-                      </Typography>
-                    </Typography>
-                    <MeddpiccCircles variant="coverage" values={call.coverage} label={`Coverage for ${call.title}`} />
-                  </Stack>
+          {activity.length > 0 && (
+            <Box component="section" aria-label="Activity">
+              <Typography variant="subtitle2">Activity ({activity.length})</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                Everything the deal's MEDDPICC is drawn from, newest first.
+              </Typography>
+              <Stack component="ul" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0, mt: 0.75 }}>
+                {activity.map((entry) => (
+                  <ActivityRow
+                    key={`${entry.type}-${entry.id}`}
+                    entry={entry}
+                    coverage={entry.meetingId !== null ? coverageByMeeting.get(entry.meetingId) : undefined}
+                  />
                 ))}
               </Stack>
             </Box>
@@ -619,5 +670,68 @@ function DealPanelBody({
       </Box>
 
     </>
+  );
+}
+
+const ACTIVITY_ICON: Record<EvidenceSourceType, typeof VideoIcon> = {
+  CALL: VideoIcon,
+  EMAIL: MailIcon,
+  ACTIVITY: NotebookPenIcon,
+};
+
+/**
+ * One entry on the deal's timeline. A call links to its page and shows its circles; an
+ * email or Salesforce activity links out and lists the Letters it touched.
+ */
+function ActivityRow({
+  entry,
+  coverage,
+}: {
+  entry: DealActivity;
+  coverage: Record<LetterKey, 0 | 1 | 2> | null | undefined;
+}) {
+  const Icon = ACTIVITY_ICON[entry.type] ?? VideoIcon;
+  const title =
+    entry.type === "CALL" && entry.meetingId !== null ? (
+      <Link component={RouterLink} to={`/sales/meetings/${entry.meetingId}`} underline="hover" color="inherit">
+        {entry.title}
+      </Link>
+    ) : entry.url ? (
+      <Link href={entry.url} target="_blank" rel="noopener noreferrer" underline="hover" color="inherit">
+        {entry.title}
+      </Link>
+    ) : (
+      entry.title
+    );
+  return (
+    <Stack
+      component="li"
+      direction="row"
+      spacing={1.5}
+      sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 0.5 }}
+    >
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0 }}>
+        <Box component="span" sx={{ display: "inline-flex", color: "text.secondary" }} aria-hidden>
+          <Icon size={14} />
+        </Box>
+        <Typography variant="body2" sx={{ minWidth: 0 }}>
+          {title}
+          <Typography component="span" variant="caption" color="text.secondary">
+            {" · "}
+            {formatDateTime(entry.occurredAt)}
+            {entry.actor && ` · ${entry.actor}`}
+          </Typography>
+        </Typography>
+      </Stack>
+      {entry.type === "CALL" ? (
+        <MeddpiccCircles variant="coverage" values={coverage ?? null} label={`Coverage for ${entry.title}`} />
+      ) : (
+        entry.letters.length > 0 && (
+          <Typography variant="caption" color="text.secondary">
+            {entry.letters.map(letterLabel).join(", ")}
+          </Typography>
+        )
+      )}
+    </Stack>
   );
 }

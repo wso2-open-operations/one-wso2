@@ -15,15 +15,14 @@
 // under the License.
 
 import { useEffect, useRef } from "react";
-import { Box, Button, Divider, Link, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
-import { PlayIcon } from "@wso2/oxygen-ui-icons-react";
+import { Box, Button, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { formatOffset } from "../../api/salesTypes";
 import type { CallMeddpicc } from "../api/useCallMeddpicc";
 import type { LetterKey } from "../types";
 import { lettersInWords, type CallEvidence } from "../util/callInsight";
 import { COVERAGE_LABELS, LETTER_KEYS, formatFieldValue, letterLabel } from "../util/meddpiccFormat";
 import { AiMarker } from "./DealFieldRow";
+import EvidenceItem from "./EvidenceItem";
 
 /**
  * The meeting page's MEDDPICC tab: what this call said, Letter by Letter, and what is
@@ -88,7 +87,8 @@ export default function CallMeddpiccTab({
     <Box sx={{ maxHeight: "60vh", overflowY: "auto", pr: 1 }}>
       <Typography variant="subtitle2">What this call evidenced</Typography>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-        What the customer said, by Letter. Play a quote to hear it in the recording.
+        What was said, by Letter, and whether the customer or WSO2 said it. Play a quote to hear
+        it in the recording.
       </Typography>
 
       {focusMissing && (
@@ -140,7 +140,12 @@ export default function CallMeddpiccTab({
               </Stack>
               <Stack spacing={1}>
                 {items.map((item) => (
-                  <Quote key={`${item.offsetSeconds}-${item.quote}`} item={item} onSeek={onSeek} />
+                  <Quote
+                    key={`${item.offsetSeconds}-${item.quote}`}
+                    item={item}
+                    meetingId={coverage.meetingId}
+                    onSeek={onSeek}
+                  />
                 ))}
               </Stack>
             </Box>
@@ -161,31 +166,21 @@ export default function CallMeddpiccTab({
   );
 }
 
-/** One quote: what was said, who said it, and a way to hear it. */
-function Quote({ item, onSeek }: { item: CallEvidence; onSeek: (seconds: number) => void }) {
+/** One quote from this call, and the proposal it backs when it backs one. */
+function Quote({
+  item,
+  meetingId,
+  onSeek,
+}: {
+  item: CallEvidence;
+  meetingId: number;
+  onSeek: (seconds: number) => void;
+}) {
   return (
-    <Box sx={{ borderLeft: 2, borderColor: "divider", pl: 1.25 }}>
-      <Typography variant="body2" sx={{ fontStyle: "italic", overflowWrap: "anywhere" }}>
-        “{item.quote}”
-      </Typography>
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-        <Typography variant="caption" color="text.secondary">
-          {item.speaker}
-        </Typography>
-        <Link
-          component="button"
-          type="button"
-          variant="caption"
-          underline="hover"
-          onClick={() => onSeek(item.offsetSeconds)}
-          aria-label={`Play from ${formatOffset(item.offsetSeconds)}, ${item.speaker}`}
-          sx={{ display: "inline-flex", alignItems: "center", gap: 0.25 }}
-        >
-          <PlayIcon size={12} /> {formatOffset(item.offsetSeconds)}
-        </Link>
-      </Stack>
+    <Box>
+      <EvidenceItem quote={item.original} currentMeetingId={meetingId} onSeek={onSeek} />
       {item.proposal && (
-        <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap", mt: 0.5 }}>
+        <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap", mt: 0.5, pl: 1.5 }}>
           <AiMarker confidence={item.proposal.confidence} />
           <Typography variant="caption">
             Proposes <strong>{item.proposal.fieldLabel}</strong>: {formatFieldValue(item.proposal.value)}

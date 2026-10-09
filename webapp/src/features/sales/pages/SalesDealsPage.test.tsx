@@ -52,6 +52,7 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router";
 import SalesDealsPage from "./SalesDealsPage";
 import { resetMockStore } from "../meddpicc/mock/mockStore";
 
@@ -60,9 +61,11 @@ function renderPage() {
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <SalesDealsPage />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <SalesDealsPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
