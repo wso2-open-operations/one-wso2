@@ -117,8 +117,9 @@ export default function SpeakerLibraryPage() {
           <Box sx={{ flex: 1 }} />
         )}
         <Button
+          size="small"
           variant="outlined"
-          startIcon={<UploadIcon size={16} />}
+          startIcon={<UploadIcon size={14} />}
           onClick={() => setCsvImportOpen(true)}
         >
           Import CSV

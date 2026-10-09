@@ -83,13 +83,22 @@ describe("the shape of the Event Platform", () => {
     }
   });
 
-  it("gives every kind of every tab a gate and a subtitle", () => {
+  it("gives every kind of every tab a gate", () => {
     for (const tab of [...TOP_LEVEL_TABS, ...EVENT_TABS]) {
       expect(tab.kinds.length, `${tab.segment} has no kinds`).toBeGreaterThan(0);
       for (const kind of tab.kinds) {
         expect(kind.gateId, `${tab.segment}/${kind.kind}`).toBeTruthy();
-        expect(kind.subtitle.length, `${tab.segment}/${kind.kind}`).toBeGreaterThan(0);
       }
+    }
+  });
+
+  // Only the top-level pages show a header; inside an event it is hidden.
+  it("gives every top-level kind a subtitle and no in-event kind one", () => {
+    for (const tab of TOP_LEVEL_TABS) {
+      for (const kind of tab.kinds) expect(kind.subtitle, `${tab.segment}/${kind.kind}`).toBeTruthy();
+    }
+    for (const tab of EVENT_TABS) {
+      for (const kind of tab.kinds) expect(kind.subtitle, `${tab.segment}/${kind.kind}`).toBeUndefined();
     }
   });
 

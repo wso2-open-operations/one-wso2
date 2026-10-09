@@ -55,11 +55,15 @@ export default function SessionPreviewDrawer({ session, activeDay, onClose, onEd
       anchor="right"
       open={session !== undefined}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: 380, maxWidth: "100vw", p: 3, display: "flex", flexDirection: "column" } } }}
+      slotProps={{ paper: { sx: { width: 380, maxWidth: "100vw", display: "flex", flexDirection: "column" } } }}
     >
       {session && (
         <>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5 }}>
+          {/* Close and Edit stay pinned to the top, so a long description
+              cannot scroll them away. */}
+          <Box
+            sx={{ flex: "none", display: "flex", justifyContent: "space-between", alignItems: "center", p: 3, pb: 2.5 }}
+          >
             <IconButton size="small" aria-label="Close preview" onClick={onClose}>
               <XIcon size={18} />
             </IconButton>
@@ -68,118 +72,125 @@ export default function SessionPreviewDrawer({ session, activeDay, onClose, onEd
             </IconButton>
           </Box>
 
-          <Box sx={{ mb: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
-              <Chip
-                label={session.kind === "keynote" ? "Keynote" : "Session"}
-                size="small"
+          {/* Everything that can run long scrolls; room, speakers and the
+              actions stay pinned to the bottom. */}
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 3, pb: 2 }}>
+
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+                <Chip
+                  label={session.kind === "keynote" ? "Keynote" : "Session"}
+                  size="small"
+                  sx={{
+                    bgcolor: session.kind === "keynote" ? alpha(keynoteColor!, 0.12) : "action.selected",
+                    color: session.kind === "keynote" ? keynoteColor : "text.secondary",
+                    fontWeight: 600,
+                    fontSize: 11,
+                  }}
+                />
+                {activeDay && session.slotIndex !== null && (
+                  <Typography variant="caption" color="text.secondary">
+                    {cardTimeLabel(session, activeDay)}
+                  </Typography>
+                )}
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+                <RichText html={session.title} component="span" variant="inline" />
+              </Typography>
+            </Box>
+
+            {session.description && (
+              <RichText
+                html={session.description}
                 sx={{
-                  bgcolor: session.kind === "keynote" ? alpha(keynoteColor!, 0.12) : "action.selected",
-                  color: session.kind === "keynote" ? keynoteColor : "text.secondary",
-                  fontWeight: 600,
-                  fontSize: 11,
+                  mb: 2.5,
+                  lineHeight: 1.7,
+                  color: "text.secondary",
+                  fontSize: "0.875rem",
+                  "& p": { margin: 0, marginBottom: 1 },
+                  "& p:last-child": { marginBottom: 0 },
                 }}
               />
-              {activeDay && session.slotIndex !== null && (
-                <Typography variant="caption" color="text.secondary">
-                  {cardTimeLabel(session, activeDay)}
+            )}
+
+            {(session.artifacts ?? []).length > 0 && (
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ ...headingSx, mb: 1 }}>
+                  Artifacts
                 </Typography>
-              )}
-            </Box>
-            <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
-              <RichText html={session.title} component="span" variant="inline" />
-            </Typography>
-          </Box>
-
-          {session.description && (
-            <RichText
-              html={session.description}
-              sx={{
-                mb: 2.5,
-                lineHeight: 1.7,
-                color: "text.secondary",
-                fontSize: "0.875rem",
-                "& p": { margin: 0, marginBottom: 1 },
-                "& p:last-child": { marginBottom: 0 },
-              }}
-            />
-          )}
-
-          {session.room && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="caption" color="text.secondary" sx={headingSx}>
-                Room
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                {session.room.name}
-              </Typography>
-            </Box>
-          )}
-
-          {session.speakers.length > 0 && (
-            <Box sx={{ mb: 2.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ ...headingSx, mb: 1 }}>
-                Speakers
-              </Typography>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {session.speakers.map(({ speaker, role }) => (
-                  <Box key={speaker.id} sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    <Avatar
-                      src={speaker.photoUrl ?? undefined}
-                      alt=""
-                      sx={{ width: 32, height: 32, fontSize: 14, bgcolor: "primary.main" }}
-                    >
-                      {speaker.name.charAt(0).toUpperCase()}
-                    </Avatar>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: 1.2 }} noWrap>
-                        {speaker.name}
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                  {(session.artifacts ?? []).map((artifact) => (
+                    <Box key={artifact.label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 0 }} noWrap>
+                        {artifact.label}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {SESSION_ROLE_LABELS[role]}
+                      {/* Only an http(s) URL is a link; anything else shows as text. */}
+                      <Typography
+                        {...(isHttpUrl(artifact.url)
+                          ? { component: "a", href: artifact.url, target: "_blank", rel: "noopener noreferrer" }
+                          : { component: "span" })}
+                        variant="caption"
+                        color={isHttpUrl(artifact.url) ? "primary.main" : "text.secondary"}
+                        sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}
+                      >
+                        {artifact.url}
                       </Typography>
                     </Box>
-                  </Box>
-                ))}
+                  ))}
+                </Box>
               </Box>
-            </Box>
-          )}
+            )}
+          </Box>
 
-          {(session.artifacts ?? []).length > 0 && (
-            <Box sx={{ mb: 2.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ ...headingSx, mb: 1 }}>
-                Artifacts
-              </Typography>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                {(session.artifacts ?? []).map((artifact) => (
-                  <Box key={artifact.label} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500, minWidth: 0 }} noWrap>
-                      {artifact.label}
-                    </Typography>
-                    {/* Only an http(s) URL is a link; anything else shows as text. */}
-                    <Typography
-                      {...(isHttpUrl(artifact.url)
-                        ? { component: "a", href: artifact.url, target: "_blank", rel: "noopener noreferrer" }
-                        : { component: "span" })}
-                      variant="caption"
-                      color={isHttpUrl(artifact.url) ? "primary.main" : "text.secondary"}
-                      sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}
-                    >
-                      {artifact.url}
-                    </Typography>
-                  </Box>
-                ))}
+          <Box sx={{ flex: "none", borderTop: 1, borderColor: "divider", px: 3, pt: 2, pb: 3 }}>
+            {session.room && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={headingSx}>
+                  Room
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  {session.room.name}
+                </Typography>
               </Box>
-            </Box>
-          )}
+            )}
 
-          <Box sx={{ mt: "auto", pt: 2, display: "flex", gap: 1 }}>
-            <Button variant="outlined" size="small" fullWidth onClick={onEditArtifacts}>
-              Edit Artifacts
-            </Button>
-            <Button variant="contained" size="small" fullWidth disableElevation onClick={onEdit}>
-              Edit Session
-            </Button>
+            {session.speakers.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ ...headingSx, mb: 1 }}>
+                  Speakers
+                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: "30vh", overflowY: "auto" }}>
+                  {session.speakers.map(({ speaker, role }) => (
+                    <Box key={speaker.id} sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                      <Avatar
+                        src={speaker.photoUrl ?? undefined}
+                        alt=""
+                        sx={{ width: 32, height: 32, fontSize: 14, bgcolor: "primary.main" }}
+                      >
+                        {speaker.name.charAt(0).toUpperCase()}
+                      </Avatar>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: 1.2 }} noWrap>
+                          {speaker.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {SESSION_ROLE_LABELS[role]}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            <Box sx={{ display: "flex", gap: 1 }}>
+              <Button variant="outlined" size="small" fullWidth onClick={onEditArtifacts}>
+                Edit Artifacts
+              </Button>
+              <Button variant="contained" size="small" fullWidth disableElevation onClick={onEdit}>
+                Edit Session
+              </Button>
+            </Box>
           </Box>
         </>
       )}

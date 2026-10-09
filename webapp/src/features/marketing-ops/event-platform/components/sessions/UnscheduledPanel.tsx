@@ -81,7 +81,12 @@ export default function UnscheduledPanel({
         <Button size="small" variant="outlined" fullWidth onClick={onAdd}>
           + Add
         </Button>
-        <Button size="small" variant="outlined" fullWidth onClick={onImportCsv}>
+        <Button
+          size="small"
+          variant="text"
+          onClick={onImportCsv}
+          sx={{ flex: "none", whiteSpace: "nowrap", fontSize: 12, px: 1 }}
+        >
           Import CSV
         </Button>
       </Box>

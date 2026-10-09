@@ -66,8 +66,12 @@ export interface EventPlatformKindDef {
   label: string;
   /** Checked before the toggle offers it AND before its route renders. */
   gateId: EventPlatformGateId;
-  /** Shown under the page title while this kind is selected. */
-  subtitle: string;
+  /**
+   * Shown under the page title while this kind is selected. Only the top-level
+   * tabs have one: inside an event the header is hidden, so a subtitle there
+   * would be rendered nowhere.
+   */
+  subtitle?: string;
 }
 
 export interface EventPlatformTabDef {
@@ -122,31 +126,26 @@ export const EVENT_TABS: readonly EventPlatformTabDef[] = [
         // Sessions, so the toggle names what the screen shows.
         label: "Agenda",
         gateId: "mops-event-platform-admin",
-        subtitle: "Lay out the event's days, tracks and sessions.",
       },
       {
         kind: "speakers",
         label: "Speakers",
         gateId: "mops-event-platform-admin",
-        subtitle: "The speakers taking part in this event, and the sessions they are on.",
       },
       {
         kind: "rooms",
         label: "Rooms",
         gateId: "mops-event-platform-admin",
-        subtitle: "The venue's rooms and which tracks run in each.",
       },
       {
         kind: "activities",
         label: "Activities",
         gateId: "mops-event-platform-admin",
-        subtitle: "Everything on the programme that is not a session: breaks, meals, side events.",
       },
       {
         kind: "export",
         label: "Export",
         gateId: "mops-event-platform-admin",
-        subtitle: "Download the agenda and speaker list, or a static page to publish.",
       },
     ],
   },
@@ -161,13 +160,11 @@ export const EVENT_TABS: readonly EventPlatformTabDef[] = [
         label: "Inventory",
         // router.tsx — outside AdminGuard: admin OR shop.
         gateId: "mops-event-platform-shop",
-        subtitle: "The items on offer at this event's shop, and how many are left.",
       },
       {
         kind: "orders",
         label: "Orders",
         gateId: "mops-event-platform-shop",
-        subtitle: "Orders placed at this event's shop, and their checkout state.",
       },
     ],
   },
@@ -179,7 +176,6 @@ export const EVENT_TABS: readonly EventPlatformTabDef[] = [
         kind: "settings",
         label: "Settings",
         gateId: "mops-event-platform-admin",
-        subtitle: "The event's name, dates, venue and other details.",
       },
     ],
   },

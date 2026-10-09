@@ -29,14 +29,21 @@ import MarketingOpsShell from "@features/marketing-ops/components/MarketingOpsSh
 export default function EventPlatformShell({
   title,
   subtitle,
+  hideHeader,
   children,
 }: {
   title: string;
   subtitle?: string;
+  hideHeader?: boolean;
   children: ReactNode;
 }) {
   return (
-    <MarketingOpsShell eyebrow={MARKETING_OPS_EYEBROW.eventPlatform} title={title} subtitle={subtitle}>
+    <MarketingOpsShell
+      eyebrow={MARKETING_OPS_EYEBROW.eventPlatform}
+      title={title}
+      subtitle={subtitle}
+      hideHeader={hideHeader}
+    >
       {isEventPlatformConfigured() ? (
         children
       ) : (

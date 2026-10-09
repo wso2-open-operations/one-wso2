@@ -51,6 +51,7 @@ export default function MarketingOpsShell({
   eyebrow,
   title,
   subtitle,
+  hideHeader = false,
   children,
 }: {
   // Which operation this screen belongs to — informational, not decorative: the
@@ -65,6 +66,11 @@ export default function MarketingOpsShell({
   eyebrow?: { icon: LucideIcon; label: string };
   title: string;
   subtitle?: string;
+  // For a screen whose own navigation already says where you are. The title
+  // stays as an h1 for screen readers; only the eyebrow, title and subtitle
+  // drop out of view. Only once the children render: that navigation is part
+  // of them, so the spinner, the error and the config hint keep the header.
+  hideHeader?: boolean;
   children: ReactNode;
 }) {
   const configured = isMarketingOpsBackendConfigured();
@@ -83,6 +89,20 @@ export default function MarketingOpsShell({
   const isLocked =
     configured && !gate.isResolving && !gate.isError && !gate.isAuthorized;
   if (isLocked) return <Navigate to="/marketing-ops" replace />;
+
+  const childrenRender = configured && !gate.isResolving && !gate.isError;
+  if (hideHeader && childrenRender) {
+    return (
+      <Box>
+        <Typography component="h1" sx={VISUALLY_HIDDEN}>
+          {title}
+        </Typography>
+        <MarketingOpsBody configured={configured} gate={gate}>
+          {children}
+        </MarketingOpsBody>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -117,6 +137,20 @@ export default function MarketingOpsShell({
     </Box>
   );
 }
+
+// The usual clip-rect pattern: out of the layout, still in the accessibility tree.
+// px strings, not numbers: sx reads a bare `1` as a theme size, i.e. 100%.
+const VISUALLY_HIDDEN = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  margin: "-1px",
+  p: 0,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+} as const;
 
 // Split out so the header above stays readable — the state ladder is the part
 // that carries the logic, and it reads better as a sequence of guards than as

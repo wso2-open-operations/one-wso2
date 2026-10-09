@@ -100,7 +100,10 @@ export function EventPlatformEventPage() {
   const canSeeList = gate.canSee(EVENTS_GATE);
 
   return (
-    <EventPlatformShell title={tab?.label ?? "Event"} subtitle={kind?.subtitle}>
+    // No visible header inside an event: the back link, the event switcher and
+    // the tab row already say where you are. With no tabs there is none of
+    // that, so the header stays.
+    <EventPlatformShell title={tab?.label ?? "Event"} hideHeader={tabs.length > 0}>
       {tabs.length === 0 ? (
         <Alert severity="info">This isn&apos;t available for your role.</Alert>
       ) : (
