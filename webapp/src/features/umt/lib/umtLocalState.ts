@@ -62,12 +62,34 @@ function writeJson(key: string, value: unknown): void {
 
 // --- Edit-tab stepper position (id-scoped) ---
 
-export function readPersistedEditStep(id: string): string | null {
-  return readString(`one-wso2.umt-edit-step.v1.${id}`);
+// The step the user moved to locally, together with the stay in a lifecycle
+// state it was reached in, so it can be ignored once the update has moved on.
+export interface UmtPersistedEditStep {
+  stayKey: string;
+  stepId: string;
 }
 
-export function writePersistedEditStep(id: string, stepId: string | null): void {
-  writeString(`one-wso2.umt-edit-step.v1.${id}`, stepId);
+function isPersistedEditStep(value: unknown): value is UmtPersistedEditStep {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as UmtPersistedEditStep).stayKey === "string" &&
+    typeof (value as UmtPersistedEditStep).stepId === "string"
+  );
+}
+
+export function readPersistedEditStep(id: string): UmtPersistedEditStep | null {
+  return readJson<UmtPersistedEditStep | null>(
+    `one-wso2.umt-edit-step.v2.${id}`,
+    null,
+    (value): value is UmtPersistedEditStep | null => isPersistedEditStep(value),
+  );
+}
+
+export function writePersistedEditStep(id: string, value: UmtPersistedEditStep | null): void {
+  const key = `one-wso2.umt-edit-step.v2.${id}`;
+  if (value === null) writeString(key, null);
+  else writeJson(key, value);
 }
 
 // --- PR Analysis manual-add drafts (id-scoped) ---

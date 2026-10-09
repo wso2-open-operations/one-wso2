@@ -66,32 +66,38 @@ export type UmtRole = keyof typeof UMT_ROLE_ID;
 // steps the Edit tab's stepper shows (e.g. SecurityUpdateLifecycle adds a
 // Security Advisory step; CloudSupportLifecycle replaces the whole stepper
 // with a 2-step Development/Released flow).
-export type UmtLifecycle =
-  | "UpdateLifecycle"
-  | "SecurityUpdateLifecycle"
-  | "CloudSupportLifecycle"
-  | "HotFixLifecycle";
+export const UMT_LIFECYCLES = [
+  "UpdateLifecycle",
+  "SecurityUpdateLifecycle",
+  "CloudSupportLifecycle",
+  "HotFixLifecycle",
+] as const;
+
+export type UmtLifecycle = (typeof UMT_LIFECYCLES)[number];
 
 // The update's current position within its lifecycle, from GET /update/{id}.
 // Drives which Edit-tab step is active.
-export type UmtLifecycleState =
-  | "Development"
-  | "PRAnalyzed"
-  | "ProductAnalyzed"
-  | "TestingEnvironmentRequested"
-  | "TestingEnvironmentCreated"
-  | "TestingEnvironmentFailed"
-  | "StagingRequested"
-  | "Staging"
-  | "DemoteStagingRequested"
-  | "WaitingFileApproval"
-  | "UATStaging"
-  | "UAT"
-  | "UATRequested"
-  | "OnHold"
-  | "Released"
-  | "Completed"
-  | "Duplicate";
+export const UMT_LIFECYCLE_STATES = [
+  "Development",
+  "PRAnalyzed",
+  "ProductAnalyzed",
+  "TestingEnvironmentRequested",
+  "TestingEnvironmentCreated",
+  "TestingEnvironmentFailed",
+  "StagingRequested",
+  "Staging",
+  "DemoteStagingRequested",
+  "WaitingFileApproval",
+  "UATStaging",
+  "UAT",
+  "UATRequested",
+  "OnHold",
+  "Released",
+  "Completed",
+  "Duplicate",
+] as const;
+
+export type UmtLifecycleState = (typeof UMT_LIFECYCLE_STATES)[number];
 
 // The three PR-analysis submission modes: General ports PRs and manual
 // files, Instructions Only skips both, Containerized ports PRs only.

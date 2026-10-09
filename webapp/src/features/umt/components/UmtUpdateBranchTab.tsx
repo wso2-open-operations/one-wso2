@@ -227,7 +227,7 @@ export default function UmtUpdateBranchTab({
 
   const handleFindUpdateLevel = async () => {
     setUpdateLevelSubmitted(true);
-    if (branchFormError(updateLevelForm)) return;
+    if (updateLevelFormError(updateLevelForm)) return;
     try {
       const response = await findUpdateLevel.mutateAsync(updateLevelForm);
       setIdentifiedVersion(displayValue(response?.version));
@@ -482,12 +482,15 @@ function branchColumn(
   getValue: (row: BranchGridRow) => string | null | undefined = (row) => row[field as keyof BranchGridRow] as string | null | undefined,
   link = false,
 ): DataGrid.GridColDef {
+  // `width` is the column's minimum; any extra room is shared out in
+  // proportion to it, so the grid fills its container rather than leaving
+  // empty space after the last column.
   return {
     field,
     headerName,
+    flex: width,
     minWidth: width,
     sortable: false,
-    width,
     renderCell: (params) => (
       <CenteredCell>{link ? <ExternalValue value={getValue(params.row)} /> : displayValue(getValue(params.row))}</CenteredCell>
     ),
@@ -550,7 +553,7 @@ function UpdateLevelDialog({
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {fields.map(({ key, label, placeholder }) => {
-              const requiredError = submitted && (key === "releaseTag" || key === "publicRepoUrl") && !form[key].trim();
+              const requiredError = submitted && !form[key].trim();
               const repoError = key === "publicRepoUrl" && submitted
                 ? publicRepoError(form.publicRepoUrl)
                 : undefined;
@@ -611,6 +614,11 @@ function branchRowId(branch: UmtUpdateBranch, index: number): string {
 
 function branchFormError(values: BranchFormValues): boolean {
   return Boolean(publicRepoError(values.publicRepoUrl) || !values.releaseTag.trim());
+}
+
+// Finding an update level needs the product as well as the repository.
+function updateLevelFormError(values: UpdateLevelFormValues): boolean {
+  return branchFormError(values) || !values.productName.trim() || !values.productVersion.trim();
 }
 
 function publicRepoError(value: string): string | undefined {

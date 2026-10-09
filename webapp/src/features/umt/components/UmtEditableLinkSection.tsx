@@ -135,6 +135,7 @@ export default function EditableLinkSection({
           {
             key: "delete",
             label: "",
+            width: 52,
             render: (row: string, index: number) =>
               deleteDisabled ? (
                 <Tooltip title={`At least one ${addFieldLabel} is required`}>

@@ -9,6 +9,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { authedPut } from "@api/http";
 import { umtServiceUrls } from "@config/apiConfig";
 import { useAccessToken } from "@hooks/useAccessToken";
+import type { UmtLifecycleState } from "./umtTypes";
 
 // Completing an update is the one real transition out of Verifying: unlike
 // every other wired step's Proceed, it isn't a bare lifecycleState PUT — it
@@ -25,7 +26,7 @@ export function useUmtCompleteUpdate(id: string) {
     mutationFn: async ({ publicPullRequests, reason }) => {
       const accessToken = await getAccessToken();
       await authedPut(umtServiceUrls.update(id), accessToken, {
-        lifecycleState: "Completed",
+        lifecycleState: "Completed" satisfies UmtLifecycleState,
         publicPullRequests,
         reason,
       });

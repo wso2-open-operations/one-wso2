@@ -42,6 +42,7 @@ import { useNotifications } from "@context/notifications/NotificationsContext";
 import type { UmtBundleInfoChange, UmtFileOperation, UmtPullRequestAnalysisItem, UmtUpdateSummary } from "../../../api/umtUpdates";
 import type { UmtUpdateType } from "../../../api/umtTypes";
 import { useUmtPullRequestAnalysis } from "../../../api/useUmtUpdateViewData";
+import { umtLifecycleState } from "../../../lib/umtLifecycleState";
 import {
   UmtPartialProceedError,
   useUmtPrAnalysisStatus,
@@ -70,8 +71,9 @@ const { DataGrid: DataGridComponent } = DataGrid;
 
 export default function UmtPrAnalysisStep({ id, update }: { id: string; update: UmtUpdateSummary }) {
   const { showSuccess, showError } = useNotifications();
-  const pullRequestAnalysis = useUmtPullRequestAnalysis(id, update.lifecycleState, { alwaysEnabled: true });
-  const isDevelopment = update.lifecycleState === "Development";
+  const lifecycleState = umtLifecycleState(update.lifecycleState);
+  const pullRequestAnalysis = useUmtPullRequestAnalysis(id, lifecycleState, { alwaysEnabled: true });
+  const isDevelopment = lifecycleState === "Development";
   const status = useUmtPrAnalysisStatus(id, update.praStatus, isDevelopment);
   const startAnalysis = useUmtStartPullRequestAnalysis(id);
   const proceed = useUmtProceedFromPrAnalysis(id);
@@ -353,8 +355,10 @@ export default function UmtPrAnalysisStep({ id, update }: { id: string; update: 
             </>
           )}
 
-          <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "flex-end", mt: 3 }}>
-            {isBusy && <CircularProgress size={22} />}
+          {updateType !== "instructionsOnlyUpdate" && <Divider sx={{ mt: 2 }} />}
+
+          <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "flex-end", mt: 2 }}>
+            {isInFlight && <CircularProgress size={22} />}
             {updateType !== "instructionsOnlyUpdate" && (
               <Stack sx={{ flex: 1, minWidth: 0 }}>
                 {startAnalysis.isPending ? (

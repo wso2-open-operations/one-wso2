@@ -146,7 +146,7 @@ function UmtProductsBody() {
   );
 
   return (
-    <Stack spacing={2} sx={{ minWidth: 0, width: "100%" }}>
+    <Stack spacing={2} sx={{ flex: 1, minHeight: 0, minWidth: 0, width: "100%" }}>
       <Box sx={{ alignItems: "center", display: "flex", gap: 1.5, justifyContent: "space-between" }}>
         {/* Same level and size as DashboardWidgetHolder's title (e.g.
             "Update #123" on the update view), so UMT section headings match. */}
@@ -168,30 +168,29 @@ function UmtProductsBody() {
         </ErrorNotice>
       )}
 
-      <Paper variant="outlined" sx={{ minWidth: 0, overflow: "hidden", position: "relative" }}>
+      <Paper
+        variant="outlined"
+        sx={{
+          display: "flex",
+          flex: 1,
+          flexDirection: "column",
+          minHeight: 0,
+          minWidth: 0,
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
         {baseProducts.isFetching && !baseProducts.isPending && (
           <LinearProgress sx={{ left: 0, position: "absolute", right: 0, top: 0, zIndex: 4 }} />
         )}
-        {/* Flex column rather than a fixed height: DataGrid v8 sizes itself to
-            its rows inside one (autoHeight is deprecated in its favour), so a
-            short page no longer leaves dead space under the last row. maxHeight
-            keeps a full page scrolling inside the card instead of the window,
-            and the empty state still needs a floor to draw its overlay in. */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            maxHeight: { xs: "calc(100dvh - 300px)", md: "calc(100dvh - 260px)" },
-            minHeight: rows.length === 0 ? 240 : undefined,
-          }}
-        >
+        <Box sx={{ flex: 1, minHeight: 240 }}>
           <DataGridComponent
             columnHeaderHeight={40}
             columns={columns}
             disableRowSelectionOnClick
             getRowHeight={() => "auto"}
             getRowId={(row: UmtBaseProduct) => productRowId(row)}
-            initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+            initialState={{ pagination: { paginationModel: { pageSize: 20 } } }}
             loading={baseProducts.isPending}
             pageSizeOptions={[10, 20, 30, 50]}
             rows={rows}

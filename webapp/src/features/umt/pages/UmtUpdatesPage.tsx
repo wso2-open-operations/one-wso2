@@ -57,6 +57,7 @@ import {
 import { useUmtUpdates } from "../api/useUmtUpdates";
 import { formatCalendarDate, formatDate } from "../lib/umtDates";
 import { gridCellContentSx } from "../lib/umtGrid";
+import { umtLifecycleState } from "../lib/umtLifecycleState";
 import { writePersistedSelectedTab } from "../lib/umtLocalState";
 import { umtPaths } from "../lib/umtPaths";
 import UmtCreateUpdateDialog from "../components/UmtCreateUpdateDialog";
@@ -422,7 +423,7 @@ function renderCell(row: UmtUpdateSummary, key: ColumnKey): ReactNode {
     case "issues": return <LinkList values={row.issues} />;
     case "pullRequests": return <LinkList values={row.pullRequests} />;
     case "artifacts": return <Artifacts values={row.artifacts ?? []} />;
-    case "releasedDate": return row.lifecycleState === "Released" ? formatDate(row.lastUpdatedTimestamp) : <NA />;
+    case "releasedDate": return umtLifecycleState(row.lifecycleState) === "Released" ? formatDate(row.lastUpdatedTimestamp) : <NA />;
   }
 }
 
@@ -548,7 +549,7 @@ function csvValue(row: UmtUpdateSummary, key: ColumnKey): string {
     case "issues": return (row.issues ?? []).join("; ");
     case "pullRequests": return (row.pullRequests ?? []).join("; ");
     case "artifacts": return (row.artifacts ?? []).join("; ");
-    case "releasedDate": return row.lifecycleState === "Released" ? formatDate(row.lastUpdatedTimestamp) : "";
+    case "releasedDate": return umtLifecycleState(row.lifecycleState) === "Released" ? formatDate(row.lastUpdatedTimestamp) : "";
   }
 }
 

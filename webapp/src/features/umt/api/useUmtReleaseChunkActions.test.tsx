@@ -28,7 +28,7 @@ const {
   useUmtTriggerProductBuild,
   useUmtTriggerTgBuild,
   useUmtTriggerReleaseChunkBuilds,
-  useUmtTriggerCstBuild,
+  useUmtRetriggerCstBuild,
   useUmtRetriggerDockerBuild,
   useUmtReleaseChunk,
   useUmtSendReleaseChunkEmail,
@@ -126,15 +126,15 @@ describe("useUmtTriggerReleaseChunkBuilds", () => {
   });
 });
 
-describe("useUmtTriggerCstBuild", () => {
-  it("POSTs triggerCSTBuild and invalidates build status", async () => {
-    const { result, invalidateQueries } = renderMutation(() => useUmtTriggerCstBuild(7));
+describe("useUmtRetriggerCstBuild", () => {
+  it("POSTs retriggerCSTBuild and invalidates build status", async () => {
+    const { result, invalidateQueries } = renderMutation(() => useUmtRetriggerCstBuild(7));
 
     await act(async () => {
       await result.current.mutateAsync();
     });
 
-    expect(authedPost).toHaveBeenCalledWith(umtServiceUrls.releaseChunkTriggerCstBuild(7), "token", null);
+    expect(authedPost).toHaveBeenCalledWith(umtServiceUrls.releaseChunkRetriggerCstBuild(7), "token", null);
     expect(invalidatedKeys(invalidateQueries)).toEqual(["umt-release-chunk-build-status"]);
   });
 });
@@ -246,7 +246,7 @@ describe("useUmtRetriggerDockerBuild", () => {
 describe("useUmtReleaseChunk", () => {
   // The endpoint requires a non-blank message and nothing asks anyone for one,
   // so the string is fixed here rather than passed in by the caller.
-  it("POSTs the fixed release message and invalidates pending/status/released", async () => {
+  it("POSTs the fixed release message and invalidates the chunk and update caches", async () => {
     const { result, invalidateQueries } = renderMutation(() => useUmtReleaseChunk(7));
 
     await act(async () => {
@@ -257,7 +257,13 @@ describe("useUmtReleaseChunk", () => {
       "release-message": "Releasing chunk",
     });
     expect(invalidatedKeys(invalidateQueries)).toEqual(
-      expect.arrayContaining(["umt-release-chunks", "umt-release-chunk-status", "umt-released-chunks"]),
+      expect.arrayContaining([
+        "umt-release-chunks",
+        "umt-release-chunk-status",
+        "umt-released-chunks",
+        "umt-updates",
+        "umt-update",
+      ]),
     );
   });
 });

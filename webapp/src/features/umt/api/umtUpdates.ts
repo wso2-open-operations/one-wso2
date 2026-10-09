@@ -82,6 +82,8 @@ export interface UmtUpdateSummary {
   // PUT body for any pure state promotion rather than hardcoding a target,
   // since the same lifecycleState can have different valid next states.
   promoteStages?: string[] | null;
+  // The backend's valid demote targets from the current lifecycle state.
+  demoteStages?: string[] | null;
   // PR-analysis progress for the current Development cycle: QUEUED,
   // PROCESSING, COMPLETED, or a failed/failure value with a trailing detail.
   praStatus?: string | null;

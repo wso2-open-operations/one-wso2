@@ -18,6 +18,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { authedPut } from "@api/http";
 import { umtServiceUrls } from "@config/apiConfig";
 import { useAccessToken } from "@hooks/useAccessToken";
+import type { UmtLifecycleState } from "./umtTypes";
 
 // A dedicated mutation for the Edit tab's stepper, distinct from
 // useUmtUpdateFieldMutation: it always sends a fixed enum value (never
@@ -28,7 +29,7 @@ export function useUmtLifecycleTransition(id: string) {
   const getAccessToken = useAccessToken();
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
+  return useMutation<void, Error, UmtLifecycleState>({
     mutationFn: async (nextLifecycleState) => {
       const accessToken = await getAccessToken();
       await authedPut(umtServiceUrls.update(id), accessToken, { lifecycleState: nextLifecycleState });

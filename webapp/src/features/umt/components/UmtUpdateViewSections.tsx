@@ -29,6 +29,7 @@ import {
 } from "../api/useUmtUpdateActions";
 import { isValidGithubIssueUrl } from "../lib/umtCreateUpdate";
 import { useUmtUpdateViewData } from "../api/useUmtUpdateViewData";
+import { umtLifecycleState } from "../lib/umtLifecycleState";
 import EditableLinkSection from "./UmtEditableLinkSection";
 import {
   ProductAnalysisSection,
@@ -52,7 +53,8 @@ export default function UmtUpdateViewSections({
   id: string;
   update: UmtUpdateSummary;
 }) {
-  const viewData = useUmtUpdateViewData(id, update.lifecycleState, Boolean(update.isHotfix));
+  const lifecycleState = umtLifecycleState(update.lifecycleState);
+  const viewData = useUmtUpdateViewData(id, lifecycleState, Boolean(update.isHotfix));
   const publicPullRequests = update.publicPullRequests ?? [];
   const gate = useUmtGate();
   const saveIssues = useUmtSaveIssues(id);
@@ -61,7 +63,7 @@ export default function UmtUpdateViewSections({
   // The add action is hidden once an update is Released; the admin-only
   // delete column follows the same rule this codebase already applies
   // elsewhere (e.g. File Approval's promote gate).
-  const canAddLinks = update.lifecycleState !== "Released";
+  const canAddLinks = lifecycleState !== "Released";
 
   return (
     <Stack spacing={3} sx={{ mt: 3 }}>
@@ -148,7 +150,7 @@ export default function UmtUpdateViewSections({
       <DependencySection query={viewData.dependencies} />
       {update.isHotfix && <HotfixSection query={viewData.hotfixInfo} />}
 
-      {update.lifecycleState === "Completed" && (
+      {lifecycleState === "Completed" && (
         <DividedTableSection title="Completion Details">
           <DenseTable
             ariaLabel="Completion details"
@@ -237,8 +239,8 @@ function HotfixSection({ query }: { query: ViewQueryState<UmtHotfixInfo> }) {
 // feature (Manual Files, Bundle Info, Pull Requests, Security Advisories).
 
 const productColumns: DenseColumn<UmtUpdateProduct>[] = [
-  { key: "product", label: "Product", render: (row) => displayValue(row.product?.name) },
-  { key: "version", label: "Version", render: (row) => displayValue(row.product?.version) },
+  { key: "product", label: "Product", flex: 0.5, render: (row) => displayValue(row.product?.name) },
+  { key: "version", label: "Version", flex: 0.5, render: (row) => displayValue(row.product?.version) },
   { key: "description", label: "Description", render: (row) => displayValue(row.description) },
   { key: "instruction", label: "Instruction", render: (row) => displayValue(row.instruction) },
   { key: "test-pr", label: "Test PR", render: (row) => renderLinkValue(row.testPr) },

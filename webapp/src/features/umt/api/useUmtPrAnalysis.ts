@@ -21,7 +21,7 @@ import { authedPost, authedPut, fetchWithReauth, HttpError } from "@api/http";
 import { isUmtBackendConfigured, umtServiceUrls } from "@config/apiConfig";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
-import { UMT_PR_ANALYSIS_STATUS } from "./umtTypes";
+import { UMT_PR_ANALYSIS_STATUS, type UmtLifecycleState } from "./umtTypes";
 import type { UmtPullRequestAnalysisRequest } from "./umtUpdates";
 
 // Despite an `application/json` content-type, this endpoint's body is a bare,
@@ -108,10 +108,8 @@ export function useUmtStartPullRequestAnalysis(id: string) {
       await authedPost(umtServiceUrls.updatePullRequestAnalysis(id), accessToken, payload);
     },
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["umt-update-pr-analysis-status"] }),
-        queryClient.invalidateQueries({ queryKey: ["umt-update-pull-request-analysis"] }),
-      ]);
+      void queryClient.invalidateQueries({ queryKey: ["umt-update-pull-request-analysis"] });
+      await queryClient.invalidateQueries({ queryKey: ["umt-update-pr-analysis-status"] });
     },
   });
 }
@@ -153,7 +151,7 @@ export function useUmtProceedFromPrAnalysis(id: string) {
   return useMutation<void, Error, void>({
     mutationFn: async () => {
       const accessToken = await getAccessToken();
-      await authedPut(umtServiceUrls.update(id), accessToken, { lifecycleState: "PRAnalyzed" });
+      await authedPut(umtServiceUrls.update(id), accessToken, { lifecycleState: "PRAnalyzed" satisfies UmtLifecycleState });
       try {
         await authedPost(umtServiceUrls.updateProductAnalysis(id), accessToken, {});
       } catch (analysisStartError) {

@@ -22,6 +22,7 @@ import { isUmtBackendConfigured, umtServiceUrls } from "@config/apiConfig";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
 import { umtShouldPollStagingTestResults } from "../lib/umtTesting";
+import { umtLifecycleState } from "../lib/umtLifecycleState";
 import type { UmtUpdateSummary } from "./umtUpdates";
 
 export function useUmtUpdate(id: string | undefined) {
@@ -48,7 +49,7 @@ export function useUmtUpdate(id: string | undefined) {
     // read lifecycleState, so the update resource has to notice the transition
     // itself. Mirrors useUmtPrAnalysisStatus's self-terminating poll.
     refetchInterval: (query) =>
-      umtShouldPollStagingTestResults(query.state.data?.lifecycleState) ? 3000 : false,
+      umtShouldPollStagingTestResults(umtLifecycleState(query.state.data?.lifecycleState)) ? 3000 : false,
     retry: httpRetry,
   });
 

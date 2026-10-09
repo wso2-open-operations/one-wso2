@@ -21,6 +21,7 @@ import { authedGet } from "@api/http";
 import { isUmtBackendConfigured, umtServiceUrls } from "@config/apiConfig";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
+import type { UmtLifecycleState } from "./umtTypes";
 import type {
   UmtHotfixInfo,
   UmtProductAnalysis,
@@ -35,7 +36,7 @@ import type {
 // refactor: TanStack dedupes the fetch if the View tab already cached it.
 export function useUmtPullRequestAnalysis(
   id: string,
-  lifecycleState: string | null | undefined,
+  lifecycleState: UmtLifecycleState | null | undefined,
   options?: { alwaysEnabled?: boolean },
 ) {
   const { isSignedIn } = useAsgardeo();
@@ -71,7 +72,7 @@ export function useUmtPullRequestAnalysis(
 // Query key is unchanged, so this is a pure refactor.
 export function useUmtProductAnalysis(
   id: string,
-  lifecycleState: string | null | undefined,
+  lifecycleState: UmtLifecycleState | null | undefined,
   options?: { alwaysEnabled?: boolean },
 ) {
   const { isSignedIn } = useAsgardeo();
@@ -100,7 +101,7 @@ export function useUmtProductAnalysis(
 
 export function useUmtUpdateViewData(
   id: string,
-  lifecycleState: string | null | undefined,
+  lifecycleState: UmtLifecycleState | null | undefined,
   isHotfix: boolean,
 ) {
   const { isSignedIn } = useAsgardeo();

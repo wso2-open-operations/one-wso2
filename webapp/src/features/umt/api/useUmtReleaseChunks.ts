@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
 import { authedGet } from "@api/http";
 import { httpRetry } from "@api/errors";
@@ -97,6 +97,45 @@ export interface UmtReleaseChunkRowStatus {
 // reporting the failure itself: a grid of per-row error banners would drown
 // out the list, and every action that depends on a status checks for one
 // before it runs.
+async function fetchUmtReleaseChunkBuildStatus(
+  id: number,
+  accessToken: string,
+): Promise<UmtReleaseChunkBuildStatus> {
+  const raw = await authedGet<RawUmtReleaseChunkBuildStatus>(
+    umtServiceUrls.releaseChunkBuildStatus(id),
+    accessToken,
+  );
+  return mapUmtReleaseChunkBuildStatus(raw);
+}
+
+// Fetches a chunk's build status from the backend, bypassing the cache, and
+// writes the result back into the row's query so the grid shows it too. For
+// decisions that must not rest on what the row loaded earlier: a level can be
+// rebuilt and fail, or finish building, at any time after the page loads.
+// Resolves to undefined when the status cannot be fetched.
+export function useFetchFreshUmtReleaseChunkBuildStatus() {
+  const queryClient = useQueryClient();
+  const getAccessToken = useAccessToken();
+  const { state: subState } = useAsgardeoSub();
+  const userSub = subState.status === "ready" ? subState.sub : undefined;
+
+  return useCallback(
+    async (id: number): Promise<UmtReleaseChunkBuildStatus | undefined> => {
+      if (!userSub) return undefined;
+      const queryKey = ["umt-release-chunk-build-status", userSub, id];
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      try {
+        const status = await fetchUmtReleaseChunkBuildStatus(id, await getAccessToken());
+        queryClient.setQueryData(queryKey, status);
+        return status;
+      } catch {
+        return undefined;
+      }
+    },
+    [getAccessToken, queryClient, userSub],
+  );
+}
+
 export function useUmtReleaseChunkRowStatuses(ids: number[]): Record<number, UmtReleaseChunkRowStatus> {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
@@ -108,13 +147,7 @@ export function useUmtReleaseChunkRowStatuses(ids: number[]): Record<number, Umt
     queries: ids.map((id) => ({
       queryKey: ["umt-release-chunk-build-status", userSub, id],
       enabled: ready,
-      queryFn: async () => {
-        const raw = await authedGet<RawUmtReleaseChunkBuildStatus>(
-          umtServiceUrls.releaseChunkBuildStatus(id),
-          await getAccessToken(),
-        );
-        return mapUmtReleaseChunkBuildStatus(raw);
-      },
+      queryFn: async () => fetchUmtReleaseChunkBuildStatus(id, await getAccessToken()),
       retry: httpRetry,
     })),
   });
