@@ -5,22 +5,28 @@
 // in compliance with the License. You may obtain a copy at
 // http://www.apache.org/licenses/LICENSE-2.0
 
+import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import {
   GITHUB_PR_REGEX,
   PREFERRED_VERSION_REGEX,
   bundleInfoApplies,
   bundlesInfoPathError,
+  extractZipEntriesWithinLimits,
+  findUnsafeZipEntry,
   groupFileOperationsByType,
   isManualFileTooLarge,
   isPrAnalyzeDisabled,
   isZipDisallowedForPath,
   jarNameError,
   manualFileNameMatchesPath,
+  manualFilePathError,
   pluginsFileHasMatchingBundleInfo,
   prAnalysisStatusMessage,
   relativeJarPathError,
+  sourceUrlFileNameError,
   umtSvnLocationRegex,
+  UmtZipRejectedError,
   zipTargetDirectory,
 } from "./umtPrAnalysis";
 
@@ -283,5 +289,189 @@ describe("bundle info field validators", () => {
     expect(relativeJarPathError("../repository/components/plugins/my-component_1.2.3.jar")).toBeUndefined();
     expect(relativeJarPathError("repository/components/plugins/my-component_1.2.3.jar")).toBeDefined();
     expect(relativeJarPathError("../dropins/my-component_1.2.3.jar")).toBeDefined();
+  });
+});
+
+describe("manualFilePathError", () => {
+  it("accepts product-pack-relative paths, with or without a trailing slash", () => {
+    expect(manualFilePathError("repository/components/foo.jar")).toBeUndefined();
+    expect(manualFilePathError("repository/components/dropins/")).toBeUndefined();
+    expect(manualFilePathError("bin/./wso2server.sh")).toBeUndefined();
+    expect(manualFilePathError("lib/my..component.jar")).toBeUndefined();
+  });
+
+  it("rejects traversal segments", () => {
+    expect(manualFilePathError("../x")).toBeDefined();
+    expect(manualFilePathError("a/../../x")).toBeDefined();
+    expect(manualFilePathError("a/..")).toBeDefined();
+    expect(manualFilePathError("a/ .. /x")).toBeDefined();
+  });
+
+  it("rejects absolute, Windows-style and empty paths", () => {
+    expect(manualFilePathError("/absolute")).toBeDefined();
+    expect(manualFilePathError(" /absolute")).toBeDefined();
+    expect(manualFilePathError("a\\b")).toBeDefined();
+    expect(manualFilePathError("C:/x")).toBeDefined();
+    expect(manualFilePathError("")).toBeDefined();
+    expect(manualFilePathError("   ")).toBeDefined();
+  });
+
+  it("rejects control characters", () => {
+    expect(manualFilePathError("a\u0000b")).toBeDefined();
+    expect(manualFilePathError("a/b\nc")).toBeDefined();
+    expect(manualFilePathError("a\u007fb")).toBeDefined();
+  });
+
+  it("rejects invisible and text-direction characters", () => {
+    expect(manualFilePathError("lib/\u202eraj.exe")).toBeDefined();
+    expect(manualFilePathError("lib/a\u200b.jar")).toBeDefined();
+    expect(manualFilePathError("lib/\u2066a.jar")).toBeDefined();
+    expect(manualFilePathError("lib/\ufeffa.jar")).toBeDefined();
+    expect(manualFilePathError("lib/a\u0085.jar")).toBeDefined();
+  });
+
+  it("accepts non-ASCII names", () => {
+    expect(manualFilePathError("lib/café.jar")).toBeUndefined();
+    expect(manualFilePathError("docs/説明.txt")).toBeUndefined();
+    expect(manualFilePathError("docs/ملف.txt")).toBeUndefined();
+  });
+
+  it("rejects paths longer than 200 characters", () => {
+    expect(manualFilePathError("a".repeat(200))).toBeUndefined();
+    expect(manualFilePathError("a".repeat(201))).toBeDefined();
+  });
+
+  it("rejects paths more than 40 levels deep", () => {
+    expect(manualFilePathError(Array.from({ length: 40 }, () => "a").join("/"))).toBeUndefined();
+    expect(manualFilePathError(Array.from({ length: 41 }, () => "a").join("/"))).toBeDefined();
+  });
+});
+
+describe("findUnsafeZipEntry", () => {
+  it("returns undefined when every entry is safe", () => {
+    expect(findUnsafeZipEntry([{ name: "lib/a.jar" }, { name: "bin/b.sh" }])).toBeUndefined();
+  });
+
+  it("names the first unsafe entry", () => {
+    expect(findUnsafeZipEntry([{ name: "lib/a.jar" }, { name: "/etc/passwd" }])?.name).toBe("/etc/passwd");
+  });
+
+  it("checks the name as stored in the archive rather than JSZip's cleaned-up one", async () => {
+    const source = new JSZip();
+    source.file("lib/safe.jar", "ok");
+    source.file("lib/../../evil.jar", "bad");
+    const loaded = await JSZip.loadAsync(await source.generateAsync({ type: "uint8array" }));
+    const entries = Object.values(loaded.files).filter((entry) => !entry.dir);
+
+    expect(entries.some((entry) => entry.name === "evil.jar")).toBe(true);
+    expect(findUnsafeZipEntry(entries)?.name).toBe("lib/../../evil.jar");
+  });
+});
+
+describe("extractZipEntriesWithinLimits", () => {
+  const MB = 1024 * 1024;
+
+  /** Loads a zip and returns its file entries. */
+  async function loadEntries(bytes: Uint8Array) {
+    const zip = await JSZip.loadAsync(bytes);
+    return Object.values(zip.files).filter((entry) => !entry.dir);
+  }
+
+  /** Builds a deflate-compressed zip from name-to-content pairs. */
+  async function buildZip(files: Record<string, Uint8Array | string>) {
+    const zip = new JSZip();
+    for (const [name, content] of Object.entries(files)) zip.file(name, content);
+    return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  }
+
+  /** Forges every entry's declared uncompressed size. */
+  function forgeDeclaredSizes(bytes: Uint8Array, size: number): Uint8Array {
+    const forged = bytes.slice();
+    const view = new DataView(forged.buffer);
+    for (let i = 0; i + 4 <= forged.length; i++) {
+      const signature = view.getUint32(i, true);
+      if (signature === 0x04034b50) view.setUint32(i + 22, size, true);
+      else if (signature === 0x02014b50) view.setUint32(i + 24, size, true);
+    }
+    return forged;
+  }
+
+  /** Returns `count` files of `bytes` bytes each. */
+  function filesOfSize(count: number, bytes: number): Record<string, Uint8Array> {
+    const content = new Uint8Array(bytes);
+    return Object.fromEntries(Array.from({ length: count }, (_, i) => [`lib/file-${i}.jar`, content]));
+  }
+
+  it("unpacks every entry of an archive within the limits", async () => {
+    const entries = await loadEntries(await buildZip({ "lib/a.jar": "alpha", "bin/b.sh": "beta" }));
+    const extracted = await extractZipEntriesWithinLimits(entries);
+
+    expect(extracted.map((entry) => entry.name).sort()).toEqual(["bin/b.sh", "lib/a.jar"]);
+    expect(extracted.find((entry) => entry.name === "lib/a.jar")?.blob.size).toBe("alpha".length);
+  });
+
+  it("rejects an archive with an unsafe entry path", async () => {
+    const entries = await loadEntries(await buildZip({ "lib/../../evil.jar": "bad" }));
+    await expect(extractZipEntriesWithinLimits(entries)).rejects.toThrow(/not a safe path/);
+  });
+
+  it("rejects an archive with more than 100 files", async () => {
+    const entries = await loadEntries(await buildZip(filesOfSize(101, 1)));
+    await expect(extractZipEntriesWithinLimits(entries)).rejects.toThrow(/at most 100 files/);
+
+    const atLimit = await loadEntries(await buildZip(filesOfSize(100, 1)));
+    await expect(extractZipEntriesWithinLimits(atLimit)).resolves.toHaveLength(100);
+  });
+
+  it("rejects an entry declared larger than 2 MB, and accepts one of exactly 2 MB", async () => {
+    const tooLarge = await loadEntries(await buildZip({ "lib/big.jar": new Uint8Array(2 * MB + 1) }));
+    await expect(extractZipEntriesWithinLimits(tooLarge)).rejects.toThrow(/"lib\/big.jar" is larger than 2 MB/);
+
+    const atLimit = await loadEntries(await buildZip({ "lib/big.jar": new Uint8Array(2 * MB) }));
+    await expect(extractZipEntriesWithinLimits(atLimit)).resolves.toHaveLength(1);
+  });
+
+  it("rejects an archive whose declared total is over 70 MB", async () => {
+    const entries = await loadEntries(await buildZip(filesOfSize(36, 2 * MB)));
+    await expect(extractZipEntriesWithinLimits(entries)).rejects.toThrow(/larger than 70 MB/);
+  });
+
+  it("stops unpacking an entry that is larger than its forged declared size", async () => {
+    const forged = forgeDeclaredSizes(await buildZip({ "lib/bomb.jar": new Uint8Array(3 * MB) }), 10);
+    const entries = await loadEntries(forged);
+    await expect(extractZipEntriesWithinLimits(entries)).rejects.toThrow(UmtZipRejectedError);
+    await expect(extractZipEntriesWithinLimits(entries)).rejects.toThrow(/"lib\/bomb.jar" is larger than 2 MB/);
+  });
+
+  it("lets a programming error through instead of reporting a corrupted zip", async () => {
+    const [entry] = await loadEntries(await buildZip({ "lib/a.jar": "alpha" }));
+    const broken = Object.assign(Object.create(entry), { internalStream: undefined });
+
+    await expect(extractZipEntriesWithinLimits([broken])).rejects.toThrow(TypeError);
+  });
+
+  it("rejects an entry within the limits whose real size doesn't match its forged declared size", async () => {
+    const forged = forgeDeclaredSizes(await buildZip({ "lib/small.jar": new Uint8Array(MB) }), 10);
+    const entries = await loadEntries(forged);
+    await expect(extractZipEntriesWithinLimits(entries)).rejects.toThrow(/"lib\/small.jar" could not be unzipped/);
+  });
+});
+
+
+describe("sourceUrlFileNameError", () => {
+  it("accepts ordinary file names", () => {
+    expect(sourceUrlFileNameError("my-component_1.2.3.jar")).toBeUndefined();
+    expect(sourceUrlFileNameError("wso2server.sh")).toBeUndefined();
+    expect(sourceUrlFileNameError("README")).toBeUndefined();
+  });
+
+  it("rejects names that point at a directory rather than a file", () => {
+    expect(sourceUrlFileNameError("..")).toBeDefined();
+    expect(sourceUrlFileNameError(".")).toBeDefined();
+    expect(sourceUrlFileNameError("")).toBeDefined();
+  });
+
+  it("rejects names the path check rejects", () => {
+    expect(sourceUrlFileNameError("a\\b.jar")).toBeDefined();
   });
 });

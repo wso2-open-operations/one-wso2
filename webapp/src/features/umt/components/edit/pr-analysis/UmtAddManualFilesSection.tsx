@@ -45,13 +45,17 @@ import { useNotifications } from "@context/notifications/NotificationsContext";
 import {
   bundleInfoApplies,
   bundlesInfoPathError,
+  extractZipEntriesWithinLimits,
   githubRawUrlError,
   isManualFileTooLarge,
   isZipDisallowedForPath,
   jarNameError,
   manualFileNameMatchesPath,
+  manualFilePathError,
   relativeJarPathError,
+  sourceUrlFileNameError,
   umtSvnLocationRegex,
+  UmtZipRejectedError,
   zipTargetDirectory,
 } from "../../../lib/umtPrAnalysis";
 import type { UmtBundleInfoChange, UmtFileOperation } from "../../../api/umtUpdates";
@@ -87,6 +91,7 @@ interface UmtAddManualFilesSectionProps {
   onDirty: () => void;
 }
 
+/** Manual Files section of the PR Analysis step, with its Add Manual File dialog. */
 export default function UmtAddManualFilesSection({
   updateId,
   disabled,
@@ -155,6 +160,7 @@ export default function UmtAddManualFilesSection({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const needsBundleInfo = bundleInfoApplies(relativePath, operation);
+  const relativePathError = relativePath ? manualFilePathError(relativePath) : undefined;
 
   function resetForm() {
     setRelativePath("");
@@ -198,10 +204,16 @@ export default function UmtAddManualFilesSection({
     setSelectedFile(file);
   }
 
+  /** Validates the Add Manual File form, then uploads the file or zip and adds its rows. */
   async function handleAdd() {
     setFormError(undefined);
     if (!relativePath.trim() || !operation) {
       setFormError("Path and operation are required.");
+      return;
+    }
+    const pathError = manualFilePathError(relativePath);
+    if (pathError) {
+      setFormError(pathError);
       return;
     }
 
@@ -261,6 +273,13 @@ export default function UmtAddManualFilesSection({
     // case can only be reported afterwards — see below.
     const isZip = Boolean(fileForUpload?.name.toLowerCase().endsWith(".zip"));
     if (!isZip) {
+      if (!fileForUpload) {
+        const fileNameError = sourceUrlFileNameError(lastPathSegment(sourceFilePath));
+        if (fileNameError) {
+          setFormError(fileNameError);
+          return;
+        }
+      }
       const filePath = singleEntryFilePath(fileForUpload, relativePath, sourceFilePath);
       if (files.some((row) => row.file === filePath)) {
         setFormError(`"${filePath}" has already been added.`);
@@ -305,7 +324,9 @@ export default function UmtAddManualFilesSection({
       resetForm();
       setIsOpen(false);
     } catch (error) {
-      if (error instanceof UmtPartialZipUploadError) {
+      if (error instanceof UmtZipRejectedError) {
+        setFormError(error.message);
+      } else if (error instanceof UmtPartialZipUploadError) {
         if (error.uploadedRows.length > 0) {
           onFilesChange([...files, ...error.uploadedRows]);
           onDirty();
@@ -337,6 +358,7 @@ export default function UmtAddManualFilesSection({
     return [{ file: singleEntryFilePath(file, path, sourceFilePath), operation: op, sourceFilePath }];
   }
 
+  /** Checks and unpacks a zip, then uploads its entries into the target directory. */
   async function addZipEntries(
     zipFile: File,
     path: string,
@@ -345,14 +367,14 @@ export default function UmtAddManualFilesSection({
   ): Promise<UmtFileOperation[]> {
     const zip = await JSZip.loadAsync(zipFile);
     const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+    const extracted = await extractZipEntriesWithinLimits(entries);
     const rows: UmtFileOperation[] = [];
     // Resolve once: `path` may still carry the archive's own name on the end,
     // which would otherwise become a directory segment in every entry's path.
     const targetDir = zipTargetDirectory(path, zipFile.name);
 
-    for (const entry of entries) {
-      const blob = await entry.async("blob");
-      const extractedFile = new File([blob], entry.name);
+    for (const entry of extracted) {
+      const extractedFile = new File([entry.blob], entry.name);
       try {
         await upload.mutateAsync({ relativePath: targetDir, sourceFilePath, file: extractedFile });
       } catch (error) {
@@ -550,6 +572,8 @@ export default function UmtAddManualFilesSection({
               label="Path in Product Pack"
               value={relativePath}
               onChange={(e) => setRelativePath(e.target.value)}
+              error={Boolean(relativePathError)}
+              helperText={relativePathError}
             />
             <FormControl fullWidth>
               <InputLabel id="manual-file-operation-label">Operation</InputLabel>
