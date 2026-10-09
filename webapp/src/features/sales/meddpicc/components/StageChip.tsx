@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Chip } from "@wso2/oxygen-ui";
+import { Chip, type SxProps, type Theme } from "@wso2/oxygen-ui";
 
 /**
  * An Opportunity Stage, as a small chip.
@@ -23,7 +23,16 @@ import { Chip } from "@wso2/oxygen-ui";
  * on the deal, and nobody made one. Closed Won and Closed Lost are the only
  * stages that do say something, so they are the only ones coloured.
  */
-export default function StageChip({ stage, title }: { stage: string; title?: string }) {
+export default function StageChip({
+  stage,
+  title,
+  sx,
+}: {
+  stage: string;
+  title?: string;
+  /** Extra styles, merged over the chip's own -- a fixed width in a table, say. */
+  sx?: SxProps<Theme>;
+}) {
   const color = stage === "Closed Won" ? "success" : stage === "Closed Lost" ? "default" : "primary";
   return (
     <Chip
@@ -32,7 +41,7 @@ export default function StageChip({ stage, title }: { stage: string; title?: str
       size="small"
       color={color}
       variant="outlined"
-      sx={{ height: 20, fontSize: "0.7rem", fontWeight: 600 }}
+      sx={[{ height: 20, fontSize: "0.7rem", fontWeight: 600 }, ...(Array.isArray(sx) ? sx : [sx])]}
     />
   );
 }

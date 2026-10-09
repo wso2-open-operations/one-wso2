@@ -18,6 +18,8 @@ import { useMemo } from "react";
 import { Box, Skeleton, Tooltip, Typography, useTheme } from "@wso2/oxygen-ui";
 import { formatOffset, type TranscriptLine } from "../api/salesTypes";
 import { useTranscript } from "../api/useSalesData";
+import type { CallMarker } from "../meddpicc/util/callInsight";
+import { LETTERS, letterLabel } from "../meddpicc/util/meddpiccFormat";
 
 /**
  * Who spoke, when, and how much — one track per person under the recording.
@@ -50,12 +52,20 @@ export default function SpeakerTimeline({
   durationSeconds,
   currentTime,
   onSeek,
+  markers = [],
 }: {
   meetingId: number;
   /** The recording's length, from the player. Falls back to the transcript's own span. */
   durationSeconds: number;
   currentTime: number;
   onSeek: (seconds: number) => void;
+  /**
+   * Moments the call gave MEDDPICC evidence, drawn as a row above the speakers on the
+   * same clock. Each is labelled by its Letter rather than coloured by it: the speaker
+   * rows already use the categorical hues, and a second meaning for the same colours
+   * would make both rows harder to read.
+   */
+  markers?: readonly CallMarker[];
 }) {
   const theme = useTheme();
   // Same query key as the transcript panel, so this shares its cache rather than
@@ -85,11 +95,80 @@ export default function SpeakerTimeline({
   return (
     <Box sx={{ mt: 2 }}>
       <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
-        Talk time
+        {markers.length > 0 ? "Timeline" : "Talk time"}
       </Typography>
 
       {/* Position is relative so one playhead can span every track. */}
       <Box sx={{ position: "relative" }}>
+        {markers.length > 0 && (
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 150px) 1fr 44px",
+              alignItems: "center",
+              gap: 1.5,
+              mb: 1.25,
+            }}
+          >
+            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+              MEDDPICC
+            </Typography>
+            {/* Not clipped like the speaker tracks: a marker is centred on its moment, so
+                one at the very start or end pokes past the track's edge. */}
+            <Box sx={{ position: "relative", height: 18, borderRadius: 0.5, bgcolor: "action.hover" }}>
+              {markers.map((marker) => {
+                const left = Math.min(100, Math.max(0, (marker.offsetSeconds / span) * 100));
+                const names = marker.letters.map(letterLabel).join(", ");
+                return (
+                  <Tooltip
+                    key={`${marker.offsetSeconds}-${marker.quote}`}
+                    arrow
+                    title={
+                      <>
+                        <Typography variant="caption" sx={{ fontWeight: 700, display: "block" }}>
+                          {names} · {formatOffset(marker.offsetSeconds)}
+                        </Typography>
+                        <Typography variant="caption" sx={{ display: "block", fontStyle: "italic" }}>
+                          “{marker.quote}” — {marker.speaker}
+                        </Typography>
+                      </>
+                    }
+                  >
+                    <Box
+                      component="button"
+                      type="button"
+                      onClick={() => onSeek(marker.offsetSeconds)}
+                      aria-label={`Play ${names} evidence from ${formatOffset(marker.offsetSeconds)}`}
+                      sx={{
+                        position: "absolute",
+                        top: 1,
+                        left: `${left}%`,
+                        transform: "translateX(-50%)",
+                        height: 16,
+                        minWidth: 16,
+                        px: 0.5,
+                        border: 0,
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        bgcolor: "primary.main",
+                        color: "primary.contrastText",
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        lineHeight: "16px",
+                        "&:hover": { filter: "brightness(1.15)" },
+                        "&:focus-visible": { outline: "2px solid", outlineColor: "primary.dark", outlineOffset: 1 },
+                      }}
+                    >
+                      {marker.letters.map((key) => LETTERS.find((l) => l.key === key)?.short ?? key).join("")}
+                    </Box>
+                  </Tooltip>
+                );
+              })}
+            </Box>
+            {/* The speaker rows' share column; empty here, kept so the tracks line up. */}
+            <Box />
+          </Box>
+        )}
         {speakers.map((s) => (
           <Box
             key={s.name}

@@ -15,7 +15,7 @@
 // under the License.
 
 import { useRef, useState } from "react";
-import { Link as RouterLink, useParams } from "react-router";
+import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import {
   Alert,
   Box,
@@ -42,6 +42,11 @@ import TranscriptPanel from "../components/TranscriptPanel";
 import SmartNotesPanel from "../components/SmartNotesPanel";
 import SpeakerTimeline from "../components/SpeakerTimeline";
 import { describeError, isForbidden } from "../util/salesError";
+import { useCallMeddpicc } from "../meddpicc/api/useCallMeddpicc";
+import CallMeddpiccStrip from "../meddpicc/components/CallMeddpiccStrip";
+import CallMeddpiccTab from "../meddpicc/components/CallMeddpiccTab";
+import { dealPath } from "../util/salesPaths";
+import type { LetterKey } from "../meddpicc/types";
 import { formatDateTime, splitParticipants } from "../util/salesTime";
 
 /**
@@ -57,6 +62,8 @@ import { formatDateTime, splitParticipants } from "../util/salesTime";
  * recording. That interaction is the reason the player is a native <video> and not a Drive
  * iframe — an iframe would show the recording but expose no way to set its position.
  */
+type MeetingTab = "summary" | "meddpicc" | "transcript";
+
 export default function MeetingDetailPage() {
   const { meetingId: rawId } = useParams();
   const meetingId = Number(rawId);
@@ -91,8 +98,23 @@ export default function MeetingDetailPage() {
   // which pane you were reading is not something anyone shares.
   // Summary first, and the default: someone opening a call wants to know what it was
   // about before they want to read it word for word.
-  const [tab, setTab] = useState<"summary" | "transcript">("summary");
+  const [tab, setTab] = useState<MeetingTab>("summary");
   const { data: meeting, isLoading, error } = useMeeting(validId ? meetingId : null);
+
+  // The call's MEDDPICC: the strip above the columns, the MEDDPICC tab, and the evidence
+  // markers on the timeline all read this one answer.
+  const call = useCallMeddpicc(meeting);
+  // A circle in the strip opens the MEDDPICC tab at its Letter.
+  const [focusLetter, setFocusLetter] = useState<LetterKey | null>(null);
+  const navigate = useNavigate();
+  const openDeal = () => {
+    if (call.opportunityId) void navigate(dealPath(call.opportunityId));
+  };
+  const openLetter = (letter: LetterKey) => {
+    setTab("meddpicc");
+    setFocusLetter(letter);
+  };
+  const seek = (seconds: number) => playerRef.current?.seekTo(seconds);
 
   const forbidden = isForbidden(error);
   const participants = splitParticipants(meeting?.internalParticipants);
@@ -109,7 +131,12 @@ export default function MeetingDetailPage() {
       forbidden={forbidden}
     >
       <Breadcrumbs sx={{ mb: 2 }}>
-        <Link component={RouterLink} to="/sales" underline="hover" color="inherit">
+        {/* Echo is the group the screen sits in, not a destination -- the rail
+            treats it the same way -- so it is a label here, not a link. */}
+        <Typography color="text.secondary" variant="body2">
+          Echo
+        </Typography>
+        <Link component={RouterLink} to="/sales/meetings" underline="hover" color="inherit">
           Meetings
         </Link>
         <Typography color="text.primary" variant="body2">
@@ -124,117 +151,140 @@ export default function MeetingDetailPage() {
       ) : error && !forbidden ? (
         <Alert severity="error">{describeError(error)}</Alert>
       ) : meeting ? (
-        <Box
-          sx={{
-            display: "grid",
-            // One column until there is room for two. The video is the thing worth the
-            // width, so it takes the larger share once the split happens.
-            gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) minmax(0, 1.4fr)" },
-            gap: 3,
-            alignItems: "start",
-          }}
-        >
-          {/* LEFT — the summary, and the conversation behind it. */}
-          <Paper variant="outlined" sx={{ p: 2 }}>
-            <Tabs
-              value={tab}
-              onChange={(_, next: "summary" | "transcript") => setTab(next)}
-              sx={{ mb: 2, minHeight: 36, "& .MuiTab-root": { minHeight: 36, textTransform: "none" } }}
-            >
-              <Tab value="summary" label="Summary" />
-              <Tab value="transcript" label="Transcript" />
-            </Tabs>
+        <>
+          <CallMeddpiccStrip
+            call={call}
+            meetingTitle={meeting.title}
+            onLetterClick={openLetter}
+            onOpenDeal={openDeal}
+          />
+          <Box
+            sx={{
+              display: "grid",
+              // One column until there is room for two. The video is the thing worth the
+              // width, so it takes the larger share once the split happens.
+              gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) minmax(0, 1.4fr)" },
+              gap: 3,
+              alignItems: "start",
+            }}
+          >
+            {/* LEFT — the summary, and the conversation behind it. */}
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Tabs
+                value={tab}
+                onChange={(_, next: MeetingTab) => {
+                  setTab(next);
+                  // Chosen from the tab bar, not from a circle: no Letter to mark.
+                  setFocusLetter(null);
+                }}
+                sx={{ mb: 2, minHeight: 36, "& .MuiTab-root": { minHeight: 36, textTransform: "none" } }}
+              >
+                <Tab value="summary" label="Summary" />
+                {/* Between the summary and the raw transcript: the analysis of the call sits
+                    next to the account of it, and the word-for-word record comes last. Left
+                    out when the MEDDPICC backend is not configured. */}
+                {call.configured && <Tab value="meddpicc" label="MEDDPICC" />}
+                <Tab value="transcript" label="Transcript" />
+              </Tabs>
 
-            {/* Each panel is mounted only while selected, so opening a meeting does not
-                fetch a transcript of thousands of lines for someone who came to check the
-                account name. The queries are keyed per meeting, so switching back is a
-                cache hit rather than a refetch. */}
-            {tab === "summary" && (
-              // ONE scroll region for the whole tab — the details and the notes are one
-              // continuous read, and they are long together. The notes panel deliberately
-              // has no scroll of its own, so this is the only scrollbar. Matches the
-              // height the Transcript tab uses, so switching tabs doesn't resize the page.
-              <Box sx={{ maxHeight: "60vh", overflowY: "auto", pr: 1 }}>
-                {/* The call's own facts lead, because they frame everything under them:
-                    Gemini's notes read very differently once you know this was a renewal
-                    with the customer's own team in the room. Previously these sat in a
-                    third tab, which meant the reader had to go and get the context
-                    before the summary meant anything. */}
-                <Stack spacing={2}>
-                  <Detail label="Account" value={customer} />
-                  <Detail label="Call type" value={typeLabel} />
-                  <Detail label="Account owner" value={meeting.host} />
-                  <Detail label="Started" value={formatDateTime(meeting.startTime)} />
-                  <Detail label="Ended" value={formatDateTime(meeting.endTime)} />
+              {/* Each panel is mounted only while selected, so opening a meeting does not
+                  fetch a transcript of thousands of lines for someone who came to check the
+                  account name. The queries are keyed per meeting, so switching back is a
+                  cache hit rather than a refetch. */}
+              {tab === "summary" && (
+                // ONE scroll region for the whole tab — the details and the notes are one
+                // continuous read, and they are long together. The notes panel deliberately
+                // has no scroll of its own, so this is the only scrollbar. Matches the
+                // height the Transcript tab uses, so switching tabs doesn't resize the page.
+                <Box sx={{ maxHeight: "60vh", overflowY: "auto", pr: 1 }}>
+                  {/* The call's own facts lead, because they frame everything under them:
+                      Gemini's notes read very differently once you know this was a renewal
+                      with the customer's own team in the room. Previously these sat in a
+                      third tab, which meant the reader had to go and get the context
+                      before the summary meant anything. */}
+                  <Stack spacing={2}>
+                    <Detail label="Account" value={customer} />
+                    <Detail label="Call type" value={typeLabel} />
+                    <Detail label="Account owner" value={meeting.host} />
+                    <Detail label="Started" value={formatDateTime(meeting.startTime)} />
+                    <Detail label="Ended" value={formatDateTime(meeting.endTime)} />
 
-                  {deal && (
-                    <>
-                      <Divider />
-                      <Typography variant="subtitle2">Opportunity</Typography>
-                      <Detail label="Stage" value={deal.stage ?? null} />
-                      <Detail
-                        label="Amount"
-                        value={
-                          deal.amount != null
-                            ? `${deal.currency ?? ""} ${deal.amount.toLocaleString()}`.trim()
-                            : null
-                        }
-                      />
-                      <Detail label="Close date" value={deal.closeDate ?? null} />
-                    </>
-                  )}
+                    {deal && (
+                      <>
+                        <Divider />
+                        <Typography variant="subtitle2">Opportunity</Typography>
+                        <Detail label="Stage" value={deal.stage ?? null} />
+                        <Detail
+                          label="Amount"
+                          value={
+                            deal.amount != null
+                              ? `${deal.currency ?? ""} ${deal.amount.toLocaleString()}`.trim()
+                              : null
+                          }
+                        />
+                        <Detail label="Close date" value={deal.closeDate ?? null} />
+                      </>
+                    )}
 
-                  <Divider />
-                  <ParticipantList label="WSO2 participants" emails={participants} />
-                  {/* Separated from the internal list rather than merged: on a sales call
-                      the question is usually "who was there from the customer", and one
-                      combined list of a dozen addresses answers it slowly. */}
-                  <ParticipantList
-                    label="External participants"
-                    emails={externals}
-                    // Null means the meeting predates external attendees being captured —
-                    // not that nobody external attended.
-                    unknown={meeting.externalParticipants == null}
-                  />
-                </Stack>
+                    <Divider />
+                    <ParticipantList label="WSO2 participants" emails={participants} />
+                    {/* Separated from the internal list rather than merged: on a sales call
+                        the question is usually "who was there from the customer", and one
+                        combined list of a dozen addresses answers it slowly. */}
+                    <ParticipantList
+                      label="External participants"
+                      emails={externals}
+                      // Null means the meeting predates external attendees being captured —
+                      // not that nobody external attended.
+                      unknown={meeting.externalParticipants == null}
+                    />
+                  </Stack>
 
-                <Divider sx={{ my: 2.5 }} />
+                  <Divider sx={{ my: 2.5 }} />
 
-                <SmartNotesPanel meetingId={meeting.meetingId} />
-              </Box>
-            )}
+                  <SmartNotesPanel meetingId={meeting.meetingId} />
+                </Box>
+              )}
 
-            {tab === "transcript" && (
-              <TranscriptPanel
+              {tab === "meddpicc" && call.configured && (
+                <CallMeddpiccTab
+                  call={call}
+                  focusLetter={focusLetter}
+                  onSeek={seek}
+                  onOpenDeal={openDeal}
+                />
+              )}
+
+              {tab === "transcript" && (
+                <TranscriptPanel meetingId={meeting.meetingId} currentTime={currentTime} onSeek={seek} />
+              )}
+            </Paper>
+
+            {/* RIGHT — the recording. */}
+            <Box>
+              <RecordingPlayer
+                // Remount per meeting: the player keeps its own retry latch and failure
+                // flag, and a <video> reused across a src change can carry the old
+                // element's buffered state with it.
+                key={meeting.meetingId}
+                ref={playerRef}
                 meetingId={meeting.meetingId}
-                currentTime={currentTime}
-                onSeek={(seconds) => playerRef.current?.seekTo(seconds)}
+                onTimeUpdate={setCurrentTime}
+                onDurationChange={setDuration}
               />
-            )}
-          </Paper>
 
-          {/* RIGHT — the recording. */}
-          <Box>
-            <RecordingPlayer
-              // Remount per meeting: the player keeps its own retry latch and failure
-              // flag, and a <video> reused across a src change can carry the old
-              // element's buffered state with it.
-              key={meeting.meetingId}
-              ref={playerRef}
-              meetingId={meeting.meetingId}
-              onTimeUpdate={setCurrentTime}
-              onDurationChange={setDuration}
-            />
-
-            {/* Under the recording, sharing its clock: who spoke and when. */}
-            <SpeakerTimeline
-              meetingId={meeting.meetingId}
-              durationSeconds={duration}
-              currentTime={currentTime}
-              onSeek={(seconds) => playerRef.current?.seekTo(seconds)}
-            />
+              {/* Under the recording, sharing its clock: who spoke and when. */}
+              <SpeakerTimeline
+                meetingId={meeting.meetingId}
+                durationSeconds={duration}
+                currentTime={currentTime}
+                onSeek={seek}
+                markers={call.insight.markers}
+              />
+            </Box>
           </Box>
-        </Box>
+
+        </>
       ) : null}
     </SalesShell>
   );

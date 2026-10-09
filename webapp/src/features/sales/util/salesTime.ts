@@ -73,6 +73,28 @@ export function formatDateTime(value: string | null | undefined): string {
   return `${day}/${month}/${year}, ${hours}:${minutes}`;
 }
 
+/**
+ * How long a call ran, as `45m`, `1h` or `1h 30m`, from the backend's start and end.
+ *
+ * Calls run minutes to a couple of hours, so hours and minutes are all it needs.
+ * Null when either end is missing or unparseable, or the end is not after the
+ * start: no length is better than a negative or zero one.
+ */
+export function formatDuration(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): string | null {
+  const from = parseUtc(start);
+  const to = parseUtc(end);
+  if (!from || !to) return null;
+  const minutes = Math.round((to.getTime() - from.getTime()) / 60_000);
+  if (minutes <= 0) return null;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest}m`;
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
 /** Split the comma-separated participant string into trimmed, non-empty emails. */
 export function splitParticipants(value: string | null | undefined): string[] {
   if (!value) return [];

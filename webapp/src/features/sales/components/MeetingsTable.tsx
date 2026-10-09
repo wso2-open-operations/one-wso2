@@ -32,23 +32,104 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import type { Meeting, MeetingScope } from "../api/salesTypes";
 import { meetingCustomer, meetingTypeLabel } from "../api/salesTypes";
-import { formatDateTime } from "../util/salesTime";
+import { formatDateTime, formatDuration, parseUtc } from "../util/salesTime";
 import MeetingCoverageCell from "../meddpicc/components/MeetingCoverageCell";
 import type { LetterKey, MeetingCoverage } from "../meddpicc/types";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20];
 
-/** Columns, declared once so the header and the skeleton rows can't drift. */
+/**
+ * Columns, declared once so the header and the skeleton rows can't drift.
+ *
+ * No End column: calls run minutes to a couple of hours, so when one started is what
+ * people scan for, and its length rides along in the Start cell with the exact end
+ * time on hover.
+ */
 const COLUMNS = [
-  { key: "title", label: "Title", width: "auto" },
-  { key: "customer", label: "Account", width: 200 },
-  { key: "type", label: "Call type", width: 160 },
-  { key: "meddpicc", label: "MEDDPICC", width: 230 },
-  { key: "host", label: "Account Owner", width: 180 },
-  { key: "start", label: "Start", width: 150 },
-  { key: "end", label: "End", width: 150 },
-  { key: "attachments", label: "Files", width: 80, center: true },
+  // Account, call type and title in one column, so MEDDPICC gets the rest of the row.
+  { key: "meeting", label: "Meeting", width: 300 },
+  // `auto`: the column that grows. More of a deal's MEDDPICC state is coming to this cell.
+  { key: "meddpicc", label: "MEDDPICC", width: "auto" },
+  { key: "host", label: "Account Owner", width: 190 },
+  { key: "start", label: "Start", width: 170 },
+  { key: "attachments", label: "Files", width: 60, center: true },
 ] as const;
+
+/** Start time in ms for ordering; a row with no readable start sorts last. */
+function startMs(meeting: Meeting): number {
+  return parseUtc(meeting.startTime)?.getTime() ?? Number.NEGATIVE_INFINITY;
+}
+
+const CLIP = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+
+/**
+ * The meeting in one cell: the account and call type on top, the title beneath it.
+ *
+ * The account leads because it is what people remember a call by; the title is the link
+ * into the meeting. No attendee emails: nobody recalls a call by the customer's address.
+ * A meeting with no account (an internal one, say) leads with its call type. Blank rather
+ * than a dash when there is no Salesforce link at all: a meeting scheduled through the old
+ * form was never linked, so there is nothing missing to point at. The call type is plain
+ * text, not a chip: a chip reads as a status, but every linked meeting has a call type.
+ */
+function MeetingCell({ meeting }: { meeting: Meeting }) {
+  const account = meetingCustomer(meeting);
+  const typeLabel = meetingTypeLabel(meeting.meetingType);
+  const isCancelled = meeting.meetingStatus === "CANCELLED";
+
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      {(account || typeLabel) && (
+        <Typography
+          variant="body2"
+          sx={CLIP}
+          title={[account, typeLabel].filter(Boolean).join(" · ")}
+        >
+          {account && (
+            <Box component="span" sx={{ fontWeight: 600, color: "text.primary" }}>
+              {account}
+            </Box>
+          )}
+          {typeLabel && (
+            <Box component="span" sx={{ color: "text.secondary" }}>
+              {account ? ` · ${typeLabel}` : typeLabel}
+            </Box>
+          )}
+        </Typography>
+      )}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+        {/* A link, not a row click: the title is the thing that names this meeting, so it
+            is what should look and behave like the way in. A whole-row target would also
+            swallow the file and cancel buttons sitting in it. Clipped to one line, with the
+            tooltip giving back what the clip took. */}
+        <Link
+          component={RouterLink}
+          to={`/sales/meetings/${meeting.meetingId}`}
+          underline="hover"
+          variant="body2"
+          sx={{
+            ...CLIP,
+            textDecoration: isCancelled ? "line-through" : "none",
+            color: isCancelled ? "text.disabled" : "text.secondary",
+          }}
+          title={meeting.title}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {meeting.title}
+        </Link>
+        {meeting.timeStatus === "UPCOMING" && (
+          <Chip
+            label="Upcoming"
+            size="small"
+            color="primary"
+            variant="outlined"
+            sx={{ height: 20, fontSize: "0.65rem", flexShrink: 0 }}
+          />
+        )}
+      </Box>
+    </Box>
+  );
+}
 
 /**
  * The meeting list.
@@ -110,8 +191,11 @@ export default function MeetingsTable({
   const showCancel = scope === "all";
   const showMeddpicc = coverage !== undefined;
   const baseColumns = showMeddpicc ? COLUMNS : COLUMNS.filter((column) => column.key !== "meddpicc");
+  // Latest first, whatever order a page arrives in. The backend already returns meetings
+  // newest first, so this keeps a page's rows in that order rather than reshuffling paging.
+  const rows = [...meetings].sort((a, b) => startMs(b) - startMs(a));
   const columns = showCancel
-    ? [...baseColumns, { key: "cancel", label: "Cancel", width: 80, center: true } as const]
+    ? [...baseColumns, { key: "cancel", label: "Cancel", width: 60, center: true } as const]
     : baseColumns;
 
   return (
@@ -124,7 +208,10 @@ export default function MeetingsTable({
       loading={loading}
     >
       <ListingTable.Container>
-        <ListingTable bordered>
+        {/* Compact rows, as the audit log's table has: the Meeting cell's two short lines
+            are the tallest thing in a row, so the default padding only spreads a page of
+            meetings over more scrolling. */}
+        <ListingTable bordered size="small" density="compact">
           <ListingTable.Head>
             <ListingTable.Row>
               {columns.map((column) => (
@@ -152,11 +239,9 @@ export default function MeetingsTable({
                     ))}
                   </ListingTable.Row>
                 ))
-              : meetings.map((meeting) => {
+              : rows.map((meeting) => {
                   const cancellable = canCancel(meeting);
-                  const isCancelled = meeting.meetingStatus === "CANCELLED";
-                  const customer = meetingCustomer(meeting);
-                  const typeLabel = meetingTypeLabel(meeting.meetingType);
+                  const duration = formatDuration(meeting.startTime, meeting.endTime);
                   const meetingCoverage = coverage?.get(meeting.meetingId);
                   // The backend's link first: an included call belongs to a deal the
                   // meeting row itself was never linked to.
@@ -171,73 +256,8 @@ export default function MeetingsTable({
                       onClick={openDeal}
                       sx={openDeal ? { cursor: "pointer" } : undefined}
                     >
-                      <ListingTable.Cell>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          {/* A link, not a row click: the title is the thing that names
-                              this meeting, so it is what should look and behave like the
-                              way in. A whole-row target would also swallow the file and
-                              cancel buttons sitting in it. */}
-                          <Link
-                            component={RouterLink}
-                            to={`/sales/meetings/${meeting.meetingId}`}
-                            underline="hover"
-                            variant="body2"
-                            sx={{
-                              // The title carries the customer and meeting type
-                              // and is routinely longer than the column; clipping
-                              // it keeps every row one line tall, and the tooltip
-                              // gives back what the clip took.
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              textDecoration: isCancelled ? "line-through" : "none",
-                              color: isCancelled ? "text.disabled" : "text.primary",
-                            }}
-                            title={meeting.title}
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {meeting.title}
-                          </Link>
-                          {meeting.timeStatus === "UPCOMING" && (
-                            <Chip
-                              label="Upcoming"
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                              sx={{ height: 20, fontSize: "0.65rem" }}
-                            />
-                          )}
-                        </Box>
-                      </ListingTable.Cell>
-
-                      <ListingTable.Cell>
-                        {/* Blank rather than a dash when there is no link at all:
-                            a meeting scheduled through the old form was never
-                            linked to Salesforce, so there is nothing missing to
-                            point at. */}
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                          title={customer ?? undefined}
-                        >
-                          {customer ?? ""}
-                        </Typography>
-                      </ListingTable.Cell>
-
-                      <ListingTable.Cell>
-                        {/* Plain text rather than the chip this used to be in the
-                            title cell. A chip reads as a status — something
-                            notable about this row — but every linked meeting has
-                            a call type. */}
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                          title={typeLabel ?? undefined}
-                        >
-                          {typeLabel ?? ""}
-                        </Typography>
+                      <ListingTable.Cell sx={{ maxWidth: 300 }}>
+                        <MeetingCell meeting={meeting} />
                       </ListingTable.Cell>
 
                       {showMeddpicc && (
@@ -257,23 +277,30 @@ export default function MeetingsTable({
                       )}
 
                       <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ overflow: "hidden", textOverflow: "ellipsis" }}
+                          title={meeting.host}
+                        >
                           {meeting.host}
                         </Typography>
                       </ListingTable.Cell>
 
                       <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          title={meeting.endTime ? `Ends ${formatDateTime(meeting.endTime)}` : undefined}
+                        >
                           {formatDateTime(meeting.startTime)}
+                          {duration && (
+                            <Box component="span" sx={{ color: "text.disabled" }}>
+                              {` · ${duration}`}
+                            </Box>
+                          )}
                         </Typography>
                       </ListingTable.Cell>
-
-                      <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
-                        <Typography variant="body2" color="text.secondary">
-                          {formatDateTime(meeting.endTime)}
-                        </Typography>
-                      </ListingTable.Cell>
-
 
                       <ListingTable.Cell align="center">
                         <Tooltip title="View files" arrow>

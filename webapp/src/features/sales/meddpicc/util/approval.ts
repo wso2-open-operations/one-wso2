@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// What the deal panel sends on Approve all, kept out of the component so the
+// What the deal page sends on Approve all, kept out of the component so the
 // rules can be tested on their own.
 //
 // The backend owns the semantics (contract §3.6, "Approve all semantics"): a
@@ -26,7 +26,7 @@
 import type { ApproveRequest, DealField, FieldValue } from "../types";
 import { isRoleProposal } from "./meddpiccFormat";
 
-/** The AM's unsaved answers in the panel. */
+/** The AM's unsaved answers on the deal page. */
 export interface ApprovalDraft {
   /** fieldKey -> value. null means "clear" (for a role: "not known, leave unset"). */
   edits: Record<string, FieldValue>;

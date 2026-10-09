@@ -44,7 +44,7 @@ All paths below are relative to `/sales/cado2`. Paths are built in one place,
 
 The rows come from the `CADO2_APPS` registry (`constants/cado2Apps.ts`), spread into the Sales
 sections only while the flag is on. The group uses `ReceiptTextIcon` (not the perspective's Radio or
-Meetings' Video icon) and `alwaysGroup: true`, so a person who can open only one child still sees it
+Echo's Video icon) and `alwaysGroup: true`, so a person who can open only one child still sees it
 under **CadO2**.
 
 `/sales/cado2` itself redirects to `/quotes` for a rep, otherwise to `/approvals` for an approver,
@@ -154,11 +154,11 @@ call itself and keeps doing so against one-wso2's token (§6).
   string[]}`. Roles come from the caller's groups on the backend.
 - **Rail:** a new `cado2` adapter in `components/side-rail/visibilityFold.ts`, claiming
   `CADO2_ITEM_IDS` (the group and its three children) and in play for the Sales perspective only
-  (`useCado2RailGate`). `SALES_ITEM_IDS` is pinned to Meetings alone, so the two adapters never answer
+  (`useCado2RailGate`). `SALES_ITEM_IDS` is pinned to Echo and Deals, so the two adapters never answer
   the same item.
   - flag off → no CadO2 sections exist, the adapter is not in play, and `/me` is never called;
   - flag on, `ONE_WSO2_CADO2_BACKEND_URL` unset → the items are shown and every page says "not
-    connected", naming the key (same as Meetings);
+    connected", naming the key (same as Echo);
   - configured → `/me` decides each child as in §2.1; the group follows its children.
 - **Shell:** `features/sales/cado2/components/Cado2Shell.tsx` runs the gate ladder from
   `docs/conventions.md` for every route: not configured → resolving → failed (Retry) → denied (the

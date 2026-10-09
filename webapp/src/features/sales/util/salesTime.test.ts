@@ -17,6 +17,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDateTime,
+  formatDuration,
   parseUtc,
   splitParticipants,
 } from "./salesTime";
@@ -43,6 +44,22 @@ describe("parseUtc", () => {
     expect(parseUtc("")).toBeNull();
     expect(parseUtc("   ")).toBeNull();
     expect(parseUtc("not a date")).toBeNull();
+  });
+});
+
+describe("formatDuration", () => {
+  it("gives minutes under an hour, and hours with minutes over it", () => {
+    expect(formatDuration("2026-09-14 10:00:00", "2026-09-14 10:45:00")).toBe("45m");
+    expect(formatDuration("2026-09-14 10:00:00", "2026-09-14 11:00:00")).toBe("1h");
+    expect(formatDuration("2026-09-14 10:00:00", "2026-09-14 11:30:00")).toBe("1h 30m");
+  });
+
+  it("returns null when an end is missing, unparseable, or not after the start", () => {
+    expect(formatDuration(null, "2026-09-14 10:45:00")).toBeNull();
+    expect(formatDuration("2026-09-14 10:00:00", undefined)).toBeNull();
+    expect(formatDuration("2026-09-14 10:00:00", "soon")).toBeNull();
+    expect(formatDuration("2026-09-14 10:00:00", "2026-09-14 10:00:00")).toBeNull();
+    expect(formatDuration("2026-09-14 11:00:00", "2026-09-14 10:00:00")).toBeNull();
   });
 });
 
