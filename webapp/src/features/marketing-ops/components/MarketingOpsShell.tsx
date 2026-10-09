@@ -118,6 +118,27 @@ export default function MarketingOpsShell({
   );
 }
 
+// Guards one Marketing Ops screen's route on its menu id, so a typed URL obeys
+// the same `canSee` the rail does. Without it, an Event-Platform-only caller who
+// types /marketing-ops/email-workbench/create is authorized, so the shell renders
+// the page, and only the backend's 403 stops the data.
+//
+// Decides only once the shell would: while unconfigured, resolving, failed or
+// unauthorized it renders the page, and the shell's own ladder answers those.
+// Redirecting on an unanswered gate would throw people off screens they can open.
+export function MarketingOpsRoute({ gateId, children }: { gateId: string; children: ReactNode }) {
+  const configured = isMarketingOpsBackendConfigured();
+  const gate = useMarketingOpsGate(configured);
+  const refused =
+    configured &&
+    !gate.isResolving &&
+    !gate.isError &&
+    gate.isAuthorized &&
+    !gate.canSee(gateId);
+  if (refused) return <Navigate to="/marketing-ops" replace />;
+  return <>{children}</>;
+}
+
 // Split out so the header above stays readable — the state ladder is the part
 // that carries the logic, and it reads better as a sequence of guards than as
 // nested ternaries inside JSX.
