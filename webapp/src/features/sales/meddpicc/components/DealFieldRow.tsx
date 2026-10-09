@@ -83,7 +83,7 @@ function StateIcon({ field }: { field: DealField }) {
 }
 
 /**
- * One Gate field in the deal panel: what Salesforce has, what the AI proposes
+ * One Gate field on the deal page: what Salesforce has, what the AI proposes
  * and why, and the AM's control over it.
  *
  * There is no per-field approve. A correct Proposal needs no action at all —

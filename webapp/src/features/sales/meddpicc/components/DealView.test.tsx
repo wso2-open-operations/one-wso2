@@ -45,8 +45,22 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
-import DealPanel from "./DealPanel";
+import DealView from "./DealView";
+import { useDeal } from "../api/useMeddpiccData";
 import { mockMeddpiccClient, resetMockStore } from "../mock/mockStore";
+
+/** What DealPage does once the deal has loaded, without the page's shell around it. */
+function LoadedDeal({ opportunityId }: { opportunityId: string }) {
+  const query = useDeal(opportunityId);
+  if (!query.data) return <p>Loading MEDDPICC…</p>;
+  // The page's title names the deal; the view itself does not.
+  return (
+    <>
+      <h1>{query.data.deal.name}</h1>
+      <DealView detail={query.data} />
+    </>
+  );
+}
 
 function renderPanel(opportunityId: string) {
   const client = new QueryClient({
@@ -57,7 +71,7 @@ function renderPanel(opportunityId: string) {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     </MemoryRouter>
   );
-  return render(<DealPanel opportunityId={opportunityId} onClose={() => {}} />, { wrapper });
+  return render(<LoadedDeal opportunityId={opportunityId} />, { wrapper });
 }
 
 const approveButton = () => screen.getByRole("button", { name: /^Approve all/ });
@@ -68,9 +82,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-// A drawer full of MUI selects and tooltips, driven by userEvent: well under a
+// A page full of MUI selects and tooltips, driven by userEvent: well under a
 // second each on an idle machine, but the default 5s is too tight on a busy runner.
-describe("DealPanel", { timeout: 20000 }, () => {
+describe("DealView", { timeout: 20000 }, () => {
   it("keeps Approve all disabled, and says why, while a proposed role has no matching contact", async () => {
     const user = userEvent.setup();
     renderPanel("006MOCK0000MERI");

@@ -40,7 +40,7 @@ export interface CallMeddpicc {
  * One call's MEDDPICC, for the meeting page: its coverage, the deal it belongs to, and
  * what it contributed to that deal.
  *
- * The same two requests the meetings table and the deal panel make, keyed the same way,
+ * The same two requests the meetings table and the deal page make, keyed the same way,
  * so arriving from either is a cache hit.
  */
 export function useCallMeddpicc(meeting: Meeting | null | undefined): CallMeddpicc {

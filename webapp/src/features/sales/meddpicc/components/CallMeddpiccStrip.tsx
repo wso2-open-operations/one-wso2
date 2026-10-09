@@ -33,7 +33,7 @@ import StageChip from "./StageChip";
  * proposals still wait for the account manager. Leadership can stop here; the account
  * manager reads on in the MEDDPICC tab.
  *
- * A circle opens that tab at its Letter. Open deal opens the deal panel, the one place
+ * A circle opens that tab at its Letter. Open deal opens the deal's page, the one place
  * proposals are approved.
  */
 export default function CallMeddpiccStrip({

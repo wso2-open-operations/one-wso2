@@ -33,7 +33,7 @@ import EvidenceItem from "./EvidenceItem";
  * and to prepare the next call. Both read the same quotes; only the last section differs
  * by who is reading, and only in whether it offers the review.
  *
- * No approval here. Writing to Salesforce happens in the deal panel and nowhere else, so
+ * No approval here. Writing to Salesforce happens on the deal page and nowhere else, so
  * there is one place to see what was approved. No score for the call either: this is the
  * account manager's working view, not a report on them.
  */

@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import {
   Accordion,
@@ -25,8 +25,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Drawer,
-  IconButton,
   Link,
   Stack,
   Tooltip,
@@ -39,13 +37,10 @@ import {
   MailIcon,
   NotebookPenIcon,
   VideoIcon,
-  XIcon,
 } from "@wso2/oxygen-ui-icons-react";
-import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { formatDateTime } from "../../util/salesTime";
 import { describeError } from "../../util/salesError";
-import { useDeal } from "../api/useMeddpiccData";
 import {
   describeMoveStageError,
   useApproveDeal,
@@ -77,115 +72,28 @@ import MeddpiccCircles from "./MeddpiccCircles";
 import StageChip from "./StageChip";
 
 /**
- * The deal panel: a right-hand drawer for one Opportunity's MEDDPICC.
+ * One deal's MEDDPICC, as the body of its own page (/sales/deals/:opportunityId).
  *
- * Opened from a deal row or from a meeting row. `opportunityId` null means
- * closed. The body is keyed by the deal, so switching deals starts from a
- * clean draft rather than carrying one deal's edits into the next.
+ * A page rather than the drawer it used to be: a deal is somewhere people go and work,
+ * and a page has an address to send, room for the fields beside the deal's timeline,
+ * and survives a refresh. The page owns loading and errors; this renders a loaded deal.
+ *
+ * Two columns once there is room: the stage's fields, where the work happens, on the
+ * left; what to ask next, the activity and products discussed on the right. The
+ * approval bar stays in view at the bottom while the fields scroll.
  */
-export default function DealPanel({
-  opportunityId,
-  initialLetter = null,
-  onClose,
-}: {
-  opportunityId: string | null;
-  /** Open already filtered to one Letter — a circle was clicked to get here. */
-  initialLetter?: LetterKey | null;
-  onClose: () => void;
-}) {
-  return (
-    <Drawer
-      open={opportunityId !== null}
-      anchor="right"
-      onClose={onClose}
-      slotProps={{ paper: { sx: { width: { xs: "100%", md: 680 }, display: "flex", flexDirection: "column" } } }}
-    >
-      {opportunityId !== null && (
-        <DealPanelContent
-          key={`${opportunityId}:${initialLetter ?? ""}`}
-          opportunityId={opportunityId}
-          initialLetter={initialLetter}
-          onClose={onClose}
-        />
-      )}
-    </Drawer>
-  );
-}
-
-function DealPanelContent({
-  opportunityId,
-  initialLetter,
-  onClose,
-}: {
-  opportunityId: string;
-  initialLetter: LetterKey | null;
-  onClose: () => void;
-}) {
-  const query = useDeal(opportunityId);
-
-  if (query.isPending) {
-    return (
-      <PanelFrame title="Loading deal…" onClose={onClose}>
-        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", p: 3 }}>
-          <CircularProgress size={16} />
-          <Typography variant="body2" color="text.secondary">
-            Loading MEDDPICC…
-          </Typography>
-        </Stack>
-      </PanelFrame>
-    );
-  }
-
-  if (query.isError) {
-    return (
-      <PanelFrame title="Deal" onClose={onClose}>
-        <Box sx={{ p: 3 }}>
-          <ErrorNotice onRetry={() => void query.refetch()} error={query.error}>
-            Couldn&apos;t load this deal.
-          </ErrorNotice>
-        </Box>
-      </PanelFrame>
-    );
-  }
-
-  return <DealPanelBody detail={query.data} initialLetter={initialLetter} onClose={onClose} />;
-}
-
-function PanelFrame({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <>
-      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", p: 2.5, pb: 1 }}>
-        <Typography sx={{ fontSize: 17, fontWeight: 700 }}>{title}</Typography>
-        <IconButton size="small" aria-label="Close deal panel" onClick={onClose}>
-          <XIcon size={18} />
-        </IconButton>
-      </Stack>
-      {children}
-    </>
-  );
-}
-
 /** Gates in gates.json order, as the fields carry them. */
 function gatesInOrder(fields: readonly DealField[]): string[] {
   return [...new Set(fields.map((field) => field.gate))];
 }
 
-function DealPanelBody({
+export default function DealView({
   detail,
-  initialLetter,
-  onClose,
+  initialLetter = null,
 }: {
   detail: DealDetail;
-  initialLetter: LetterKey | null;
-  onClose: () => void;
+  /** Open already filtered to one Letter: a circle was clicked to get here. */
+  initialLetter?: LetterKey | null;
 }) {
   const { deal, fields, canEdit } = detail;
   const { showSuccess } = useNotifications();
@@ -318,25 +226,15 @@ function DealPanelBody({
 
   return (
     <>
-      {/* ---- Header ------------------------------------------------------ */}
-      <Box sx={{ p: 2.5, pb: 1.5, borderBottom: 1, borderColor: "divider" }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography component="h2" sx={{ fontSize: 17, fontWeight: 700, overflowWrap: "anywhere" }}>
-              {deal.name}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {deal.accountName}
-              {" · "}
-              {formatAmount(deal.amount, deal.currencyIsoCode)}
-              {" · closes "}
-              {formatSalesforceDate(deal.closeDate)}
-            </Typography>
-          </Box>
-          <IconButton size="small" aria-label="Close deal panel" onClick={onClose}>
-            <XIcon size={18} />
-          </IconButton>
-        </Stack>
+      {/* ---- Header: the page title names the deal ------------------------- */}
+      <Box sx={{ pb: 2, mb: 2.5, borderBottom: 1, borderColor: "divider" }}>
+        <Typography variant="body2" color="text.secondary">
+          {deal.accountName}
+          {" · "}
+          {formatAmount(deal.amount, deal.currencyIsoCode)}
+          {" · closes "}
+          {formatSalesforceDate(deal.closeDate)}
+        </Typography>
 
         <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1, mt: 1.25 }}>
           <StageChip stage={deal.stage} />
@@ -391,9 +289,16 @@ function DealPanelBody({
         )}
       </Box>
 
-      {/* ---- Body -------------------------------------------------------- */}
-      <Box sx={{ flex: 1, overflowY: "auto", px: 2.5, py: 1.5 }}>
-        <Stack spacing={1.5}>
+      {/* ---- Body: fields on the left, the deal's context on the right ---- */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) minmax(280px, 360px)" },
+          gap: 3,
+          alignItems: "start",
+        }}
+      >
+        <Stack spacing={1.5} sx={{ minWidth: 0 }}>
           {readOnly && (
             <Alert severity="info">
               You can view this deal. Only its owner, a call host or a Sales admin can approve, include calls or
@@ -525,6 +430,9 @@ function DealPanelBody({
             </>
           )}
 
+        </Stack>
+
+        <Stack component="aside" spacing={2.5} sx={{ minWidth: 0 }} aria-label="About this deal">
           {detail.askNext.length > 0 && (
             <Box>
               <Typography variant="subtitle2">Ask next</Typography>
@@ -578,8 +486,19 @@ function DealPanelBody({
         </Stack>
       </Box>
 
-      {/* ---- Footer: the two actions ----------------------------------------- */}
-      <Box sx={{ borderTop: 1, borderColor: "divider", px: 2.5, py: 1.5 }}>
+      {/* ---- Footer: the two actions, kept in view while the fields scroll ---- */}
+      <Box
+        sx={{
+          position: "sticky",
+          bottom: 0,
+          zIndex: 2,
+          mt: 3,
+          py: 1.5,
+          borderTop: 1,
+          borderColor: "divider",
+          bgcolor: "background.default",
+        }}
+      >
         <Stack spacing={1}>
           {approveError && <Alert severity="error">{approveError}</Alert>}
           {approveResult?.error && (

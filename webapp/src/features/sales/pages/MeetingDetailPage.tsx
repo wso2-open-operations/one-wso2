@@ -15,7 +15,7 @@
 // under the License.
 
 import { useRef, useState } from "react";
-import { Link as RouterLink, useParams } from "react-router";
+import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import {
   Alert,
   Box,
@@ -45,7 +45,7 @@ import { describeError, isForbidden } from "../util/salesError";
 import { useCallMeddpicc } from "../meddpicc/api/useCallMeddpicc";
 import CallMeddpiccStrip from "../meddpicc/components/CallMeddpiccStrip";
 import CallMeddpiccTab from "../meddpicc/components/CallMeddpiccTab";
-import DealPanel from "../meddpicc/components/DealPanel";
+import { dealPath } from "../util/salesPaths";
 import type { LetterKey } from "../meddpicc/types";
 import { formatDateTime, splitParticipants } from "../util/salesTime";
 
@@ -106,7 +106,10 @@ export default function MeetingDetailPage() {
   const call = useCallMeddpicc(meeting);
   // A circle in the strip opens the MEDDPICC tab at its Letter.
   const [focusLetter, setFocusLetter] = useState<LetterKey | null>(null);
-  const [dealOpen, setDealOpen] = useState(false);
+  const navigate = useNavigate();
+  const openDeal = () => {
+    if (call.opportunityId) void navigate(dealPath(call.opportunityId));
+  };
   const openLetter = (letter: LetterKey) => {
     setTab("meddpicc");
     setFocusLetter(letter);
@@ -153,7 +156,7 @@ export default function MeetingDetailPage() {
             call={call}
             meetingTitle={meeting.title}
             onLetterClick={openLetter}
-            onOpenDeal={() => setDealOpen(true)}
+            onOpenDeal={openDeal}
           />
           <Box
             sx={{
@@ -248,7 +251,7 @@ export default function MeetingDetailPage() {
                   call={call}
                   focusLetter={focusLetter}
                   onSeek={seek}
-                  onOpenDeal={() => setDealOpen(true)}
+                  onOpenDeal={openDeal}
                 />
               )}
 
@@ -281,11 +284,6 @@ export default function MeetingDetailPage() {
             </Box>
           </Box>
 
-          {/* The one place proposals are approved, opened from the strip or the tab. */}
-          <DealPanel
-            opportunityId={dealOpen ? call.opportunityId : null}
-            onClose={() => setDealOpen(false)}
-          />
         </>
       ) : null}
     </SalesShell>
