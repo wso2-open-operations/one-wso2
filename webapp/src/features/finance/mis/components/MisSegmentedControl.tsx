@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Stack, ToggleButton, ToggleButtonGroup, Typography } from "@wso2/oxygen-ui";
+import { Box, ButtonBase, Stack, Typography } from "@wso2/oxygen-ui";
+import { periodSegmentSx } from "./misLookTokens";
 
 // A labelled row of mutually exclusive choices, committing on click.
 //
@@ -27,6 +28,9 @@ import { Stack, ToggleButton, ToggleButtonGroup, Typography } from "@wso2/oxygen
 // It stays a presentational control and holds no state: what the choices mean,
 // which is the default, and what a change does to its siblings are the caller's
 // questions, and they differ at each of the three call sites.
+//
+// Drawn as an uppercase 12px/700 label beside the same segments the Period row
+// uses, so the two controls read as one family.
 
 export default function MisSegmentedControl<T extends string>({
   label,
@@ -51,30 +55,29 @@ export default function MisSegmentedControl<T extends string>({
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
       {/* Hidden from assistive tech, because the group below carries the same
           words as its accessible name. */}
-      <Typography variant="body2" color="text.secondary" aria-hidden>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        aria-hidden
+        sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.35px" }}
+      >
         {label}
       </Typography>
-      <ToggleButtonGroup
-        exclusive
-        size="small"
-        value={value}
-        aria-label={ariaLabel}
-        // `null` when the reader clicks the choice they are already on. Ignored
-        // rather than treated as "neither": these controls pick between
-        // arrangements of a table that is on screen either way, so there is no
-        // third state for the group to fall into.
-        onChange={(_event, next: T | null) => next && onChange(next)}
-      >
-        {options.map((option) => (
-          <ToggleButton
-            key={option.value}
-            value={option.value}
-            sx={{ textTransform: "none", px: 1.5 }}
-          >
-            {option.label}
-          </ToggleButton>
-        ))}
-      </ToggleButtonGroup>
+      <Box role="group" aria-label={ariaLabel} sx={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+        {options.map((option) => {
+          const pressed = option.value === value;
+          return (
+            <ButtonBase
+              key={option.value}
+              aria-pressed={pressed}
+              onClick={() => onChange(option.value)}
+              sx={[periodSegmentSx(pressed), { minWidth: 0 }]}
+            >
+              {option.label}
+            </ButtonBase>
+          );
+        })}
+      </Box>
     </Stack>
   );
 }

@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState, type JSX, type ReactNode } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { Box, Link, Sidebar, Typography } from "@wso2/oxygen-ui";
 import { ExternalLinkIcon, SettingsIcon } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink, matchPath, useLocation, useNavigate } from "react-router";
@@ -245,14 +245,12 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
               that renders as selected for a split second on a screen you are
               about to leave. */}
           {active.path && !active.forwardsToFirstItem && (
-            <RouteItem id={OVERVIEW_ID} to={active.path} fromPerspective={active.key}>
-              <Sidebar.Item id={OVERVIEW_ID}>
-                <Sidebar.ItemIcon>
-                  <active.icon />
-                </Sidebar.ItemIcon>
-                <Sidebar.ItemLabel>Overview</Sidebar.ItemLabel>
-              </Sidebar.Item>
-            </RouteItem>
+            <Sidebar.Item id={OVERVIEW_ID} link={routeLink(active.path, active.key)}>
+              <Sidebar.ItemIcon>
+                <active.icon />
+              </Sidebar.ItemIcon>
+              <Sidebar.ItemLabel>Overview</Sidebar.ItemLabel>
+            </Sidebar.Item>
           )}
 
           {sections.map((s) => (
@@ -277,45 +275,37 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
       </Sidebar.Nav>
 
       <Sidebar.Footer showDivider>
+        {/* The footer is not a list, and Sidebar.Item is an li, so it needs one. */}
+        {/* The tour marker sits on the list, not inside the label. Oxygen
+            names a collapsed row with String(label children), and a span
+            there becomes the accessible name "[object Object]". */}
+        <Box component="ul" data-tour="settings" sx={{ m: 0, p: 0, listStyle: "none" }}>
         <Sidebar.Item id={SETTINGS_ID}>
           <Sidebar.ItemIcon>
             <SettingsIcon />
           </Sidebar.ItemIcon>
-          {/* The tour points here. The marker is on a span of our own because
-              Sidebar.Item drops unknown props, so data-* put on it never reaches
-              the DOM. */}
-          <Sidebar.ItemLabel>
-            <span data-tour="settings">Settings</span>
-          </Sidebar.ItemLabel>
+          <Sidebar.ItemLabel>Settings</Sidebar.ItemLabel>
         </Sidebar.Item>
+        </Box>
       </Sidebar.Footer>
     </Sidebar>
   );
 }
 
 /**
- * Wraps a rail row in a real anchor so middle-click / cmd-click open a new
- * tab. Oxygen's Sidebar already strips link underlines (`& a` in its root
- * styles), so no styling is needed here.
+ * The anchor for a rail row, passed as `Sidebar.Item`'s `link` so the row stays
+ * `li > a` and middle-click still opens a new tab. Wrapping the item in the
+ * anchor instead makes the list `ul > a > li`, which a screen reader does not
+ * treat as a list.
+ *
+ * `fromPerspective` is navigation state, same as SideRail's own Settings
+ * navigation. Harmless for a route under this perspective's own path prefix
+ * (PerspectiveProvider resolves it directly and never reads this state) —
+ * load-bearing for one that isn't, like Due Diligence's routes, which are
+ * reachable from both Finance and Legal and can't live under either one's
+ * own prefix.
  */
-function RouteItem({
-  to,
-  children,
-  fromPerspective,
-}: {
-  id: string;
-  to: string;
-  children: ReactNode;
-  /**
-   * Carried as navigation state, same as SideRail's own Settings navigation.
-   * Harmless for a route under this perspective's own path prefix
-   * (PerspectiveProvider resolves it directly and never reads this state) —
-   * load-bearing for one that isn't, like Due Diligence's routes, which are
-   * reachable from both Finance and Legal and can't live under either one's
-   * own prefix.
-   */
-  fromPerspective?: string;
-}): JSX.Element {
+function routeLink(to: string, fromPerspective?: string) {
   return (
     <Link
       component={RouterLink}
@@ -323,9 +313,7 @@ function RouteItem({
       state={fromPerspective ? { fromPerspective } : undefined}
       color="inherit"
       underline="none"
-    >
-      {children}
-    </Link>
+    />
   );
 }
 
@@ -355,7 +343,7 @@ function SectionNode({
    * navigation, and closing it again is the user's business.
    */
   containsActiveRoute: boolean;
-  /** The perspective this section is rendered under — see RouteItem. */
+  /** The perspective this section is rendered under — see routeLink. */
   fromPerspective: string;
 }): JSX.Element | null {
   // Screens offered as tabs stay children of the section (pins name them from
@@ -471,11 +459,16 @@ function LeafItem({
   // active-highlighted: no route of ours is current once the user is over
   // there, and highlighting it would claim otherwise.
   href?: string;
-  /** The perspective this leaf is rendered under — see RouteItem. */
+  /** The perspective this leaf is rendered under — see routeLink. */
   fromPerspective?: string;
 }): JSX.Element {
-  const item = (
-    <Sidebar.Item id={id}>
+  const link = href ? (
+    <Link href={href} target="_blank" rel="noopener noreferrer" color="inherit" underline="none" />
+  ) : to ? (
+    routeLink(to, fromPerspective)
+  ) : undefined;
+  return (
+    <Sidebar.Item id={id} link={link}>
       {Icon ? (
         <Sidebar.ItemIcon>
           <Icon />
@@ -493,19 +486,5 @@ function LeafItem({
         </Sidebar.ItemBadge>
       ) : null}
     </Sidebar.Item>
-  );
-  if (href) {
-    return (
-      <Link href={href} target="_blank" rel="noopener noreferrer" color="inherit" underline="none">
-        {item}
-      </Link>
-    );
-  }
-  return to ? (
-    <RouteItem id={id} to={to} fromPerspective={fromPerspective}>
-      {item}
-    </RouteItem>
-  ) : (
-    item
   );
 }

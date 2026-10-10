@@ -193,7 +193,7 @@ describe("the Finance rail", () => {
   it("offers the ARR screens to someone holding the ARR privilege", () => {
     privileges.value = [987];
     showRail();
-    expect(screen.getByText("ARR Build")).toBeInTheDocument();
+    expect(screen.getByText("ARR Dashboard")).toBeInTheDocument();
   });
 
   // 789 arrives beside 987 from the ARR service and opens nothing here — not
@@ -201,7 +201,7 @@ describe("the Finance rail", () => {
   it("offers no MIS entry at all to someone holding only 789", () => {
     privileges.value = [789];
     showRail();
-    expect(screen.queryByText("ARR Build")).not.toBeInTheDocument();
+    expect(screen.queryByText("ARR Dashboard")).not.toBeInTheDocument();
     expect(screen.queryByText("MIS")).not.toBeInTheDocument();
   });
 
@@ -211,7 +211,7 @@ describe("the Finance rail", () => {
   it("offers no MIS entry at all to someone holding neither", () => {
     privileges.value = [];
     showRail();
-    expect(screen.queryByText("ARR Build")).not.toBeInTheDocument();
+    expect(screen.queryByText("ARR Dashboard")).not.toBeInTheDocument();
     expect(screen.queryByText("MIS")).not.toBeInTheDocument();
   });
 
@@ -227,7 +227,7 @@ describe("the Finance rail", () => {
     // nothing left to hold back — what it asserts instead is that all four
     // rows are live. A screen added to the registry without a route would show
     // up here as a fifth row that navigates nowhere.
-    for (const live of ["ARR Build", "QRR Build", "MRR Build", "ARR Analysis"]) {
+    for (const live of ["ARR Dashboard", "ARR Analysis"]) {
       expect(screen.getByText(live), `${live} is routed but not in the rail`).toBeInTheDocument();
     }
   });
@@ -241,7 +241,7 @@ describe("the Finance rail", () => {
     analysisEnabled.value = false;
     showRail();
     expect(screen.queryByText("ARR Analysis")).not.toBeInTheDocument();
-    for (const live of ["ARR Build", "QRR Build", "MRR Build"]) {
+    for (const live of ["ARR Dashboard"]) {
       expect(screen.getByText(live), `${live} was dropped by the ARR Analysis flag`).toBeInTheDocument();
     }
   });

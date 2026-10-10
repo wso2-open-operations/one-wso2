@@ -38,6 +38,10 @@ import {
 import { MIS_VALUE_TYPES, amountUnitCaption, formatMisValue } from "../util/misMoney";
 import type { MisScale } from "../util/misViewVocabulary";
 import type { OpportunitiesState } from "../api/useOpportunities";
+import MisExportMenu from "./MisExportMenu";
+import { misExportFilename } from "../export/misExportFilename";
+import { MIS_NUMBER_FORMATS, misSheetName, type MisWorkbookSpec } from "../export/misWorkbook";
+import { MIS_SCALES } from "../util/misViewVocabulary";
 
 // The opportunities behind one account on the Software/Cloud Customers table.
 //
@@ -61,6 +65,33 @@ export interface MisOpportunitiesProps {
   asOf?: string;
   state: OpportunitiesState;
   scale: MisScale;
+}
+
+/** The dialog's columns as a sheet: lead text as text, figures as currency numbers. */
+function opportunitiesWorkbook(rows: ReturnType<typeof opportunityRows>): MisWorkbookSpec {
+  return {
+    sheets: [
+      {
+        name: misSheetName("Opportunities"),
+        columns: OPPORTUNITY_COLUMNS.map((column) => ({ width: Math.max(10, Math.round(column.width / 7)) })),
+        rows: [
+          { cells: [{ value: amountUnitCaption(MIS_SCALES.UNITS) }] },
+          { cells: [] },
+          { bold: true, cells: OPPORTUNITY_COLUMNS.map((column) => ({ value: column.label })) },
+          ...rows.map((row) => ({
+            cells: OPPORTUNITY_COLUMNS.map((column) => {
+              const value = column.read(row);
+              if (!column.isFigure) return { value: value == null ? "" : String(value) };
+              const number = typeof value === "number" ? value : Number(value);
+              return Number.isFinite(number)
+                ? { value: number, numFmt: MIS_NUMBER_FORMATS.CURRENCY }
+                : { value: null };
+            }),
+          })),
+        ],
+      },
+    ],
+  };
 }
 
 export default function MisOpportunities({
@@ -134,9 +165,21 @@ export default function MisOpportunities({
               </Typography>
               {/* The caption travels with the table, so a figure cropped into a
                   deck carries its units — see `amountUnitCaption`. */}
-              <Typography variant="caption" color="text.secondary">
-                {amountUnitCaption(scale)}
-              </Typography>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+                <Typography variant="caption" color="text.secondary">
+                  {amountUnitCaption(scale)}
+                </Typography>
+                <MisExportMenu
+                  scale={scale}
+                  repeatColumns={1}
+                  heading={() => ({
+                    title: `Opportunities — ${account?.name || account?.id || "account"}`,
+                    lines: asOf ? [`As of ${asOf}`] : [],
+                  })}
+                  workbook={() => opportunitiesWorkbook(rows)}
+                  filename={() => misExportFilename(["opportunities", account?.id ?? ""])}
+                />
+              </Stack>
             </Stack>
             <BuildTable
               // Names the table for assistive tech, the way the drill-down

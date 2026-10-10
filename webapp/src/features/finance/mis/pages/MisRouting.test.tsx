@@ -163,7 +163,7 @@ describe("someone holding the ARR privilege", () => {
 
   it("gets ARR Build", () => {
     show("/finance/mis/arr-build");
-    expect(screen.getByRole("heading", { name: "ARR Build" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ARR Dashboard" })).toBeInTheDocument();
   });
 });
 
@@ -190,6 +190,6 @@ describe("the browser tab", () => {
   it("is named after the screen, not just the app", () => {
     state.allow = new Set(["mis-arr-build"]);
     show("/finance/mis/arr-build");
-    expect(document.title).toBe("ARR Build · One WSO2");
+    expect(document.title).toBe("ARR Dashboard · One WSO2");
   });
 });

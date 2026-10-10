@@ -646,6 +646,22 @@ describe("how the customer table breaks a customer's revenue down", () => {
   });
 });
 
+describe("the customer table's hint", () => {
+  // The affordance is a click on a figure, which nothing on the table says by
+  // itself; the one line under the caption says it, on Customers only.
+  it("tells the reader that an account's figure opens its opportunities", () => {
+    renderPage("?table=customers");
+    expect(
+      screen.getByText("Click on an account under a date range to view opportunity details."),
+    ).toBeInTheDocument();
+  });
+
+  it("is not on the Build, where a figure opens a customer list instead", () => {
+    renderPage();
+    expect(screen.queryByText(/view opportunity details/)).not.toBeInTheDocument();
+  });
+});
+
 describe("the customer table's Total row", () => {
   // The only client-computed total in the ARR Build that runs down the
   // CUSTOMERS rather than across named metric rows.
@@ -807,7 +823,7 @@ describe("choosing which of the Build's tables to read", () => {
   it("offers Subscription, Customers, Region Summary and BU Summary", () => {
     renderPage();
     const tabs = screen.getByRole("group", { name: /table/i });
-    for (const name of ["Subscription", "Customers", "Region Summary", "BU Summary"]) {
+    for (const name of ["BU Build", "Customers", "Region Summary", "BU Summary"]) {
       expect(within(tabs).getByRole("button", { name })).toBeInTheDocument();
     }
   });
@@ -824,7 +840,7 @@ describe("choosing which of the Build's tables to read", () => {
   it("shows Subscription as the one being read when the link names no Table", () => {
     renderPage();
     const tabs = screen.getByRole("group", { name: /table/i });
-    expect(within(tabs).getByRole("button", { name: "Subscription" })).toHaveAttribute(
+    expect(within(tabs).getByRole("button", { name: "BU Build" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -997,9 +1013,14 @@ async function loadWorkbook(blob: Blob): Promise<ExcelJS.Workbook> {
 }
 
 /** Click Export and hand back the sheet that came out. */
+async function chooseExcel() {
+  await userEvent.click(screen.getByRole("button", { name: /^export$/i }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: /^excel/i }));
+}
+
 async function exportedSheet(name: string): Promise<ExcelJS.Worksheet> {
   const { blobs } = captureDownloads();
-  await userEvent.click(screen.getByRole("button", { name: /export/i }));
+  await chooseExcel();
   await waitFor(() => expect(blobs).toHaveLength(1));
   return (await loadWorkbook(blobs[0])).getWorksheet(name)!;
 }
@@ -1035,7 +1056,7 @@ describe("taking the Build out of the browser", () => {
     const { blobs, filenames } = captureDownloads();
     renderPage();
 
-    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await chooseExcel();
     await waitFor(() => expect(blobs).toHaveLength(1));
 
     const sheet = (await loadWorkbook(blobs[0])).getWorksheet("Subscription")!;
@@ -1045,7 +1066,7 @@ describe("taking the Build out of the browser", () => {
     expect(openingArr.getCell(1).value).toBe("  Opening ARR");
     expect(openingArr.getCell(2).value).toBe(1_234_567.5);
     // And it names itself after the table it came from, dated in Pacific Time.
-    expect(filenames[0]).toMatch(/^arr_build_subscription_\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(filenames[0]).toMatch(/^arr_dashboard_subscription_\d{4}-\d{2}-\d{2}\.xlsx$/);
   });
 
   it("exports the same figure at units while the screen is showing thousands", async () => {
@@ -1096,9 +1117,9 @@ describe("taking the Build out of the browser", () => {
     const { blobs, filenames } = captureDownloads();
     renderPage("?table=region-summary");
     await userEvent.click(screen.getByRole("button", { name: "All ARR Metrics" }));
-    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await chooseExcel();
     await waitFor(() => expect(blobs).toHaveLength(1));
-    expect(filenames[0]).toMatch(/^arr_build_all_arr_metrics_\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(filenames[0]).toMatch(/^arr_dashboard_all_arr_metrics_\d{4}-\d{2}-\d{2}\.xlsx$/);
   });
 
   it("exports the BU Summary at units while the screen shows thousands", async () => {
@@ -1112,10 +1133,10 @@ describe("taking the Build out of the browser", () => {
     const { filenames, blobs } = captureDownloads();
     renderPage("?table=bu-summary");
 
-    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await chooseExcel();
     await waitFor(() => expect(blobs).toHaveLength(1));
 
-    expect(filenames[0]).toMatch(/^arr_build_bu_summary_\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(filenames[0]).toMatch(/^arr_dashboard_bu_summary_\d{4}-\d{2}-\d{2}\.xlsx$/);
   });
 });
 
@@ -1179,7 +1200,7 @@ describe("a session Years Back that happens to equal the Table's own default", (
   /** Set a Years Back on Region Summary, then go and stand on the Build. */
   const withSessionOfFive = async () => {
     renderPage("?table=region-summary&years=5");
-    await switchTable("Subscription");
+    await switchTable("BU Build");
     expect(address()).toBe("");
   };
 
@@ -1365,7 +1386,14 @@ describe("the QRR and MRR Builds", () => {
 
   it("gives the customers table the whole Period on every other type", () => {
     renderPage("?table=customers", MIS_PERIODS.QUARTERLY);
-    expect(customers.lastRanges).toHaveLength(7);
+    // The page asks for exactly the ranges the Period's own helper cuts, so the
+    // count follows the date rather than a number written down for one day.
+    const filters = defaultAppliedFilters(MIS_PERIODS.QUARTERLY, MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS);
+    const expected = customerColumnRanges(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.CALENDAR, {
+      ...filters,
+      columnDateRanges: pacificColumnRanges(MIS_PERIODS.QUARTERLY, MIS_WINDOWS.CALENDAR, filters),
+    });
+    expect(customers.lastRanges).toEqual(expected);
   });
 
   it("says which defaults it landed on when a Period switch drops the filters", async () => {
@@ -1579,7 +1607,9 @@ describe("opening the opportunities behind an account", () => {
       cleanup();
       opportunities.asked = null;
       renderPage("?table=customers");
-      await userEvent.click(northwindFigureUnder(buildColumnLabel(range)));
+      const shown = buildColumnLabel(range);
+      const header = shown.includes(" - ") ? `As of ${shown.split(" - ")[1]}` : shown;
+      await userEvent.click(northwindFigureUnder(header));
 
       expect(opportunities.asked, `opened under ${buildColumnLabel(range)}`).toEqual({
         accountId: NORTHWIND.id,

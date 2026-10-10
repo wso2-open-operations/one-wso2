@@ -117,6 +117,15 @@ describe("the account table", () => {
     expect(screen.getAllByText("1,235").length).toBeGreaterThan(0);
   });
 
+  it("keeps a number column's name clear of its filter icon", () => {
+    // `number` right-aligns the header, and the filter icon sits on that same
+    // side, so the name would run underneath it.
+    const columns = analysisAccountColumns(MIS_SCALES.UNITS);
+    for (const column of columns) {
+      if (column.type === "number") expect(column.headerAlign).toBe("left");
+    }
+  });
+
   it("names each product the account runs", () => {
     showGrid([account({ productsInUse: "IAM,Choreo" })]);
     expect(screen.getByText("IAM")).toBeInTheDocument();

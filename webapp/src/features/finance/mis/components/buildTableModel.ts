@@ -64,14 +64,35 @@ export interface BuildRow {
 /** A row as it appears on screen, with what the tree says about it. */
 export interface BuildVisibleRow {
   row: BuildRow;
-  /** 0 is outermost. Drives the indent. */
+  /** 0 is outermost. A `depth === 0` row that is `expandable` is a section row. */
   depth: number;
-  /** Owns children, so its label carries a toggle. */
+  /** Owns children — a section, or a unit under one. */
   expandable: boolean;
   expanded: boolean;
 }
 
 const hasChildren = (row: BuildRow): boolean => (row.children?.length ?? 0) > 0;
+
+/**
+ * The id of every row that owns children, at every depth.
+ *
+ * Handed to `visibleRows` as the open set, it puts every row of every section
+ * on screen — which is how the ARR Dashboard reads its tables: a section row is
+ * a label over the rows beneath it, not a fold the reader works.
+ */
+export function allExpandableIds(rows: readonly BuildRow[]): ReadonlySet<string> {
+  const ids = new Set<string>();
+  const walk = (list: readonly BuildRow[]): void => {
+    for (const row of list) {
+      if (hasChildren(row)) {
+        ids.add(row.id);
+        walk(row.children ?? []);
+      }
+    }
+  };
+  walk(rows);
+  return ids;
+}
 
 /**
  * The rows currently on screen, in reading order.

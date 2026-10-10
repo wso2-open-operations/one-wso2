@@ -17,11 +17,7 @@
 import { describe, expect, it } from "vitest";
 import type { MisChannelDirect } from "../util/misViewVocabulary";
 import { MIS_VALUE_TYPES, misValueTypeForRow } from "../util/misMoney";
-import {
-  ARR_BUILD_SECTION_IDS,
-  arrBuildFieldFor,
-  arrBuildRows,
-} from "./arrBuildRows";
+import { arrBuildFieldFor, arrBuildRows } from "./arrBuildRows";
 
 // The shape of a Subscription Build: five sections of metric rows, and which
 // field of a `/arr-summary` response each row reads.
@@ -45,10 +41,6 @@ describe("the sections a Build is read in", () => {
       "Customers",
       "Logo percentages",
     ]);
-  });
-
-  it("names every section so a screen can open them all", () => {
-    expect(arrBuildRows("All").map((section) => section.id)).toEqual([...ARR_BUILD_SECTION_IDS]);
   });
 
   it("puts every metric row inside a section, never loose at the top", () => {

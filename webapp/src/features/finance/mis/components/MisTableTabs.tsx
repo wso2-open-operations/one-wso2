@@ -14,45 +14,102 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { ToggleButton, ToggleButtonGroup } from "@wso2/oxygen-ui";
-import { MIS_TABLE_LABELS, MIS_TABLE_ORDER, type MisTable } from "../util/misViewVocabulary";
+import { Box, ButtonBase } from "@wso2/oxygen-ui";
+import {
+  MIS_UNIT_CATEGORIES,
+  MIS_UNIT_CATEGORY_LABELS,
+  defaultUnitCode,
+  unitCategoryOf,
+  type MisUnitCategory,
+} from "../util/misUnits";
+import { MIS_TABLES, MIS_TABLE_LABELS, type MisTable } from "../util/misViewVocabulary";
+import type { MisViewState } from "../util/useMisViewState";
+import type { MisUnitSelection } from "./MisUnitTabs";
+import { underlineTabRowSx, underlineTabSx } from "./misLookTokens";
 
-// Which of the Build's four tables is on screen.
+// The seven Table tabs — BU Build · Software Build · Cloud Build · Custom
+// Build · Customers · Region Summary · BU Summary. The four Build flavours are
+// the Unit categories over the Subscription Table (CONTEXT.md: "Build"), so a
+// Build tab sets BOTH the Table and the Unit category; the other three set the
+// Table alone. Everything commits on click: a different Table is a different
+// report, not a narrowing of this one.
 //
-// It COMMITS ON CLICK for the same reason the
-// unit tabs do: a different Table is a different report, not a narrowing of
-// this one, so it goes straight into the address rather than waiting for Apply.
-// That is also what makes the view shareable — the Table is in the link.
+// Drawn as transparent tabs over a shared bottom rule, each with a 3px
+// underline: primary under the active tab, brand text on hover.
 //
 // The selection is read from the view rather than held here. The URL is the
 // source of truth, and a second copy would disagree with it after a back button
 // or a pasted link.
 
+type TabKey = `build:${MisUnitCategory}` | `table:${MisTable}`;
+
+interface TabSpec {
+  key: TabKey;
+  label: string;
+}
+
+const TABS: readonly TabSpec[] = [
+  ...MIS_UNIT_CATEGORIES.map((category) => ({
+    key: `build:${category}` as const,
+    label: MIS_UNIT_CATEGORY_LABELS[category],
+  })),
+  { key: `table:${MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS}`, label: MIS_TABLE_LABELS[MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS] },
+  { key: `table:${MIS_TABLES.EXIT_ARR_BY_REGION}`, label: MIS_TABLE_LABELS[MIS_TABLES.EXIT_ARR_BY_REGION] },
+  { key: `table:${MIS_TABLES.EXIT_ARR_BY_BU}`, label: MIS_TABLE_LABELS[MIS_TABLES.EXIT_ARR_BY_BU] },
+];
+
+/** Which of the seven is lit, read off the view rather than held here. */
+export function activeTabKey(view: MisViewState): TabKey {
+  if (view.table === MIS_TABLES.SUBSCRIPTION) {
+    return `build:${unitCategoryOf(view.filters.buProductSelection)}`;
+  }
+  return `table:${view.table}`;
+}
+
 export default function MisTableTabs({
-  table,
-  onChange,
+  view,
+  onTable,
+  onUnits,
 }: {
-  table: MisTable;
-  onChange: (next: MisTable) => void;
+  view: MisViewState;
+  /** Switch Table — the page's `changeTable`, which resets the filters that do not travel. */
+  onTable: (table: MisTable, units?: MisUnitSelection) => void;
+  /** Change the Unit category while staying on the Subscription Table. */
+  onUnits: (units: MisUnitSelection) => void;
 }) {
+  const active = activeTabKey(view);
+
+  const choose = (key: TabKey) => {
+    if (key === active) return;
+    if (key.startsWith("build:")) {
+      const category = key.slice("build:".length) as MisUnitCategory;
+      const units: MisUnitSelection = {
+        buProductSelection: defaultUnitCode(category),
+        customBusinessUnits: [],
+        customProductUnits: [],
+      };
+      if (view.table === MIS_TABLES.SUBSCRIPTION) onUnits(units);
+      else onTable(MIS_TABLES.SUBSCRIPTION, units);
+      return;
+    }
+    onTable(key.slice("table:".length) as MisTable);
+  };
+
   return (
-    <ToggleButtonGroup
-      exclusive
-      size="small"
-      value={table}
-      aria-label="Table"
-      // `null` when the reader clicks the table they are already on. Ignored
-      // rather than treated as "no table": ToggleButtonGroup reports a
-      // deselection, and there is no such thing here — one of the four is
-      // always being read.
-      onChange={(_event, next: MisTable | null) => next && onChange(next)}
-      sx={{ mb: 1.5, flexWrap: "wrap" }}
-    >
-      {MIS_TABLE_ORDER.map((one) => (
-        <ToggleButton key={one} value={one} sx={{ textTransform: "none", px: 1.5 }}>
-          {MIS_TABLE_LABELS[one]}
-        </ToggleButton>
-      ))}
-    </ToggleButtonGroup>
+    <Box role="group" aria-label="Table" sx={underlineTabRowSx}>
+      {TABS.map((tab) => {
+        const selected = tab.key === active;
+        return (
+          <ButtonBase
+            key={tab.key}
+            aria-pressed={selected}
+            onClick={() => choose(tab.key)}
+            sx={underlineTabSx(selected)}
+          >
+            {tab.label}
+          </ButtonBase>
+        );
+      })}
+    </Box>
   );
 }

@@ -125,7 +125,7 @@ export default function MisAnalysisFilters({
       >
         <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
           <ListFilterIcon size={16} />
-          <Typography variant="subtitle2">Filters</Typography>
+          <Typography component="h2" variant="subtitle2">Filters</Typography>
           {/* The count IS the number of narrowings, so an absent chip means an
               unnarrowed view. See `analysisFilterTags`.
 

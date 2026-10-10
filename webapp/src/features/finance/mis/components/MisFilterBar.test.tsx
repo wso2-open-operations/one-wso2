@@ -24,9 +24,14 @@ import { ScalePreferenceProvider } from "../util/ScalePreferenceContext";
 import { YearsBackSessionProvider, useYearsBackSession } from "../util/YearsBackSessionContext";
 import { filtersAfterSwitch } from "../util/misFilterBarModel";
 import { MIS_PERIODS, MIS_TABLES, type MisTable } from "../util/misViewVocabulary";
-import { useMisScale } from "../util/useMisScale";
 import { useMisViewState } from "../util/useMisViewState";
 import MisFilterBar from "./MisFilterBar";
+import MisPeriodRow from "./MisPeriodRow";
+import MisTableTabs from "./MisTableTabs";
+import MisGridHeader from "./MisGridHeader";
+import MisUnitPills from "./MisUnitPills";
+import { useMisScale } from "../util/useMisScale";
+import type { MisUnitSelection } from "./MisUnitTabs";
 
 // Driving MUI Autocompletes through userEvent is slow — each click is a full
 // pointer-event sequence re-rendered through the Oxygen theme — and the whole
@@ -77,23 +82,40 @@ function Harness({ optionsErrorMessage = "" }: { optionsErrorMessage?: string })
   const view = useMisViewState(MIS_PERIODS.ANNUALLY);
   const scale = useMisScale(view);
   const session = useYearsBackSession();
-  // Standing in for the Table tabs the page renders above the bar, which is
-  // where a switch actually comes from. What it does is the page's own line
-  // verbatim; `MisArrBuildPage.test.tsx` pins that the page really does it.
-  const switchTo = (table: MisTable) =>
+  // The Period row, the seven tabs and the Scale now live outside the filter
+  // card, where the page puts them. The harness renders them too, so a test
+  // that drives TTM, a Build tab or the Scale is driving the same controls.
+  const changeTable = (table: MisTable, units?: MisUnitSelection) =>
     view.setView({
       table,
-      filters: filtersAfterSwitch(view.filters, { period: view.period, table }, session.yearsBack),
+      filters: {
+        ...filtersAfterSwitch(view.filters, { period: view.period, table }, session.yearsBack),
+        ...(units ?? {}),
+      },
     });
+  const changeUnits = (units: MisUnitSelection) =>
+    view.setView({ filters: { ...view.filters, ...units } });
   return (
     <>
+      <MisPeriodRow view={view} />
+      <MisTableTabs view={view} onTable={changeTable} onUnits={changeUnits} />
+      <MisUnitPills
+        selection={{
+          buProductSelection: view.filters.buProductSelection,
+          customBusinessUnits: view.filters.customBusinessUnits,
+          customProductUnits: view.filters.customProductUnits,
+        }}
+        businessUnitOptions={OPTIONS.businessUnits}
+        productUnitOptions={OPTIONS.productUnits}
+        onChange={changeUnits}
+      />
       <MisFilterBar
         view={view}
-        scale={scale}
         options={OPTIONS}
         optionsErrorMessage={optionsErrorMessage}
       />
-      <button type="button" onClick={() => switchTo(MIS_TABLES.EXIT_ARR_BY_REGION)}>
+      <MisGridHeader title="Build" scale={scale.scale} onScale={scale.setScale} />
+      <button type="button" onClick={() => changeTable(MIS_TABLES.EXIT_ARR_BY_REGION)}>
         to Region Summary
       </button>
       <Address />

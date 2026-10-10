@@ -26,7 +26,7 @@ import {
   TableRow,
   Tooltip,
   Typography,
-  useTheme,
+  useColorScheme,
 } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import {
@@ -73,8 +73,7 @@ export default function AnalysisPartnerModelChart({
   breakdown,
   scale,
 }: AnalysisPartnerModelChartProps) {
-  const { palette } = useTheme();
-  const mode = palette.mode === "dark" ? "dark" : "light";
+  const mode = useLiveScheme();
   const slices = partnerModelSlices({
     channel: breakdown.channel,
     direct: breakdown.direct,
@@ -102,7 +101,7 @@ export default function AnalysisPartnerModelChart({
 
   return (
     <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, p: 2 }}>
-      <Typography variant="subtitle2" sx={{ mb: 0.25 }}>
+      <Typography component="h2" variant="subtitle2" sx={{ mb: 0.25 }}>
         ARR by partner model
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
@@ -129,7 +128,9 @@ export default function AnalysisPartnerModelChart({
         <>
           {/* The bar. `role="img"` with the whole split as its label, because a
               row of divs is meaningless to a screen reader and the companion
-              table below is the real accessible presentation. */}
+              table below is the real accessible presentation. Each segment's
+              tooltip uses `describeChild`: a plain div may not carry
+              aria-label, and the hover text is a description, not a name. */}
           <Box
             role="img"
             aria-label={slices
@@ -140,6 +141,7 @@ export default function AnalysisPartnerModelChart({
             {slices.map((slice, index) => (
               <Tooltip
                 key={slice.id}
+                describeChild
                 title={`${slice.label}: ${misHeadlineAmount(slice.amount)} · ${slice.share.toFixed(1)}%`}
               >
                 <Box
@@ -246,5 +248,12 @@ export default function AnalysisPartnerModelChart({
 }
 
 /** `tabular-nums` so a column of figures lines up when scanned down. */
+/** See AnalysisIndustryChart: palette.mode does not track the live scheme. */
+function useLiveScheme(): "light" | "dark" {
+  const { mode, systemMode } = useColorScheme();
+  const resolved = mode === "system" ? systemMode : mode;
+  return resolved === "dark" ? "dark" : "light";
+}
+
 const CELL_SX = { fontSize: 12.5, fontVariantNumeric: "tabular-nums" } as const;
 const HEAD_SX = { fontSize: 11, fontWeight: 700, color: "text.secondary" } as const;

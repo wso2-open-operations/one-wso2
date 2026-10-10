@@ -15,22 +15,11 @@
 // under the License.
 
 import { useId, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
-import {
-  Box,
-  ButtonBase,
-  IconButton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Typography,
-  useTheme,
-} from "@wso2/oxygen-ui";
-import { ChevronDown, ChevronRight } from "@wso2/oxygen-ui-icons-react";
+import { Box, ButtonBase, ListingTable, Typography } from "@wso2/oxygen-ui";
 import WideTableNotice from "@components/wide-table-notice/WideTableNotice";
 import {
   ROW_WINDOW_THRESHOLD,
+  allExpandableIds,
   buildTableIds,
   leadColumnOffsets,
   rowWindow,
@@ -42,28 +31,48 @@ import {
   type BuildSubColumn,
 } from "./buildTableModel";
 import {
-  groupEdgeSx,
   rowSx,
-  HEAD_CELL_SX,
   MAX_BODY_HEIGHT,
   NUMERIC_CELL_SX,
   ROW_LABEL_WIDTH,
+  SECTION_LABEL_SX,
   Z,
+  headCellSx,
   leadCellSx,
   leadHeadCellSx,
+  sectionRowSx,
 } from "./buildTableSx";
+import { gridFrameSx } from "./misLookTokens";
+
+// The grid's visual rules, in one place (the values are `buildTableSx.ts`):
+//
+//   - an Oxygen `ListingTable` at compact density, so text size, weights, cell
+//     padding and the head's fill are the same as every other table in the
+//     app; row and header heights follow from that, and nothing here sets one
+//   - ONE header row when each Period has a single figure column (the
+//     sub-header row only exists with several)
+//   - no vertical rules between figures — only the pinned column's and the
+//     header's
+//   - a section row is a band on `grey.50` (light) / `action.hover` (dark)
+//     with a small-caps label, and it is a label, not a fold: no chevron, no
+//     toggle, no indent, and every row of every section is always on screen
+//   - bold rows at weight 600, no fill under them and no rule above Ending ARR
+//   - a drill-down figure shows its underline only to a pointer or the keyboard
+//   - negatives carry their sign and nothing else — no colour
 
 // The table every Build screen renders through.
 //
 // A Build reads down — an Opening balance, the movements that change it, a
 // Closing balance — and across, one column group per Period. Four things have
 // to be true at once, and it is the combination rather than any one of them
-// that decided this is hand-rolled rather than a data grid:
+// that decided this is hand-rolled over Oxygen's table primitives rather than
+// a data grid:
 //
 //   1. the row-label column stays put while two dozen numeric columns scroll
 //   2. the header stays put while the rows scroll under it
 //   3. the header is TWO rows — a Period above its Amount / % Open pair
-//   4. sections collapse, three levels deep
+//   4. section rows are bands labelling the rows beneath them, drawn in the
+//      same table as the figures they head
 //
 // (3) is the one with no precedent anywhere in this repo and no help from MUI.
 // See `useHeaderRowHeight` below.
@@ -117,8 +126,8 @@ export interface BuildTableProps<L extends BuildLeadColumn = BuildLeadColumn> {
   rowLabelHeader: string;
   /**
    * The identity columns, left of the figures, when a row needs more than a
-   * name. The FIRST is the row label — it carries the tree toggle, the indent
-   * and `row.label`, and it stays the cell a screen reader names the row by.
+   * name. The FIRST is the row label — it carries `row.label` and a section's
+   * band styling, and it stays the cell a screen reader names the row by.
    * Omitted, the table has exactly one, built from `rowLabelHeader` and
    * `rowLabelWidth`, which is the Subscription Build.
    */
@@ -138,14 +147,33 @@ export interface BuildTableProps<L extends BuildLeadColumn = BuildLeadColumn> {
   subColumns: readonly BuildSubColumn[];
   rows: readonly BuildRow[];
   cell: BuildCellFor;
-  /**
-   * Sections open on first render. Everything else starts closed, so a Build
-   * opens as the summary it is meant to be rather than as every customer line
-   * at once.
-   */
-  defaultExpandedIds?: readonly string[];
   rowLabelWidth?: number;
   maxBodyHeight?: number;
+  /**
+   * Sub-column keys that are a GRAND TOTAL — the Customers table's "Total" —
+   * set in weight 600 under either header row.
+   */
+  grandTotalKeys?: ReadonlySet<string>;
+  /**
+   * What an `emphasis` row weighs. The tables are not uniform — a Build's bold
+   * rows are 600, the Customers `Total` row and a Region Summary total are
+   * 700 — so the table that knows which it is says so. Default: the Build's.
+   * The size is never the row's to change: every row is the table's own.
+   */
+  emphasisStyle?: { fontWeight?: number };
+  /**
+   * Show ONE header row when each Period has a single sub-column. True on the
+   * Subscription Build, where the lone sub-column is the ARR type and the
+   * Period label stands alone; false on the Customers table, where the lone
+   * "Total" under Totals only is a real column that keeps its header row.
+   */
+  collapseLoneSubHeader?: boolean;
+  /**
+   * The body fills whatever height its parent gives it and is the scroller.
+   * The page uses this so the chrome above the grid stays put. A dialog leaves
+   * it off and keeps `maxBodyHeight`.
+   */
+  fill?: boolean;
 }
 
 export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>({
@@ -157,11 +185,20 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
   subColumns,
   rows,
   cell,
-  defaultExpandedIds,
   rowLabelWidth = ROW_LABEL_WIDTH,
   maxBodyHeight = MAX_BODY_HEIGHT,
+  grandTotalKeys,
+  emphasisStyle,
+  collapseLoneSubHeader = false,
+  fill = false,
 }: BuildTableProps<L>) {
-  const theme = useTheme();
+  // The Period label stands alone when it has one sub-column under it (a Build
+  // with one ARR type); the sub-header row only exists with several. Kept in
+  // the DOM but hidden so every figure's `headers` still resolves.
+  const singleHeaderRow =
+    collapseLoneSubHeader && subColumns.length === 1 && columnGroups.length > 0;
+  // The Customers table's Total column is weight 600 and nothing more.
+  const grandTotalSx = (key: string) => (grandTotalKeys?.has(key) ? { fontWeight: 600 } : {});
   const ids = buildTableIds(useId());
   const [periodRowRef, periodRowHeight] = useHeaderRowHeight();
 
@@ -178,18 +215,35 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
   );
   const leadOffsets = useMemo(() => leadColumnOffsets(lead), [lead]);
   const leadWidth = lead.reduce((total, column) => total + column.width, 0);
+
+  // The Period columns flex to fill the viewport, so a Totals-only Customers
+  // table scrolled to its end shows five wide Totals, not a sliver of Employee
+  // Count beside them. The frame is measured and each sub-column widened to its
+  // share of what the pinned columns leave. The notice above still compares the
+  // viewport against the UNWIDENED model width, so filling can never call a
+  // table "wider than your screen". Measured width is 0 until laid out; the
+  // defaults hold then.
+  const [frameRef, frameWidth] = useMeasuredValue<HTMLDivElement>(
+    (element) => element.clientWidth,
+  );
+  const pinnedWidth = lead.reduce(
+    (total, column) => total + (column.pinned ? column.width : 0),
+    0,
+  );
+  const periodCells = columnGroups.length * subColumns.length;
+  const fillWidth =
+    frameWidth > 0 && periodCells > 0 ? Math.floor((frameWidth - pinnedWidth) / periodCells) : 0;
+  const sized = useMemo(
+    () => subColumns.map((column) => ({ ...column, width: Math.max(column.width, fillWidth) })),
+    [subColumns, fillWidth],
+  );
   /** The id heading one identity column. The first keeps the name it shipped with. */
   const leadHeaderId = (index: number) =>
     index === 0 ? ids.rowLabelHeader : ids.leadHeader(lead[index].key);
 
-  // Seeded once. The reader's open sections must survive a refetch and a change
-  // of Period — flipping Annually to Quarterly must not silently reopen a tree
-  // they had closed, and ids are stable across both because they are keyed by
-  // what the row IS rather than by where it sits.
-  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(
-    () => new Set(defaultExpandedIds ?? []),
-  );
-  const visible = useMemo(() => visibleRows(rows, expandedIds), [rows, expandedIds]);
+  // Every row of every section, always. A section row is a label over the rows
+  // beneath it, so there is nothing for the reader to open or close.
+  const visible = useMemo(() => visibleRows(rows, allExpandableIds(rows)), [rows]);
   const { scrollRef, firstRowRef, onScroll, rowsInView } = useRowWindow(
     visible.length,
     maxBodyHeight,
@@ -198,51 +252,53 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
   /** Every column, for a spacer row to span. */
   const columnCount = lead.length + columnGroups.length * subColumns.length;
 
-  const toggle = (id: string) =>
-    setExpandedIds((open) => {
-      const next = new Set(open);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
-
-  const tint = theme.palette.action.hover;
   // The width this table NEEDS — computed from the column model, never
   // measured. It sizes the table below and it is what the narrow-viewport
   // notice compares the viewport against, which is why that notice lives here
   // rather than on the page: this is the only place the number exists.
   const minWidth = tableMinWidth(columnGroups.length, subColumns, leadWidth);
+  /** The width the table is DRAWN at: the model width, plus the fill. */
+  const drawnMinWidth = tableMinWidth(columnGroups.length, sized, leadWidth);
 
   return (
-    <>
+    <Box sx={fill ? { flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" } : undefined}>
       {/* Above the table it describes, and only ever beside a real one — a page
           that mounted this itself would show it over a loading skeleton, an
           error and an empty state too, none of which is a table wider than the
           screen. */}
-      <WideTableNotice tableMinWidth={minWidth} sx={{ mb: 1.25 }} />
+      {/* Inside the grid card, between its head and its body, so the card reads
+          as one piece. Square corners, no gap. */}
+      <WideTableNotice
+        tableMinWidth={minWidth}
+        sx={{ mb: 0, borderRadius: 0, borderLeft: 1, borderRight: 1, borderColor: "divider" }}
+      />
       <Box
-        sx={{
-          border: 1,
-          borderColor: "divider",
-          borderRadius: 1.5,
-          overflow: "hidden",
-          backgroundColor: "background.paper",
-        }}
+        ref={frameRef}
+        sx={[
+          gridFrameSx,
+          fill ? { flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" } : {},
+        ]}
       >
         <Box
           ref={scrollRef}
           onScroll={onScroll}
-          sx={{ overflow: "auto", position: "relative" }}
-          style={{ maxHeight: maxBodyHeight }}
+          // A wide table scrolls inside this box. Keyboard users can only
+          // scroll a region they can focus, so it is in the tab order and named.
+          tabIndex={0}
+          role="region"
+          aria-label={label}
+          sx={{ overflow: "auto", position: "relative", ...(fill ? { flex: 1, minWidth: 0, minHeight: 0 } : {}) }}
+          style={fill ? undefined : { maxHeight: maxBodyHeight }}
         >
-          <Table
-            size="small"
+          <ListingTable
+            density="compact"
             stickyHeader
             aria-label={label}
             // `minWidth` is computed from the Periods on screen, so it is an
             // inline style rather than an sx value: a style that changes with the
             // data would otherwise mint an emotion class per column count. The
             // same rule holds for every measured or derived value below.
-            style={{ minWidth }}
+            style={{ minWidth: drawnMinWidth }}
             sx={{
               // stickyHeader forces this anyway. Stated so that the per-cell
               // borders throughout read as deliberate rather than as inherited
@@ -251,44 +307,46 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
               borderSpacing: 0,
             }}
           >
-            <TableHead>
+            <ListingTable.Head>
               {/* ROW 1 — the row-label column, then one cell per Period. */}
-              <TableRow ref={periodRowRef}>
+              <ListingTable.Row ref={periodRowRef}>
                 {lead.map((column, index) => (
-                  <TableCell
+                  <ListingTable.Cell
                     key={column.key}
                     id={leadHeaderId(index)}
                     // Spans both header rows when there IS a second one. The
                     // drill-down dialog is all identity columns and no Periods,
                     // and a rowSpan over a row that does not exist is a lie the
                     // table algorithm has to resolve on its own.
-                    rowSpan={columnGroups.length && subColumns.length ? 2 : 1}
+                    rowSpan={columnGroups.length && subColumns.length && !singleHeaderRow ? 2 : 1}
                     scope="col"
                     style={{ width: column.width, minWidth: column.width }}
-                    sx={leadHeadCellSx(leadOffsets[index])}
+                    sx={[leadHeadCellSx(leadOffsets[index])]}
                   >
                     {column.label}
-                  </TableCell>
+                  </ListingTable.Cell>
                 ))}
-                {columnGroups.map((group, groupIndex) => (
-                  <TableCell
+                {columnGroups.map((group) => (
+                  <ListingTable.Cell
                     key={group.key}
                     id={ids.groupHeader(group.key)}
                     colSpan={subColumns.length}
                     scope="colgroup"
-                    sx={{
-                      ...HEAD_CELL_SX,
-                      top: 0,
-                      zIndex: Z.header,
-                      textAlign: "center",
-                      color: "text.primary",
-                      ...groupEdgeSx(groupIndex),
-                    }}
+                    sx={[
+                      headCellSx,
+                      {
+                        top: 0,
+                        zIndex: Z.header,
+                        // A lone Period label sits right-aligned over its one
+                        // figure; a label over several sub-columns is centred.
+                        textAlign: subColumns.length > 1 ? "center" : "right",
+                      },
+                    ]}
                   >
                     {group.label}
-                  </TableCell>
+                  </ListingTable.Cell>
                 ))}
-              </TableRow>
+              </ListingTable.Row>
 
               {/* ROW 2 — held below row 1 by the measured offset, not by MUI.
                   Absent entirely when there are no figure cells to head, which is
@@ -297,10 +355,10 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                   tested, not just `subColumns` — row 2's cells are the product of
                   the two, so either being empty leaves it blank. */}
               {columnGroups.length > 0 && subColumns.length > 0 && (
-              <TableRow>
-                {columnGroups.map((group, groupIndex) =>
-                  subColumns.map((subColumn, subIndex) => (
-                    <TableCell
+              <ListingTable.Row sx={singleHeaderRow ? { display: "none" } : undefined}>
+                {columnGroups.map((group) =>
+                  sized.map((subColumn) => (
+                    <ListingTable.Cell
                       key={`${group.key}:${subColumn.key}`}
                       id={ids.subHeader(group.key, subColumn.key)}
                       scope="col"
@@ -309,38 +367,50 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                         width: subColumn.width,
                         minWidth: subColumn.width,
                       }}
-                      sx={{
-                        ...HEAD_CELL_SX,
-                        zIndex: Z.header,
-                        textAlign: "right",
-                        fontSize: 10,
-                        ...(subIndex === 0 ? groupEdgeSx(groupIndex) : {}),
-                      }}
+                      sx={[
+                        headCellSx,
+                        // A sub-column header ("Total", "API Platform BU") is
+                        // centred under its Period, in the same text as the
+                        // Period itself.
+                        { zIndex: Z.header, textAlign: "center" },
+                        grandTotalSx(subColumn.key),
+                      ]}
                     >
                       {subColumn.label}
-                    </TableCell>
+                    </ListingTable.Cell>
                   )),
                 )}
-              </TableRow>
+              </ListingTable.Row>
               )}
-            </TableHead>
+            </ListingTable.Head>
 
-            <TableBody>
+            <ListingTable.Body>
               {/* The rows above the window, as height rather than as rows, so the
                   scrollbar still describes the whole table. `aria-hidden` because
                   it holds space and says nothing: a screen reader counting rows
                   should count the ones carrying figures. */}
               <RowSpacer height={rowsInView.topPad} columnCount={columnCount} />
-              {onScreen.map(({ row, depth, expandable, expanded }, index) => (
-                <TableRow
+              {onScreen.map(({ row, depth, expandable }, index) => (
+                <ListingTable.Row
                   key={row.id}
                   // One row is measured, and every other is assumed to match it.
-                  // They do: the label cannot wrap (`nowrap`) and every figure is
-                  // one line, so the only variation is the 2px rule above a total.
+                  // They do: the label cannot wrap (`nowrap`), every figure is
+                  // one line and every row is the same text at the same padding.
                   ref={index === 0 ? firstRowRef : undefined}
-                  sx={rowSx({ emphasis: row.emphasis, ruleAbove: row.ruleAbove, tint })}
+                  sx={[
+                    rowSx({
+                      emphasis: row.emphasis,
+                      // A bold row is weight alone: no fill under it, and no
+                      // rule above Ending ARR — `row.ruleAbove` is not drawn.
+                      emphasisFill: false,
+                      emphasisWeight: emphasisStyle?.fontWeight ?? 600,
+                    }),
+                    // A section band naming the metric group under it (ARR
+                    // movement, Customers, …). It does not react to the pointer.
+                    depth === 0 && expandable ? sectionRowSx : {},
+                  ]}
                 >
-                  <TableCell
+                  <ListingTable.Cell
                     component="th"
                     scope="row"
                     id={ids.rowHeader(row.id)}
@@ -349,41 +419,31 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                       minWidth: lead[0].width,
                       maxWidth: lead[0].width,
                     }}
-                    sx={leadCellSx(leadOffsets[0])}
+                    sx={[leadCellSx(leadOffsets[0])]}
                   >
-                    <Box
-                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                      style={{ paddingLeft: depth * 18 }}
-                    >
-                      {expandable ? (
-                        <IconButton
-                          size="small"
-                          onClick={() => toggle(row.id)}
-                          aria-expanded={expanded}
-                          aria-label={row.label}
-                          sx={{ p: 0.2, color: "text.secondary" }}
-                        >
-                          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </IconButton>
-                      ) : (
-                        // Keeps a leaf's label on the same left edge as its siblings'.
-                        <Box aria-hidden sx={{ width: 19, flexShrink: 0 }} />
-                      )}
+                    {/* No indent under a section and no control on a section
+                        row: every label, band or line, shares the column's left
+                        inset. */}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                       <Typography
                         component="span"
-                        sx={{
-                          fontSize: 12.5,
-                          lineHeight: 1.6,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          color: depth >= 2 ? "text.secondary" : "text.primary",
-                        }}
+                        sx={[
+                          {
+                            fontSize: "inherit",
+                            fontWeight: "inherit",
+                            lineHeight: "inherit",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            color: "inherit",
+                          },
+                          depth === 0 && expandable ? SECTION_LABEL_SX : {},
+                        ]}
                       >
                         {row.label}
                       </Typography>
                     </Box>
-                  </TableCell>
+                  </ListingTable.Cell>
 
                   {/* The identity columns after the name. Ordinary cells, not row
                       headers: an Account ID is a fact ABOUT the row, not a second
@@ -394,7 +454,7 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                     // Asked once: the title and the text are the same value.
                     const text = leadCell?.(row, column) ?? "";
                     return (
-                      <TableCell
+                      <ListingTable.Cell
                         key={column.key}
                         headers={`${ids.rowHeader(row.id)} ${ids.leadHeader(column.key)}`}
                         style={{
@@ -402,7 +462,7 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                           minWidth: column.width,
                           maxWidth: column.width,
                         }}
-                        sx={leadCellSx(leadOffsets[index])}
+                        sx={[leadCellSx(leadOffsets[index])]}
                       >
                         {/* The full value on the cell itself. Identity columns
                             truncate — every row is one line, because the row
@@ -413,8 +473,9 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                           component="span"
                           title={text}
                           sx={{
-                            fontSize: 12.5,
-                            lineHeight: 1.6,
+                            fontSize: "inherit",
+                            fontWeight: "inherit",
+                            lineHeight: "inherit",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -423,27 +484,26 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                         >
                           {text}
                         </Typography>
-                      </TableCell>
+                      </ListingTable.Cell>
                     );
                   })}
 
-                  {columnGroups.map((group, groupIndex) =>
-                    subColumns.map((subColumn, subIndex) => {
+                  {columnGroups.map((group) =>
+                    sized.map((subColumn) => {
                       const figure = cell(row, group, subColumn);
                       return (
-                        <TableCell
+                        <ListingTable.Cell
                           key={`${group.key}:${subColumn.key}`}
                           headers={ids.cellHeaders(row.id, group.key, subColumn.key)}
                           style={{ width: subColumn.width, minWidth: subColumn.width }}
-                          sx={{
-                            ...NUMERIC_CELL_SX,
-                            ...(subIndex === 0 ? groupEdgeSx(groupIndex) : {}),
-                            ...(figure.negative
-                              ? { color: "error.main" }
-                              : figure.muted
-                                ? { color: "text.secondary" }
-                                : {}),
-                          }}
+                          // No rule between figures — only the pinned column's
+                          // and the header's. A negative carries its sign and
+                          // nothing else: no `error.main`.
+                          sx={[
+                            NUMERIC_CELL_SX,
+                            figure.muted ? { color: "grey.500" } : {},
+                            grandTotalSx(subColumn.key),
+                          ]}
                         >
                           {figure.onActivate ? (
                             // A real button inside the cell, not a click handler
@@ -454,10 +514,20 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                             // instead, so the cell keeps its `headers` wiring.
                             <ButtonBase
                               onClick={figure.onActivate}
+                              // A blank figure is still a control when it opens
+                              // something. With no text, the button has no name.
+                              aria-label={
+                                figure.text.trim()
+                                  ? undefined
+                                  : `View details for ${row.label}, ${group.label}, ${subColumn.label}`
+                              }
                               sx={{
                                 font: "inherit",
                                 color: "inherit",
-                                textDecoration: "underline",
+                                // Nothing at rest: a figure that opens shows its
+                                // underline only to a pointer or the keyboard, so
+                                // a column of numbers still reads as a column.
+                                textDecoration: "none",
                                 textDecorationStyle: "dotted",
                                 textUnderlineOffset: 3,
                                 borderRadius: 0.5,
@@ -466,6 +536,7 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                                 // so a column of numbers still reads as a column.
                                 justifyContent: "flex-end",
                                 width: "100%",
+                                "&:hover, &.Mui-focusVisible": { textDecoration: "underline" },
                               }}
                             >
                               {figure.text}
@@ -473,18 +544,18 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                           ) : (
                             figure.text
                           )}
-                        </TableCell>
+                        </ListingTable.Cell>
                       );
                     }),
                   )}
-                </TableRow>
+                </ListingTable.Row>
               ))}
               <RowSpacer height={rowsInView.bottomPad} columnCount={columnCount} />
-            </TableBody>
-          </Table>
+            </ListingTable.Body>
+          </ListingTable>
         </Box>
       </Box>
-    </>
+    </Box>
   );
 }
 
@@ -492,12 +563,14 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
 function RowSpacer({ height, columnCount }: { height: number; columnCount: number }) {
   if (height <= 0) return null;
   return (
-    <TableRow aria-hidden>
+    <ListingTable.Row aria-hidden>
       {/* Inline, not sx: the height is derived from the data, and every cell in
           this table otherwise carries a bottom border that would draw a line
-          across the padding. */}
-      <TableCell colSpan={columnCount} style={{ height, padding: 0, border: "none" }} />
-    </TableRow>
+          across the padding. The table's density pads every cell through a
+          rule that outranks a cell's own sx, so the padding is zeroed inline
+          as well — the height must be the spacer's whole height. */}
+      <ListingTable.Cell colSpan={columnCount} style={{ height, padding: 0, border: "none" }} />
+    </ListingTable.Row>
   );
 }
 
@@ -576,7 +649,7 @@ function useMeasuredValue<T extends HTMLElement>(
  * long list is slow — every row is `columnGroups × subColumns` cells, and every
  * cell is a call into the caller's formatter, so a 3,000-row Build at five
  * Periods asks 30,000 questions to show twenty lines. It does that again on
- * every hover, every toggle, and every time the measured header settles.
+ * every hover, every refetch, and every time the measured header settles.
  *
  * ---- what is windowed, and what is not -------------------------------------
  *

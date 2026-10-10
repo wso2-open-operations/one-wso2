@@ -170,7 +170,8 @@ describe("taking the customers out of the browser", () => {
     const { blobs, filenames } = captureDownloads();
     renderDialog({ state: loaded([{ ...NORTHWIND, amount: 1_234_567.5 }]) });
 
-    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^export$/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /^excel/i }));
     await waitFor(() => expect(blobs).toHaveLength(1));
 
     const workbook = new ExcelJS.Workbook();

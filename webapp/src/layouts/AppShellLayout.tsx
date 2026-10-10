@@ -75,11 +75,7 @@ export default function AppShellLayout({
         }}
       >
         {sidebar ? (
-          <Box
-            component="aside"
-            data-testid="app-sidebar"
-            sx={{ flexShrink: 0, minWidth: 0 }}
-          >
+          <Box data-testid="app-sidebar" sx={{ flexShrink: 0, minWidth: 0 }}>
             {sidebar}
           </Box>
         ) : null}

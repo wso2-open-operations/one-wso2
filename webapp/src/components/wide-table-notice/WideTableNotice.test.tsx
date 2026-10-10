@@ -30,12 +30,12 @@ import { writeDismissed } from "./wideTableNoticeStorage";
 // It compares the viewport against the table's OWN width, which `tableMinWidth`
 // COMPUTES from the column model rather than measuring off the DOM — so these
 // are exact rather than approximate, and jsdom models them perfectly. The
-// widths below are the real ones: 380px is a BU Summary at `?years=1`, 1,138px
-// the Subscription Build at its default Years Back, 8,170px Software/Cloud
+// widths below are the real ones: 380px is a BU Summary at `?years=1`, 1,288px
+// the Subscription Build at its default Years Back, 8,520px Software/Cloud
 // Customers at its narrowest breakdown.
 const BU_SUMMARY_AT_ONE_YEAR = 380;
-const SUBSCRIPTION_BUILD = 1138;
-const CUSTOMERS_TABLE = 8170;
+const SUBSCRIPTION_BUILD = 1288;
+const CUSTOMERS_TABLE = 8520;
 
 /** The live region is always mounted, so presence is asked of the TEXT. */
 const notice = () => screen.queryByText(/wider than your screen/i);
@@ -47,7 +47,7 @@ function setViewportWidth(width: number) {
 
 beforeEach(() => {
   localStorage.clear();
-  Object.defineProperty(window, "innerWidth", { value: 1280, configurable: true });
+  Object.defineProperty(window, "innerWidth", { value: 1440, configurable: true });
 });
 
 afterEach(() => {
@@ -97,7 +97,7 @@ describe("when the table is wider than the viewport", () => {
   });
 
   // The other case a fixed threshold got wrong, in the opposite direction: a
-  // laptop is comfortably past 1,024 and nowhere near this table's 8,170px.
+  // laptop is comfortably past 1,024 and nowhere near this table's 8,520px.
   it("says so on a wide screen when the table is wider still", () => {
     setViewportWidth(1280);
     render(<WideTableNotice tableMinWidth={CUSTOMERS_TABLE} />);
@@ -122,14 +122,14 @@ describe("when the table is wider than the viewport", () => {
     setViewportWidth(600);
     render(<WideTableNotice tableMinWidth={SUBSCRIPTION_BUILD} />);
     expect(notice()).toBeInTheDocument();
-    setViewportWidth(1280);
+    setViewportWidth(1440);
     expect(notice()).not.toBeInTheDocument();
   });
 
   // The table's own width changes under the reader — adding a Period widens it
   // — so the comparison has to follow the prop, not just the viewport.
   it("appears when the table grows past a viewport that has not moved", () => {
-    setViewportWidth(1280);
+    setViewportWidth(1440);
     const view = render(<WideTableNotice tableMinWidth={SUBSCRIPTION_BUILD} />);
     expect(notice()).not.toBeInTheDocument();
     view.rerender(<WideTableNotice tableMinWidth={CUSTOMERS_TABLE} />);
@@ -169,7 +169,7 @@ describe("dismissing it", () => {
     showNarrow();
     await userEvent.setup().click(screen.getByRole("button", { name: /dismiss/i }));
 
-    setViewportWidth(1280);
+    setViewportWidth(1440);
     setViewportWidth(400);
     expect(notice()).not.toBeInTheDocument();
   });

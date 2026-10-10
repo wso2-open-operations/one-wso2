@@ -234,7 +234,7 @@ function ArrAnalysis() {
         direction="row"
         sx={{ alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", mb: 0.75 }}
       >
-        <Typography variant="subtitle2">Account performance detail</Typography>
+        <Typography component="h2" variant="subtitle2">Account performance detail</Typography>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap" }}>
           {/* The caption travels with the TABLE rather than with the control,
               because Finance's workflow is to crop a table into a deck — see
@@ -329,7 +329,7 @@ function SummaryCards({
         ) : isLoading ? (
           <Skeleton variant="text" width={160} height={44} />
         ) : (
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          <Typography component="p" variant="h5" sx={{ fontWeight: 700 }}>
             {/* A HEADLINE, so it is compact, in dollars, and NOT scaled —
                 `misHeadlineAmount` has no Scale parameter to break it with. An
                 em dash rather than a zero when the figure never arrived: `$0`
@@ -346,7 +346,7 @@ function SummaryCards({
         {accountsLoading ? (
           <Skeleton variant="text" width={80} height={44} />
         ) : (
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          <Typography component="p" variant="h5" sx={{ fontWeight: 700 }}>
             {/* The reader's Scale IS handed over here, and makes no
                 difference: `formatMisValue` reads it in the currency branch
                 and nowhere else, so a count cannot be divided by a thousand

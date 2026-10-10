@@ -23,6 +23,7 @@ import { MIS_VALUE_TYPES, formatMisValue } from "../util/misMoney";
 import { analysisYearsLabel } from "../util/misAnalysisFilters";
 import type { MisScale } from "../util/misViewVocabulary";
 import type { AnalysisAccountRow } from "./analysisAccountRows";
+import { productChipSx } from "./productChipSx";
 
 // The account table: one row per account, eleven columns, flat.
 //
@@ -189,6 +190,9 @@ export function analysisAccountColumns(scale: MisScale): DataGrid.GridColDef<Ana
     headerName,
     minWidth,
     type: "number",
+    // The header stays left. `number` right-aligns it, and the filter icon
+    // also sits on the right, so the name runs underneath the icon.
+    headerAlign: "left",
     valueFormatter: RAW_NUMBER,
     // The CSV reads `valueFormatter` (the raw figure). The quick filter would
     // then search that same raw figure, so a reader looking for the amount on
@@ -226,7 +230,7 @@ export function analysisAccountColumns(scale: MisScale): DataGrid.GridColDef<Ana
               label={product}
               size="small"
               variant="outlined"
-              sx={{ height: 21, fontWeight: 600, "& .MuiChip-label": { fontSize: 11 } }}
+              sx={productChipSx(product)}
             />
           ))}
         </Stack>
@@ -237,8 +241,10 @@ export function analysisAccountColumns(scale: MisScale): DataGrid.GridColDef<Ana
       field: "lifetimeYears",
       headerName: "Lifetime",
       minWidth: 110,
-      // `number`, so "10 yrs" does not sort above "2 yrs".
+      // `number`, so "10 yrs" does not sort above "2 yrs". The header stays
+      // left so its name clears the filter icon, which sits on the right.
       type: "number",
+      headerAlign: "left",
       valueFormatter: RAW_NUMBER,
       renderCell: (params) => (
         <Typography sx={CELL_SX}>{analysisYearsLabel(params.value as number)}</Typography>

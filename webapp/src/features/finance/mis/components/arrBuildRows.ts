@@ -137,11 +137,12 @@ const SECTIONS: readonly SectionSpec[] = [
         ruleAbove: true,
       },
       { id: "ending-arr-yoy", label: MIS_ROW_LABELS.YOY_GROWTH, field: "endingArrYoyGrowth" },
-      { id: "net-new", label: MIS_ROW_LABELS.NET_NEW, field: "netNew" },
+      // Bold rows: Opening ARR, Ending ARR, Net New, Total New ARR, Total Churn ARR.
+      { id: "net-new", label: MIS_ROW_LABELS.NET_NEW, field: "netNew", emphasis: true },
       { id: "net-new-yoy", label: MIS_ROW_LABELS.YOY_GROWTH, field: "netNewYoyGrowth" },
-      { id: "total-new-arr", label: MIS_ROW_LABELS.TOTAL_NEW_ARR, field: "totalNewArr" },
+      { id: "total-new-arr", label: MIS_ROW_LABELS.TOTAL_NEW_ARR, field: "totalNewArr", emphasis: true },
       { id: "total-new-arr-yoy", label: MIS_ROW_LABELS.YOY_GROWTH, field: "totalNewArrYoyGrowth" },
-      { id: "total-lost-arr", label: MIS_ROW_LABELS.TOTAL_CHURN_ARR, field: "totalChurnArr" },
+      { id: "total-lost-arr", label: MIS_ROW_LABELS.TOTAL_CHURN_ARR, field: "totalChurnArr", emphasis: true },
       {
         id: "total-lost-arr-yoy",
         label: MIS_ROW_LABELS.YOY_GROWTH,
@@ -258,9 +259,6 @@ const SECTIONS: readonly SectionSpec[] = [
     ],
   },
 ];
-
-/** The five sections, in reading order. A screen opens all of them. */
-export const ARR_BUILD_SECTION_IDS: readonly string[] = SECTIONS.map((section) => section.id);
 
 const FIELD_BY_ROW_ID: ReadonlyMap<string, ResponseField> = new Map(
   SECTIONS.flatMap((section) => section.rows.map((row) => [row.id, row.field] as const)),

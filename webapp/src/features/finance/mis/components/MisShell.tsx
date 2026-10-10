@@ -118,7 +118,11 @@ export default function MisShell({
     // route that outlives each screen. Mounting that route is a later change;
     // nothing in this one is reachable from `App` yet.
     <ScalePreferenceProvider>
-      <Box>
+      {/* Fills the shell's content column and lays the heading above the
+          screen, so a screen that scrolls its own body (the ARR Dashboard's
+          tables) receives a real height. A screen that does not still overflows
+          here, and the content column scrolls it as before. */}
+      <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <Stack
           direction="row"
           spacing={0.75}

@@ -33,8 +33,10 @@
  * `Sidebar.Item` drop unknown props, `data-*` and `id` included, so nothing put
  * on them reaches the DOM (verified against 0.6.0 — a marker there silently
  * never appears, and the step would vanish with no error anywhere). It renders
- * `aside > nav`, so that is what the rail step matches. The Settings row gets a
- * span of our own inside its label instead, which is markable.
+ * `aside > nav`, so that is what the rail step matches. The Settings marker
+ * sits on the list around that row: a span inside the label is markable, but
+ * Oxygen names a collapsed row with String(label children), and an element
+ * there is announced as "[object Object]".
  *
  * A step whose selector matches nothing — a control hidden at a narrow width — is
  * skipped rather than anchored to nowhere.

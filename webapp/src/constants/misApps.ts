@@ -98,26 +98,15 @@ export const MIS_APPS: readonly MenuApp[] = [
     // flag. The Flash Dashboard is not here — it stays in the MIS app.
     alwaysGroup: true,
     items: [
+      // ONE rail row, "ARR Dashboard", stands for the three Build routes. The
+      // Period is chosen on the page; the three routes and their gate ids
+      // remain, so an existing link to /qrr-build or /mrr-build keeps working.
       {
         id: "mis-arr-build",
-        label: "ARR Build",
-        desc: "The annual Build: recurring revenue from an Opening to a Closing balance, by period.",
+        label: "ARR Dashboard",
+        desc: "Recurring revenue from an Opening to a Closing balance, by Period, across four Tables.",
         requires: ["admin"],
         path: misPaths.arrBuild,
-      },
-      {
-        id: "mis-qrr-build",
-        label: "QRR Build",
-        desc: "The same Build, quarterly, with a Cumulative toggle the annual one does not have.",
-        requires: ["admin"],
-        path: misPaths.qrrBuild,
-      },
-      {
-        id: "mis-mrr-build",
-        label: "MRR Build",
-        desc: "The same Build, monthly, with a Cumulative toggle the annual one does not have.",
-        requires: ["admin"],
-        path: misPaths.mrrBuild,
       },
       // ARR Analysis is listed like any other screen, flag and all. The flag is
       // a per-reader runtime answer from GET /app-configs and this is a module
