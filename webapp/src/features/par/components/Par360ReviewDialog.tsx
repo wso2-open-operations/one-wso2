@@ -17,8 +17,10 @@
 import { useEffect, useState } from "react";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
+  Chip,
   ComplexSelect,
   Dialog,
   DialogActions,
@@ -30,6 +32,8 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { describeError } from "@api/errors";
+import { useLeaveEmployees } from "@features/leave/api/useLeaveData";
+import { employeeDisplayName } from "@features/leave/util/employeeName";
 import { useMyReview, useSubmitReview } from "../api/usePar360";
 import { decodeParComment, encodeParComment, isEmptyHtml } from "../util/parComment";
 import { isDeadlinePassed as checkDeadlinePassed } from "../util/parDeadline";
@@ -125,6 +129,9 @@ export default function Par360ReviewDialog({
   const savedComment = decodeParComment(existing.data?.reviewComment);
   const deadlinePassed = checkDeadlinePassed(reviewDeadline);
   const reviewStatus = existing.data?.reviewStatus ?? "PENDING";
+  const finalized = reviewStatus === "SHARED" || reviewStatus === "REJECTED";
+  const employees = useLeaveEmployees(open && finalized);
+  const employee = employees.data?.find((e) => e.workEmail === employeeEmail);
 
   // ReviewProvideModal.tsx's autosave: 5s after the comment stops changing,
   // save a draft silently — no confirmation dialog open, not mid-decline,
@@ -161,13 +168,43 @@ export default function Par360ReviewDialog({
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       {/* ReviewProvideModal.tsx: fixed title, divider, who-it's-for below
           (email — no name/thumbnail lookup available here). */}
-      <DialogTitle sx={{ pb: 2 }}>Provide 360° Feedback</DialogTitle>
+      <DialogTitle sx={{ pb: 2 }}>{finalized ? "360° Feedback" : "Provide 360° Feedback"}</DialogTitle>
       <Divider />
       <DialogContent>
         {existing.isLoading ? (
           <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 1.5 }} />
         ) : existing.isError ? (
           <Alert severity="error">{describeError(existing.error)}</Alert>
+        ) : finalized ? (
+          <Stack spacing={2.5} sx={{ mt: 0.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Avatar
+                src={employee?.employeeThumbnail || undefined}
+                slotProps={{ img: { referrerPolicy: "no-referrer" } }}
+                sx={{ width: 56, height: 56 }}
+              />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 600 }}>{employee ? employeeDisplayName(employee) : employeeEmail}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {employeeEmail}
+                </Typography>
+              </Box>
+            </Box>
+            {reviewStatus === "SHARED" && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Typography sx={{ fontWeight: 600, minWidth: 80 }}>Rating:</Typography>
+                <Chip size="small" variant="outlined" color="primary" label={existing.data?.reviewRating ?? ""} />
+              </Box>
+            )}
+            <Box>
+              <Typography sx={{ fontWeight: 600, mb: 1 }}>
+                {reviewStatus === "REJECTED" ? "Reason:" : "Feedback:"}
+              </Typography>
+              <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: "action.hover" }}>
+                <ParCommentView html={savedComment} />
+              </Box>
+            </Box>
+          </Stack>
         ) : (
           <Stack spacing={2} sx={{ mt: 0.5 }}>
             <Typography sx={{ fontWeight: 600 }}>{employeeEmail}</Typography>
@@ -237,8 +274,9 @@ export default function Par360ReviewDialog({
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={handleClose}>Cancel</Button>
+        <Button onClick={handleClose}>{finalized ? "Close" : "Cancel"}</Button>
         {!isOfferedFeedback &&
+          !finalized &&
           (!declining ? (
             <Button color="error" onClick={() => setDeclining(true)} disabled={submit.isPending}>
               Decline
@@ -248,7 +286,7 @@ export default function Par360ReviewDialog({
               Back
             </Button>
           ))}
-        {declining ? (
+        {finalized ? null : declining ? (
           <Button
             color="error"
             variant="contained"
@@ -279,7 +317,7 @@ export default function Par360ReviewDialog({
 
       {/* ReviewProvideModal.tsx's ConfirmationDialog — wording matches
           uiMessages.dialog.threeSixtyReviewShare / threeSixtyReviewReject. */}
-      <Dialog open={confirmingAction !== null} onClose={() => setConfirmingAction(null)} maxWidth="xs" fullWidth>
+      <Dialog open={confirmingAction !== null} onClose={() => setConfirmingAction(null)} maxWidth="md">
         <DialogTitle>
           {confirmingAction === "decline" ? "Decline 360° Feedback Request?" : "Share 360° Feedback?"}
         </DialogTitle>

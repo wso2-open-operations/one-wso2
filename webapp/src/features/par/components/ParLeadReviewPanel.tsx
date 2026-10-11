@@ -58,6 +58,7 @@ import { isDeadlinePassed } from "../util/parDeadline";
 import { formatShortDate } from "../util/parDate";
 import { downloadParPdf } from "../util/parPdf";
 import { parseSavedUrls, type DriveFile } from "../util/parDriveFile";
+import { LEADERSHIP_ALLOWED_RATINGS } from "../util/parLeadership";
 import ParRichTextField from "./ParRichTextField";
 import { ParCommentView } from "./ParContent";
 import ParDriveFileChip from "./ParDriveFileChip";
@@ -99,6 +100,7 @@ export default function ParLeadReviewPanel({
   // falling back to the deploy-wide window.config value.
   const top5p20pEnabledRating = cycle.parCycleConfigurations?.top5p20pEnabledRating ?? defaultTop5p20pEnabledRating;
   const evidenceEnabledRating = cycle.parCycleConfigurations?.evidenceEnabledRating ?? defaultEvidenceEnabledRating;
+  const leadershipAllowedRatings = cycle.parCycleConfigurations?.leadershipAllowedRatings ?? LEADERSHIP_ALLOWED_RATINGS;
 
   const [leadComment, setLeadComment] = useState("");
   const [adminComment, setAdminComment] = useState("");
@@ -272,6 +274,7 @@ export default function ParLeadReviewPanel({
   }
 
   const employeeComment = decodeParComment(parRatingData.parEmployeeComment);
+  const isLeadership = parRatingData.parIsLeadershipEmployee;
 
   const dirty =
     leadComment.trim() !== savedLeadComment.trim() ||
@@ -406,7 +409,14 @@ export default function ParLeadReviewPanel({
                   </Typography>
                   {readOnly ? (
                     parRatingData.parRating ? (
-                      <Chip size="small" label={parRatingData.parRating} />
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Chip size="small" label={parRatingData.parRating} />
+                        {parRatingData.parRatingUpdatedBy === "SYSTEM" && (
+                          <Tooltip title="Automatically assigned by the system because the PAR deadline was missed">
+                            <Chip size="small" color="warning" variant="outlined" label="Auto-assigned (deadline missed)" />
+                          </Tooltip>
+                        )}
+                      </Box>
                     ) : (
                       <Typography variant="body2" color="text.secondary">
                         N/A
@@ -420,11 +430,15 @@ export default function ParLeadReviewPanel({
                       disabled={ratingUpdate.isPending}
                       aria-labelledby="lead-review-rating-label"
                     >
-                      {(cycle.parCycleConfigurations?.parRatings ?? []).map((r) => (
-                        <ComplexSelect.MenuItem key={r} value={r}>
-                          {r}
-                        </ComplexSelect.MenuItem>
-                      ))}
+                      {(cycle.parCycleConfigurations?.parRatings ?? [])
+                        .filter(
+                          (r) => !isLeadership || leadershipAllowedRatings.includes(r) || r === parRatingValue,
+                        )
+                        .map((r) => (
+                          <ComplexSelect.MenuItem key={r} value={r}>
+                            {r}
+                          </ComplexSelect.MenuItem>
+                        ))}
                     </ComplexSelect>
                   )}
                 </Box>
@@ -441,7 +455,9 @@ export default function ParLeadReviewPanel({
                         fullWidth
                         value={specialRating}
                         onChange={(e) => setSpecialRating(e.target.value as typeof specialRating)}
-                        disabled={!specialRatingConfirmed || ratingUpdate.isPending}
+                        disabled={
+                          !specialRatingConfirmed || ratingUpdate.isPending || !parRatingData.parSpecialRatingEligibility
+                        }
                         aria-labelledby="lead-review-special-rating-label"
                       >
                         {(Object.keys(SPECIAL_RATING_LABELS) as SpecialRatingUi[]).map((value) => (
@@ -460,7 +476,7 @@ export default function ParLeadReviewPanel({
                       <Checkbox
                         checked={specialRatingConfirmed}
                         onChange={(e) => setSpecialRatingConfirmed(e.target.checked)}
-                        disabled={ratingUpdate.isPending}
+                        disabled={ratingUpdate.isPending || !parRatingData.parSpecialRatingEligibility}
                       />
                     }
                     label="The Top 5% / 20% rating decision was discussed and finalized with the functional lead"

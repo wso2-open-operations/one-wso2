@@ -65,6 +65,13 @@ export interface ParCycleConfigurations {
   // an unrecognized field.
   top5p20pEnabledRating?: string;
   evidenceEnabledRating?: string;
+  // Which entry in parRatings is auto-assigned to an employee/lead who
+  // misses their PAR deadline, set per cycle.
+  missedDeadlineRating?: string;
+  // Which entries in parRatings a leadership employee may be given, set per
+  // cycle. Falls back to LEADERSHIP_ALLOWED_RATINGS (util/parLeadership.ts)
+  // when the cycle hasn't configured it.
+  leadershipAllowedRatings?: string[];
 }
 
 export interface ParCycle {
@@ -129,6 +136,11 @@ export interface ParRating {
   // Who invoked the share (a lead, or an admin sharing on a lead's behalf) —
   // par-app's EmployeePar.tsx renders this as "PAR Shared By".
   parRatingSharedBy?: string;
+  // Who last updated parRating — a real invoker's email normally, or the literal string
+  // "SYSTEM" when the backend's autoAssignMissedDeadlineRatings wrote it after a missed
+  // deadline. ParLeadReviewPanel.tsx uses this to flag an auto-assigned rating distinctly,
+  // so nobody mistakes it for (or blames a lead for) something the system did.
+  parRatingUpdatedBy?: string;
   parF2fStatus: ParF2fStatus;
   parF2fDate?: string;
   parEmployeeAcceptanceStatus?: ParEmployeeAcceptanceStatus;
@@ -139,6 +151,16 @@ export interface ParRating {
   // Google Drive file URLs, not an array on the wire. See
   // util/parDriveFile.ts's parseSavedUrls.
   parPerformanceNoticeAck?: string;
+  // Computed once at cycle-creation time — false for leadership employees,
+  // employees under the tenure threshold, etc. An ineligible employee can't
+  // be given a Top 5% or Top 20% rating, so ParLeadReviewPanel.tsx disables
+  // those controls.
+  parSpecialRatingEligibility: boolean;
+  // Whether the employee holds an active leadership attribute, as determined
+  // by the backend. Computed once at cycle-creation time, same as
+  // parSpecialRatingEligibility above. When true, the employee's parRating is
+  // restricted to "Successful"/"Step Up".
+  parIsLeadershipEmployee: boolean;
 }
 
 // ---- 360° feedback ----------------------------------------------------------

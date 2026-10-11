@@ -15,7 +15,7 @@
 // under the License.
 
 import { useMemo, useState } from "react";
-import { Accordion, AccordionDetails, AccordionSummary, Avatar, Card, Chip, ComplexSelect, Divider, Grid, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
+import { Accordion, AccordionDetails, AccordionSummary, Avatar, Card, Chip, ComplexSelect, Divider, Grid, Skeleton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { ChevronDownIcon } from "@wso2/oxygen-ui-icons-react";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useLeaveEmployees } from "@features/leave/api/useLeaveData";
@@ -190,6 +190,17 @@ export default function ParEmployeeHistoryView({
                     sx={{ mt: 1 }}
                     label={`PAR shared by: ${rating.data.parRatingSharedBy}`}
                   />
+                )}
+                {rating.data.parRatingUpdatedBy === "SYSTEM" && (
+                  <Tooltip title="Automatically assigned by the system because the PAR deadline was missed">
+                    <Chip
+                      size="small"
+                      color="warning"
+                      variant="outlined"
+                      sx={{ mt: 1, ml: rating.data.parRatingSharedBy ? 1 : 0 }}
+                      label="Auto-assigned (deadline missed)"
+                    />
+                  </Tooltip>
                 )}
               </Grid>
               <InfoItem label="Employee" value={employeeName} secondaryValue={employeeEmail} />

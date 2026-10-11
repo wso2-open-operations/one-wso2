@@ -352,7 +352,7 @@ function SelfReviewForm({
         </Box>
       )}
 
-      <Dialog open={confirming} onClose={() => setConfirming(false)} maxWidth="xs" fullWidth>
+      <Dialog open={confirming} onClose={() => setConfirming(false)} maxWidth="md">
         <DialogTitle>Share your PAR?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
@@ -368,7 +368,7 @@ function SelfReviewForm({
         </DialogActions>
       </Dialog>
 
-      <Dialog open={unsharing} onClose={() => setUnsharing(false)} maxWidth="xs" fullWidth>
+      <Dialog open={unsharing} onClose={() => setUnsharing(false)} maxWidth="md">
         <DialogTitle>Unshare your PAR?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">

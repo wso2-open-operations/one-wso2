@@ -16,7 +16,6 @@
 
 import { useMemo } from "react";
 import {
-  Alert,
   Autocomplete,
   Avatar,
   Box,
@@ -32,6 +31,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { ListPlusIcon } from "@wso2/oxygen-ui-icons-react";
 import { describeError } from "@api/errors";
+import { useNotifications } from "@context/notifications/NotificationsContext";
 import { useParticipants, useOfferToReview } from "../api/usePar360";
 import type { ParParticipant } from "../api/types";
 
@@ -134,6 +134,7 @@ export function Par360OfferConfirmDialog({
   onOffered: (employeeEmail: string) => void;
 }) {
   const offer = useOfferToReview(parCycleId, selfEmail);
+  const { showError } = useNotifications();
 
   const handleClose = () => {
     offer.reset();
@@ -148,18 +149,21 @@ export function Par360OfferConfirmDialog({
         onClose();
         onOffered(email);
       },
+      onError: (err) => {
+        showError(describeError(err));
+        handleClose();
+      },
     });
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="md">
       <DialogTitle>Provide Feedback</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary">
           Are you sure you would like to provide feedback to {employee?.workEmail}? This action
           cannot be undone.
         </Typography>
-        {offer.isError && <Alert severity="error" sx={{ mt: 2 }}>{describeError(offer.error)}</Alert>}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={handleClose} disabled={offer.isPending}>

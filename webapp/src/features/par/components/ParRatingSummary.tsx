@@ -15,7 +15,7 @@
 // under the License.
 
 import { useMemo } from "react";
-import { Box, Button, Card, Chip, Stack, Typography } from "@wso2/oxygen-ui";
+import { Box, Button, Card, Chip, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { FileDownIcon } from "@wso2/oxygen-ui-icons-react";
 import type { ParCycle, ParRating } from "../api/types";
 import { decodeParComment } from "../util/parComment";
@@ -80,6 +80,11 @@ export default function ParRatingSummary({
             )}
             {rating.parRatingSharedBy && (
               <Chip size="small" variant="outlined" label={`Shared by ${nameByEmail.get(rating.parRatingSharedBy) ?? rating.parRatingSharedBy}`} />
+            )}
+            {rating.parRatingUpdatedBy === "SYSTEM" && (
+              <Tooltip title="Automatically assigned by the system because the PAR deadline was missed">
+                <Chip size="small" color="warning" variant="outlined" label="Auto-assigned (deadline missed)" />
+              </Tooltip>
             )}
           </Stack>
           <ParCommentView html={leadComment} />
