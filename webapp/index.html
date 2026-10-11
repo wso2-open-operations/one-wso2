@@ -34,7 +34,24 @@
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>One WSO2</title>
     <!-- Runtime config injected at deploy time. See public/config.js.example. -->
+    <!-- Covers the moment before the two scripts below have downloaded, when the
+         browser would otherwise paint its default white: dark-OS users get the
+         default theme's dark background from the first frame. The CSP allows
+         inline styles; color-scheme-init.js then refines it to the saved mode
+         and theme. -->
+    <style>
+      @media (prefers-color-scheme: dark) {
+        html {
+          background-color: #0f172a;
+        }
+      }
+    </style>
     <script src="/config.js"></script>
+    <!-- Paints the theme's background before the bundle loads, so dark mode
+         doesn't flash white on every full load. After config.js: it reads
+         ONE_WSO2_THEME. A file rather than inline: the CSP blocks inline
+         scripts. See public/color-scheme-init.js. -->
+    <script src="/color-scheme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
