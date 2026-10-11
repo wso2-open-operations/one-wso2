@@ -509,7 +509,7 @@ function Cell({
   );
 }
 
-function Stat({
+export function Stat({
   title,
   value,
   unit,
@@ -575,7 +575,7 @@ function Stat({
   );
 }
 
-function PendingByAge({
+export function PendingByAge({
   title = "Pending by Age",
   buckets,
   loading,
