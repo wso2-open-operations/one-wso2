@@ -20,6 +20,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+// `apiConfig.ts`'s `ccBackendUrl` is read once at module load from
+// `window.config`, which jsdom doesn't provide — the Default tab's own
+// `FinanceShell` reads `isCcBackendConfigured()` directly now (unlike
+// before, when `CcDashboardPage` — mocked below — was the only thing that
+// ever touched it), so this has to be set before `FinanceOverviewPage`
+// itself is imported.
+window.config = { ONE_WSO2_CC_EXPENSES_BACKEND_URL: "http://test-cc-backend" } as typeof window.config;
+
 // The gate is this screen's only input, so it is the whole fixture. All
 // three dashboards are stubbed to a marker each: what matters here is WHICH
 // of them is reachable and WHEN, not what any of them draws.
@@ -48,6 +56,9 @@ vi.mock("../expense/dashboard/ExpenseDashboardScreen", () => ({
     <div data-testid="expense-dashboard">{headerActions}</div>
   ),
 }));
+vi.mock("./OverviewDefaultSummary", () => ({
+  default: () => <div data-testid="overview-default" />,
+}));
 
 const { default: FinanceOverviewPage } = await import("./FinanceOverviewPage");
 
@@ -70,6 +81,7 @@ beforeEach(() => {
 });
 
 const aDashboard = () =>
+  screen.queryByTestId("overview-default") ??
   screen.queryByTestId("cc-dashboard") ??
   screen.queryByTestId("opd-dashboard") ??
   screen.queryByTestId("expense-dashboard");
@@ -125,12 +137,12 @@ describe("a reader with neither a card nor an OPD role", () => {
 // A reader holding one side is not offered the other: picking it would only
 // land them on that dashboard's own denial notice.
 describe("what the switcher offers", () => {
-  it("opens the CC dashboard, and offers only it, for a card owner", () => {
+  it("opens the Default summary, and offers only Credit Card alongside it, for a card owner", () => {
     settled({ ccHasOwnCard: true });
     render(<FinanceOverviewPage />);
 
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toHaveTextContent("Credit Card");
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveTextContent("Default");
     expect(screen.queryByTestId("opd-dashboard")).not.toBeInTheDocument();
   });
 
@@ -149,7 +161,7 @@ describe("what the switcher offers", () => {
     settled({ ccHasOwnCard: true, opdFinance: true });
     render(<FinanceOverviewPage />);
 
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toBeInTheDocument();
   });
 
@@ -194,7 +206,7 @@ describe("what the switcher offers", () => {
     // at all until opened — so the combobox has to be opened first.
     await userEvent.click(screen.getByRole("combobox"));
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
-    expect(options).toEqual(["Credit Card", "OPD Claims", "Expense Claims"]);
+    expect(options).toEqual(["Default", "OPD Claims", "Expense Claims", "Credit Card"]);
   });
 
   // Picking Expense Claims would only ever land on its own denial notice for

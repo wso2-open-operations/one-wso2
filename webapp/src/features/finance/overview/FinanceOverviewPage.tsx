@@ -18,19 +18,31 @@
 
 import { useState } from "react";
 import { Alert, MenuItem, Select } from "@wso2/oxygen-ui";
+import { LayoutDashboardIcon } from "@wso2/oxygen-ui-icons-react";
 import { useFinanceGate } from "../api/useFinanceGate";
 import CcDashboardPage from "../cc/pages/CcDashboardPage";
 import OpdDashboardScreen from "../opd/dashboard/OpdDashboardScreen";
 import ExpenseDashboardScreen from "../expense/dashboard/ExpenseDashboardScreen";
+import OverviewDefaultSummary from "./OverviewDefaultSummary";
+import FinanceShell from "../components/FinanceShell";
+import { isCcBackendConfigured } from "@config/apiConfig";
 
-type OverviewTab = "cc" | "opd" | "expense";
+type OverviewTab = "default" | "cc" | "opd" | "expense";
 
 // "Credit Card", not "Credit Card Expenses" — that name already belongs to
 // the app-section entry in the Finance rail (Pending Submissions, Approve
 // Submissions, ...), a different destination from this dashboard. Same
 // label in two places meaning two different things is exactly the
 // confusion this drops.
+//
+// "Default" is a quick, controls-free glance at Credit Card — the summary
+// tiles, Cardholders Details and Submitted Expenses by Category, with no
+// period/view-mode selectors — not the same thing as "Credit Card", which
+// still opens the full dashboard. It exists so landing on Overview shows
+// something meaningful immediately rather than silently defaulting to one
+// of the full dashboards underneath.
 const OVERVIEW_SECTIONS: { value: OverviewTab; label: string }[] = [
+  { value: "default", label: "Default" },
   { value: "opd", label: "OPD Claims" },
   { value: "expense", label: "Expense Claims" },
   { value: "cc", label: "Credit Card" },
@@ -81,7 +93,7 @@ export default function FinanceOverviewPage() {
       ? "opd"
       : !gate.ccHasOwnCard && !gate.opdFinance && gate.expenseFinance
         ? "expense"
-        : "cc");
+        : "default");
 
   // Nothing rendered while resolving — not even a skeleton. The rail already
   // shows no row for this entry until its gate settles (SideRail fails
@@ -115,7 +127,19 @@ export default function FinanceOverviewPage() {
   // above already returned for anyone who fails every branch of this same
   // filter, so by this line at least one of them is guaranteed true.
   const visibleSections = OVERVIEW_SECTIONS.filter((s) =>
-    s.value === "cc" ? gate.ccHasOwnCard : s.value === "opd" ? gate.opdFinance : gate.expenseFinance,
+    s.value === "cc" || s.value === "default"
+      ? gate.ccHasOwnCard
+      : s.value === "opd"
+        ? gate.opdFinance
+        : gate.expenseFinance,
+  );
+
+  // Built from `visibleSections`, not a fixed "Credit Card, Expense Claims
+  // and OPD Claims" string — a reader with only one or two of the three apps
+  // would otherwise see the subtitle promise a dashboard the switcher never
+  // actually offers them.
+  const appNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(
+    visibleSections.filter((s) => s.value !== "default").map((s) => s.label),
   );
 
   const switcher = (
@@ -134,6 +158,20 @@ export default function FinanceOverviewPage() {
     </Select>
   );
 
+  if (section === "default") {
+    return (
+      <FinanceShell
+        eyebrow={{ icon: LayoutDashboardIcon, label: "Overview" }}
+        title="Finance Overview"
+        subtitle={`A quick glance across ${appNames} — pick one by name above for its full dashboard.`}
+        configured={isCcBackendConfigured()}
+        configKey="ONE_WSO2_CC_EXPENSES_BACKEND_URL"
+        actions={switcher}
+      >
+        <OverviewDefaultSummary />
+      </FinanceShell>
+    );
+  }
   if (section === "cc") return <CcDashboardPage headerActions={switcher} />;
   if (section === "opd") return <OpdDashboardScreen headerActions={switcher} />;
   return <ExpenseDashboardScreen headerActions={switcher} />;
