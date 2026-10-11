@@ -185,6 +185,15 @@ function DashboardBody() {
     () => (teamCardHolders.data ?? []).filter((holder) => holder.transactionCount > 0),
     [teamCardHolders.data],
   );
+  // Same idea for the Unsubmitted table below: a holder with pending-approval
+  // items but nothing unsubmitted would otherwise show as an all-dashes row,
+  // and "Nothing unsubmitted in this team." would never render while any team
+  // member had pending work. Filters on `unsubmittedCount`, not
+  // `transactionCount` — a holder can have one without the other.
+  const unsubmittedCardHolders = useMemo(
+    () => (teamCardHolders.data ?? []).filter((holder) => holder.unsubmittedCount > 0),
+    [teamCardHolders.data],
+  );
 
   if (userInfo.isLoading) {
     return (
@@ -355,7 +364,7 @@ function DashboardBody() {
           ) : (
             <CcLeadTeamUnsubmittedTable
               leadName={viewingLead.leadName}
-              cardHolders={teamCardHolders.data ?? []}
+              cardHolders={unsubmittedCardHolders}
             />
           )}
         </>

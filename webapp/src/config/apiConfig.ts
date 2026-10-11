@@ -1839,8 +1839,8 @@ export const cado2ServiceUrls = {
   // Salesforce lookups, read live through the backend.
   accounts: (nameContains: string): string =>
     `${cado2BackendUrl}/accounts?nameContains=${encodeSegment(nameContains)}&limit=20`,
-  accountOpportunities: (accountId: string): string =>
-    `${cado2BackendUrl}/accounts/${encodeSegment(accountId)}/opportunities`,
+  accountOpportunities: (accountId: string, status: "open" | "won" = "open"): string =>
+    `${cado2BackendUrl}/accounts/${encodeSegment(accountId)}/opportunities?status=${encodeSegment(status)}`,
   accountContacts: (accountId: string): string =>
     `${cado2BackendUrl}/accounts/${encodeSegment(accountId)}/contacts`,
   // One page of a price book's products in a currency. Paged server-side by
@@ -1856,7 +1856,7 @@ export const cado2ServiceUrls = {
       limit: String(page.limit),
       offset: String(page.offset),
     });
-    if (nameContains) q.set("nameContains", nameContains);
+    if (nameContains) q.set("search", nameContains);
     return `${cado2BackendUrl}/products?${q.toString()}`;
   },
   pricebooks: (currency: string): string => `${cado2BackendUrl}/pricebooks?currency=${encodeSegment(currency)}`,
