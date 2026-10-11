@@ -15,15 +15,16 @@
 // under the License.
 
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { Alert, Box } from "@wso2/oxygen-ui";
 import SalesShell from "../components/SalesShell";
 import { isSalesBackendConfigured } from "../api/useSalesData";
 import { describeError, isForbidden } from "../util/salesError";
 import DealFilters, { type OwnerOption } from "../meddpicc/components/DealFilters";
 import DealsTable from "../meddpicc/components/DealsTable";
-import DealPanel from "../meddpicc/components/DealPanel";
+import { dealPath } from "../util/salesPaths";
 import { isEchoBackendConfigured, useDeals, useMeddpiccGates } from "../meddpicc/api/useMeddpiccData";
-import type { DealSummary, LetterKey } from "../meddpicc/types";
+import type { DealSummary } from "../meddpicc/types";
 
 /** The owners seen so far, so filtering to one owner doesn't empty the list of owners. */
 function mergeOwners(known: OwnerOption[], deals: DealSummary[] | undefined): OwnerOption[] {
@@ -37,8 +38,8 @@ function mergeOwners(known: OwnerOption[], deals: DealSummary[] | undefined): Ow
 }
 
 /**
- * Sales — Deals: one row per Opportunity with its MEDDPICC state, and the deal
- * panel where an AM checks the AI's Proposals and approves them to Salesforce.
+ * Sales — Deals: one row per Opportunity with its MEDDPICC state. A row opens the
+ * deal's own page, where an AM checks the AI's Proposals and approves them to Salesforce.
  *
  * Served by the MEDDPICC backend, not meet-app. The Sales shell's access check
  * still asks meet-app, because it is the same sales team either way and the
@@ -53,7 +54,7 @@ export default function SalesDealsPage() {
   const [owner, setOwner] = useState<string | null>(null);
   const [stage, setStage] = useState<string | null>(null);
   const [hideClosed, setHideClosed] = useState(true);
-  const [open, setOpen] = useState<{ id: string; letter: LetterKey | null } | null>(null);
+  const navigate = useNavigate();
 
   const gatesQuery = useMeddpiccGates();
   const dealsQuery = useDeals({ search, owner, stage, hideClosed });
@@ -101,11 +102,10 @@ export default function SalesDealsPage() {
         <DealsTable
           deals={deals}
           loading={dealsQuery.isLoading || dealsQuery.isFetching}
-          onOpenDeal={(id, letter) => setOpen({ id, letter: letter ?? null })}
+          onOpenDeal={(id, letter) => void navigate(dealPath(id, letter))}
         />
       </Box>
 
-      <DealPanel opportunityId={open?.id ?? null} initialLetter={open?.letter ?? null} onClose={() => setOpen(null)} />
     </SalesShell>
   );
 }

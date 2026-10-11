@@ -52,23 +52,31 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, useLocation } from "react-router";
 import SalesDealsPage from "./SalesDealsPage";
 import { resetMockStore } from "../meddpicc/mock/mockStore";
+
+function Where() {
+  return <div data-testid="where">{useLocation().pathname}</div>;
+}
 
 function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <SalesDealsPage />
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={["/sales/deals"]}>
+      <Where />
+      <QueryClientProvider client={client}>
+        <SalesDealsPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
 beforeEach(() => resetMockStore());
 
-// A drawer full of MUI selects and tooltips, driven by userEvent: well under a
+// A page full of MUI selects and tooltips, driven by userEvent: well under a
 // second each on an idle machine, but the default 5s is too tight on a busy runner.
 describe("SalesDealsPage", { timeout: 20000 }, () => {
   it("lists the demo deals, one row each, with their stage, circles and pending count", async () => {
@@ -121,10 +129,11 @@ describe("SalesDealsPage", { timeout: 20000 }, () => {
     expect(screen.getByRole("button", { name: "Meridian Bank – integration platform" })).toBeInTheDocument();
   });
 
-  it("opens the deal panel from a row", async () => {
+  // A deal is a page of its own now, not a drawer over the list.
+  it("opens the deal's own page from a row", async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Harbourline – API platform" }));
-    expect(await screen.findByRole("heading", { name: "Harbourline – API platform" })).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent(/^\/sales\/deals\/006MOCK0000HARB$/);
   });
 });

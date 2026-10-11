@@ -45,16 +45,37 @@ export interface RoleHolder {
  */
 export type FieldValue = string | string[] | RoleHolder | number | boolean | null;
 
+/** Where evidence came from. Calls are the only source analysed today. */
+export type EvidenceSourceType = "CALL" | "EMAIL" | "ACTIVITY";
+
+/** Who said it: the customer's words are evidence; WSO2's are WSO2's claim. */
+export type AuthorRole = "CUSTOMER" | "WSO2" | "UNKNOWN";
+
+export interface EvidenceSource {
+  type: EvidenceSourceType;
+  /** The meeting id for a call; the Salesforce record id otherwise. */
+  id: string;
+  /** The meeting title or the email subject. */
+  title: string;
+  occurredAt: string;
+  /** A link to the record outside this app, when there is one. */
+  url: string | null;
+}
+
 export interface EvidenceQuote {
+  /** 0 when the source is not a call. */
   meetingId: number;
   meetingTitle: string;
   /** The meeting's start time. */
   callStart: string;
   speaker: string;
-  /** Verbatim transcript text. */
+  /** Verbatim text. */
   quote: string;
-  /** Position in the recording. */
+  /** Position in the recording, for a call. */
   offsetSeconds: number;
+  /** Absent from a backend older than evidence sources; see util/evidenceSource. */
+  source?: EvidenceSource;
+  authorRole?: AuthorRole;
 }
 
 // ---- POST /meetings/coverage ------------------------------------------------
@@ -145,6 +166,11 @@ export interface DealField {
   conversational: boolean;
   notInSalesforce: boolean;
   optional: boolean;
+  /**
+   * Only the account manager may confirm this field: budget confirmed, WSO2 selected, price
+   * confirmed, use-case fit, POC completed. Absent from an older backend.
+   */
+  attest?: boolean;
   /** False when dependsOn fails. */
   applicable: boolean;
   options: string[];
@@ -174,6 +200,29 @@ export interface UnassignedCall {
   letters: LetterKey[];
 }
 
+/** What a deal's evidence is drawn from. */
+export interface SourceSummary {
+  calls: number;
+  emails: number;
+  activities: number;
+  lastActivityAt: string | null;
+}
+
+/** One entry on a deal's timeline: a call today; an email or Salesforce activity later. */
+export interface DealActivity {
+  type: EvidenceSourceType;
+  id: string;
+  title: string;
+  occurredAt: string;
+  /** Who held the call, or sent the email. */
+  actor: string;
+  /** Letters it touched. */
+  letters: LetterKey[];
+  /** Set for a call, to open its page. */
+  meetingId: number | null;
+  url: string | null;
+}
+
 export interface DealDetail {
   deal: DealSummary;
   currentStage: string;
@@ -187,6 +236,10 @@ export interface DealDetail {
   productsDiscussed: string[];
   calls: DealCall[];
   unassignedCalls: UnassignedCall[];
+  /** Absent from a backend older than evidence sources; see util/evidenceSource. */
+  sources?: SourceSummary;
+  /** Newest first. Absent from an older backend. */
+  activity?: DealActivity[];
   canEdit: boolean;
   /** SALESFORCE_BASE_URL + "/" + opportunityId. */
   salesforceUrl: string;

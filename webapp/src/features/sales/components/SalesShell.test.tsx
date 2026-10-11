@@ -182,6 +182,6 @@ describe("SalesShell", () => {
     );
     expect(salesHtml).toBe(landing.innerHTML);
     expect(screen.getByRole("heading", { level: 1, name: "Sales" })).toBeInTheDocument();
-    expect(screen.queryByText(/Meetings recorded/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Recorded sales meetings/)).not.toBeInTheDocument();
   });
 });

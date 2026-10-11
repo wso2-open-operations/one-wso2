@@ -21,10 +21,16 @@ import { letterLabel } from "../util/meddpiccFormat";
 import MeddpiccCircles from "./MeddpiccCircles";
 import StageChip from "./StageChip";
 
+/** Wide enough for the longest open stage, "Technical Proof", at the chip's size. */
+const STAGE_WIDTH = 116;
+
 /**
- * The meetings table's MEDDPICC cell: the call's Coverage circles, the stage
- * the deal was in at the time, and which of the current Gate's Letters the call
- * missed.
+ * The meetings table's MEDDPICC cell, on one line: the stage the deal was in at
+ * the time, the call's Coverage circles, and which of the current Gate's Letters
+ * the call missed. It wraps rather than clips when the column is narrow.
+ *
+ * The stage chip has a fixed width so the circles start at the same place on
+ * every row, whatever the stage is called; a call with no stage keeps the space.
  *
  * Re-analyse is offered only when the caller may (the backend decides for
  * real) and only when no run is in flight — a second click would queue a
@@ -94,7 +100,16 @@ export default function MeetingCoverageCell({
   }
 
   return (
-    <Box>
+    <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1.25, rowGap: 0.5 }}>
+      <Box sx={{ width: STAGE_WIDTH, flexShrink: 0, display: "flex" }}>
+        {coverage.stageAtCall && (
+          <StageChip
+            stage={coverage.stageAtCall}
+            title={`${coverage.stageAtCall}: the deal's stage at the time of the call`}
+            sx={{ width: "100%" }}
+          />
+        )}
+      </Box>
       <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
         <MeddpiccCircles
           variant="coverage"
@@ -114,22 +129,15 @@ export default function MeetingCoverageCell({
           reanalyse
         )}
       </Stack>
-      {(coverage.stageAtCall || coverage.missed.length > 0) && (
-        <Stack direction="row" spacing={1} sx={{ alignItems: "center", mt: 0.5 }}>
-          {coverage.stageAtCall && (
-            <StageChip stage={coverage.stageAtCall} title="The deal's stage at the time of the call" />
-          )}
-          {coverage.missed.length > 0 && (
-            <Tooltip
-              title={`This call didn't cover ${coverage.missed.map(letterLabel).join(", ")}, which the deal's current Gate needs.`}
-              arrow
-            >
-              <Typography variant="caption" sx={{ color: "warning.dark", cursor: "help" }}>
-                Missed: {coverage.missed.map(letterLabel).join(", ")}
-              </Typography>
-            </Tooltip>
-          )}
-        </Stack>
+      {coverage.missed.length > 0 && (
+        <Tooltip
+          title={`This call didn't cover ${coverage.missed.map(letterLabel).join(", ")}, which the deal's current Gate needs.`}
+          arrow
+        >
+          <Typography variant="caption" sx={{ color: "warning.dark", cursor: "help", whiteSpace: "nowrap" }}>
+            Missed: {coverage.missed.map(letterLabel).join(", ")}
+          </Typography>
+        </Tooltip>
       )}
     </Box>
   );
