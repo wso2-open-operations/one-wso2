@@ -57,7 +57,11 @@ export default function OverviewExpenseSummary() {
     );
   }
 
-  if (!report.data || report.data.current.claimCount === 0) {
+  // Only while there is genuinely nothing to show yet (still loading, or
+  // disabled because `hasFinanceView` isn't settled) — not for a successful
+  // report that happens to total zero claims, which is a real answer worth
+  // showing (0 / $0 / $0), not the same as "no data".
+  if (!report.data) {
     return null;
   }
 
@@ -81,24 +85,26 @@ export default function OverviewExpenseSummary() {
         />
       </Box>
 
-      <DashboardPanel title="Claims by Status">
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" },
-            gap: 2,
-          }}
-        >
-          {report.data.statusBreakdown.map((item) => (
-            <ExpenseStatTile
-              key={item.status}
-              label={expenseStatusMeta(item.status).label}
-              value={item.count.toLocaleString("en-US")}
-              caption={`Avg ${item.averageDaysPending} days`}
-            />
-          ))}
-        </Box>
-      </DashboardPanel>
+      {report.data.statusBreakdown.length > 0 && (
+        <DashboardPanel title="Claims by Status">
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" },
+              gap: 2,
+            }}
+          >
+            {report.data.statusBreakdown.map((item) => (
+              <ExpenseStatTile
+                key={item.status}
+                label={expenseStatusMeta(item.status).label}
+                value={item.count.toLocaleString("en-US")}
+                caption={`Avg ${item.averageDaysPending} days`}
+              />
+            ))}
+          </Box>
+        </DashboardPanel>
+      )}
     </Stack>
   );
 }

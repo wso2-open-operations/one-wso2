@@ -134,6 +134,14 @@ export default function FinanceOverviewPage() {
         : gate.expenseFinance,
   );
 
+  // Built from `visibleSections`, not a fixed "Credit Card, Expense Claims
+  // and OPD Claims" string — a reader with only one or two of the three apps
+  // would otherwise see the subtitle promise a dashboard the switcher never
+  // actually offers them.
+  const appNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(
+    visibleSections.filter((s) => s.value !== "default").map((s) => s.label),
+  );
+
   const switcher = (
     <Select
       size="small"
@@ -155,7 +163,7 @@ export default function FinanceOverviewPage() {
       <FinanceShell
         eyebrow={{ icon: LayoutDashboardIcon, label: "Overview" }}
         title="Finance Overview"
-        subtitle="A quick glance across Credit Card, Expense Claims and OPD Claims — pick one by name above for its full dashboard."
+        subtitle={`A quick glance across ${appNames} — pick one by name above for its full dashboard.`}
         configured={isCcBackendConfigured()}
         configKey="ONE_WSO2_CC_EXPENSES_BACKEND_URL"
         actions={switcher}
