@@ -143,6 +143,7 @@ export default function UmtDescriptionInstructionForm({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [productDescription, setProductDescription] = useState("");
   const [productInstruction, setProductInstruction] = useState("");
+  const isSingleProductUpdate = products.length === 1;
 
   function closeAddModal() {
     setIsAddModalOpen(false);
@@ -456,12 +457,14 @@ export default function UmtDescriptionInstructionForm({
         <DialogTitle>Add Description and Instructions</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <FormControlLabel
-              control={
-                <Checkbox checked={isProductSpecific} onChange={(event) => setIsProductSpecific(event.target.checked)} />
-              }
-              label="Product Specific"
-            />
+            {!isSingleProductUpdate && (
+              <FormControlLabel
+                control={
+                  <Checkbox checked={isProductSpecific} onChange={(event) => setIsProductSpecific(event.target.checked)} />
+                }
+                label="Product Specific"
+              />
+            )}
             {isProductSpecific ? (
               <>
                 <Autocomplete<string, false, false, false>
