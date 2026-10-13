@@ -268,12 +268,18 @@ export default function UmtPrAnalysisStep({ id, update }: { id: string; update: 
             }}
             sx={{ opacity: isLocked ? 0.5 : 1, pointerEvents: isLocked ? "none" : "auto" }}
           >
-            <FormControlLabel value="generalUpdate" control={<Radio />} label="General Update" />
-            <FormControlLabel value="instructionsOnlyUpdate" control={<Radio />} label="Instructions Only Update" />
+            <FormControlLabel value="generalUpdate" control={<Radio />} label="General Update" disabled={isLocked} />
+            <FormControlLabel
+              value="instructionsOnlyUpdate"
+              control={<Radio />}
+              label="Instructions Only Update"
+              disabled={isLocked}
+            />
             <FormControlLabel
               value="containerizedProductUpdate"
               control={<Radio />}
               label="Containerized Product Update"
+              disabled={isLocked}
             />
           </RadioGroup>
           <Divider sx={{ mt: 2 }} />
