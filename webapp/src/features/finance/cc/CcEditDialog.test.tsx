@@ -218,7 +218,7 @@ describe("marketing sub-categories still need a sub-region", () => {
     await pick("Expense category", "Marketing - Digital");
     await pick("Expense type", "Ads");
     fireEvent.change(screen.getByLabelText("Comment"), { target: { value: "Campaign" } });
-    await pick("Product unit", "Integration — Platform");
+    await pick("Product unit", "Integration");
 
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     await pick("Sub region", "South Asia");

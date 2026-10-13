@@ -243,19 +243,19 @@ describe("the categorise panel beside the list", () => {
     const user = userEvent.setup();
     show();
     await screen.findByText("2 - Flight");
-    expect(screen.getByRole("combobox", { name: /Expense Type/ })).toHaveTextContent("Subscriptions");
+    expect(screen.getByRole("combobox", { name: /Expense Type/ })).toHaveValue("Subscriptions");
 
     await pick(user, "Expense Category", "Travel");
     // clearSubFields, utils.ts:73-94 — a Software type must not survive onto a
     // Travel row.
-    expect(screen.getByRole("combobox", { name: /Expense Type/ })).not.toHaveTextContent("Subscriptions");
+    expect(screen.getByRole("combobox", { name: /Expense Type/ })).not.toHaveValue("Subscriptions");
   });
 
   it("takes the business unit from the product unit, and will not let it be typed", async () => {
     const user = userEvent.setup();
     show();
     await screen.findByText("2 - Flight");
-    await pick(user, "Product Unit", "Identity — Security");
+    await pick(user, "Product Unit", "Identity");
     expect(screen.getByRole("textbox", { name: "Business Unit" })).toHaveValue("Security");
     expect(screen.getByRole("textbox", { name: "Business Unit" })).toHaveAttribute("readonly");
   });
@@ -319,10 +319,7 @@ describe("ticking rows for a bulk edit", () => {
     await user.click((await rowBoxes())[0]);
 
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(screen.getByRole("combobox", { name: /Expense Category/ })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    expect(screen.getByRole("combobox", { name: /Expense Category/ })).toBeDisabled();
   });
 
   it("applies only the fields that were filled, to every selected row", async () => {

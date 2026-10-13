@@ -447,7 +447,7 @@ describe("re-pointing a submission that is still with its lead", () => {
 
     expect(await screen.findByRole("combobox", { name: /Lead approver/ })).toBeInTheDocument();
     // :659-670 — the categorisation is still the card holder's and their lead's.
-    expect(screen.getByRole("combobox", { name: /Expense category/ })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("combobox", { name: /Expense category/ })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Comment" })).toBeDisabled();
   });
 
@@ -491,7 +491,7 @@ describe("re-pointing a submission that is still with its lead", () => {
 
     await screen.findByRole("combobox", { name: /Expense category/ });
     expect(screen.queryByRole("combobox", { name: /Lead approver/ })).toBeNull();
-    expect(screen.getByRole("combobox", { name: /Expense category/ })).not.toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("combobox", { name: /Expense category/ })).not.toBeDisabled();
   });
 });
 

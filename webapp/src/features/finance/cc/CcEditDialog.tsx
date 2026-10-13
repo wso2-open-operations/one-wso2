@@ -26,6 +26,7 @@ import {
   DialogTitle,
   FormControl,
   IconButton,
+  ListSubheader,
   MenuItem,
   Select,
   Table,
@@ -55,7 +56,7 @@ import {
 } from "../util/financeReceipts";
 import { useCcJobNumberDetails, useCcMenus } from "./useCc";
 import { useCcAttachment } from "./useCcMutations";
-import { JobNumberAutocomplete } from "./ccFormFields";
+import { JobNumberAutocomplete, SearchableSelect } from "./ccFormFields";
 import { CcFundingSource,
   CC_MARKETING_CATEGORY,
   CC_TRAVEL_CATEGORY,
@@ -167,10 +168,20 @@ function CcEditForm({
   const productUnits = menus.units.data?.productUnits ?? [];
   const businessUnits = menus.units.data?.businessUnits ?? [];
 
-  const unitOptions = useMemo(
-    () => productUnits.map((pu, i) => ({ i, label: `${pu} — ${businessUnits[i] ?? ""}` })),
-    [productUnits, businessUnits],
-  );
+  // InputMenu.tsx:129-150 — the source groups Product Unit options under a
+  // Business Unit subheader rather than spelling the business unit out in
+  // each option's own label, in whichever order the menu arrays list the
+  // business units (first appearance wins a group's position, same as the
+  // source's plain-object accumulator).
+  const unitGroups = useMemo(() => {
+    const groups = new Map<string, { i: number; label: string }[]>();
+    productUnits.forEach((pu, i) => {
+      const bu = businessUnits[i] || "Other";
+      if (!groups.has(bu)) groups.set(bu, []);
+      groups.get(bu)!.push({ i, label: pu });
+    });
+    return Array.from(groups.entries());
+  }, [productUnits, businessUnits]);
 
   // Re-select the transaction's stored product/business unit once the
   // aligned unit arrays load. Without this, editing an already-categorised
@@ -266,37 +277,23 @@ function CcEditForm({
         <Stack spacing={2} sx={{ pt: 0.5 }}>
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
             <Field label="Expense category">
-              <Select
+              <SearchableSelect
                 value={category}
+                options={categories}
                 disabled={leadOnly}
-                onChange={(e) => {
-                  setCategory(String(e.target.value));
+                onChange={(v) => {
+                  setCategory(v);
                   setTypeLabel(""); // types depend on category
                 }}
-                displayEmpty
-                renderValue={(v) => (v ? String(v) : <Placeholder />)}
-              >
-                {categories.map((c) => (
-                  <MenuItem key={c} value={c}>
-                    {c}
-                  </MenuItem>
-                ))}
-              </Select>
+              />
             </Field>
             <Field label="Expense type">
-              <Select
+              <SearchableSelect
                 value={typeLabel}
-                onChange={(e) => setTypeLabel(String(e.target.value))}
+                options={typeOptions}
+                onChange={setTypeLabel}
                 disabled={leadOnly || !category}
-                displayEmpty
-                renderValue={(v) => (v ? String(v) : <Placeholder />)}
-              >
-                {typeOptions.map((t) => (
-                  <MenuItem key={t} value={t}>
-                    {t}
-                  </MenuItem>
-                ))}
-              </Select>
+              />
             </Field>
           </Box>
 
@@ -340,13 +337,52 @@ function CcEditForm({
                 disabled={leadOnly}
                 onChange={(e) => setUnitIndex(e.target.value === "" ? "" : Number(e.target.value))}
                 displayEmpty
-                renderValue={(v) => (v === "" ? <Placeholder /> : unitOptions[Number(v)]?.label ?? String(v))}
+                renderValue={(v) => (v === "" ? <Placeholder /> : productUnits[Number(v)] ?? String(v))}
               >
-                {unitOptions.map((o) => (
-                  <MenuItem key={o.i} value={o.i}>
-                    {o.label}
-                  </MenuItem>
-                ))}
+                {unitGroups.flatMap(([bu, items]) => [
+                  // InputMenu.tsx:19-22 — the source's own StyledListSubheader:
+                  // full-opacity white in dark mode rather than a dim
+                  // theme.palette.text.secondary, which MUI's own
+                  // ListSubheader default left this reading as low-contrast
+                  // grey-on-dark.
+                  <ListSubheader
+                    key={`h-${bu}`}
+                    // A group with few items lets the next sticky header
+                    // overtake it mid-scroll, overlapping its text with the
+                    // item still scrolling out underneath. Disabling sticky
+                    // entirely removes the only thing that can collide.
+                    disableSticky
+                    // The flat #8a8a8a this used to carry read as a plain
+                    // grey, out of step with every other surface in the
+                    // dialog — those come from the warm `action.hover`
+                    // tint (CcApproveDetail.tsx:67's description/amount
+                    // card uses the same token), which resolves through
+                    // MUI's CSS-variables colour-scheme system automatically,
+                    // unlike theme.palette.mode (confirmed dead here: it
+                    // never reflects the live DOM colour-scheme attribute).
+                    sx={{
+                      bgcolor: "action.hover",
+                      // text.primary, not the ListSubheader default of
+                      // text.secondary — the source forced full-opacity
+                      // white here too, for the same reason: a dim label
+                      // reads poorly as a group heading.
+                      color: "text.primary",
+                      // MUI's ListSubheader bolds itself by default (its own
+                      // built-in CSS, not something added here) — forced back
+                      // to normal weight since the source has no bold at all.
+                      fontWeight: 400,
+                    }}
+                  >
+                    {bu}
+                  </ListSubheader>,
+                  ...items.map((o) => (
+                    // InputMenu.tsx:24-28 — the source's StyledMenuItem indents
+                    // each option under its group header by theme.spacing(4).
+                    <MenuItem key={o.i} value={o.i} sx={{ pl: 4 }}>
+                      {o.label}
+                    </MenuItem>
+                  )),
+                ])}
               </Select>
             </Field>
           )}

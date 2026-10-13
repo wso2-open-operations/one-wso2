@@ -25,6 +25,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  ListSubheader,
   MenuItem,
   Select,
   Stack,
@@ -50,6 +51,7 @@ import {
   JobNumberAutocomplete,
   Placeholder,
   ReadOnlyField,
+  SearchableSelect,
 } from "./ccFormFields";
 import { clearDependentFields, resolveProductUnitIndex } from "./ccPendingSubmissions";
 import { useCcJobNumberDetails, useCcMenus } from "./useCc";
@@ -347,10 +349,19 @@ export function CcCategorisePanel({
     productUnits,
     businessUnits,
   );
-  const unitOptions = useMemo(
-    () => productUnits.map((pu, i) => ({ i, label: `${pu} — ${businessUnits[i] ?? ""}` })),
-    [productUnits, businessUnits],
-  );
+  // CcEditDialog.tsx — Product Unit options grouped under a Business Unit
+  // subheader rather than spelling the business unit out in each option's
+  // own label, in whichever order the menu arrays list the business units
+  // (first appearance wins a group's position).
+  const unitGroups = useMemo(() => {
+    const groups = new Map<string, { i: number; label: string }[]>();
+    productUnits.forEach((pu, i) => {
+      const bu = businessUnits[i] || "Other";
+      if (!groups.has(bu)) groups.set(bu, []);
+      groups.get(bu)!.push({ i, label: pu });
+    });
+    return Array.from(groups.entries());
+  }, [productUnits, businessUnits]);
 
   const viewAttachment = (attachmentType: CcAttachmentType) => {
     setViewingType(attachmentType);
@@ -473,44 +484,22 @@ export function CcCategorisePanel({
           <>
         <FieldRow>
           <Field label="Expense Category" required>
-            <Select
+            <SearchableSelect
               value={category}
+              options={categories}
               disabled={!editable}
-              onChange={(e) =>
-                change(
-                  { expenseCategoryLabel: String(e.target.value) || null },
-                  clearDependentFields("expenseCategory"),
-                )
+              onChange={(v) =>
+                change({ expenseCategoryLabel: v || null }, clearDependentFields("expenseCategory"))
               }
-              displayEmpty
-              renderValue={(v) => (v ? String(v) : <Placeholder />)}
-            >
-              {categories.map((c) => (
-                <MenuItem key={c} value={c}>
-                  {c}
-                </MenuItem>
-              ))}
-            </Select>
+            />
           </Field>
           <Field label="Expense Type" required>
-            <Select
+            <SearchableSelect
               value={draft.expenseTypeLabel ?? ""}
+              options={typeOptions}
               disabled={!editable || !category}
-              onChange={(e) =>
-                change(
-                  { expenseTypeLabel: String(e.target.value) || null },
-                  clearDependentFields("expenseType"),
-                )
-              }
-              displayEmpty
-              renderValue={(v) => (v ? String(v) : <Placeholder />)}
-            >
-              {typeOptions.map((t) => (
-                <MenuItem key={t} value={t}>
-                  {t}
-                </MenuItem>
-              ))}
-            </Select>
+              onChange={(v) => change({ expenseTypeLabel: v || null }, clearDependentFields("expenseType"))}
+            />
           </Field>
         </FieldRow>
 
@@ -612,13 +601,52 @@ export function CcCategorisePanel({
                   });
                 }}
                 displayEmpty
-                renderValue={(v) => (v === "" ? <Placeholder /> : unitOptions[Number(v)]?.label ?? String(v))}
+                renderValue={(v) => (v === "" ? <Placeholder /> : productUnits[Number(v)] ?? String(v))}
               >
-                {unitOptions.map((o) => (
-                  <MenuItem key={o.i} value={o.i}>
-                    {o.label}
-                  </MenuItem>
-                ))}
+                {unitGroups.flatMap(([bu, items]) => [
+                  // InputMenu.tsx:19-22 — the source's own StyledListSubheader:
+                  // full-opacity white in dark mode rather than a dim
+                  // theme.palette.text.secondary, which MUI's own
+                  // ListSubheader default left this reading as low-contrast
+                  // grey-on-dark.
+                  <ListSubheader
+                    key={`h-${bu}`}
+                    // A group with few items lets the next sticky header
+                    // overtake it mid-scroll, overlapping its text with the
+                    // item still scrolling out underneath. Disabling sticky
+                    // entirely removes the only thing that can collide.
+                    disableSticky
+                    // The flat #8a8a8a this used to carry read as a plain
+                    // grey, out of step with every other surface in the
+                    // panel — those all come from the warm `action.hover`
+                    // tint (CcApproveDetail.tsx:67's description/amount
+                    // card uses the same token), which resolves through
+                    // MUI's CSS-variables colour-scheme system automatically,
+                    // unlike theme.palette.mode (confirmed dead here: it
+                    // never reflects the live DOM colour-scheme attribute).
+                    sx={{
+                      bgcolor: "action.hover",
+                      // text.primary, not the ListSubheader default of
+                      // text.secondary — the source forced full-opacity
+                      // white here too, for the same reason: a dim label
+                      // reads poorly as a group heading.
+                      color: "text.primary",
+                      // MUI's ListSubheader bolds itself by default (its own
+                      // built-in CSS, not something added here) — forced back
+                      // to normal weight since the source has no bold at all.
+                      fontWeight: 400,
+                    }}
+                  >
+                    {bu}
+                  </ListSubheader>,
+                  ...items.map((o) => (
+                    // InputMenu.tsx:24-28 — the source's StyledMenuItem indents
+                    // each option under its group header by theme.spacing(4).
+                    <MenuItem key={o.i} value={o.i} sx={{ pl: 4 }}>
+                      {o.label}
+                    </MenuItem>
+                  )),
+                ])}
               </Select>
             </Field>
             {/* :1366-1393 — read-only. The business unit follows the product

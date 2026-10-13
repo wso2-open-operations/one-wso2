@@ -156,6 +156,46 @@ export function JobNumberAutocomplete({
 }
 
 /**
+ * A searchable plain-string dropdown — Expense Category, Expense Type, and
+ * any other field whose options are just a flat string list. Same
+ * `labelId`-forwarding as `JobNumberAutocomplete` above, for the same reason,
+ * and the same `disableClearable`: once a value is set there is no "clear"
+ * affordance, matching the Select these replace (picking a blank option was
+ * never possible there either).
+ */
+export function SearchableSelect({
+  value,
+  options,
+  disabled,
+  onChange,
+  labelId,
+}: {
+  value: string;
+  options: string[];
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  labelId?: string;
+}) {
+  return (
+    <Autocomplete
+      size="small"
+      disableClearable
+      options={options}
+      value={value || undefined}
+      disabled={disabled}
+      onChange={(_e, v) => onChange(v ?? "")}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          placeholder="Select…"
+          slotProps={{ htmlInput: { ...params.inputProps, "aria-labelledby": labelId } }}
+        />
+      )}
+    />
+  );
+}
+
+/**
  * A field the reader can only look at — the source's `StyledList` /
  * `StyledListItemText` pair (`EditPane.tsx:65-91`), a dashed box with the label
  * above and the value inside.

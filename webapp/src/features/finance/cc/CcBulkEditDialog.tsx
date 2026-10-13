@@ -25,6 +25,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  ListSubheader,
   MenuItem,
   Select,
   Stack,
@@ -32,7 +33,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { describeError } from "../util/financeError";
-import { Field, FieldLabel, FieldRow, Placeholder } from "./ccFormFields";
+import { Field, FieldLabel, FieldRow, Placeholder, SearchableSelect } from "./ccFormFields";
 import {
   applyBulkEdit,
   clearBulkDependents,
@@ -81,10 +82,19 @@ export function CcBulkEditDialog({
     ? menus.expenseTypes.data?.types[form.expenseCategory] ?? []
     : [];
 
-  const unitOptions = useMemo(
-    () => productUnits.map((pu, i) => ({ i, label: `${pu} — ${businessUnits[i] ?? ""}` })),
-    [productUnits, businessUnits],
-  );
+  // CcEditDialog.tsx — Product Unit options grouped under a Business Unit
+  // subheader rather than spelling the business unit out in each option's
+  // own label, in whichever order the menu arrays list the business units
+  // (first appearance wins a group's position).
+  const unitGroups = useMemo(() => {
+    const groups = new Map<string, { i: number; label: string }[]>();
+    productUnits.forEach((pu, i) => {
+      const bu = businessUnits[i] || "Other";
+      if (!groups.has(bu)) groups.set(bu, []);
+      groups.get(bu)!.push({ i, label: pu });
+    });
+    return Array.from(groups.entries());
+  }, [productUnits, businessUnits]);
 
   // EditPaneModal.tsx:214-228 — a travel row's units come from its job number,
   // so the unit field is not offered; sub-region is a marketing-only field.
@@ -133,34 +143,20 @@ export function CcBulkEditDialog({
         <Stack spacing={2} sx={{ pt: 0.5 }}>
           <FieldRow>
             <Field label="Expense Category">
-              <Select
+              <SearchableSelect
                 value={form.expenseCategory}
+                options={categories}
                 disabled={applying}
-                onChange={(e) => set("expenseCategory", String(e.target.value))}
-                displayEmpty
-                renderValue={(v) => (v ? String(v) : <Placeholder />)}
-              >
-                {categories.map((c) => (
-                  <MenuItem key={c} value={c}>
-                    {c}
-                  </MenuItem>
-                ))}
-              </Select>
+                onChange={(v) => set("expenseCategory", v)}
+              />
             </Field>
             <Field label="Expense Type">
-              <Select
+              <SearchableSelect
                 value={form.expenseType}
+                options={typeOptions}
                 disabled={applying || !form.expenseCategory}
-                onChange={(e) => set("expenseType", String(e.target.value))}
-                displayEmpty
-                renderValue={(v) => (v ? String(v) : <Placeholder />)}
-              >
-                {typeOptions.map((t) => (
-                  <MenuItem key={t} value={t}>
-                    {t}
-                  </MenuItem>
-                ))}
-              </Select>
+                onChange={(v) => set("expenseType", v)}
+              />
             </Field>
           </FieldRow>
 
@@ -180,23 +176,70 @@ export function CcBulkEditDialog({
 
           <FieldRow>
             {showProductUnit && (
-              <Field label="Product Unit">
-                <Select
-                  value={form.productUnit}
-                  disabled={applying}
-                  onChange={(e) => set("productUnit", String(e.target.value))}
-                  displayEmpty
-                  renderValue={(v) =>
-                    v === "" ? <Placeholder /> : unitOptions[Number(v)]?.label ?? String(v)
-                  }
-                >
-                  {unitOptions.map((o) => (
-                    <MenuItem key={o.i} value={String(o.i)}>
-                      {o.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </Field>
+              // FieldRow is a CSS grid of `minmax(170px, 1fr)` tracks — with
+              // Sub Region hidden (most categories), Product Unit is the only
+              // child, so the lone 1fr track stretches across the whole row
+              // and the Select's open menu, which matches its anchor's width,
+              // stretches with it. Capped here so it stays the width it has
+              // everywhere else (CcEditDialog/CcCategorisePanel, where it
+              // always shares a row with Business Unit) instead of ballooning
+              // whenever it happens to be alone.
+              <Box sx={{ maxWidth: 280 }}>
+                <Field label="Product Unit">
+                  <Select
+                    value={form.productUnit}
+                    disabled={applying}
+                    onChange={(e) => set("productUnit", String(e.target.value))}
+                    displayEmpty
+                    renderValue={(v) => (v === "" ? <Placeholder /> : productUnits[Number(v)] ?? String(v))}
+                  >
+                    {unitGroups.flatMap(([bu, items]) => [
+                      // InputMenu.tsx:19-22 — the source's own StyledListSubheader:
+                      // full-opacity white in dark mode rather than a dim
+                      // theme.palette.text.secondary, which MUI's own
+                      // ListSubheader default left this reading as low-contrast
+                      // grey-on-dark.
+                      <ListSubheader
+                        key={`h-${bu}`}
+                        // A group with few items lets the next sticky header
+                        // overtake it mid-scroll, overlapping its text with the
+                        // item still scrolling out underneath. Disabling sticky
+                        // entirely removes the only thing that can collide.
+                        disableSticky
+                        // The flat #8a8a8a this used to carry read as a plain
+                        // grey, out of step with every other surface in the
+                        // dialog — those come from the warm `action.hover`
+                        // tint (CcApproveDetail.tsx:67's description/amount
+                        // card uses the same token), which resolves through
+                        // MUI's CSS-variables colour-scheme system automatically,
+                        // unlike theme.palette.mode (confirmed dead here: it
+                        // never reflects the live DOM colour-scheme attribute).
+                        sx={{
+                          bgcolor: "action.hover",
+                          // text.primary, not the ListSubheader default of
+                          // text.secondary — the source forced full-opacity
+                          // white here too, for the same reason: a dim label
+                          // reads poorly as a group heading.
+                          color: "text.primary",
+                          // MUI's ListSubheader bolds itself by default (its own
+                          // built-in CSS, not something added here) — forced back
+                          // to normal weight since the source has no bold at all.
+                          fontWeight: 400,
+                        }}
+                      >
+                        {bu}
+                      </ListSubheader>,
+                      ...items.map((o) => (
+                        // InputMenu.tsx:24-28 — the source's StyledMenuItem indents
+                        // each option under its group header by theme.spacing(4).
+                        <MenuItem key={o.i} value={String(o.i)} sx={{ pl: 4 }}>
+                          {o.label}
+                        </MenuItem>
+                      )),
+                    ])}
+                  </Select>
+                </Field>
+              </Box>
             )}
             {showSubRegion && (
               <Field label="Sub Region">
