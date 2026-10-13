@@ -17,6 +17,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  Autocomplete,
   Box,
   Button,
   Dialog,
@@ -37,9 +38,10 @@ import { money, todayIso, daysAgoIso, toIso } from "../util/financeFormat";
 import { RECEIPT_ACCEPT, EXPENSE_RECEIPT_MAX_BYTES, maxSizeLabel } from "../util/financeReceipts";
 import { useExchangeRates, useExpenseTypes } from "./useExpense";
 import type { ExpenseAppData, ExpenseTransactionPayload } from "./expenseTypes";
+import { formatJobOption, jobSearchText, NO_JOB_OPTION, type JobOption } from "./expenseJobOption";
 
 export const COMMENT_MAX = 100;
-export const NO_JOB = "N/A";
+export const NO_JOB = NO_JOB_OPTION.jobNumber;
 
 /**
  * A line as the form holds it: the wire payload plus the figures the form
@@ -121,6 +123,12 @@ export function AddExpenseDialog({
   const rates = useExchangeRates(reimbursementCurrency, date);
   const expenseTypes = useExpenseTypes(jobNumber === NO_JOB ? undefined : jobNumber);
 
+  // "N/A (non-travel)" first, then every job this employee travelled on —
+  // the Job Number field's full option list, shared between its display
+  // label and its search.
+  const jobOptions = useMemo<JobOption[]>(() => [NO_JOB_OPTION, ...appData.travels], [appData.travels]);
+  const selectedJob = jobOptions.find((t) => t.jobNumber === jobNumber) ?? null;
+
   // Conversion rate for the chosen currency: 1 when it's already the
   // reimbursement currency; null when a foreign currency has no rate in the
   // fetched list (missing, or the list is stale/loading after a date change).
@@ -198,23 +206,26 @@ export function AddExpenseDialog({
             </Box>
             <Box>
               <FieldLabel>Job number</FieldLabel>
-              <FormControl size="small" fullWidth>
-                <Select
-                  value={jobNumber}
-                  onChange={(e) => {
-                    setJobNumber(String(e.target.value));
-                    setExpenseTypeId(""); // type list depends on the job number
-                  }}
-                >
-                  <MenuItem value={NO_JOB}>N/A (non-travel)</MenuItem>
-                  {appData.travels.map((t) => (
-                    <MenuItem key={t.jobNumber} value={t.jobNumber}>
-                      {t.jobNumber}
-                      {t.customerName ? ` — ${t.customerName}` : ""}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                size="small"
+                fullWidth
+                options={jobOptions}
+                value={selectedJob}
+                getOptionLabel={formatJobOption}
+                isOptionEqualToValue={(a, b) => a.jobNumber === b.jobNumber}
+                // Matches on job number, customer, or country — not just
+                // whatever MUI's default label-prefix match would catch — so
+                // typing a country finds every job run out of it.
+                filterOptions={(options, { inputValue }) => {
+                  const q = inputValue.trim().toLowerCase();
+                  return q.length === 0 ? options : options.filter((o) => jobSearchText(o).includes(q));
+                }}
+                onChange={(_e, v) => {
+                  setJobNumber(v ? v.jobNumber : NO_JOB);
+                  setExpenseTypeId(""); // type list depends on the job number
+                }}
+                renderInput={(params) => <TextField {...params} placeholder="Select…" />}
+              />
             </Box>
           </Box>
 

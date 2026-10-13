@@ -1,0 +1,51 @@
+// Copyright (c) 2026 WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+/**
+ * The shape both the New Claim dialog (`ExpenseTravelData`, from `/app-data`)
+ * and the submitter correction dialog (`SubmitterTravel`, from
+ * `/employees/{email}/travels`) already satisfy — this file only reads the
+ * three fields a Job Number option needs to display and be searched by, so it
+ * stays usable from either without importing one dialog's type into the
+ * other's.
+ */
+export interface JobOption {
+  jobNumber: string;
+  customerName: string | null;
+  country?: string | null;
+}
+
+/** The sentinel option for an expense that isn't tied to any travel. */
+export const NO_JOB_OPTION: JobOption = { jobNumber: "N/A", customerName: null, country: null };
+
+/**
+ * The Job Number dropdown's display label: "<job number> — <customer> —
+ * <country>", each part included only when present, so a job missing a
+ * customer or country still reads cleanly instead of showing a trailing
+ * " — ".
+ */
+export function formatJobOption(t: JobOption): string {
+  if (t.jobNumber === NO_JOB_OPTION.jobNumber) return "N/A (non-travel)";
+  return [t.jobNumber, t.customerName, t.country].filter((part): part is string => Boolean(part)).join(" — ");
+}
+
+/** Lower-cased haystack for filtering the dropdown by job number, customer, or country. */
+export function jobSearchText(t: JobOption): string {
+  return [t.jobNumber, t.customerName, t.country]
+    .filter((part): part is string => Boolean(part))
+    .join(" ")
+    .toLowerCase();
+}

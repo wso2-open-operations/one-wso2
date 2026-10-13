@@ -24,6 +24,7 @@ import type {
 export interface SubmitterTravel {
   jobNumber: string;
   customerName: string | null;
+  country: string | null;
 }
 
 /**

@@ -16,6 +16,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  Autocomplete,
   Box,
   Button,
   Dialog,
@@ -36,13 +37,14 @@ import { money, todayIso, daysAgoIso, toIso } from "../../util/financeFormat";
 import { RECEIPT_ACCEPT, EXPENSE_RECEIPT_MAX_BYTES, maxSizeLabel } from "../../util/financeReceipts";
 import { useExchangeRates } from "../useExpense";
 import type { ExpenseAppData } from "../expenseTypes";
+import { formatJobOption, jobSearchText, NO_JOB_OPTION, type JobOption } from "../expenseJobOption";
 import { useSubmitterExpenseTypes } from "./useExpenseSubmitter";
 import type { SubmitterDraftLine, SubmitterTravel } from "./expenseSubmitterTypes";
 
 const RECEIPT_TYPES = new Set(RECEIPT_ACCEPT.split(","));
 
 export const COMMENT_MAX = 100;
-export const NO_JOB = "N/A";
+export const NO_JOB = NO_JOB_OPTION.jobNumber;
 
 // One expense line on a claim being filed from the Finance side. Unlike the
 // Me-side form's dialog, the job numbers and expense types it offers belong to
@@ -123,6 +125,12 @@ export function SubmitterLineDialog({
     jobNumber === NO_JOB ? undefined : jobNumber,
     onBehalfOfEmail,
   );
+
+  // "N/A (non-travel)" first, then every job the claim owner travelled on —
+  // the Job Number field's full option list, shared between its display
+  // label and its search.
+  const jobOptions = useMemo<JobOption[]>(() => [NO_JOB_OPTION, ...travels], [travels]);
+  const selectedJob = jobOptions.find((t) => t.jobNumber === jobNumber) ?? null;
 
   // Conversion rate for the chosen currency: 1 when it's already the
   // reimbursement currency; null when a foreign currency has no rate in the
@@ -215,25 +223,33 @@ export function SubmitterLineDialog({
             </Box>
             <Box>
               <SubmitterFieldLabel>Job number</SubmitterFieldLabel>
-              <FormControl size="small" fullWidth>
-                <Select
-                  value={jobNumber}
-                  disabled={travelsLoading}
-                  inputProps={{ "aria-label": "Job number" }}
-                  onChange={(e) => {
-                    setJobNumber(String(e.target.value));
-                    setExpenseTypeId(""); // type list depends on the job number
-                  }}
-                >
-                  <MenuItem value={NO_JOB}>N/A (non-travel)</MenuItem>
-                  {travels.map((t) => (
-                    <MenuItem key={t.jobNumber} value={t.jobNumber}>
-                      {t.jobNumber}
-                      {t.customerName ? ` — ${t.customerName}` : ""}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                size="small"
+                fullWidth
+                options={jobOptions}
+                value={selectedJob}
+                disabled={travelsLoading}
+                getOptionLabel={formatJobOption}
+                isOptionEqualToValue={(a, b) => a.jobNumber === b.jobNumber}
+                // Matches on job number, customer, or country — not just
+                // whatever MUI's default label-prefix match would catch — so
+                // typing a country finds every job run out of it.
+                filterOptions={(options, { inputValue }) => {
+                  const q = inputValue.trim().toLowerCase();
+                  return q.length === 0 ? options : options.filter((o) => jobSearchText(o).includes(q));
+                }}
+                onChange={(_e, v) => {
+                  setJobNumber(v ? v.jobNumber : NO_JOB);
+                  setExpenseTypeId(""); // type list depends on the job number
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Select…"
+                    slotProps={{ htmlInput: { ...params.inputProps, "aria-label": "Job number" } }}
+                  />
+                )}
+              />
             </Box>
           </Box>
 
