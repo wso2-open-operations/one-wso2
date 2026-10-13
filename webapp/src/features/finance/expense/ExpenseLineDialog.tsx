@@ -211,7 +211,7 @@ export function AddExpenseDialog({
                 fullWidth
                 disableClearable
                 options={jobOptions}
-                value={selectedJob}
+                value={selectedJob ?? undefined}
                 getOptionLabel={formatJobOption}
                 isOptionEqualToValue={(a, b) => a.jobNumber === b.jobNumber}
                 // Matches on job number, customer, or country — not just
@@ -274,21 +274,19 @@ export function AddExpenseDialog({
 
           <Box>
             <FieldLabel>Expense type</FieldLabel>
-            <FormControl size="small" fullWidth>
-              <Select<number | "">
-                value={expenseTypeId}
-                onChange={(e) => setExpenseTypeId(e.target.value === "" ? "" : Number(e.target.value))}
-                disabled={expenseTypes.isLoading}
-                displayEmpty
-                renderValue={(v) => (v === "" ? <span style={{ opacity: 0.6 }}>Select a type…</span> : selectedType?.type ?? String(v))}
-              >
-                {(expenseTypes.data ?? []).map((t) => (
-                  <MenuItem key={t.id} value={t.id}>
-                    {t.type}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              size="small"
+              fullWidth
+              disableClearable
+              options={expenseTypes.data ?? []}
+              value={selectedType}
+              loading={expenseTypes.isLoading}
+              disabled={expenseTypes.isLoading}
+              getOptionLabel={(t) => t.type}
+              isOptionEqualToValue={(a, b) => a.id === b.id}
+              onChange={(_e, v) => setExpenseTypeId(v ? v.id : "")}
+              renderInput={(params) => <TextField {...params} placeholder="Select a type…" />}
+            />
           </Box>
 
           <Box>
