@@ -146,13 +146,30 @@ export class UmtPartialProceedError extends Error {
 // Invalidation runs in onSettled (not onSuccess) so a failure in the second
 // call still refreshes the cache to reflect the lifecycle promotion that did
 // commit, instead of leaving the UI showing the pre-Proceed state.
+// Instructions Only updates have no pull requests to analyze, so they skip
+// Analyze entirely: Proceed first submits the (empty) PR analysis, which the
+// backend completes in that same request instead of queueing it for the
+// PR-analysis poller, and only then promotes to PRAnalyzed. That submission
+// replaces the PR analysis status and results even when the PUT then fails,
+// so both are refreshed alongside the lifecycle queries.
 export function useUmtProceedFromPrAnalysis(id: string) {
   const getAccessToken = useAccessToken();
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, void>({
-    mutationFn: async () => {
+  return useMutation<void, Error, { isInstructionsOnly: boolean }>({
+    mutationFn: async ({ isInstructionsOnly }) => {
       const accessToken = await getAccessToken();
+      if (isInstructionsOnly) {
+        const request: UmtPullRequestAnalysisRequest = {
+          updateId: id,
+          pullRequests: [],
+          additionalFileOperations: [],
+          bundlesInfoChanges: [],
+          isInstructionsOnly: true,
+          isContainerizedUpdate: false,
+        };
+        await authedPost(umtServiceUrls.updatePullRequestAnalysis(id), accessToken, request);
+      }
       await authedPut(umtServiceUrls.update(id), accessToken, { lifecycleState: "PRAnalyzed" });
       try {
         await authedPost(umtServiceUrls.updateProductAnalysis(id), accessToken, {});
@@ -165,6 +182,8 @@ export function useUmtProceedFromPrAnalysis(id: string) {
         queryClient.invalidateQueries({ queryKey: ["umt-update"] }),
         queryClient.invalidateQueries({ queryKey: ["umt-updates"] }),
         queryClient.invalidateQueries({ queryKey: ["umt-update-lifecycle-history"] }),
+        queryClient.invalidateQueries({ queryKey: ["umt-update-pr-analysis-status"] }),
+        queryClient.invalidateQueries({ queryKey: ["umt-update-pull-request-analysis"] }),
         queryClient.invalidateQueries({ queryKey: ["umt-update-product-analysis"] }),
       ]);
     },

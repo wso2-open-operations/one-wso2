@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { UMT_PR_ANALYSIS_STATUS, isUmtPrAnalysisFailed, type UmtUpdateType } from "../api/umtTypes";
+import { UMT_PR_ANALYSIS_STATUS, isUmtPrAnalysisFailed } from "../api/umtTypes";
 import type { UmtFileOperation } from "../api/umtUpdates";
 
 // `[0-9]+` not `[0-9]*` (a missing PR number is not a PR link) and anchored at
@@ -50,15 +50,14 @@ const RESTRICTED_RELATIVE_JAR_PATHS = ["/dropins"];
 export function isPrAnalyzeDisabled(params: {
   status: string | null | undefined;
   hasNewInputsSinceLastAnalysis: boolean;
-  updateType: UmtUpdateType;
   pullRequestCount: number;
   manualFileCount: number;
 }): boolean {
-  const { status, hasNewInputsSinceLastAnalysis, updateType, pullRequestCount, manualFileCount } = params;
+  const { status, hasNewInputsSinceLastAnalysis, pullRequestCount, manualFileCount } = params;
 
   if (status === UMT_PR_ANALYSIS_STATUS.QUEUED || status === UMT_PR_ANALYSIS_STATUS.PROCESSING) return true;
   if (!hasNewInputsSinceLastAnalysis) return true;
-  if (updateType !== "instructionsOnlyUpdate" && pullRequestCount === 0 && manualFileCount === 0) return true;
+  if (pullRequestCount === 0 && manualFileCount === 0) return true;
   return false;
 }
 

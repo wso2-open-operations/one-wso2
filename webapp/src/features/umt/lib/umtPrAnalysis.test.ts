@@ -60,7 +60,6 @@ describe("isPrAnalyzeDisabled", () => {
   const base = {
     status: undefined as string | undefined,
     hasNewInputsSinceLastAnalysis: true,
-    updateType: "generalUpdate" as const,
     pullRequestCount: 1,
     manualFileCount: 0,
   };
@@ -74,19 +73,8 @@ describe("isPrAnalyzeDisabled", () => {
     expect(isPrAnalyzeDisabled({ ...base, hasNewInputsSinceLastAnalysis: false })).toBe(true);
   });
 
-  it("is disabled for a non-instructions-only update with no PRs or files", () => {
+  it("is disabled with no PRs or files", () => {
     expect(isPrAnalyzeDisabled({ ...base, pullRequestCount: 0, manualFileCount: 0 })).toBe(true);
-  });
-
-  it("is enabled for instructions-only updates even with no PRs or files", () => {
-    expect(
-      isPrAnalyzeDisabled({
-        ...base,
-        updateType: "instructionsOnlyUpdate",
-        pullRequestCount: 0,
-        manualFileCount: 0,
-      }),
-    ).toBe(false);
   });
 
   it("is enabled when inputs exist and nothing is in flight", () => {
