@@ -17,7 +17,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import MarketingOpsShell from "@features/marketing-ops/components/MarketingOpsShell";
+import MarketingOpsShell, { MarketingOpsRoute } from "@features/marketing-ops/components/MarketingOpsShell";
 import type { MarketingOpsGate } from "@features/marketing-ops/api/useMarketingOpsGate";
 
 // The shell's whole job is a four-rung state ladder, and the last rung is now a
@@ -126,5 +126,62 @@ describe("MarketingOpsShell", () => {
     renderShell({ isAuthorized: false, canSee: () => false });
     expect(screen.getByText(/isn't connected yet/i)).toBeInTheDocument();
     stayedPut();
+  });
+
+  // ---- MarketingOpsRoute ---------------------------------------------------
+  //
+  // An authorized caller can still type the URL of a screen the rail hides from
+  // them. The route guard sends them to the landing, and like the shell it waits
+  // for the gate to answer before deciding.
+
+  describe("MarketingOpsRoute", () => {
+    function renderRoute(g: Partial<MarketingOpsGate>) {
+      gate.value = { ...AUTHORIZED, ...g };
+      return render(
+        <MemoryRouter initialEntries={["/marketing-ops/events/mine"]}>
+          <UrlProbe />
+          <Routes>
+            <Route
+              path="/marketing-ops/events/mine"
+              element={
+                <MarketingOpsRoute gateId="mops-events-mine">
+                  <div>the real page</div>
+                </MarketingOpsRoute>
+              }
+            />
+            <Route path="/marketing-ops" element={<div>the landing</div>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+
+    it("renders a screen the gate allows", () => {
+      renderRoute({ canSee: (id) => id === "mops-events-mine" });
+      expect(screen.getByText("the real page")).toBeInTheDocument();
+      stayedPut();
+    });
+
+    it("sends an authorized caller away from a screen the gate refuses", () => {
+      renderRoute({ canSee: (id) => id === "mops-event-platform-events" });
+      expect(screen.getByText("the landing")).toBeInTheDocument();
+      expect(screen.queryByText("the real page")).not.toBeInTheDocument();
+    });
+
+    it("decides nothing while the check is in flight", () => {
+      renderRoute({ isResolving: true, canSee: () => false });
+      expect(screen.getByText("the real page")).toBeInTheDocument();
+      stayedPut();
+    });
+
+    it("decides nothing when the check fails", () => {
+      renderRoute({ isError: true, canSee: () => false });
+      stayedPut();
+    });
+
+    it("decides nothing when the backend URL is unset", () => {
+      configured.value = false;
+      renderRoute({ canSee: () => false });
+      stayedPut();
+    });
   });
 });

@@ -129,6 +129,7 @@ import EmailWorkbenchSettingsPage from "@features/marketing-ops/admin/pages/Emai
 import BlockCatalogPage from "@features/marketing-ops/email-workbench/pages/BlockCatalogPage";
 import EventsSettingsPage from "@features/marketing-ops/admin/pages/EventsSettingsPage";
 import PostBuilderPage from "@features/marketing-ops/design-studio/pages/PostBuilderPage";
+import { MarketingOpsRoute } from "@features/marketing-ops/components/MarketingOpsShell";
 import {
   EventsMinePage,
   EventsReviewPage,
@@ -883,49 +884,124 @@ export default function App() {
               a route of its own — see EmailWorkbenchPages. */}
           <Route
             path="marketing-ops/email-workbench/create"
-            element={<EmailWorkbenchCreatePage />}
+            element={
+              <MarketingOpsRoute gateId="mops-email-create">
+                <EmailWorkbenchCreatePage />
+              </MarketingOpsRoute>
+            }
           />
           <Route
             path="marketing-ops/email-workbench/history"
-            element={<EmailWorkbenchHistoryPage />}
+            element={
+              <MarketingOpsRoute gateId="mops-email-history">
+                <EmailWorkbenchHistoryPage />
+              </MarketingOpsRoute>
+            }
           />
           <Route
             path="marketing-ops/email-workbench/manage"
-            element={<EmailWorkbenchManagePage />}
+            element={
+              <MarketingOpsRoute gateId="mops-email-manage">
+                <EmailWorkbenchManagePage />
+              </MarketingOpsRoute>
+            }
           />
           <Route
             path="marketing-ops/email-workbench/blocks"
-            element={<BlockCatalogPage />}
+            element={
+              <MarketingOpsRoute gateId="mops-email-blocks">
+                <BlockCatalogPage />
+              </MarketingOpsRoute>
+            }
           />
           {/* Ad Campaigns → Analytics. Read-only reports computed on demand. */}
           <Route
             path="marketing-ops/ad-campaigns/analytics"
-            element={<AdCampaignsAnalyticsPage />}
+            element={
+              <MarketingOpsRoute gateId="mops-ad-analytics">
+                <AdCampaignsAnalyticsPage />
+              </MarketingOpsRoute>
+            }
           />
           {/* Ad Campaigns → Campaign Tracker. Register / Weekly Log / Budget
               Pacing / BU Owners — the weekly operating rhythm for live campaigns. */}
           <Route
             path="marketing-ops/ad-campaigns/campaign-tracker"
-            element={<CampaignTrackerPage />}
+            element={
+              <MarketingOpsRoute gateId="mops-campaign-tracker">
+                <CampaignTrackerPage />
+              </MarketingOpsRoute>
+            }
           />
-          {/* Utilities — open to any authorized Marketing Ops caller. */}
-          <Route path="marketing-ops/utilities/utm" element={<UtmGeneratorPage />} />
+          {/* Utilities — open to any authorized caller the backend lets use them
+              (`canUseUtilities`); an Event-Platform-only caller is not one. */}
+          <Route
+            path="marketing-ops/utilities/utm"
+            element={
+              <MarketingOpsRoute gateId="mops-utm">
+                <UtmGeneratorPage />
+              </MarketingOpsRoute>
+            }
+          />
           <Route
             path="marketing-ops/utilities/asset-name"
-            element={<AssetNameGeneratorPage />}
+            element={
+              <MarketingOpsRoute gateId="mops-asset-name">
+                <AssetNameGeneratorPage />
+              </MarketingOpsRoute>
+            }
           />
           {/* Marketing Admin — each operation's configuration lands with the
               operation, so this grows one panel per phase. Admin-gated by the
               rail and by MarketingOpsShell; the backend enforces it too. */}
-          <Route path="marketing-ops/admin/utm" element={<UtmSettingsPage />} />
+          <Route
+            path="marketing-ops/admin/utm"
+            element={
+              <MarketingOpsRoute gateId="mops-admin-utm">
+                <UtmSettingsPage />
+              </MarketingOpsRoute>
+            }
+          />
           <Route
             path="marketing-ops/admin/asset-name"
-            element={<AssetNameSettingsPage />}
+            element={
+              <MarketingOpsRoute gateId="mops-admin-asset-name">
+                <AssetNameSettingsPage />
+              </MarketingOpsRoute>
+            }
           />
-          <Route path="marketing-ops/admin/pardot" element={<EmailWorkbenchSettingsPage />} />
-          <Route path="marketing-ops/admin/events" element={<EventsSettingsPage />} />
-          <Route path="marketing-ops/events/mine" element={<EventsMinePage />} />
-          <Route path="marketing-ops/events/review" element={<EventsReviewPage />} />
+          <Route
+            path="marketing-ops/admin/pardot"
+            element={
+              <MarketingOpsRoute gateId="mops-admin-pardot">
+                <EmailWorkbenchSettingsPage />
+              </MarketingOpsRoute>
+            }
+          />
+          <Route
+            path="marketing-ops/admin/events"
+            element={
+              <MarketingOpsRoute gateId="mops-admin-events">
+                <EventsSettingsPage />
+              </MarketingOpsRoute>
+            }
+          />
+          <Route
+            path="marketing-ops/events/mine"
+            element={
+              <MarketingOpsRoute gateId="mops-events-mine">
+                <EventsMinePage />
+              </MarketingOpsRoute>
+            }
+          />
+          <Route
+            path="marketing-ops/events/review"
+            element={
+              <MarketingOpsRoute gateId="mops-events-review">
+                <EventsReviewPage />
+              </MarketingOpsRoute>
+            }
+          />
           {/* Event Platform — the agenda-organizer port, a different app from
               Events above. The tree is deep enough that the feature owns it, as
               the GRC modules own theirs. See event-platform/eventPlatformTabs.ts.
@@ -934,16 +1010,45 @@ export default function App() {
           {isPreviewEnabled("eventPlatform") && eventPlatformRoutes}
           <Route
             path="marketing-ops/crm-upload/pipelines"
-            element={<CrmUploadPipelinesPage />}
+            element={
+              <MarketingOpsRoute gateId="mops-crm-pipelines">
+                <CrmUploadPipelinesPage />
+              </MarketingOpsRoute>
+            }
           />
-          <Route path="marketing-ops/crm-upload/runs" element={<CrmUploadRunLogPage />} />
-          <Route path="marketing-ops/crm-upload/records" element={<CrmUploadRecordsPage />} />
-          <Route path="marketing-ops/crm-upload/review" element={<CrmUploadReviewPage />} />
+          <Route
+            path="marketing-ops/crm-upload/runs"
+            element={
+              <MarketingOpsRoute gateId="mops-crm-runs">
+                <CrmUploadRunLogPage />
+              </MarketingOpsRoute>
+            }
+          />
+          <Route
+            path="marketing-ops/crm-upload/records"
+            element={
+              <MarketingOpsRoute gateId="mops-crm-records">
+                <CrmUploadRecordsPage />
+              </MarketingOpsRoute>
+            }
+          />
+          <Route
+            path="marketing-ops/crm-upload/review"
+            element={
+              <MarketingOpsRoute gateId="mops-crm-review">
+                <CrmUploadReviewPage />
+              </MarketingOpsRoute>
+            }
+          />
           {/* Design Studio → Post Builder — the canvas editor for branded LinkedIn
               post and banner graphics. */}
           <Route
             path="marketing-ops/design-studio/post-builder"
-            element={<PostBuilderPage />}
+            element={
+              <MarketingOpsRoute gateId="mops-design-studio-post-builder">
+                <PostBuilderPage />
+              </MarketingOpsRoute>
+            }
           />
           {/* Sales — auto-recorded meetings. The meeting history ported from
               meet-app; scheduling stays in the calendar add-on and the

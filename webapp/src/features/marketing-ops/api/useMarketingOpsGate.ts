@@ -159,10 +159,12 @@ export function useMarketingOpsGate(enabled = true): MarketingOpsGate {
       return anyOf.some((c) => hasMarketingOpsCapability(me.data, c));
     }
 
-    // Unrestricted item (the utilities) → visible to any authorized caller.
-    // Anything that declares `requires` but reached here has no mapping above,
-    // so it fails closed rather than leaking.
-    return !RESTRICTED_IDS.has(itemId);
+    // Unrestricted item (the utilities) → visible to an authorized caller the
+    // backend lets use them. A backend that predates `canUseUtilities` omits it,
+    // and the old rule (any authorized caller) holds. Anything that declares
+    // `requires` but reached here has no mapping above, so it fails closed
+    // rather than leaking.
+    return !RESTRICTED_IDS.has(itemId) && (me.data?.canUseUtilities ?? true);
   };
 
   return {
