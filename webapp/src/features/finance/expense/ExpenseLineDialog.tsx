@@ -209,6 +209,7 @@ export function AddExpenseDialog({
               <Autocomplete
                 size="small"
                 fullWidth
+                disableClearable
                 options={jobOptions}
                 value={selectedJob}
                 getOptionLabel={formatJobOption}

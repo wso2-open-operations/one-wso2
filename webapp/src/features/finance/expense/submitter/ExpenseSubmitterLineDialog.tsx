@@ -229,6 +229,7 @@ export function SubmitterLineDialog({
                 options={jobOptions}
                 value={selectedJob}
                 disabled={travelsLoading}
+                disableClearable
                 getOptionLabel={formatJobOption}
                 isOptionEqualToValue={(a, b) => a.jobNumber === b.jobNumber}
                 // Matches on job number, customer, or country — not just
