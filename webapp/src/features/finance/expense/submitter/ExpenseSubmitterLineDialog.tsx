@@ -199,7 +199,11 @@ export function SubmitterLineDialog({
       </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} sx={{ pt: 0.5 }}>
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
+          {/* Bill date gets a fixed column just wide enough for its own
+              value and the native picker icon — 190px, not squeezed down
+              further — so Job number still keeps most of the row's width
+              while the two stay side by side on one line. */}
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "190px 1fr" }, gap: 1.5 }}>
             <Box>
               <SubmitterFieldLabel>Bill date</SubmitterFieldLabel>
               <TextField
@@ -249,6 +253,17 @@ export function SubmitterLineDialog({
                     placeholder="Select…"
                     slotProps={{ htmlInput: { ...params.inputProps, "aria-label": "Job number" } }}
                   />
+                )}
+                // Bill date's column is capped at 150px, so this one gets
+                // most of the row's width even though they sit side by side;
+                // noWrap plus the title attribute is only a fallback for the
+                // rare job/country combination still too long for that.
+                renderOption={(props, option) => (
+                  <Box component="li" {...props} key={option.jobNumber} sx={{ minWidth: 0 }}>
+                    <Typography noWrap title={formatJobOption(option)} sx={{ fontSize: "inherit" }}>
+                      {formatJobOption(option)}
+                    </Typography>
+                  </Box>
                 )}
               />
             </Box>
@@ -309,13 +324,22 @@ export function SubmitterLineDialog({
           <Box>
             <SubmitterFieldLabel>Expense type</SubmitterFieldLabel>
             <Autocomplete
+              // The job number resetting this field externally (see below)
+              // only clears its VALUE — MUI keeps typed search text as
+              // separate internal state, which survives that reset while
+              // the dropdown happens to be open, leaving stale text next to
+              // an empty "No options" list. Remounting on job number is the
+              // reliable fix: a fresh instance has no leftover typed text.
+              key={jobNumber}
               size="small"
               fullWidth
               disableClearable
               options={expenseTypes.data ?? []}
               value={selectedType}
+              // The source (ExpenseForm.tsx:307) shows a spinner during the
+              // refetch a new job number triggers, but never locks the field
+              // over it — only `loading`, never `disabled`, here too.
               loading={expenseTypes.isLoading}
-              disabled={expenseTypes.isLoading}
               getOptionLabel={(t) => t.type}
               isOptionEqualToValue={(a, b) => a.id === b.id}
               onChange={(_e, v) => setExpenseTypeId(v ? v.id : "")}

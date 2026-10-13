@@ -32,15 +32,12 @@ export interface JobOption {
 export const NO_JOB_OPTION: JobOption = { jobNumber: "N/A", customerName: null, country: null };
 
 /**
- * The Job Number dropdown's display label: "<job number> — <customer>
- * (<country>)", each part included only when present, so a job missing a
- * customer or country still reads cleanly instead of showing a trailing
- * " — " or an empty "()".
+ * The Job Number dropdown's display label: "<job number> (<country>)", with
+ * the country omitted (just the bare job number) when the job has none.
  */
 export function formatJobOption(t: JobOption): string {
   if (t.jobNumber === NO_JOB_OPTION.jobNumber) return "N/A (non-travel)";
-  const base = [t.jobNumber, t.customerName].filter((part): part is string => Boolean(part)).join(" — ");
-  return t.country ? `${base} (${t.country})` : base;
+  return t.country ? `${t.jobNumber} (${t.country})` : t.jobNumber;
 }
 
 /** Lower-cased haystack for filtering the dropdown by job number, customer, or country. */
