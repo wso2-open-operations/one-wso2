@@ -207,6 +207,30 @@ describe("isUnchanged / changedFields — PATCH diffing against the source row",
     expect(isUnchanged(row, reordered)).toBe(true);
     expect(changedFields(row, reordered)).toEqual({});
   });
+  // The two functions have to agree. They did not: isUnchanged compared
+  // status case-insensitively, so Update stayed disabled as it should, while
+  // changedFields compared exactly — so editing any OTHER field sent a
+  // status the reader never touched, written back in a different casing.
+  it("does not report a status change for a casing the reader did not choose", () => {
+    const stored = { ...row, status: "Inactive" };
+    const seeded = { ...form, status: "inactive" };
+
+    expect(isUnchanged(stored, seeded)).toBe(true);
+    expect(changedFields(stored, seeded)).not.toHaveProperty("status");
+
+    // And an unrelated edit carries only that edit.
+    const edited = { ...seeded, expenseType: "Renamed" };
+    expect(changedFields(stored, edited)).toEqual({ expenseType: "Renamed" });
+  });
+
+  it("still reports a status the reader really did change", () => {
+    const stored = { ...row, status: "Inactive" };
+    const edited = { ...form, status: "active" };
+
+    expect(isUnchanged(stored, edited)).toBe(false);
+    expect(changedFields(stored, edited)).toEqual({ status: "active" });
+  });
+
   it("a real array content change is picked up by both functions", () => {
     const edited = { ...form, engagementCodes: ["RND-GEN"] };
     expect(isUnchanged(row, edited)).toBe(false);

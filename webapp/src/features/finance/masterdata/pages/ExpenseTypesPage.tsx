@@ -28,12 +28,10 @@ import type { ExpenseTypeFilter } from "../masterDataTypes";
  * The expense-type catalogue — `pages/ExpenseTypes.tsx`.
  *
  * Opens on the whole catalogue. The rows come from a POST filter rather than
- * a GET, which the source took as licence to show nothing until a filter had
- * been applied (`CustomTable.tsx:236-254`) — but an empty filter is not an
- * unanswerable question: `search-expense-types` builds no WHERE clause for
- * one and returns every row. Asking people to pick a filter before they can
- * see what there is to filter BY had it backwards, so the catalogue loads and
- * the bar narrows it.
+ * a GET, but an empty filter is not an unanswerable question:
+ * `search-expense-types` builds no WHERE clause for one and returns every
+ * row. Asking people to pick a filter before they can see what there is to
+ * filter BY had it backwards, so the catalogue loads and the bar narrows it.
  *
  * Two filter objects, not one. `draft` is what the bar is editing; `applied`
  * is what the table is showing. Without the split, every keystroke in the

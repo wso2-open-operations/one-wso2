@@ -190,21 +190,36 @@ export function isFormComplete(tab: MasterDataTab, form: MasterDataPayload): boo
  * columns (glCode, glAccountName, …) that the form never edits. A null on the
  * row reads as "" so an untouched empty comment does not count as a change.
  */
+/**
+ * Whether one field still holds what the row holds.
+ *
+ * Shared by `isUnchanged` and `changedFields` because they have to agree: if
+ * this says a field is untouched, the PATCH must not carry it. Comparing
+ * separately, `status` read as equal to "Inactive" when seeded as "inactive"
+ * — so Update stayed disabled, as it should — while the PATCH built from the
+ * same pair still carried a status the reader never set.
+ *
+ * Arrays are compared as sets, since the order the reader picked them in is
+ * not a change. `status` is compared case-insensitively: the column holds
+ * both "Active" and "active" from older writes, and every reader of it
+ * lower-cases before looking.
+ */
+function sameFieldValue(key: string, rowValue: unknown, formValue: unknown): boolean {
+  if (Array.isArray(formValue)) {
+    const before = [...((rowValue as string[]) ?? [])].sort();
+    const after = [...formValue].sort();
+    return JSON.stringify(before) === JSON.stringify(after);
+  }
+  if (key === "status") {
+    return String(rowValue).toLowerCase() === String(formValue).toLowerCase();
+  }
+  return rowValue === formValue;
+}
+
 export function isUnchanged(row: MasterDataRow, form: MasterDataPayload): boolean {
-  return Object.entries(form).every(([key, formValue]) => {
-    const rowValue = (row as unknown as Record<string, unknown>)[key] ?? "";
-    if (Array.isArray(formValue)) {
-      const before = [...((rowValue as string[]) ?? [])].sort();
-      const after = [...formValue].sort();
-      return JSON.stringify(before) === JSON.stringify(after);
-    }
-    // Status is the one field whose stored casing varies, so compare it the
-    // way every reader of the column does rather than by exact value.
-    if (key === "status") {
-      return String(rowValue).toLowerCase() === String(formValue).toLowerCase();
-    }
-    return rowValue === formValue;
-  });
+  return Object.entries(form).every(([key, formValue]) =>
+    sameFieldValue(key, (row as unknown as Record<string, unknown>)[key] ?? "", formValue),
+  );
 }
 
 /**
@@ -218,10 +233,7 @@ export function changedFields(row: MasterDataRow, form: MasterDataPayload): Part
   const patch: Record<string, unknown> = {};
   for (const [key, formValue] of Object.entries(form)) {
     const rowValue = (row as unknown as Record<string, unknown>)[key] ?? "";
-    const same = Array.isArray(formValue)
-      ? JSON.stringify([...((rowValue as string[]) ?? [])].sort()) === JSON.stringify([...formValue].sort())
-      : rowValue === formValue;
-    if (!same) patch[key] = formValue;
+    if (!sameFieldValue(key, rowValue, formValue)) patch[key] = formValue;
   }
   return patch as Partial<MasterDataPayload>;
 }
