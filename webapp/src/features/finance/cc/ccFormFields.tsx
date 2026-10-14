@@ -204,8 +204,13 @@ export function JobNumberAutocomplete({
         rowGap: 0.5,
       }}
     >
-      <Box sx={{ flex: "1 1 240px", minWidth: 0 }}>{field}</Box>
-      <Box sx={{ flex: "0 0 auto", minWidth: 0 }}>{info}</Box>
+      <Box sx={{ flex: "1 1 0", minWidth: 0 }}>{field}</Box>
+      {/* A column of its own width WHETHER OR NOT anything is in it. Sized to
+          content, it collapsed to nothing before a job was chosen and the
+          input stretched across the whole row, then snapped narrower the
+          moment the funding appeared. The field's width cannot depend on
+          whether the value in it has resolved. */}
+      <Box sx={{ flex: "0 0 192px", minWidth: 0 }}>{info}</Box>
     </Box>
   );
 }
