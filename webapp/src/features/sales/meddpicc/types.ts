@@ -249,6 +249,8 @@ export interface SourceSummary {
 /** One entry on a deal's timeline: a call today; an email or Salesforce activity later. */
 export interface DealActivity {
   type: EvidenceSourceType;
+  /** What it was. Absent from an older backend; a call then counts as a customer call. */
+  kind?: TimelineKind;
   id: string;
   title: string;
   occurredAt: string;

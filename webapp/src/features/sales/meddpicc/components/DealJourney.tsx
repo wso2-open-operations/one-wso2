@@ -19,6 +19,7 @@ import { Box, Stack, Tooltip, Typography, useTheme } from "@wso2/oxygen-ui";
 import { parseUtc } from "../../util/salesTime";
 import type { Journey, SourceSummary, TimelineKind, TimelineMark } from "../types";
 import { daysAgo, daysBetween, kindOf } from "../util/evidenceSource";
+import { KIND_ORDER, KINDS } from "../util/timelineKinds";
 import { formatSalesforceDate } from "../util/meddpiccFormat";
 
 /** Past this, a deal with no activity reads as quiet. */
@@ -26,23 +27,6 @@ const QUIET_AFTER_DAYS = 21;
 
 const DAY = 86_400_000;
 
-/**
- * How each kind of activity is drawn: colour, size and shape together, so no one of them
- * carries identity alone. The three hues are the first three categorical slots, which
- * validate against each other in both modes (all pairs, as marks on one track can sit
- * side by side); a Salesforce activity, the weakest evidence, is a neutral ring rather
- * than a fourth hue. Size follows weight: a customer call is the biggest thing on the track.
- */
-const KINDS: Record<
-  TimelineKind,
-  { label: string; plural: string; size: number; shape: "circle" | "diamond" | "ring"; light?: string; dark?: string }
-> = {
-  CUSTOMER_CALL: { label: "Customer call", plural: "customer calls", size: 12, shape: "circle", light: "#2a78d6", dark: "#3987e5" },
-  EMAIL: { label: "Email", plural: "emails", size: 10, shape: "diamond", light: "#1baf7a", dark: "#199e70" },
-  INTERNAL_CALL: { label: "Internal discussion", plural: "internal discussions", size: 8, shape: "circle", light: "#eb6834", dark: "#d95926" },
-  ACTIVITY: { label: "Salesforce activity", plural: "activities", size: 7, shape: "ring" },
-};
-const KIND_ORDER: TimelineKind[] = ["CUSTOMER_CALL", "INTERNAL_CALL", "EMAIL", "ACTIVITY"];
 
 function useKindColor(): (kind: TimelineKind) => string {
   const theme = useTheme();
@@ -53,7 +37,7 @@ function useKindColor(): (kind: TimelineKind) => string {
   };
 }
 
-function Mark({ kind, upcoming, scale = 1 }: { kind: TimelineKind; upcoming: boolean; scale?: number }) {
+export function KindMark({ kind, upcoming, scale = 1 }: { kind: TimelineKind; upcoming: boolean; scale?: number }) {
   const color = useKindColor()(kind);
   const k = KINDS[kind];
   const size = Math.round(k.size * scale);
@@ -100,8 +84,8 @@ export function DealJourneyLegend() {
   return (
     <Stack spacing={0.5} sx={{ typography: "caption", color: "inherit", py: 0.25 }}>
       <Box sx={{ fontWeight: 700 }}>Each deal, from its start to its close</Box>
-      {KIND_ORDER.map((kind) => swatch(<Mark kind={kind} upcoming={false} />, KINDS[kind].label))}
-      {swatch(<Mark kind="CUSTOMER_CALL" upcoming scale={0.8} />, "Upcoming (hollow)")}
+      {KIND_ORDER.map((kind) => swatch(<KindMark kind={kind} upcoming={false} />, KINDS[kind].label))}
+      {swatch(<KindMark kind="CUSTOMER_CALL" upcoming scale={0.8} />, "Upcoming (hollow)")}
       {swatch(
         <Box sx={{ width: 14, height: 6, borderRadius: 0.5, bgcolor: "currentColor", opacity: 0.45 }} />,
         "Stage: darker further along",
@@ -320,7 +304,7 @@ export default function DealJourney({
                       "&:focus-visible": { outline: "2px solid", outlineColor: color(kind), borderRadius: 0.5 },
                     }}
                   >
-                    <Mark kind={kind} upcoming={upcoming} />
+                    <KindMark kind={kind} upcoming={upcoming} />
                   </Box>
                 </Tooltip>
               </Box>

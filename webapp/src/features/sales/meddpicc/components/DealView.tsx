@@ -34,9 +34,6 @@ import {
   ArrowRightIcon,
   ChevronDownIcon,
   ExternalLinkIcon,
-  MailIcon,
-  NotebookPenIcon,
-  VideoIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { formatDateTime } from "../../util/salesTime";
@@ -61,7 +58,8 @@ import type {
 import { activityOf, describeSources, journeyOf, sourcesOf } from "../util/evidenceSource";
 import { defaultGate, gateSummaries, sectionsFor } from "../util/dealSections";
 import { useNow } from "../../util/useNow";
-import DealJourney from "./DealJourney";
+import DealJourney, { KindMark } from "./DealJourney";
+import { KINDS } from "../util/timelineKinds";
 import StagePath from "./StagePath";
 import { meetingPath } from "../../util/salesPaths";
 import {
@@ -239,7 +237,7 @@ export default function DealView({
     [...activity]
       .map((a) => ({
         type: a.type,
-        kind: a.type === "CALL" ? ("CUSTOMER_CALL" as const) : a.type,
+        kind: a.kind ?? (a.type === "CALL" ? ("CUSTOMER_CALL" as const) : a.type),
         at: a.occurredAt,
         title: a.title,
         meetingId: a.meetingId,
@@ -476,6 +474,7 @@ export default function DealView({
                     key={`${entry.type}-${entry.id}`}
                     entry={entry}
                     coverage={entry.meetingId !== null ? coverageByMeeting.get(entry.meetingId) : undefined}
+                    now={now}
                   />
                 ))}
               </Stack>
@@ -590,32 +589,26 @@ export default function DealView({
   );
 }
 
-const ACTIVITY_ICON: Record<EvidenceSourceType, typeof VideoIcon> = {
-  CALL: VideoIcon,
-  EMAIL: MailIcon,
-  ACTIVITY: NotebookPenIcon,
-};
-
 /**
- * One entry on the deal's timeline. A call links to its page and shows its circles; an
- * email or Salesforce activity links out and lists the Letters it touched.
+ * One entry on the deal's activity list: the same mark the journey draws for it, its
+ * title (a call opens its analysis; an email or Salesforce record opens there), what it
+ * was and when, and who. An analysed call shows its circles; anything else the Letters it
+ * touched. Entries still to come say so.
  */
 function ActivityRow({
   entry,
   coverage,
+  now,
 }: {
   entry: DealActivity;
   coverage: Record<LetterKey, 0 | 1 | 2> | null | undefined;
+  now: number;
 }) {
-  const Icon = ACTIVITY_ICON[entry.type] ?? VideoIcon;
+  const kind = entry.kind ?? (entry.type === "CALL" ? "CUSTOMER_CALL" : entry.type);
+  const upcoming = Date.parse(entry.occurredAt) > now;
   const title =
     entry.type === "CALL" && entry.meetingId !== null ? (
-      <Link
-        component={RouterLink}
-        to={meetingPath(entry.meetingId, { tab: "meddpicc" })}
-        underline="hover"
-        color="inherit"
-      >
+      <Link component={RouterLink} to={meetingPath(entry.meetingId, { tab: "meddpicc" })} underline="hover" color="inherit">
         {entry.title}
       </Link>
     ) : entry.url ? (
@@ -626,34 +619,37 @@ function ActivityRow({
       entry.title
     );
   return (
-    <Stack
-      component="li"
-      direction="row"
-      spacing={1.5}
-      sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", rowGap: 0.5 }}
-    >
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0 }}>
-        <Box component="span" sx={{ display: "inline-flex", color: "text.secondary" }} aria-hidden>
-          <Icon size={14} />
-        </Box>
-        <Typography variant="body2" sx={{ minWidth: 0 }}>
+    <Stack component="li" direction="row" spacing={1.25} sx={{ alignItems: "flex-start", py: 0.5 }}>
+      <Box sx={{ width: 14, height: 20, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <KindMark kind={kind} upcoming={upcoming} />
+      </Box>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography variant="body2" sx={{ fontWeight: 500, overflowWrap: "anywhere" }}>
           {title}
-          <Typography component="span" variant="caption" color="text.secondary">
-            {" · "}
-            {formatDateTime(entry.occurredAt)}
-            {entry.actor && ` · ${entry.actor}`}
-          </Typography>
         </Typography>
-      </Stack>
-      {entry.type === "CALL" ? (
-        <MeddpiccCircles variant="coverage" values={coverage ?? null} label={`Coverage for ${entry.title}`} />
-      ) : (
-        entry.letters.length > 0 && (
-          <Typography variant="caption" color="text.secondary">
-            {entry.letters.map(letterLabel).join(", ")}
-          </Typography>
-        )
-      )}
+        <Typography variant="caption" color="text.secondary" component="div">
+          {KINDS[kind].label}
+          {upcoming && (
+            <Box component="span" sx={{ color: "primary.main", fontWeight: 600 }}>
+              {" · upcoming"}
+            </Box>
+          )}
+          {" · "}
+          {formatDateTime(entry.occurredAt)}
+          {entry.actor && ` · ${entry.actor}`}
+        </Typography>
+        {entry.type === "CALL" && coverage ? (
+          <Box sx={{ mt: 0.5 }}>
+            <MeddpiccCircles variant="coverage" values={coverage} label={`Coverage for ${entry.title}`} />
+          </Box>
+        ) : (
+          entry.letters.length > 0 && (
+            <Typography variant="caption" color="text.secondary" component="div">
+              Touched {entry.letters.map(letterLabel).join(", ")}
+            </Typography>
+          )
+        )}
+      </Box>
     </Stack>
   );
 }

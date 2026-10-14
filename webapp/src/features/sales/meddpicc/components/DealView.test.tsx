@@ -248,6 +248,9 @@ describe("DealView", { timeout: 20000 }, () => {
     await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
     const aside = screen.getByRole("complementary", { name: "About this deal" });
     expect(within(aside).getByRole("list", { name: /^Deal journey/ })).toBeInTheDocument();
+    // Each activity entry says what it was; without the backend's kind, a call is a customer call.
+    const activity = within(aside).getByRole("region", { name: "Activity" });
+    expect(within(activity).getAllByText(/^Customer call · /).length).toBeGreaterThan(0);
   });
 });
 
