@@ -243,14 +243,46 @@ describe("DealView", { timeout: 20000 }, () => {
     expect(screen.getByRole("region", { name: "Missing" })).toHaveTextContent("Nothing is missing in Qualify.");
   });
 
-  it("shows the deal's journey beside the fields", async () => {
+  it("shows the journey and every activity on the Activity tab, filtered by kind", async () => {
+    const user = userEvent.setup();
     renderPanel("006MOCK0000MERI");
     await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
-    const aside = screen.getByRole("complementary", { name: "About this deal" });
-    expect(within(aside).getByRole("list", { name: /^Deal journey/ })).toBeInTheDocument();
-    // Each activity entry says what it was; without the backend's kind, a call is a customer call.
-    const activity = within(aside).getByRole("region", { name: "Activity" });
-    expect(within(activity).getAllByText(/^Customer call · /).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("tab", { name: /^Activity/ }));
+    const panel = screen.getByRole("tabpanel", { name: "Activity" });
+    expect(within(panel).getByRole("list", { name: /^Deal journey/ })).toBeInTheDocument();
+    // Each entry says what it was; without the backend's kind, a call is a customer call.
+    const calls = within(panel).getAllByText(/^Customer call · /).length;
+    expect(calls).toBeGreaterThan(0);
+    await user.click(within(panel).getByRole("button", { name: `Customer call ${calls}` }));
+    expect(within(panel).getAllByText(/^Customer call · /)).toHaveLength(calls);
+    // The approval bar belongs to the MEDDPICC tab.
+    expect(screen.queryByRole("button", { name: /^Approve all/ })).not.toBeInTheDocument();
+  });
+
+  it("answers questions about the deal on the Ask AI tab, with the quotes it used", async () => {
+    const user = userEvent.setup();
+    renderPanel("006MOCK0000MERI");
+    await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
+    await user.click(screen.getByRole("tab", { name: "Ask AI" }));
+    const panel = screen.getByRole("tabpanel", { name: "Ask AI" });
+
+    await user.click(within(panel).getByRole("button", { name: "What's blocking the next stage?" }));
+    expect(await within(panel).findByText(/is in Technical Proof/)).toBeInTheDocument();
+    expect(within(panel).getByRole("list", { name: "Quotes used" })).toBeInTheDocument();
+
+    // A failed answer says so and can be retried.
+    const ask = vi.spyOn(mockMeddpiccClient, "ask").mockRejectedValueOnce(new Error("Claude is busy"));
+    await user.type(within(panel).getByRole("textbox", { name: "Your question" }), "Who signs?{Enter}");
+    expect(await within(panel).findByText(/Couldn't answer that/)).toBeInTheDocument();
+    ask.mockRestore();
+    await user.click(within(panel).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(within(panel).queryByText(/Couldn't answer that/)).not.toBeInTheDocument());
+    expect(within(panel).getAllByText(/is in Technical Proof/)).toHaveLength(2);
+
+    // The thread survives a trip to another tab.
+    await user.click(screen.getByRole("tab", { name: /^MEDDPICC/ }));
+    await user.click(screen.getByRole("tab", { name: "Ask AI" }));
+    expect(screen.getByText("Who signs?")).toBeInTheDocument();
   });
 });
 

@@ -15,7 +15,7 @@
 // under the License.
 
 import { useState, type ReactNode } from "react";
-import { Link as RouterLink, useNavigate } from "react-router";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import {
   Accordion,
   AccordionDetails,
@@ -29,9 +29,13 @@ import {
   Stack,
   Tooltip,
   Typography,
+  Divider,
+  Tab,
+  Tabs,
 } from "@wso2/oxygen-ui";
 import {
   ArrowRightIcon,
+  SparklesIcon,
   ChevronDownIcon,
   ExternalLinkIcon,
 } from "@wso2/oxygen-ui-icons-react";
@@ -53,13 +57,17 @@ import type {
   EvidenceSourceType,
   FieldValue,
   LetterKey,
+  TimelineKind,
   TimelineMark,
 } from "../types";
 import { activityOf, describeSources, journeyOf, sourcesOf } from "../util/evidenceSource";
 import { defaultGate, gateSummaries, sectionsFor } from "../util/dealSections";
 import { useNow } from "../../util/useNow";
 import DealJourney, { KindMark } from "./DealJourney";
-import { KINDS } from "../util/timelineKinds";
+import { KIND_ORDER, KINDS } from "../util/timelineKinds";
+import DealChat, { type ChatEntry } from "./DealChat";
+
+type DealTab = "meddpicc" | "activity" | "ask";
 import StagePath from "./StagePath";
 import { meetingPath } from "../../util/salesPaths";
 import {
@@ -228,6 +236,30 @@ export default function DealView({
 
   const sources = sourcesOf(detail);
   const activity = activityOf(detail);
+
+  // The tab lives in the URL (?tab=activity|ask), so a link or a refresh lands on it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requested = searchParams.get("tab");
+  const tab: DealTab = requested === "activity" || requested === "ask" ? requested : "meddpicc";
+  const showTab = (next: DealTab) =>
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "meddpicc") params.delete("tab");
+        else params.set("tab", next);
+        return params;
+      },
+      { replace: true },
+    );
+  const reviewCount = summaries.reduce((n, s) => n + s.review, 0);
+  // The conversation is kept here so it survives switching tabs.
+  const [chat, setChat] = useState<ChatEntry[]>([]);
+  const [kindFilter, setKindFilter] = useState<TimelineKind | null>(null);
+  const kindOfEntry = (a: DealActivity): TimelineKind => a.kind ?? (a.type === "CALL" ? "CUSTOMER_CALL" : a.type);
+  const kindCounts = KIND_ORDER.map((kind) => [kind, activity.filter((a) => kindOfEntry(a) === kind).length] as const).filter(
+    ([, n]) => n > 0,
+  );
+  const shownActivity = kindFilter ? activity.filter((a) => kindOfEntry(a) === kindFilter) : activity;
   const now = useNow();
   const navigate = useNavigate();
   // The journey's marks: the deal row's own timeline when the backend sends one, else
@@ -317,16 +349,39 @@ export default function DealView({
         )}
       </Box>
 
-      {/* ---- Body: fields on the left, the deal's context on the right ---- */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) minmax(280px, 360px)" },
-          gap: 3,
-          alignItems: "start",
-        }}
+      {/* ---- Tabs: the MEDDPICC work, the deal's activity, and questions about it ---- */}
+      <Tabs
+        value={tab}
+        onChange={(_, next: DealTab) => showTab(next)}
+        aria-label="Deal views"
+        sx={{ mb: 2, borderBottom: 1, borderColor: "divider", minHeight: 40, "& .MuiTab-root": { minHeight: 40, textTransform: "none" } }}
       >
-        <Stack spacing={1.5} sx={{ minWidth: 0 }}>
+        <Tab
+          value="meddpicc"
+          label={
+            <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
+              <span>MEDDPICC</span>
+              {reviewCount > 0 && (
+                <Chip label={reviewCount} size="small" color="warning" sx={{ height: 18, fontSize: "0.7rem", fontWeight: 700 }} />
+              )}
+            </Stack>
+          }
+        />
+        <Tab value="activity" label={`Activity (${activity.length})`} />
+        <Tab
+          value="ask"
+          label={
+            <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
+              <SparklesIcon size={14} aria-hidden />
+              <span>Ask AI</span>
+            </Stack>
+          }
+        />
+      </Tabs>
+
+      {/* Panels stay mounted while hidden, so a chat or a half-made edit survives a tab switch. */}
+      <Box role="tabpanel" aria-label="MEDDPICC" hidden={tab !== "meddpicc"}>
+        <Stack spacing={1.5} sx={{ minWidth: 0, maxWidth: 1100 }}>
           {readOnly && (
             <Alert severity="info">
               You can view this deal. Only its owner, a call host or a Sales admin can approve, include calls or
@@ -431,11 +486,13 @@ export default function DealView({
             render={(field) => renderField(field, "compact")}
           />
         </Stack>
+      </Box>
 
-        <Stack component="aside" spacing={2.5} sx={{ minWidth: 0 }} aria-label="About this deal">
-          {/* The deal's journey, as on the Deals list, for this deal alone. */}
+      <Box role="tabpanel" aria-label="Activity" hidden={tab !== "activity"}>
+        <Stack spacing={3} sx={{ minWidth: 0, maxWidth: 1100 }}>
+          {/* The deal's journey, as on the Deals list, for this deal alone, at full width. */}
           <Box component="section" aria-label="Journey">
-            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 0.75 }}>
               Journey
             </Typography>
             <DealJourney
@@ -448,8 +505,42 @@ export default function DealView({
             />
           </Box>
 
+          <Box component="section" aria-label="Activity list">
+            <Stack direction="row" sx={{ alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1 }}>
+              <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mr: 1 }}>
+                Everything on this deal
+              </Typography>
+              <Chip label={`All ${activity.length}`} size="small" variant={kindFilter === null ? "filled" : "outlined"} onClick={() => setKindFilter(null)} />
+              {kindCounts.map(([kind, n]) => (
+                <Chip
+                  key={kind}
+                  label={`${KINDS[kind].label} ${n}`}
+                  size="small"
+                  variant={kindFilter === kind ? "filled" : "outlined"}
+                  onClick={() => setKindFilter(kind)}
+                />
+              ))}
+            </Stack>
+            {shownActivity.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No activity yet.
+              </Typography>
+            ) : (
+              <Stack component="ul" divider={<Divider component="li" aria-hidden />} sx={{ listStyle: "none", p: 0, m: 0 }}>
+                {shownActivity.map((entry) => (
+                  <ActivityRow
+                    key={`${entry.type}-${entry.id}`}
+                    entry={entry}
+                    coverage={entry.meetingId !== null ? coverageByMeeting.get(entry.meetingId) : undefined}
+                    now={now}
+                  />
+                ))}
+              </Stack>
+            )}
+          </Box>
+
           {detail.productsDiscussed.length > 0 && (
-            <Box>
+            <Box component="section" aria-label="Products discussed">
               <Typography variant="subtitle2">Products discussed</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                 A hint from the calls. Never written to Salesforce, and not the product line items.
@@ -461,28 +552,15 @@ export default function DealView({
               </Stack>
             </Box>
           )}
-
-          {activity.length > 0 && (
-            <Box component="section" aria-label="Activity">
-              <Typography variant="subtitle2">Activity ({activity.length})</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                Everything the deal's MEDDPICC is drawn from, newest first.
-              </Typography>
-              <Stack component="ul" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0, mt: 0.75 }}>
-                {activity.map((entry) => (
-                  <ActivityRow
-                    key={`${entry.type}-${entry.id}`}
-                    entry={entry}
-                    coverage={entry.meetingId !== null ? coverageByMeeting.get(entry.meetingId) : undefined}
-                    now={now}
-                  />
-                ))}
-              </Stack>
-            </Box>
-          )}
         </Stack>
       </Box>
 
+      <Box role="tabpanel" aria-label="Ask AI" hidden={tab !== "ask"}>
+        <DealChat opportunityId={deal.opportunityId} entries={chat} onChange={setChat} />
+      </Box>
+
+      {tab === "meddpicc" && (
+        <>
       {/* ---- Footer: the two actions, kept in view while the fields scroll ---- */}
       <Box
         sx={{
@@ -585,6 +663,8 @@ export default function DealView({
         </Stack>
       </Box>
 
+        </>
+      )}
     </>
   );
 }

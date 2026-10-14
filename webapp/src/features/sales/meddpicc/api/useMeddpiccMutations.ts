@@ -27,6 +27,8 @@ import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-q
 import { HttpError } from "@api/http";
 import { describeError } from "../../util/salesError";
 import type {
+  AskAnswer,
+  AskRequest,
   ApproveRequest,
   ApproveResult,
   DealDetail,
@@ -87,6 +89,17 @@ export function useIncludeCalls(opportunityId: string) {
   return useMutation<DealDetail, Error, number[]>({
     mutationFn: (meetingIds) => client.includeCalls(opportunityId, meetingIds),
     onSuccess: (detail) => afterDealChange(qc, ["meddpicc-deal", userSub, opportunityId], detail),
+  });
+}
+
+/**
+ * POST /deals/{id}/ask: a question about the deal, answered from its record. Changes
+ * nothing, so nothing is invalidated; the conversation lives with the caller.
+ */
+export function useAskDeal(opportunityId: string) {
+  const { client } = useMeddpiccBasis();
+  return useMutation<AskAnswer, Error, AskRequest>({
+    mutationFn: (request) => client.ask(opportunityId, request),
   });
 }
 

@@ -78,7 +78,10 @@ describe("DealPage", { timeout: 20000 }, () => {
     renderAt(dealPath("006MOCK0000MERI"));
     expect(await screen.findByRole("heading", { name: "Meridian Bank – integration platform" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Deals" })).toHaveAttribute("href", "/sales/deals");
-    expect(screen.getByRole("complementary", { name: "About this deal" })).toBeInTheDocument();
+    // Three views of the deal, MEDDPICC first.
+    expect(screen.getByRole("tab", { name: /^MEDDPICC/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Activity/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Ask AI" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Approve all/ })).toBeInTheDocument();
   });
 
@@ -91,6 +94,14 @@ describe("DealPage", { timeout: 20000 }, () => {
     // An invalid Letter is ignored: the page opens on the current stage.
     expect(await screen.findByRole("button", { name: /^Technical Proof, current stage/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText(/across every stage/)).not.toBeInTheDocument();
+  });
+
+  it("opens on the tab the URL names", async () => {
+    renderAt(`${dealPath("006MOCK0000MERI")}?tab=activity`);
+    expect(await screen.findByRole("tab", { name: /^Activity/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("region", { name: "Journey" })).toBeInTheDocument();
+    // The approval bar belongs to the MEDDPICC tab.
+    expect(screen.queryByRole("button", { name: /^Approve all/ })).not.toBeInTheDocument();
   });
 
   it("builds deal paths, escaping the id", () => {

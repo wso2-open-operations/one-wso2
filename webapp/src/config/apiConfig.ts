@@ -2091,6 +2091,8 @@ export const echoServiceUrls = {
     `${echoBackendUrl}/deals/${encodeURIComponent(opportunityId)}/move-stage`,
   includeCalls: (opportunityId: string): string =>
     `${echoBackendUrl}/deals/${encodeURIComponent(opportunityId)}/include-calls`,
+  // A question about one deal, answered from its record. Read-only.
+  ask: (opportunityId: string): string => `${echoBackendUrl}/deals/${encodeURIComponent(opportunityId)}/ask`,
 };
 
 /**

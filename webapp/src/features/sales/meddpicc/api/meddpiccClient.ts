@@ -21,6 +21,8 @@
 import { HttpError, authedGet, authedPost } from "@api/http";
 import { buildDealsUrl, echoServiceUrls } from "@config/apiConfig";
 import type {
+  AskAnswer,
+  AskRequest,
   ApproveRequest,
   ApproveResult,
   DealDetail,
@@ -49,6 +51,7 @@ export interface MeddpiccClient {
   approve(opportunityId: string, request: ApproveRequest): Promise<ApproveResult>;
   moveStage(opportunityId: string, toStage: string): Promise<MoveStageResult>;
   includeCalls(opportunityId: string, meetingIds: number[]): Promise<DealDetail>;
+  ask(opportunityId: string, request: AskRequest): Promise<AskAnswer>;
 }
 
 /** The contract's cap on one coverage request. */
@@ -91,6 +94,10 @@ export function httpMeddpiccClient(getAccessToken: () => Promise<string>): Meddp
       const body: IncludeCallsRequest = { meetingIds };
       const url = echoServiceUrls.includeCalls(opportunityId);
       return required(url, await authedPost<DealDetail>(url, await getAccessToken(), body));
+    },
+    ask: async (opportunityId, request) => {
+      const url = echoServiceUrls.ask(opportunityId);
+      return required(url, await authedPost<AskAnswer>(url, await getAccessToken(), request));
     },
   };
 }

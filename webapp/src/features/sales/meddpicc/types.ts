@@ -286,6 +286,31 @@ export interface DealDetail {
   lastApproval: { by: string; at: string } | null;
 }
 
+// ---- POST /deals/{opportunityId}/ask ---------------------------------------
+
+/** One earlier turn, sent back with the next question; the backend keeps no conversation. */
+export interface AskTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+export interface AskRequest {
+  question: string;
+  /** The last turns; the backend uses at most eight. */
+  history: AskTurn[];
+}
+
+/** A quote the answer cites, with the number the answer uses for it ("[3]"). */
+export interface AskCitation {
+  number: number;
+  quote: EvidenceQuote;
+}
+
+export interface AskAnswer {
+  answer: string;
+  citations: AskCitation[];
+}
+
 // ---- POST /deals/{opportunityId}/approve -----------------------------------
 
 export interface ApproveRequest {

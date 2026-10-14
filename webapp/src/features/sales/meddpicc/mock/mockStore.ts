@@ -446,4 +446,18 @@ export const mockMeddpiccClient: MeddpiccClient = {
     await wait();
     return includeCalls(findDeal(opportunityId), meetingIds);
   },
+  // A plain summary from the deal's own state, whatever the question; the real answer
+  // comes from Claude. Cites the first quote behind a pending proposal.
+  ask: async (opportunityId) => {
+    await wait();
+    const d = detail(findDeal(opportunityId));
+    const pending = d.fields.filter((f) => f.proposal?.pending);
+    const missing = d.incomplete.map((key) => d.fields.find((f) => f.key === key)?.label ?? key);
+    const quote = pending.flatMap((f) => f.proposal?.evidence ?? [])[0];
+    const parts = [`${d.deal.name} is in ${d.currentStage}.`];
+    if (pending.length) parts.push(`${pending.length} AI proposals wait for review: ${pending.map((f) => f.label).join(", ")}.`);
+    if (missing.length) parts.push(`Still needed to leave ${d.currentStage}: ${missing.join(", ")}.`);
+    if (quote) parts.push("[1]");
+    return { answer: parts.join(" "), citations: quote ? [{ number: 1, quote }] : [] };
+  },
 };
