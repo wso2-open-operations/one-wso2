@@ -314,6 +314,18 @@ export function CcCategorisePanel({
       setSaveError("Please fill in all required fields.");
       return false;
     }
+    // A job number typed in a shape no job can have is refused here as well
+    // as marked on the field. The field shows the error, but nothing stopped
+    // the value: "Save & Continue" in the unsaved-changes dialog reaches this
+    // without the Save button, and an already-submitted row would go back to
+    // an approver carrying a job number that cannot be looked up.
+    //
+    // Review only, like the completeness check above: a draft is allowed to
+    // be half-finished, and a half-typed job number is exactly that.
+    if (review && jobMalformed) {
+      setSaveError("Enter a valid value in the format TRV-YYYY-MM-NNNN");
+      return false;
+    }
     const ok = await persist(effective);
     if (ok && review) setIsEditing(false);
     return ok;
@@ -573,9 +585,11 @@ export function CcCategorisePanel({
               onChange={(v) => change({ travelJobNumber: v }, clearDependentFields("travelJobNumber"))}
               error={jobNumberError}
               helperText={jobNumberHelp}
-              /* EditPane.tsx:1344-1450 — the job's particulars and its
-                 funding sit on the SAME row as the field there, not stacked
-                 under it. Shown whenever the lookup succeeded, as there. */
+              /* The job's particulars and its funding sit on the field's own
+                 row rather than stacked under it, and appear as soon as the
+                 lookup succeeds — a job with no funding still has an
+                 engagement worth reading, and that case has its own warning
+                 below. */
               info={
                 jobUnits ? (
                   <JobNumberSideBar

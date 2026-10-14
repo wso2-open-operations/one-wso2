@@ -15,7 +15,7 @@
 // under the License.
 
 import { describe, expect, it } from "vitest";
-import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
+import { formatJobDate, isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
 
 describe("a typed travel job number", () => {
   it("is upper-cased and trimmed, so it matches the list and the cache key", () => {
@@ -41,5 +41,32 @@ describe("a typed travel job number", () => {
     ]) {
       expect(isValidJobNumberFormat(bad), bad).toBe(false);
     }
+  });
+});
+
+describe("a travel date in the job tooltip", () => {
+  it("is written day-first, with a padded day", () => {
+    expect(formatJobDate("2026-01-10")).toBe("10 Jan 2026");
+  });
+
+  // The entity sends "2016-10-11 00:00:00.0", which is not a string every
+  // browser will parse as a date; only the date half is needed.
+  it("reads the entity's date-and-time string", () => {
+    expect(formatJobDate("2016-10-11 00:00:00.0")).toBe("11 Oct 2016");
+  });
+
+  // A date-only string is midnight UTC. Formatted in the reader's own zone,
+  // anyone west of UTC saw the day before — these are calendar dates with no
+  // time in them to convert. This test only means something west of UTC, so
+  // run the file with TZ=America/Los_Angeles to see it bite.
+  it("does not shift a day for a reader behind UTC", () => {
+    expect(formatJobDate("2016-10-11 00:00:00.0")).toBe("11 Oct 2016");
+    expect(formatJobDate("2026-03-01")).toBe("01 Mar 2026");
+  });
+
+  it("says so plainly when there is no date", () => {
+    expect(formatJobDate(null)).toBe("—");
+    expect(formatJobDate("")).toBe("—");
+    expect(formatJobDate("not a date")).toBe("—");
   });
 });

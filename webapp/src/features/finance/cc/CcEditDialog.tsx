@@ -230,8 +230,9 @@ function CcEditForm({
     ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
     : jobNotFound
       ? "Could not verify this job number"
-      : // EditPane.tsx:780 — says the typed route exists at all, which is the
-        // only way anyone would discover it.
+      : // Says the typed route exists at all, which is the only way anyone
+        // would discover it: the dropdown looks like the whole of what can
+        // be chosen.
         "Not listed? Type the full job number.";
   const fundingSources = jobUnits?.fundingSources ?? [];
   // :568-575 — a job with no funding sources cannot be charged against, so the
@@ -290,7 +291,10 @@ function CcEditForm({
   // categorisation is not this mode's to judge or to re-save unchanged.
   const valid = leadOnly
     ? Boolean(leadEmail) && leadEmail !== (txn.leadEmail?.split(",")[0]?.trim() ?? "")
-    : ccTxnComplete(patched) && !jobUnusable;
+    // `!jobMalformed` as well: the field marks a job number typed in a shape
+    // no job can have, but marking it is not refusing it, and this dialog
+    // edits rows that are already with an approver.
+    : ccTxnComplete(patched) && !jobUnusable && !jobMalformed;
 
   return (
     <>
@@ -334,10 +338,12 @@ function CcEditForm({
                 onChange={(v) => setJobNumber(v ?? "")}
                 error={jobNumberError}
                 helperText={jobNumberHelp}
-                /* EditPane.tsx:1375-1393 — the job's own particulars live
-                   behind an info icon rather than on the form, which has no
-                   room for seven more lines and does not need them until
-                   someone is checking they picked the right job. */
+                /* The job's own particulars live behind an info icon rather
+                   than on the form, which has no room for nine more lines
+                   and does not need them until someone is checking they
+                   picked the right job. Shown as soon as the lookup
+                   succeeds: a job with no funding still has an engagement
+                   worth reading, and that case has its own warning below. */
                 info={
                   jobUnits ? (
                     // A button, not a bare icon: an icon takes no focus and
@@ -370,12 +376,12 @@ function CcEditForm({
             )}
             {jobUsable && jobUnits && (
               <Box sx={{ mt: 1 }}>
-                {/* The engagement, the country and the units all read off the
-                    job's info tooltip now, as they do in the source — and
-                    they have to: an older travel carries no engagement code
-                    or type at all, and spelling that out as a line of bare
-                    separators ("· · Sri Lanka") was the only thing this said
-                    for exactly the jobs the typed-entry route exists for. */}
+                {/* The engagement, the country and the units all read off
+                    the job's info tooltip now, and they have to: an older
+                    travel carries no engagement code or type at all, and
+                    spelling that out as a line of bare separators
+                    ("· · Sri Lanka") was the only thing this said for
+                    exactly the jobs the typed-entry route exists for. */}
                 <FundingSources sources={fundingSources} totalAmount={txn.txnAmount} />
               </Box>
             )}

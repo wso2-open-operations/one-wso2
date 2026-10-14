@@ -157,9 +157,9 @@ describe("a travel job number supplies the units", () => {
   });
 
   // The engagement, the country and the units read off the job's info
-  // tooltip, as they do in the source. They used to sit on a line under the
-  // field, which an older travel — carrying no engagement code or type at
-  // all — rendered as a row of bare separators.
+  // tooltip. They used to sit on a line under the field, which an older
+  // travel — carrying no engagement code or type at all — rendered as a row
+  // of bare separators.
   it("shows the engagement the spend is charged to, behind the info icon", async () => {
     const user = userEvent.setup();
     await categoriseAsTravel();

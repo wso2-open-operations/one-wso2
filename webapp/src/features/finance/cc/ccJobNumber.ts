@@ -15,14 +15,14 @@
 // under the License.
 
 /**
- * Travel job numbers that are not in the dropdown — `utils.ts:74-80`.
+ * Travel job numbers that are not in the dropdown.
  *
  * `GET /travels/job-numbers` returns only the past year, because the list
- * would otherwise be enormous. Older spend is rare but real, and until now
- * there was no way to file it: the picker committed only what it had been
- * handed. People know the exact number in those cases, so the field accepts
- * a typed one and the existing `GET /travels/{jobNumber}` — which has no
- * such date limit — decides whether it is real.
+ * would otherwise be enormous. Older spend is rare but real, and there was
+ * no way to file it: the picker committed only what it had been handed.
+ * People know the exact number in those cases, so the field accepts a typed
+ * one and `GET /travels/{jobNumber}`, which has no such date limit, decides
+ * whether it is real.
  */
 
 /** `TRV-YYYY-MM-NNNN`. */
@@ -50,15 +50,12 @@ export function isValidJobNumberFormat(value: string): boolean {
 }
 
 /**
- * A travel date, the way the source writes it — `utils.ts:35-42`.
+ * A travel date for the job-details tooltip: "10 Jan 2026".
  *
- * "10 Jan 2026", not "Jan 10, 2026". The source asks for `en-UK`, which is
- * not a real tag — there is no UK region subtag, only GB — and falls back to
- * British conventions by luck rather than intent. `en-GB` is the tag that
- * actually means that, and formats identically.
- *
- * Separate from `formatNice`, which is US-ordered and used by every other
- * finance screen. Only this tooltip mirrors the source's wording.
+ * Day first, with a padded day, which is how these dates are written on the
+ * travel records themselves. Separate from `formatNice`, which is
+ * US-ordered and used by every other finance screen — only this tooltip
+ * reads this way, so widening `formatNice` would change all of them.
  */
 export function formatJobDate(input: string | null | undefined): string {
   if (!input) return "—";
@@ -70,5 +67,10 @@ export function formatJobDate(input: string | null | undefined): string {
     year: "numeric",
     month: "short",
     day: "2-digit",
+    // A date-only string parses as midnight UTC, and formatting without this
+    // uses the reader's own zone — anyone west of UTC saw a travel starting
+    // 11 Oct reported as 10 Oct. These are calendar dates, with no time in
+    // them to convert.
+    timeZone: "UTC",
   }).format(date);
 }

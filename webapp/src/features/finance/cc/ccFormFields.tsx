@@ -115,17 +115,17 @@ export function Placeholder() {
 }
 
 /**
- * EditPane.tsx:1229-1246 / InputMenu.tsx:150-177 — the source's Travel Job
- * Number is a typable Autocomplete, not a plain Select: the reader can type
- * "Hilton" to filter a long job list down instead of scrolling it.
+ * Travel Job Number: a typable Autocomplete rather than a plain Select, so a
+ * reader can type "Hilton" to filter a long job list down instead of
+ * scrolling it.
  *
- * `freeSolo` with `autoSelect`, matching EditPane.tsx:1363-1364. The list
- * holds only the past year (`GET /travels/job-numbers`), so a job older than
- * that could not be filed at all while the committed value had to come from
- * it. People know the exact number in those cases, so a typed one is
- * committed on blur and `GET /travels/{jobNumber}` — which has no date
- * limit — decides whether it exists. `autoSelect` is what commits it:
- * without it, typing a full number and tabbing away discards the text.
+ * `freeSolo` with `autoSelect`. The list holds only the past year
+ * (`GET /travels/job-numbers`), so a job older than that could not be filed
+ * at all while the committed value had to come from it. People know the
+ * exact number in those cases, so a typed one is committed on blur and
+ * `GET /travels/{jobNumber}`, which has no date limit, decides whether it
+ * exists. `autoSelect` is what commits it: without it, typing a full number
+ * and tabbing away discards the text.
  *
  * `labelId` is what `Field` clones onto the first child to name a Select via
  * `aria-labelledby`; Select accepts that prop itself, Autocomplete does not,
@@ -161,10 +161,10 @@ export function JobNumberAutocomplete({
       size="small"
       freeSolo
       autoSelect
-      // InputMenu.tsx:162 — `freeSolo` hides the dropdown arrow and stops the
-      // list opening on a click, because a free-text field is assumed to be
-      // typed into. Picking from the list is still how this is used nearly
-      // always, so both are put back: the arrow to show there IS a list, and
+      // `freeSolo` hides the dropdown arrow and stops the list opening on a
+      // click, because a free-text field is assumed to be typed into.
+      // Picking from the list is still how this is used nearly always, so
+      // both are put back: the arrow to show there IS a list, and
       // `openOnFocus` so reaching the field still shows it.
       forcePopupIcon
       openOnFocus
@@ -187,13 +187,12 @@ export function JobNumberAutocomplete({
       )}
     />
   );
-  // EditPane.tsx:1345/1409 — the field and what the job implies share one
-  // row. A flat half each (the source's two `xs={6}` Grid items) is too
-  // little here: the Approve dialog's column is far narrower than the
-  // source's pane, and half of it left the input a couple of characters wide
-  // while "Funding Sources" was still clipped. So the input takes a generous
-  // basis and grows into whatever is left, and the row WRAPS rather than
-  // squeezing either side when there is genuinely no room for both.
+  // The field and what the job implies share one row. A flat half each left
+  // the input a couple of characters wide in the Approve dialog, whose
+  // column is much narrower, while "Funding Sources" was still clipped. So
+  // the input takes a generous basis and grows into whatever is left, and
+  // the row WRAPS rather than squeezing either side when there is genuinely
+  // no room for both.
   return (
     <Box
       sx={{
@@ -584,12 +583,12 @@ export function FundingSources({
 }
 
 /**
- * What a travel job actually is — `EditPane.tsx:741-768`.
+ * What a travel job actually is: the engagement, who it is for, where and
+ * when.
  *
- * The engagement, who it is for, where and when. Shown in the job number's
- * info tooltip rather than on the form: it is what someone checks when they
- * want to be sure they picked the right job, which is not most of the time,
- * and it is seven lines the form has no room for.
+ * Shown in the job number's info tooltip rather than on the form. It is what
+ * someone checks when they want to be sure they picked the right job, which
+ * is not most of the time, and it is nine lines the form has no room for.
  */
 export function JobNumberDetails({ details }: { details: CcJobNumberDetails }) {
   // `string | null`, because an older travel genuinely has no engagement —
@@ -603,10 +602,9 @@ export function JobNumberDetails({ details }: { details: CcJobNumberDetails }) {
     ["Global Pod", details.globalPod],
     ["Start Date", formatJobDate(details.startDate)],
     ["End Date", formatJobDate(details.endDate)],
-    // Not in the source's tooltip, which has no need of them: there the units
-    // are form fields the reader can see. Here the form takes them from the
-    // job and never shows them, so without this the only place they appeared
-    // was a line under the field that the source does not have.
+    // For travel the form takes the units from the job and never shows them
+    // as fields, so without these two rows there is nowhere a reader can see
+    // what the job will charge the spend to.
     ["Product Unit", details.productUnit],
     ["Business Unit", details.businessUnit],
   ];
@@ -622,12 +620,12 @@ export function JobNumberDetails({ details }: { details: CcJobNumberDetails }) {
 }
 
 /**
- * What sits beside the Travel Job Number field — `EditPane.tsx:1344-1450`.
+ * What sits beside the Travel Job Number field: its info icon, and the way
+ * into the job's funding sources.
  *
- * The source puts the job number and its funding on ONE row, two halves of a
- * Grid: the field and its info icon on the left, "Funding Sources" and the
- * button that opens them on the right. Everything the job implies lives on
- * that line or behind those two controls, with only the helper text beneath.
+ * Both on the field's own row, so everything the job implies is either on
+ * that line or behind one of those two controls, with only the helper text
+ * beneath.
  *
  * Rendered through the field's `info` slot rather than wrapped around it,
  * because `Field` clones `labelId` onto its first child and a wrapper there
@@ -652,8 +650,8 @@ export function JobNumberSideBar({
       <Typography sx={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>
         Funding Sources
       </Typography>
-      {/* :1427-1446 — the button only when there is something to open, and a
-          plain line saying so when there is not. */}
+      {/* The button only when there is something to open, and a plain line
+          saying so when there is not. */}
       {fundingCount > 0 ? (
         <Tooltip title="View funding sources">
           <IconButton
