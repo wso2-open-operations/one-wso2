@@ -122,6 +122,19 @@ export interface DealSummary {
   callCount: number;
   pendingCount: number;
   dealState: Record<LetterKey, DealLetterState>;
+  /** Absent from a backend older than the deal timeline; see util/evidenceSource. */
+  sources?: SourceSummary;
+  /** The deal's activity, oldest first. Absent from an older backend. */
+  timeline?: TimelineMark[];
+}
+
+/** One entry of a deal's activity, as little as a list row needs to draw it. */
+export interface TimelineMark {
+  type: EvidenceSourceType;
+  at: string;
+  title: string;
+  /** Set for a call. */
+  meetingId: number | null;
 }
 
 export interface DealList {

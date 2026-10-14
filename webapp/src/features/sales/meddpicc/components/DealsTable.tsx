@@ -16,20 +16,23 @@
 
 import { Box, Chip, Link, ListingTable, Skeleton, Typography } from "@wso2/oxygen-ui";
 import { SparklesIcon } from "@wso2/oxygen-ui-icons-react";
-import { formatDateTime } from "../../util/salesTime";
 import type { DealSummary, LetterKey } from "../types";
+import { rowSourcesOf, timelineOf } from "../util/evidenceSource";
 import { formatAmount, formatSalesforceDate } from "../util/meddpiccFormat";
+import DealTimeline, { DealTimelineLegend, TIMELINE_PAST_DAYS } from "./DealTimeline";
 import MeddpiccCircles from "./MeddpiccCircles";
 import StageChip from "./StageChip";
+import { useNow } from "../../util/useNow";
 
+/**
+ * Four columns. Amount and close date ride under the deal's name, and the pending count
+ * beside the circles, so the activity timeline gets the width.
+ */
 const COLUMNS = [
-  { key: "deal", label: "Deal", width: "auto" },
-  { key: "stage", label: "Stage", width: 140 },
-  { key: "amount", label: "Amount", width: 130, right: true },
-  { key: "close", label: "Close date", width: 110 },
-  { key: "lastCall", label: "Last call", width: 150 },
-  { key: "meddpicc", label: "MEDDPICC", width: 220 },
-  { key: "pending", label: "Pending", width: 90, center: true },
+  { key: "deal", label: "Deal", width: 280 },
+  { key: "stage", label: "Stage", width: 130 },
+  { key: "activity", label: `Activity · last ${TIMELINE_PAST_DAYS} days`, width: "auto" },
+  { key: "meddpicc", label: "MEDDPICC", width: 250 },
 ] as const;
 
 /**
@@ -40,17 +43,27 @@ const COLUMNS = [
  *
  * The deal name is the way in, as a meeting's title is in MeetingsTable; the
  * row is clickable too, for the wide target a board wants. The circles open the
- * panel already filtered to the Letter clicked.
+ * deal already filtered to the Letter clicked; a call on the timeline opens that
+ * call's analysis.
  */
 export default function DealsTable({
   deals,
   loading,
   onOpenDeal,
+  onOpenCall,
+  now: fixedNow,
 }: {
   deals: DealSummary[];
   loading: boolean;
   onOpenDeal: (opportunityId: string, letter?: LetterKey) => void;
+  /** Open a call from the timeline, on its analysis. */
+  onOpenCall?: (meetingId: number) => void;
+  /** The clock the timelines are drawn against; fixed in tests. */
+  now?: number;
 }) {
+  // One clock for every row, so all the tracks share the same "today".
+  const clock = useNow();
+  const now = fixedNow ?? clock;
   return (
     <ListingTable.Provider loading={loading}>
       <ListingTable.Container>
@@ -58,12 +71,9 @@ export default function DealsTable({
           <ListingTable.Head>
             <ListingTable.Row>
               {COLUMNS.map((column) => (
-                <ListingTable.Cell
-                  key={column.key}
-                  align={"center" in column ? "center" : "right" in column ? "right" : "left"}
-                  sx={{ width: column.width, whiteSpace: "nowrap" }}
-                >
+                <ListingTable.Cell key={column.key} sx={{ width: column.width, whiteSpace: "nowrap" }}>
                   {column.label}
+                  {column.key === "activity" && <DealTimelineLegend />}
                 </ListingTable.Cell>
               ))}
             </ListingTable.Row>
@@ -88,8 +98,12 @@ export default function DealsTable({
                     onClick={() => onOpenDeal(deal.opportunityId)}
                     sx={{ cursor: "pointer" }}
                   >
-                    <ListingTable.Cell>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                    <ListingTable.Cell sx={{ maxWidth: 280 }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      >
                         {deal.accountName}
                       </Typography>
                       <Link
@@ -105,52 +119,43 @@ export default function DealsTable({
                       >
                         {deal.name}
                       </Link>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", whiteSpace: "nowrap" }}>
+                        {formatAmount(deal.amount, deal.currencyIsoCode)}
+                        {" · closes "}
+                        {formatSalesforceDate(deal.closeDate)}
+                      </Typography>
                     </ListingTable.Cell>
                     <ListingTable.Cell>
                       <StageChip stage={deal.stage} />
                     </ListingTable.Cell>
-                    <ListingTable.Cell align="right" sx={{ whiteSpace: "nowrap" }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {formatAmount(deal.amount, deal.currencyIsoCode)}
-                      </Typography>
-                    </ListingTable.Cell>
-                    <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {formatSalesforceDate(deal.closeDate)}
-                      </Typography>
-                    </ListingTable.Cell>
-                    <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {formatDateTime(deal.lastCallAt)}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {deal.callCount} {deal.callCount === 1 ? "call" : "calls"}
-                      </Typography>
-                    </ListingTable.Cell>
                     <ListingTable.Cell>
-                      <MeddpiccCircles
-                        variant="dealState"
-                        values={deal.dealState}
-                        onLetterClick={(letter) => onOpenDeal(deal.opportunityId, letter)}
-                        label={`MEDDPICC for ${deal.name}`}
+                      <DealTimeline
+                        marks={timelineOf(deal)}
+                        sources={rowSourcesOf(deal)}
+                        now={now}
+                        onOpenCall={onOpenCall}
                       />
                     </ListingTable.Cell>
-                    <ListingTable.Cell align="center">
-                      {deal.pendingCount > 0 ? (
-                        <Chip
-                          icon={<SparklesIcon size={12} />}
-                          label={deal.pendingCount}
-                          size="small"
-                          color="warning"
-                          variant="outlined"
-                          aria-label={`${deal.pendingCount} AI proposals waiting for approval`}
-                          sx={{ height: 20, fontWeight: 700 }}
+                    <ListingTable.Cell>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
+                        <MeddpiccCircles
+                          variant="dealState"
+                          values={deal.dealState}
+                          onLetterClick={(letter) => onOpenDeal(deal.opportunityId, letter)}
+                          label={`MEDDPICC for ${deal.name}`}
                         />
-                      ) : (
-                        <Box component="span" sx={{ color: "text.disabled" }} aria-label="Nothing pending">
-                          —
-                        </Box>
-                      )}
+                        {deal.pendingCount > 0 && (
+                          <Chip
+                            icon={<SparklesIcon size={12} />}
+                            label={`${deal.pendingCount} pending`}
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            aria-label={`${deal.pendingCount} AI proposals waiting for approval`}
+                            sx={{ height: 20, fontWeight: 700 }}
+                          />
+                        )}
+                      </Box>
                     </ListingTable.Cell>
                   </ListingTable.Row>
                 ))}

@@ -25,11 +25,13 @@ import type {
   AuthorRole,
   DealActivity,
   DealDetail,
+  DealSummary,
   EvidenceQuote,
   EvidenceSource,
   EvidenceSourceType,
   LetterKey,
   SourceSummary,
+  TimelineMark,
 } from "../types";
 import { LETTER_KEYS } from "./meddpiccFormat";
 
@@ -93,6 +95,34 @@ export function sourcesOf(detail: DealDetail, now: number = Date.now()): SourceS
     activities: count("ACTIVITY"),
     lastActivityAt: past.length ? new Date(Math.max(...past)).toISOString() : null,
   };
+}
+
+/**
+ * A deal row's timeline, from the backend or, without it, the one call the row knows the
+ * date of: its last. Oldest first.
+ */
+export function timelineOf(deal: DealSummary): TimelineMark[] {
+  if (deal.timeline) return deal.timeline;
+  return deal.lastCallAt ? [{ type: "CALL", at: deal.lastCallAt, title: "Last call", meetingId: null }] : [];
+}
+
+/** A deal row's source counts, from the backend or from its call count. */
+export function rowSourcesOf(deal: DealSummary): SourceSummary {
+  return (
+    deal.sources ?? { calls: deal.callCount, emails: 0, activities: 0, lastActivityAt: deal.lastCallAt }
+  );
+}
+
+/** Whole days from `fromMs` to `toMs`, rounded down; never negative. */
+export function daysBetween(fromMs: number, toMs: number): number {
+  return Math.max(0, Math.floor((toMs - fromMs) / 86_400_000));
+}
+
+/** "today", "yesterday" or "12 days ago". */
+export function daysAgo(days: number): string {
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
 }
 
 /** "4 calls · 6 emails", leaving out the sources with none. */

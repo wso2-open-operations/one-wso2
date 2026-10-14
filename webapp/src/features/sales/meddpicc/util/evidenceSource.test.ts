@@ -83,3 +83,13 @@ describe("evidence sources", () => {
     expect(describeSources(sources)).toBe("4 calls · 1 email");
   });
 });
+
+describe("deal row timeline", () => {
+  it("falls back to the last call when the backend sends no timeline", async () => {
+    const { timelineOf, rowSourcesOf, daysAgo } = await import("./evidenceSource");
+    const deal = { lastCallAt: "2026-09-24T07:30:00Z", callCount: 3 } as Parameters<typeof timelineOf>[0];
+    expect(timelineOf(deal)).toEqual([{ type: "CALL", at: "2026-09-24T07:30:00Z", title: "Last call", meetingId: null }]);
+    expect(rowSourcesOf(deal)).toEqual({ calls: 3, emails: 0, activities: 0, lastActivityAt: "2026-09-24T07:30:00Z" });
+    expect([daysAgo(0), daysAgo(1), daysAgo(9)]).toEqual(["today", "yesterday", "9 days ago"]);
+  });
+});

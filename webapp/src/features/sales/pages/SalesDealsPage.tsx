@@ -22,7 +22,7 @@ import { isSalesBackendConfigured } from "../api/useSalesData";
 import { describeError, isForbidden } from "../util/salesError";
 import DealFilters, { type OwnerOption } from "../meddpicc/components/DealFilters";
 import DealsTable from "../meddpicc/components/DealsTable";
-import { dealPath } from "../util/salesPaths";
+import { dealPath, meetingPath } from "../util/salesPaths";
 import { isEchoBackendConfigured, useDeals, useMeddpiccGates } from "../meddpicc/api/useMeddpiccData";
 import type { DealSummary } from "../meddpicc/types";
 
@@ -103,6 +103,7 @@ export default function SalesDealsPage() {
           deals={deals}
           loading={dealsQuery.isLoading || dealsQuery.isFetching}
           onOpenDeal={(id, letter) => void navigate(dealPath(id, letter))}
+          onOpenCall={(meetingId) => void navigate(meetingPath(meetingId, { tab: "meddpicc" }))}
         />
       </Box>
 
