@@ -16,7 +16,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Alert, Box, Button, Chip, CircularProgress, IconButton, Stack, TextField, Tooltip, Typography } from "@wso2/oxygen-ui";
-import { SendHorizontalIcon, SparklesIcon } from "@wso2/oxygen-ui-icons-react";
+import { ChevronDownIcon, ChevronUpIcon, RotateCcwIcon, SendHorizontalIcon, SparklesIcon } from "@wso2/oxygen-ui-icons-react";
 import { describeError } from "../../util/salesError";
 import { useAskDeal } from "../api/useMeddpiccMutations";
 import type { AskCitation, AskTurn } from "../types";
@@ -91,6 +91,10 @@ export default function DealChat({
     if (question) void send(question, entries.slice(0, index - 1));
   };
 
+  // A few suggestions not yet asked, offered as follow-ups once the thread has started.
+  const asked = new Set(entries.filter((e) => e.role === "user").map((e) => e.text));
+  const followUps = SUGGESTIONS.filter((q) => !asked.has(q)).slice(0, 3);
+
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -160,35 +164,56 @@ export default function DealChat({
         <div ref={endRef} />
       </Stack>
 
-      <Stack direction="row" spacing={1} sx={{ alignItems: "flex-end" }}>
-        <TextField
-          fullWidth
-          multiline
-          maxRows={5}
-          size="small"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Ask anything about this opportunity"
-          slotProps={{ htmlInput: { "aria-label": "Your question", maxLength: 2000 } }}
-        />
-        <Tooltip title="Send (Enter)" arrow>
-          <span>
-            <IconButton
+      {/* Pinned to the bottom of the view, so the question box is always at hand. */}
+      <Box sx={{ position: "sticky", bottom: 0, bgcolor: "background.default", pt: 1, pb: 1.5, zIndex: 1 }}>
+        {entries.length > 0 && (
+          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.75, mb: 1, alignItems: "center" }}>
+            {followUps.map((q) => (
+              <Chip key={q} label={q} size="small" variant="outlined" onClick={() => void send(q)} disabled={ask.isPending} />
+            ))}
+            <Button
+              size="small"
               color="primary"
-              onClick={() => void send(draft)}
-              disabled={!draft.trim() || ask.isPending}
-              aria-label="Send question"
+              variant="text"
+              startIcon={<RotateCcwIcon size={13} />}
+              onClick={() => onChange([])}
+              disabled={ask.isPending}
+              sx={{ textTransform: "none", ml: "auto" }}
             >
-              <SendHorizontalIcon size={18} />
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Stack>
-      <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.75 }}>
-        Answers can be wrong: check the quotes. Asking changes nothing in Salesforce; changes are approved on the
-        MEDDPICC tab.
-      </Typography>
+              New conversation
+            </Button>
+          </Stack>
+        )}
+        <Stack direction="row" spacing={1} sx={{ alignItems: "flex-end" }}>
+          <TextField
+            fullWidth
+            multiline
+            maxRows={5}
+            size="small"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={entries.length ? "Ask a follow-up" : "Ask anything about this opportunity"}
+            slotProps={{ htmlInput: { "aria-label": "Your question", maxLength: 2000 } }}
+          />
+          <Tooltip title="Send (Enter)" arrow>
+            <span>
+              <IconButton
+                color="primary"
+                onClick={() => void send(draft)}
+                disabled={!draft.trim() || ask.isPending}
+                aria-label="Send question"
+              >
+                <SendHorizontalIcon size={18} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
+        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.75 }}>
+          Answers can be wrong: check the quotes. Asking changes nothing in Salesforce; changes are approved on the
+          MEDDPICC tab.
+        </Typography>
+      </Box>
     </Box>
   );
 }
@@ -198,11 +223,19 @@ export default function DealChat({
  * quotes themselves, numbered the same way.
  */
 function Answer({ entry }: { entry: ChatEntry }) {
+  const [showQuotes, setShowQuotes] = useState(false);
   const cited = new Map((entry.citations ?? []).map((c) => [c.number, c]));
   const parts = entry.text.split(/(\[\d+\])/g);
+  const count = entry.citations?.length ?? 0;
   return (
     <Box sx={{ alignSelf: "flex-start", maxWidth: "92%" }}>
-      <Box sx={{ bgcolor: "action.hover", px: 1.75, py: 1.25, borderRadius: 2, borderBottomLeftRadius: 4 }}>
+      <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", mb: 0.5, color: "primary.main" }}>
+        <SparklesIcon size={13} aria-hidden />
+        <Typography variant="caption" sx={{ fontWeight: 700 }}>
+          Echo AI
+        </Typography>
+      </Stack>
+      <Box sx={{ bgcolor: "action.hover", px: 1.75, py: 1.25, borderRadius: 2, borderTopLeftRadius: 4 }}>
         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
           {parts.map((part, i) => {
             const n = /^\[(\d+)\]$/.exec(part);
@@ -218,13 +251,21 @@ function Answer({ entry }: { entry: ChatEntry }) {
           })}
         </Typography>
       </Box>
-      {entry.citations && entry.citations.length > 0 && (
-        <Box sx={{ mt: 1, pl: 0.5 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-            Quotes used
-          </Typography>
+      {count > 0 && (
+        <Box sx={{ mt: 0.5, pl: 0.5 }}>
+          {/* Folded by default: the [n] markers already show each quote on hover. */}
+          <Button
+            size="small"
+            onClick={() => setShowQuotes((open) => !open)}
+            endIcon={showQuotes ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
+            aria-expanded={showQuotes}
+            sx={{ textTransform: "none", px: 0.5, minWidth: 0 }}
+          >
+            {count === 1 ? "1 quote used" : `${count} quotes used`}
+          </Button>
+          {showQuotes && (
           <Stack component="ol" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0, mt: 0.5 }} aria-label="Quotes used">
-            {entry.citations.map((c) => (
+            {(entry.citations ?? []).map((c) => (
               <Stack component="li" key={c.number} direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
                 <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, minWidth: 22, pt: "2px" }}>
                   [{c.number}]
@@ -235,6 +276,7 @@ function Answer({ entry }: { entry: ChatEntry }) {
               </Stack>
             ))}
           </Stack>
+          )}
         </Box>
       )}
     </Box>

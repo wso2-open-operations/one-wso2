@@ -60,8 +60,8 @@ export default function EvidenceList({
         ))}
       </Stack>
       {hidden > 0 && (
-        <Button size="small" onClick={() => setAll(true)} sx={{ mt: 0.25, px: 0.5, minWidth: 0 }}>
-          Show {hidden} more
+        <Button size="small" onClick={() => setAll(true)} sx={{ mt: 0.25, px: 0.5, minWidth: 0, textTransform: "none" }}>
+          Show {hidden} more {hidden === 1 ? "quote" : "quotes"}
         </Button>
       )}
     </>

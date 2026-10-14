@@ -15,7 +15,7 @@
 // under the License.
 
 import type { MouseEvent, ReactNode } from "react";
-import { Box, Stack, Tooltip, Typography, useTheme } from "@wso2/oxygen-ui";
+import { Box, Stack, Tooltip, Typography, useColorScheme, useTheme } from "@wso2/oxygen-ui";
 import { parseUtc } from "../../util/salesTime";
 import type { Journey, SourceSummary, TimelineKind, TimelineMark } from "../types";
 import { daysAgo, daysBetween, kindOf } from "../util/evidenceSource";
@@ -28,12 +28,18 @@ const QUIET_AFTER_DAYS = 21;
 const DAY = 86_400_000;
 
 
+/**
+ * The theme switches light and dark through CSS variables, so `theme.palette` holds the
+ * light values whatever is on screen. Colours that must follow the mode come from
+ * `theme.vars`, and the mode itself from useColorScheme.
+ */
 function useKindColor(): (kind: TimelineKind) => string {
   const theme = useTheme();
-  const dark = theme.palette.mode === "dark";
+  const { mode, systemMode } = useColorScheme();
+  const dark = (mode === "system" ? systemMode : mode) === "dark";
   return (kind) => {
     const k = KINDS[kind];
-    return (dark ? k.dark : k.light) ?? theme.palette.text.secondary;
+    return (dark ? k.dark : k.light) ?? (theme.vars ?? theme).palette.text.secondary;
   };
 }
 
@@ -57,7 +63,7 @@ export function KindMark({ kind, upcoming, scale = 1 }: { kind: TimelineKind; up
         borderRadius: k.shape === "diamond" ? 0.25 : "50%",
         transform: k.shape === "diamond" ? "rotate(45deg) scale(0.85)" : undefined,
         // A ring of the surface, so marks on the same day stay separate.
-        boxShadow: (theme) => `0 0 0 2px ${theme.palette.background.paper}`,
+        boxShadow: (theme) => `0 0 0 2px ${(theme.vars ?? theme).palette.background.paper}`,
       }}
     />
   );
@@ -158,6 +164,7 @@ export default function DealJourney({
   stageOrder = [],
   now,
   onOpenCall,
+  size = "row",
 }: {
   marks: readonly TimelineMark[];
   journey: Journey;
@@ -169,8 +176,19 @@ export default function DealJourney({
   /** The current time in ms; the table passes one clock to every row. */
   now: number;
   onOpenCall?: (meetingId: number) => void;
+  /**
+   * "row": the slim track for a Deals list row. "large": the deal page's Activity tab,
+   * with stage names on the bands, month markers along the bottom, and today and the
+   * close labelled.
+   */
+  size?: "row" | "large";
 }) {
   const color = useKindColor();
+  const large = size === "large";
+  // Track geometry: where the marks sit, where the bands sit, how tall it all is.
+  const g = large
+    ? { height: 84, axis: 26, bandTop: 44, bandHeight: 18, markTop: 15 }
+    : { height: 32, axis: 11, bandTop: 24, bandHeight: 6, markTop: 0 };
   const timed = marks
     .map((mark) => ({ mark, ms: parseUtc(mark.at)?.getTime() }))
     .filter((m): m is { mark: TimelineMark; ms: number } => m.ms !== undefined);
@@ -201,10 +219,10 @@ export default function DealJourney({
       <Box
         role="list"
         aria-label="Deal journey, from its start to its close"
-        sx={{ position: "relative", height: 32, minWidth: 160 }}
+        sx={{ position: "relative", height: g.height, minWidth: 160, mt: large ? 1.5 : 0 }}
       >
         {/* The axis, a recessive hairline. */}
-        <Box aria-hidden sx={{ position: "absolute", left: 0, right: 0, top: 11, height: "1px", bgcolor: "divider" }} />
+        <Box aria-hidden sx={{ position: "absolute", left: 0, right: 0, top: g.axis, height: "1px", bgcolor: "divider" }} />
 
         {/* Stage bands along the bottom, each with its own tooltip. */}
         {segments.map((s, i) => {
@@ -220,23 +238,75 @@ export default function DealJourney({
                 aria-label={label}
                 sx={{
                   position: "absolute",
-                  top: 24,
-                  height: 6,
+                  top: g.bandTop,
+                  height: g.bandHeight,
                   left: `${pct(s.from)}%`,
                   width: `${pct(s.to) - pct(s.from)}%`,
                   borderRadius: 0.5,
+                  overflow: "hidden",
                   // 2px of surface between neighbouring bands.
-                  borderRight: (theme) => `2px solid ${theme.palette.background.paper}`,
-                  background: (theme) =>
-                    s.stage === null
-                      ? `repeating-linear-gradient(45deg, ${theme.palette.action.hover} 0 3px, transparent 3px 6px)`
-                      : theme.palette.text.primary,
-                  opacity: s.stage === null ? 1 : stageShade(s.stage, stageOrder, seen) * (s.ahead ? 0.45 : 1),
+                  borderRight: (theme) => `2px solid ${(theme.vars ?? theme).palette.background.paper}`,
+                  // A tint rather than opacity, so a label on the band stays crisp.
+                  background: (theme) => {
+                    const palette = (theme.vars ?? theme).palette;
+                    if (s.stage === null) {
+                      return `repeating-linear-gradient(45deg, ${palette.action.hover} 0 3px, transparent 3px 6px)`;
+                    }
+                    const share = Math.round(100 * (large ? 1.35 : 1) * stageShade(s.stage, stageOrder, seen) * (s.ahead ? 0.45 : 1));
+                    // Ink mixed into transparency, so it darkens on light and lightens on dark.
+                    return `color-mix(in srgb, ${palette.text.primary} ${share}%, transparent)`;
+                  },
+                  display: "flex",
+                  alignItems: "center",
+                  px: 0.75,
                 }}
-              />
+              >
+                {large && s.stage !== null && !s.ahead && pct(s.to) - pct(s.from) >= 5 && (
+                  <Typography
+                    variant="caption"
+                    aria-hidden
+                    sx={{ fontSize: "0.68rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "text.primary" }}
+                  >
+                    {s.stage}
+                  </Typography>
+                )}
+              </Box>
             </Tooltip>
           );
         })}
+
+        {large && (
+          <>
+            <Typography
+              variant="caption"
+              aria-hidden
+              // Beside its line, not on it.
+              sx={{ position: "absolute", top: -2, left: `calc(${pct(now)}% + 4px)`, fontSize: "0.65rem", fontWeight: 700, color: "text.secondary" }}
+            >
+              Today
+            </Typography>
+            {closeMs !== undefined && Math.abs(pct(closeMs) - pct(now)) > 6 && (
+              <Typography
+                variant="caption"
+                aria-hidden
+                sx={{ position: "absolute", top: -2, left: `calc(${pct(closeMs)}% - 4px)`, transform: "translateX(-100%)", fontSize: "0.65rem", fontWeight: 700, color: "text.secondary", whiteSpace: "nowrap" }}
+              >
+                Close
+              </Typography>
+            )}
+            {monthTicks(start, end).map((t) => (
+              <Box
+                key={t.ms}
+                aria-hidden
+                sx={{ position: "absolute", top: g.bandTop + g.bandHeight + 4, left: `${pct(t.ms)}%`, borderLeft: 1, borderColor: "divider", pl: 0.5, height: 14 }}
+              >
+                <Typography variant="caption" sx={{ fontSize: "0.62rem", color: "text.secondary", lineHeight: 1, whiteSpace: "nowrap" }}>
+                  {t.label}
+                </Typography>
+              </Box>
+            ))}
+          </>
+        )}
 
         {/* Today, across the track. */}
         <Box
@@ -274,7 +344,7 @@ export default function DealJourney({
               <Box
                 key={`${mark.type}-${mark.at}-${i}`}
                 role="listitem"
-                sx={{ position: "absolute", top: 0, left: `${pct(ms)}%`, transform: "translateX(-50%)" }}
+                sx={{ position: "absolute", top: g.markTop, left: `${pct(ms)}%`, transform: "translateX(-50%)" }}
               >
                 <Tooltip title={label} arrow disableInteractive>
                   {/* The hit target is wider than the mark, so a 7px mark is easy to hover. */}
@@ -349,4 +419,22 @@ function formatDay(ms: number): string {
   const d = new Date(ms);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/**
+ * Month markers for the large track: the first of each month inside the span, thinned
+ * to every second or third month on a long deal so the labels never crowd.
+ */
+function monthTicks(start: number, end: number): { ms: number; label: string }[] {
+  const out: { ms: number; label: string }[] = [];
+  const d = new Date(start);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  d.setMonth(d.getMonth() + 1);
+  while (d.getTime() < end && out.length < 48) {
+    out.push({ ms: d.getTime(), label: d.toLocaleDateString("en-GB", { month: "short", ...(d.getMonth() === 0 ? { year: "numeric" } : {}) }) });
+    d.setMonth(d.getMonth() + 1);
+  }
+  const step = out.length > 16 ? 3 : out.length > 8 ? 2 : 1;
+  return out.filter((_, i) => i % step === 0);
 }

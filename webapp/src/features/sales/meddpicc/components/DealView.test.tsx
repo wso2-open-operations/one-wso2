@@ -253,8 +253,10 @@ describe("DealView", { timeout: 20000 }, () => {
     // Each entry says what it was; without the backend's kind, a call is a customer call.
     const calls = within(panel).getAllByText(/^Customer call · /).length;
     expect(calls).toBeGreaterThan(0);
-    await user.click(within(panel).getByRole("button", { name: `Customer call ${calls}` }));
+    await user.click(within(panel).getByRole("button", { name: `${calls === 1 ? "Customer call" : "Customer calls"} ${calls}` }));
     expect(within(panel).getAllByText(/^Customer call · /)).toHaveLength(calls);
+    // The list is grouped by month, newest first.
+    expect(within(panel).getAllByRole("region", { name: /^[A-Z][a-z]+ \d{4}$/ }).length).toBeGreaterThan(0);
     // The approval bar belongs to the MEDDPICC tab.
     expect(screen.queryByRole("button", { name: /^Approve all/ })).not.toBeInTheDocument();
   });
@@ -268,7 +270,14 @@ describe("DealView", { timeout: 20000 }, () => {
 
     await user.click(within(panel).getByRole("button", { name: "What's blocking the next stage?" }));
     expect(await within(panel).findByText(/is in Technical Proof/)).toBeInTheDocument();
+    expect(within(panel).getByText("Echo AI")).toBeInTheDocument();
+    // Quotes are folded until asked for.
+    expect(within(panel).queryByRole("list", { name: "Quotes used" })).not.toBeInTheDocument();
+    await user.click(within(panel).getByRole("button", { name: "1 quote used" }));
     expect(within(panel).getByRole("list", { name: "Quotes used" })).toBeInTheDocument();
+    // Follow-ups offer what hasn't been asked yet.
+    expect(within(panel).queryByRole("button", { name: "What's blocking the next stage?" })).not.toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Summarise where this deal stands." })).toBeInTheDocument();
 
     // A failed answer says so and can be retried.
     const ask = vi.spyOn(mockMeddpiccClient, "ask").mockRejectedValueOnce(new Error("Claude is busy"));
@@ -283,6 +292,30 @@ describe("DealView", { timeout: 20000 }, () => {
     await user.click(screen.getByRole("tab", { name: /^MEDDPICC/ }));
     await user.click(screen.getByRole("tab", { name: "Ask AI" }));
     expect(screen.getByText("Who signs?")).toBeInTheDocument();
+
+    // A new conversation starts clean.
+    await user.click(within(panel).getByRole("button", { name: "New conversation" }));
+    expect(within(panel).queryByText("Who signs?")).not.toBeInTheDocument();
+    expect(within(panel).getByRole("heading", { name: "Ask about this deal" })).toBeInTheDocument();
+  });
+
+  it("takes the AM to the field that blocks Approve all when it sits in another stage", async () => {
+    const user = userEvent.setup();
+    renderPanel("006MOCK0000MERI");
+    await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
+    // Economic buyer, in Qualify, has a proposed person with no matching contact picked.
+    await user.click(screen.getByRole("button", { name: "Go to Economic buyer in Qualify" }));
+    expect(screen.getByRole("button", { name: /^Qualify: / })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByRole("region", { name: "Needs your review" })).getByRole("combobox", { name: "Matching contact" })).toBeInTheDocument();
+  });
+
+  it("puts the deal's key facts in the header", async () => {
+    renderPanel("006MOCK0000MERI");
+    await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
+    for (const label of ["Account", "Amount", "Close date", "Owner", "Last activity"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(screen.getByText(/of 8 in Salesforce/)).toBeInTheDocument();
   });
 });
 

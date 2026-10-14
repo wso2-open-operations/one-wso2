@@ -251,7 +251,13 @@ export default function DealView({
       },
       { replace: true },
     );
+  const now = useNow();
   const reviewCount = summaries.reduce((n, s) => n + s.review, 0);
+  const filledLetters = Object.values(deal.dealState).filter((state) => state === "FILLED").length;
+  const closeEnd = deal.closeDate ? Date.parse(`${deal.closeDate.slice(0, 10)}T23:59:59Z`) : NaN;
+  const closeDays = Number.isNaN(closeEnd) ? null : Math.floor((closeEnd - now) / 86_400_000);
+  const lastMs = sources.lastActivityAt ? Date.parse(sources.lastActivityAt) : NaN;
+  const quietDays = Number.isNaN(lastMs) ? null : Math.max(0, Math.floor((now - lastMs) / 86_400_000));
   // The conversation is kept here so it survives switching tabs.
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const [kindFilter, setKindFilter] = useState<TimelineKind | null>(null);
@@ -260,7 +266,7 @@ export default function DealView({
     ([, n]) => n > 0,
   );
   const shownActivity = kindFilter ? activity.filter((a) => kindOfEntry(a) === kindFilter) : activity;
-  const now = useNow();
+  const activityGroups = groupActivity(shownActivity, now);
   const navigate = useNavigate();
   // The journey's marks: the deal row's own timeline when the backend sends one, else
   // the activity list, oldest first.
@@ -286,17 +292,33 @@ export default function DealView({
 
   return (
     <>
-      {/* ---- Header: the page title names the deal ------------------------- */}
-      <Box sx={{ pb: 2, mb: 2.5, borderBottom: 1, borderColor: "divider" }}>
-        <Typography variant="body2" color="text.secondary">
-          {deal.accountName}
-          {" · "}
-          {formatAmount(deal.amount, deal.currencyIsoCode)}
-          {" · closes "}
-          {formatSalesforceDate(deal.closeDate)}
-        </Typography>
+      {/* ---- Header: the deal at a glance. The page title names it. ---------- */}
+      <Box sx={{ mb: 2.5 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(5, minmax(0, 1fr))" },
+            gap: 1.25,
+          }}
+        >
+          <Fact label="Account" value={deal.accountName} />
+          <Fact label="Amount" value={formatAmount(deal.amount, deal.currencyIsoCode)} />
+          <Fact
+            label="Close date"
+            value={formatSalesforceDate(deal.closeDate)}
+            detail={closeDays === null ? undefined : closeDays < 0 ? `${-closeDays} days past` : closeDays === 0 ? "today" : `in ${closeDays} days`}
+            warn={closeDays !== null && closeDays < 0 && !deal.isClosed}
+          />
+          <Fact label="Owner" value={deal.ownerName ?? deal.ownerEmail ?? "—"} />
+          <Fact
+            label="Last activity"
+            value={quietDays === null ? "None yet" : quietDays === 0 ? "Today" : quietDays === 1 ? "Yesterday" : `${quietDays} days ago`}
+            detail={describeSources(sources) || undefined}
+            warn={quietDays !== null && quietDays > 21}
+          />
+        </Box>
 
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1, mt: 1.25 }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1, mt: 2 }}>
           <StageChip stage={deal.stage} />
           <MeddpiccCircles
             variant="dealState"
@@ -306,47 +328,26 @@ export default function DealView({
             onLetterClick={(key) => setLetter((current) => (current === key ? null : key))}
             label={`MEDDPICC for ${deal.name}. Pick a letter to show its fields.`}
           />
+          <Typography variant="body2" color="text.secondary">
+            {filledLetters} of 8 in Salesforce
+            {reviewCount > 0 && (
+              <Box component="span" sx={{ color: "warning.dark", fontWeight: 600 }}>
+                {` · ${reviewCount} to review`}
+              </Box>
+            )}
+          </Typography>
           <Button
             size="small"
+            variant="outlined"
             href={detail.salesforceUrl}
             target="_blank"
             rel="noopener noreferrer"
             endIcon={<ExternalLinkIcon size={14} />}
-            sx={{ ml: "auto" }}
+            sx={{ ml: "auto !important", textTransform: "none" }}
           >
             Open in Salesforce
           </Button>
         </Stack>
-
-        {/* What the deal's evidence is drawn from. Calls only for now; emails and
-            Salesforce activities join here once the backend reads them. */}
-        {(sources.calls + sources.emails + sources.activities > 0) && (
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 0.5, mt: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              Evidence from {describeSources(sources)}
-              {sources.lastActivityAt && ` · last activity ${formatDateTime(sources.lastActivityAt)}`}
-            </Typography>
-            {sourceKinds.length > 1 && (
-              <Stack direction="row" spacing={0.5} role="group" aria-label="Show evidence from">
-                <Chip
-                  label="All"
-                  size="small"
-                  variant={sourceFilter === null ? "filled" : "outlined"}
-                  onClick={() => setSourceFilter(null)}
-                />
-                {sourceKinds.map(([type, label]) => (
-                  <Chip
-                    key={type}
-                    label={label}
-                    size="small"
-                    variant={sourceFilter === type ? "filled" : "outlined"}
-                    onClick={() => setSourceFilter(type)}
-                  />
-                ))}
-              </Stack>
-            )}
-          </Stack>
-        )}
       </Box>
 
       {/* ---- Tabs: the MEDDPICC work, the deal's activity, and questions about it ---- */}
@@ -457,6 +458,19 @@ export default function DealView({
             title="Needs your review"
             tone="warning"
             count={sections.review.length}
+            aside={
+              sourceKinds.length > 1 && (
+                <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }} role="group" aria-label="Show evidence from">
+                  <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                    Quotes from
+                  </Typography>
+                  <Chip label="All" size="small" variant={sourceFilter === null ? "filled" : "outlined"} onClick={() => setSourceFilter(null)} />
+                  {sourceKinds.map(([type, label]) => (
+                    <Chip key={type} label={label} size="small" variant={sourceFilter === type ? "filled" : "outlined"} onClick={() => setSourceFilter(type)} />
+                  ))}
+                </Stack>
+              )
+            }
             description="Heard on calls and proposed by the AI. Approve all writes them to Salesforce; edit one first if it isn't right."
             empty={`Nothing is waiting for review in ${scopeName}.`}
           >
@@ -501,6 +515,7 @@ export default function DealView({
               sources={sources}
               closeDate={deal.closeDate}
               now={now}
+              size="large"
               onOpenCall={(meetingId) => void navigate(meetingPath(meetingId, { tab: "meddpicc" }))}
             />
           </Box>
@@ -514,7 +529,13 @@ export default function DealView({
               {kindCounts.map(([kind, n]) => (
                 <Chip
                   key={kind}
-                  label={`${KINDS[kind].label} ${n}`}
+                  // The chip wears the mark the journey and the list use for this kind.
+                  icon={
+                    <Box component="span" sx={{ display: "inline-flex", ml: "6px !important" }}>
+                      <KindMark kind={kind} upcoming={false} scale={0.8} />
+                    </Box>
+                  }
+                  label={`${n === 1 ? KINDS[kind].label : capitalise(KINDS[kind].plural)} ${n}`}
                   size="small"
                   variant={kindFilter === kind ? "filled" : "outlined"}
                   onClick={() => setKindFilter(kind)}
@@ -526,14 +547,27 @@ export default function DealView({
                 No activity yet.
               </Typography>
             ) : (
-              <Stack component="ul" divider={<Divider component="li" aria-hidden />} sx={{ listStyle: "none", p: 0, m: 0 }}>
-                {shownActivity.map((entry) => (
-                  <ActivityRow
-                    key={`${entry.type}-${entry.id}`}
-                    entry={entry}
-                    coverage={entry.meetingId !== null ? coverageByMeeting.get(entry.meetingId) : undefined}
-                    now={now}
-                  />
+              // Upcoming first, soonest at the top; then the past, month by month.
+              <Stack spacing={2}>
+                {activityGroups.map((group) => (
+                  <Box key={group.title} component="section" aria-label={group.title}>
+                    <Typography
+                      variant="overline"
+                      sx={{ display: "block", color: group.upcoming ? "primary.main" : "text.secondary", fontWeight: 700, lineHeight: 2 }}
+                    >
+                      {group.title}
+                    </Typography>
+                    <Stack component="ul" divider={<Divider component="li" aria-hidden />} sx={{ listStyle: "none", p: 0, m: 0 }}>
+                      {group.items.map((entry) => (
+                        <ActivityRow
+                          key={`${entry.type}-${entry.id}`}
+                          entry={entry}
+                          coverage={entry.meetingId !== null ? coverageByMeeting.get(entry.meetingId) : undefined}
+                          now={now}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
                 ))}
               </Stack>
             )}
@@ -629,6 +663,7 @@ export default function DealView({
                 <Button
                   variant="contained"
                   disabled={approveHint !== null || approve.isPending}
+                  sx={{ textTransform: "none", fontWeight: 600 }}
                   onClick={() => void approveAll()}
                   startIcon={approve.isPending ? <CircularProgress size={14} color="inherit" /> : undefined}
                 >
@@ -641,6 +676,7 @@ export default function DealView({
               <Button
                 variant="outlined"
                 disabled={moveStage.isPending}
+                sx={{ textTransform: "none" }}
                 onClick={() => void moveToNext()}
                 endIcon={moveStage.isPending ? <CircularProgress size={14} /> : <ArrowRightIcon size={14} />}
               >
@@ -656,9 +692,17 @@ export default function DealView({
           </Stack>
 
           {approveHint && !readOnly && (
-            <Typography variant="caption" color="text.secondary" role="status">
-              {approveHint}
-            </Typography>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+              <Typography variant="caption" color="text.secondary" role="status">
+                {approveHint}
+              </Typography>
+              {/* The blocking field may sit in another stage; take the AM to it. */}
+              {unmatched[0] && unmatched[0].gate !== gate && (
+                <Button size="small" onClick={() => pickGate(unmatched[0].gate)} sx={{ textTransform: "none", py: 0 }}>
+                  Go to {unmatched[0].label} in {unmatched[0].gate}
+                </Button>
+              )}
+            </Stack>
           )}
         </Stack>
       </Box>
@@ -745,6 +789,7 @@ function FieldSection({
   count,
   description,
   empty,
+  aside,
   children,
 }: {
   title: string;
@@ -752,6 +797,8 @@ function FieldSection({
   count: number;
   description: string;
   empty: string;
+  /** Controls for the section, at the end of its heading. */
+  aside?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -772,6 +819,7 @@ function FieldSection({
         {count > 0 && (
           <Chip label={count} size="small" color={tone} sx={{ height: 20, fontWeight: 700 }} />
         )}
+        {count > 0 && aside && <Box sx={{ ml: "auto !important" }}>{aside}</Box>}
       </Stack>
       {count > 0 ? (
         <>
@@ -832,4 +880,52 @@ function SalesforceSection({
       </AccordionDetails>
     </Accordion>
   );
+}
+
+/** One fact in the header: a label, the value, and a line of detail. */
+function Fact({ label, value, detail, warn = false }: { label: string; value: ReactNode; detail?: string; warn?: boolean }) {
+  return (
+    <Box sx={{ border: 1, borderColor: "divider", borderRadius: "10px", px: 1.5, py: 1, minWidth: 0 }}>
+      <Typography variant="caption" color="text.secondary" component="div">
+        {label}
+      </Typography>
+      <Typography
+        variant="body2"
+        component="div"
+        title={typeof value === "string" ? value : undefined}
+        sx={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+      >
+        {value}
+      </Typography>
+      {detail && (
+        <Typography
+          variant="caption"
+          component="div"
+          sx={{ color: warn ? "warning.dark" : "text.secondary", fontWeight: warn ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        >
+          {detail}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** Activity grouped for reading: what is still to come, soonest first, then each past month. */
+function groupActivity(entries: readonly DealActivity[], now: number) {
+  const groups: { title: string; upcoming: boolean; items: DealActivity[] }[] = [];
+  const upcoming = entries
+    .filter((a) => Date.parse(a.occurredAt) > now)
+    .sort((x, y) => Date.parse(x.occurredAt) - Date.parse(y.occurredAt));
+  if (upcoming.length) groups.push({ title: "Upcoming", upcoming: true, items: upcoming });
+  for (const a of entries) {
+    if (Date.parse(a.occurredAt) > now) continue;
+    const title = new Date(a.occurredAt).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    const last = groups[groups.length - 1];
+    if (last && !last.upcoming && last.title === title) last.items.push(a);
+    else groups.push({ title, upcoming: false, items: [a] });
+  }
+  return groups;
 }

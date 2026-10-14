@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { alpha, Box, ButtonBase, Stack, Typography } from "@wso2/oxygen-ui";
+import { Box, ButtonBase, Stack, Typography } from "@wso2/oxygen-ui";
 import { CheckIcon } from "@wso2/oxygen-ui-icons-react";
 import type { GateSummary } from "../util/dealSections";
 
@@ -60,7 +60,7 @@ export default function StagePath({
               sx={{
                 flex: 1,
                 minWidth: 120,
-                height: 48,
+                height: 58,
                 ml: i === 0 ? 0 : `-${NOTCH - 2}px`,
                 pl: i === 0 ? 1.5 : `${NOTCH + 10}px`,
                 pr: `${NOTCH + 6}px`,
@@ -72,14 +72,13 @@ export default function StagePath({
                     : `polygon(0 0, calc(100% - ${NOTCH}px) 0, 100% 50%, calc(100% - ${NOTCH}px) 100%, 0 100%, ${NOTCH}px 50%)`,
                 // Selected is solid; the current stage is a primary tint; stages behind it
                 // are a shade darker than those ahead, as a path reads.
-                bgcolor: (theme) =>
-                  isSelected
-                    ? theme.palette.primary.main
-                    : isCurrent
-                      ? alpha(theme.palette.primary.main, 0.16)
-                      : s.complete || isPast
-                        ? theme.palette.action.selected
-                        : theme.palette.action.hover,
+                // From theme.vars, which follows the light/dark switch; theme.palette doesn't.
+                bgcolor: (theme) => {
+                  const palette = (theme.vars ?? theme).palette;
+                  if (isSelected) return palette.primary.main;
+                  if (isCurrent) return `color-mix(in srgb, ${palette.primary.main} 16%, transparent)`;
+                  return s.complete || isPast ? palette.action.selected : palette.action.hover;
+                },
                 color: isSelected ? "primary.contrastText" : "text.primary",
                 transition: "background-color 120ms",
                 "&:hover": { bgcolor: isSelected ? "primary.dark" : "action.focus" },
@@ -87,6 +86,22 @@ export default function StagePath({
               }}
             >
               <Box sx={{ minWidth: 0 }}>
+                {/* The current stage says so above its name, so its status line keeps its room. */}
+                <Typography
+                  variant="caption"
+                  component="div"
+                  sx={{
+                    fontSize: "0.6rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    lineHeight: 1.2,
+                    visibility: isCurrent ? "visible" : "hidden",
+                    color: isSelected ? "inherit" : "primary.main",
+                  }}
+                >
+                  Current
+                </Typography>
                 <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
                   {s.complete && <CheckIcon size={13} aria-hidden />}
                   <Typography
@@ -108,7 +123,7 @@ export default function StagePath({
                     fontWeight: s.review && !isSelected ? 600 : 400,
                   }}
                 >
-                  {isCurrent ? `Current · ${status}` : status}
+                  {status}
                 </Typography>
               </Box>
             </ButtonBase>

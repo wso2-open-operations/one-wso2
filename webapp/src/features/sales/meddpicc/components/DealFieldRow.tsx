@@ -230,6 +230,19 @@ export default function DealFieldRow({
             sx={{ height: 18, fontSize: "0.65rem", fontWeight: 600 }}
           />
         )}
+        {/* The one per-field action, at the end of the title line where the eye
+            finishes reading it. "Add value" for a field nothing has filled yet. */}
+        {!editing && field.conversational && field.kind !== "role" && !readOnly && field.applicable && (
+          <Button
+            size="small"
+            startIcon={<PencilIcon size={13} />}
+            onClick={() => setEditing(true)}
+            aria-label={`Edit ${field.label}`}
+            sx={{ ml: "auto !important", textTransform: "none", py: 0, minHeight: 0 }}
+          >
+            {sfEmpty && !proposal && !edited ? "Add value" : "Edit"}
+          </Button>
+        )}
       </Stack>
 
       {/* What to ask, for a field nothing has been heard for yet. */}
@@ -254,13 +267,14 @@ export default function DealFieldRow({
       )}
 
       <Box sx={{ pl: 3, mt: 0.75 }}>
-        {/* Salesforce's value. Absent for fields that don't exist there yet. */}
-        {!field.notInSalesforce && (
+        {/* Salesforce's value on its own only when there is no proposal to compare it
+            with; a field nothing has filled says nothing here (the section says it). */}
+        {!field.notInSalesforce && !sfEmpty && !proposal && (
           <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
-            <Box component="span" sx={{ fontWeight: 600 }}>
-              Salesforce:
-            </Box>{" "}
-            {formatFieldValue(field.salesforceValue)}
+            Salesforce:{" "}
+            <Box component="span" sx={{ fontWeight: 600, color: "text.primary" }}>
+              {formatFieldValue(field.salesforceValue)}
+            </Box>
           </Typography>
         )}
 
@@ -278,23 +292,31 @@ export default function DealFieldRow({
 
         {proposal && (
           <Box sx={{ mt: 1 }}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
+            {/* One line: what Salesforce has, and what the AI proposes in its place. */}
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 0.5 }}>
               <AiMarker confidence={proposal.confidence} />
+              {proposal.pending && !sfEmpty && !field.notInSalesforce && (
+                <>
+                  <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
+                    Salesforce{" "}
+                    <Box component="span" sx={{ textDecoration: "line-through", color: "text.secondary" }}>
+                      {formatFieldValue(field.salesforceValue)}
+                    </Box>
+                  </Typography>
+                  <Box component="span" aria-hidden sx={{ color: "text.disabled" }}>
+                    →
+                  </Box>
+                </>
+              )}
               <Typography variant="body2" sx={{ whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
-                {proposal.pending ? "Proposed: " : "Heard on calls: "}
-                <Box component="span" sx={{ fontWeight: 600 }}>
+                <Box component="span" sx={{ color: "text.secondary" }}>
+                  {proposal.pending ? "AI proposes " : "Heard on calls, matches Salesforce: "}
+                </Box>
+                <Box component="span" sx={{ fontWeight: 700 }}>
                   {formatFieldValue(proposal.value)}
                 </Box>
               </Typography>
             </Stack>
-
-            {/* The diff, only when there is something to differ from. */}
-            {proposal.pending && !sfEmpty && !field.notInSalesforce && (
-              <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: "warning.dark" }}>
-                Salesforce: {formatFieldValue(field.salesforceValue)} → proposed:{" "}
-                {formatFieldValue(proposal.value)}
-              </Typography>
-            )}
 
             {/* An attest field backed only by WSO2's words, or by words nobody could
                 attribute, is a claim about the customer rather than the customer's own
@@ -383,7 +405,7 @@ export default function DealFieldRow({
           </Stack>
         )}
 
-        {editing ? (
+        {editing && (
           <FieldEditor
             field={field}
             initial={
@@ -399,20 +421,6 @@ export default function DealFieldRow({
             }}
             onCancel={() => setEditing(false)}
           />
-        ) : (
-          field.conversational &&
-          field.kind !== "role" &&
-          !readOnly && (
-            <Button
-              size="small"
-              startIcon={<PencilIcon size={14} />}
-              onClick={() => setEditing(true)}
-              sx={{ mt: 0.75 }}
-              aria-label={`Edit ${field.label}`}
-            >
-              Edit
-            </Button>
-          )
         )}
       </Box>
     </Box>
