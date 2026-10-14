@@ -49,12 +49,14 @@ import {
   FieldRow,
   FundingSources,
   JobNumberAutocomplete,
+  JobNumberSideBar,
   Placeholder,
   ReadOnlyField,
   SearchableSelect,
 } from "./ccFormFields";
 import { clearDependentFields, resolveProductUnitIndex } from "./ccPendingSubmissions";
 import { useCcJobNumberDetails, useCcMenus } from "./useCc";
+import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
 import { useCcAttachment } from "./useCcMutations";
 import { CC_SNACK } from "./ccCopy";
 import {
@@ -185,8 +187,35 @@ export function CcCategorisePanel({
   const isMarketing = category.startsWith(CC_MARKETING_CATEGORY);
 
   // EditPane.tsx:560-600 — the job number decides a travel transaction's units.
-  const jobDetails = useCcJobNumberDetails(isTravel && draft.travelJobNumber ? draft.travelJobNumber : undefined);
+  // A number off the list is real by definition, whatever it looks like. Only
+  // a TYPED one is shape-checked, and only then to keep every keystroke that
+  // survives `autoSelect` from becoming its own query key and its own request
+  // for a job that cannot exist.
+  const jobPicked = Boolean(draft.travelJobNumber && jobNumbers.includes(draft.travelJobNumber));
+  const jobLookupKey =
+    isTravel &&
+    draft.travelJobNumber &&
+    (jobPicked || isValidJobNumberFormat(draft.travelJobNumber))
+      ? normalizeJobNumber(draft.travelJobNumber)
+      : undefined;
+  const jobDetails = useCcJobNumberDetails(jobLookupKey);
   const jobUnits = isTravel ? jobDetails.data : undefined;
+  const jobMalformed = Boolean(
+    isTravel &&
+      draft.travelJobNumber &&
+      !jobPicked &&
+      !isValidJobNumberFormat(draft.travelJobNumber),
+  );
+  // A lookup that failed is reported HERE, under the field, rather than as a
+  // separate alert beside it: the alert said the same thing a second time,
+  // and the reader needs it next to the value that caused it.
+  const jobNotFound = Boolean(jobLookupKey) && jobDetails.isError;
+  const jobNumberError = jobMalformed || jobNotFound;
+  const jobNumberHelp = jobMalformed
+    ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
+    : jobNotFound
+      ? "Could not verify this job number"
+      : "Not listed? Type the full job number.";
   const fundingSources = jobUnits?.fundingSources ?? [];
   // :568-575 — a job with no funding sources cannot be charged against, so the
   // source refuses to apply it rather than filling in half the row.
@@ -542,14 +571,23 @@ export function CcCategorisePanel({
               options={jobNumbers}
               disabled={!editable}
               onChange={(v) => change({ travelJobNumber: v }, clearDependentFields("travelJobNumber"))}
+              error={jobNumberError}
+              helperText={jobNumberHelp}
+              /* EditPane.tsx:1344-1450 — the job's particulars and its
+                 funding sit on the SAME row as the field there, not stacked
+                 under it. Shown whenever the lookup succeeded, as there. */
+              info={
+                jobUnits ? (
+                  <JobNumberSideBar
+                    details={jobUnits}
+                    fundingCount={fundingSources.length}
+                    onOpenFunding={() => setFundingOpen(true)}
+                  />
+                ) : undefined
+              }
             />
             {/* :568-598 warns on both, because either one leaves the row short
                 of what finance needs and neither is the reader's fault. */}
-            {jobDetails.isError && (
-              <Alert severity="error" sx={{ mt: 1, fontSize: 12.5 }}>
-                An error occurred while fetching job number details.
-              </Alert>
-            )}
             {jobUnusable && (
               <Alert severity="warning" sx={{ mt: 1, fontSize: 12.5 }}>
                 No funding sources found for the selected Job number.
@@ -560,31 +598,7 @@ export function CcCategorisePanel({
                 No Product unit and/or Business unit found for the selected Job number.
               </Alert>
             )}
-            {jobUsable && jobUnits && (
-              <Box sx={{ mt: 1 }}>
-                {/* :629-641 — the engagement a travel spend is charged to. */}
-                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
-                  {jobUnits.engagementCode} · {jobUnits.engagementType} · {jobUnits.country}
-                </Typography>
-                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
-                  Units from this job: {jobUnits.productUnit} · {jobUnits.businessUnit}
-                </Typography>
-                {/* :1288-1318 — behind a button, as the source has it, not
-                    spread out in the form. Six columns of funding split is
-                    reference material a reader opens once to check; inline it
-                    was the one thing tall enough to push this panel past the
-                    window, which on a screen that does not scroll means it
-                    would simply have been cut off. */}
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => setFundingOpen(true)}
-                  sx={{ textTransform: "none", fontWeight: 600, mt: 0.25, px: 0 }}
-                >
-                  View funding sources ({fundingSources.length})
-                </Button>
-              </Box>
-            )}
+
           </Field>
         ) : (
           // Sub Region sits in this row rather than on one of its own: the row

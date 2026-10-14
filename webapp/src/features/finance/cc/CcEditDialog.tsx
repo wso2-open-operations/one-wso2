@@ -39,7 +39,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { CirclePlusIcon, FileIcon } from "@wso2/oxygen-ui-icons-react";
+import { CirclePlusIcon, FileIcon, InfoIcon } from "@wso2/oxygen-ui-icons-react";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { ccServiceUrls } from "@config/apiConfig";
@@ -55,8 +55,9 @@ import {
   type ReceiptSource,
 } from "../util/financeReceipts";
 import { useCcJobNumberDetails, useCcMenus } from "./useCc";
+import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
 import { useCcAttachment } from "./useCcMutations";
-import { JobNumberAutocomplete, SearchableSelect } from "./ccFormFields";
+import { JobNumberAutocomplete, JobNumberDetails, SearchableSelect } from "./ccFormFields";
 import { CcFundingSource,
   CC_MARKETING_CATEGORY,
   CC_TRAVEL_CATEGORY,
@@ -208,8 +209,30 @@ function CcEditForm({
   // EditPane.tsx:560-600 — the job number decides a travel transaction's units.
   // Fetched only while Travel is selected; the row keeps its stored units until
   // the details arrive, so a slow lookup never blanks them.
-  const jobDetails = useCcJobNumberDetails(isTravel && jobNumber ? jobNumber : undefined);
+  //
+  // A number off the list is real by definition, whatever it looks like. Only
+  // a TYPED one is shape-checked, and only then to keep every keystroke that
+  // survives `autoSelect` from becoming its own query key and its own request
+  // for a job that cannot exist.
+  const jobPicked = jobNumbers.includes(jobNumber);
+  const jobLookupKey =
+    isTravel && jobNumber && (jobPicked || isValidJobNumberFormat(jobNumber))
+      ? normalizeJobNumber(jobNumber)
+      : undefined;
+  const jobDetails = useCcJobNumberDetails(jobLookupKey);
   const jobUnits = isTravel ? jobDetails.data : undefined;
+  const jobMalformed = Boolean(
+    isTravel && jobNumber && !jobPicked && !isValidJobNumberFormat(jobNumber),
+  );
+  const jobNotFound = Boolean(jobLookupKey) && jobDetails.isError;
+  const jobNumberError = jobMalformed || jobNotFound;
+  const jobNumberHelp = jobMalformed
+    ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
+    : jobNotFound
+      ? "Could not verify this job number"
+      : // EditPane.tsx:780 — says the typed route exists at all, which is the
+        // only way anyone would discover it.
+        "Not listed? Type the full job number.";
   const fundingSources = jobUnits?.fundingSources ?? [];
   // :568-575 — a job with no funding sources cannot be charged against, so the
   // source refuses to apply it rather than filling in half the row.
@@ -309,6 +332,19 @@ function CcEditForm({
                 options={jobNumbers}
                 disabled={leadOnly}
                 onChange={(v) => setJobNumber(v ?? "")}
+                error={jobNumberError}
+                helperText={jobNumberHelp}
+                /* EditPane.tsx:1375-1393 — the job's own particulars live
+                   behind an info icon rather than on the form, which has no
+                   room for seven more lines and does not need them until
+                   someone is checking they picked the right job. */
+                info={
+                  jobUsable && jobUnits ? (
+                    <Tooltip title={<JobNumberDetails details={jobUnits} />} placement="top-end">
+                      <InfoIcon size={16} style={{ marginLeft: 8, marginTop: 10, flexShrink: 0 }} />
+                    </Tooltip>
+                  ) : undefined
+                }
               />
             {/* EditPane.tsx:568-598 warns on both, because either one leaves
                 the row uncompletable and neither is the user's fault. */}

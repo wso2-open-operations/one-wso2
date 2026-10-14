@@ -44,13 +44,14 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronDownIcon, CirclePlusIcon, FileIcon } from "@wso2/oxygen-ui-icons-react";
+import { ChevronDownIcon, CirclePlusIcon, ExternalLinkIcon, FileIcon, InfoIcon } from "@wso2/oxygen-ui-icons-react";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { describeError } from "../util/financeError";
 import { formatNice, money } from "../util/financeFormat";
 import { CC_SNACK } from "./ccCopy";
 import { CC_ATTACHMENT_ACCEPT, CC_ATTACHMENT_MAX_BYTES, maxSizeLabel } from "../util/financeReceipts";
-import type { CcFundingSource, CcTransaction } from "./ccTypes";
+import type { CcFundingSource, CcJobNumberDetails, CcTransaction } from "./ccTypes";
+import { formatJobDate, normalizeJobNumber } from "./ccJobNumber";
 
 export function FieldLabel({ children, id }: { children: React.ReactNode; id?: string }) {
   return (
@@ -116,9 +117,15 @@ export function Placeholder() {
 /**
  * EditPane.tsx:1229-1246 / InputMenu.tsx:150-177 — the source's Travel Job
  * Number is a typable Autocomplete, not a plain Select: the reader can type
- * "Hilton" to filter a long job list down instead of scrolling it. Not
- * `freeSolo` there either — the committed value still has to be one of the
- * pre-loaded job numbers, typing only narrows the list.
+ * "Hilton" to filter a long job list down instead of scrolling it.
+ *
+ * `freeSolo` with `autoSelect`, matching EditPane.tsx:1363-1364. The list
+ * holds only the past year (`GET /travels/job-numbers`), so a job older than
+ * that could not be filed at all while the committed value had to come from
+ * it. People know the exact number in those cases, so a typed one is
+ * committed on blur and `GET /travels/{jobNumber}` — which has no date
+ * limit — decides whether it exists. `autoSelect` is what commits it:
+ * without it, typing a full number and tabbing away discards the text.
  *
  * `labelId` is what `Field` clones onto the first child to name a Select via
  * `aria-labelledby`; Select accepts that prop itself, Autocomplete does not,
@@ -130,28 +137,76 @@ export function JobNumberAutocomplete({
   disabled,
   onChange,
   labelId,
+  error,
+  helperText,
+  info,
 }: {
   value: string | null;
   options: string[];
   disabled?: boolean;
   onChange: (value: string | null) => void;
   labelId?: string;
+  error?: boolean;
+  helperText?: string;
+  /**
+   * The info icon for the chosen job's particulars, rendered beside the
+   * input. A slot rather than something the caller wraps around this
+   * component, because `Field` clones `labelId` onto its FIRST child — a
+   * wrapper there leaves the input unnamed and unreachable by its label.
+   */
+  info?: React.ReactNode;
 }) {
-  return (
+  const field = (
     <Autocomplete
       size="small"
+      freeSolo
+      autoSelect
+      // InputMenu.tsx:162 — `freeSolo` hides the dropdown arrow and stops the
+      // list opening on a click, because a free-text field is assumed to be
+      // typed into. Picking from the list is still how this is used nearly
+      // always, so both are put back: the arrow to show there IS a list, and
+      // `openOnFocus` so reaching the field still shows it.
+      forcePopupIcon
+      openOnFocus
+      isOptionEqualToValue={(option, v) => option === v}
       options={options}
       value={value || null}
       disabled={disabled}
-      onChange={(_e, v) => onChange(v)}
+      // `freeSolo` hands back the raw string for a typed value and the option
+      // for a picked one; both are strings here, so the only thing to add is
+      // the normalising the lookup and the list both key on.
+      onChange={(_e, v) => onChange(v === null ? null : normalizeJobNumber(String(v)))}
       renderInput={(params) => (
         <TextField
           {...params}
           placeholder="Select…"
+          error={error}
+          helperText={helperText}
           slotProps={{ htmlInput: { ...params.inputProps, "aria-labelledby": labelId } }}
         />
       )}
     />
+  );
+  // EditPane.tsx:1345/1409 — the field and what the job implies share one
+  // row. A flat half each (the source's two `xs={6}` Grid items) is too
+  // little here: the Approve dialog's column is far narrower than the
+  // source's pane, and half of it left the input a couple of characters wide
+  // while "Funding Sources" was still clipped. So the input takes a generous
+  // basis and grows into whatever is left, and the row WRAPS rather than
+  // squeezing either side when there is genuinely no room for both.
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "flex-start",
+        flexWrap: "wrap",
+        columnGap: 1,
+        rowGap: 0.5,
+      }}
+    >
+      <Box sx={{ flex: "1 1 240px", minWidth: 0 }}>{field}</Box>
+      <Box sx={{ flex: "0 0 auto", minWidth: 0 }}>{info}</Box>
+    </Box>
   );
 }
 
@@ -519,6 +574,94 @@ export function FundingSources({
           ))}
         </TableBody>
       </Table>
+    </Box>
+  );
+}
+
+/**
+ * What a travel job actually is — `EditPane.tsx:741-768`.
+ *
+ * The engagement, who it is for, where and when. Shown in the job number's
+ * info tooltip rather than on the form: it is what someone checks when they
+ * want to be sure they picked the right job, which is not most of the time,
+ * and it is seven lines the form has no room for.
+ */
+export function JobNumberDetails({ details }: { details: CcJobNumberDetails }) {
+  const rows: [string, string][] = [
+    ["Engagement Code", details.engagementCode],
+    ["Engagement Type", details.engagementType],
+    ["Travel Country", details.country],
+    ["Customer", details.customerName],
+    ["Global Pod", details.globalPod],
+    ["Start Date", formatJobDate(details.startDate)],
+    ["End Date", formatJobDate(details.endDate)],
+    // Not in the source's tooltip, which has no need of them: there the units
+    // are form fields the reader can see. Here the form takes them from the
+    // job and never shows them, so without this the only place they appeared
+    // was a line under the field that the source does not have.
+    ["Product Unit", details.productUnit],
+    ["Business Unit", details.businessUnit],
+  ];
+  return (
+    <Box sx={{ py: 0.5 }}>
+      {rows.map(([label, value]) => (
+        <Typography key={label} sx={{ fontSize: 11.5, lineHeight: 1.7 }}>
+          {label}: {value || "—"}
+        </Typography>
+      ))}
+    </Box>
+  );
+}
+
+/**
+ * What sits beside the Travel Job Number field — `EditPane.tsx:1344-1450`.
+ *
+ * The source puts the job number and its funding on ONE row, two halves of a
+ * Grid: the field and its info icon on the left, "Funding Sources" and the
+ * button that opens them on the right. Everything the job implies lives on
+ * that line or behind those two controls, with only the helper text beneath.
+ *
+ * Rendered through the field's `info` slot rather than wrapped around it,
+ * because `Field` clones `labelId` onto its first child and a wrapper there
+ * leaves the input unnamed.
+ */
+export function JobNumberSideBar({
+  details,
+  fundingCount,
+  onOpenFunding,
+}: {
+  details: CcJobNumberDetails;
+  fundingCount: number;
+  onOpenFunding: () => void;
+}) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, minWidth: 0, mt: 0.25 }}>
+      <Tooltip title={<JobNumberDetails details={details} />} placement="top-end">
+        <IconButton size="small" aria-label="Job number details" sx={{ p: 0.5 }}>
+          <InfoIcon size={15} />
+        </IconButton>
+      </Tooltip>
+      <Typography sx={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>
+        Funding Sources
+      </Typography>
+      {/* :1427-1446 — the button only when there is something to open, and a
+          plain line saying so when there is not. */}
+      {fundingCount > 0 ? (
+        <Tooltip title="View funding sources">
+          <IconButton
+            size="small"
+            aria-label="View funding sources"
+            onClick={onOpenFunding}
+            sx={{ p: 0.5 }}
+          >
+            <ExternalLinkIcon size={15} />
+          </IconButton>
+        </Tooltip>
+      ) : (
+        <Typography sx={{ fontSize: 12, color: "text.secondary", lineHeight: 1.2 }}>
+          no funding sources
+        </Typography>
+      )}
     </Box>
   );
 }
