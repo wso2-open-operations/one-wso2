@@ -84,12 +84,13 @@ describe("DealPage", { timeout: 20000 }, () => {
 
   it("opens filtered to a Letter from ?letter=, and ignores one that isn't a Letter", async () => {
     const { unmount } = renderAt(dealPath("006MOCK0000MERI", "E"));
-    expect(await screen.findByText("Economic Buyer across every Gate")).toBeInTheDocument();
+    expect(await screen.findByText("Showing Economic Buyer across every stage")).toBeInTheDocument();
     unmount();
 
     renderAt("/sales/deals/006MOCK0000MERI?letter=ZZ");
-    expect(await screen.findByText(/^To leave /)).toBeInTheDocument();
-    expect(screen.queryByText(/across every Gate/)).not.toBeInTheDocument();
+    // An invalid Letter is ignored: the page opens on the current stage.
+    expect(await screen.findByRole("button", { name: /^Technical Proof, current stage/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByText(/across every stage/)).not.toBeInTheDocument();
   });
 
   it("builds deal paths, escaping the id", () => {

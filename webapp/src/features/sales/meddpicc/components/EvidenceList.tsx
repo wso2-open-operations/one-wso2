@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Stack, Typography } from "@wso2/oxygen-ui";
+import { useState } from "react";
+import { Button, Stack, Typography } from "@wso2/oxygen-ui";
 import type { EvidenceQuote, EvidenceSourceType } from "../types";
 import { newestFirst, sourceOf } from "../util/evidenceSource";
 import EvidenceItem from "./EvidenceItem";
@@ -29,13 +30,19 @@ import EvidenceItem from "./EvidenceItem";
 export default function EvidenceList({
   evidence,
   sourceFilter = null,
+  limit,
 }: {
   evidence: EvidenceQuote[];
   /** Show one source only; null shows all. */
   sourceFilter?: EvidenceSourceType | null;
+  /** Show this many, newest first, with a way to see the rest. */
+  limit?: number;
 }) {
+  const [all, setAll] = useState(false);
   if (evidence.length === 0) return null;
-  const shown = newestFirst(evidence).filter((q) => !sourceFilter || sourceOf(q).type === sourceFilter);
+  const matching = newestFirst(evidence).filter((q) => !sourceFilter || sourceOf(q).type === sourceFilter);
+  const shown = limit && !all ? matching.slice(0, limit) : matching;
+  const hidden = matching.length - shown.length;
   if (shown.length === 0) {
     return (
       <Typography variant="caption" color="text.secondary">
@@ -44,12 +51,19 @@ export default function EvidenceList({
     );
   }
   return (
-    <Stack component="ul" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }} aria-label="Evidence">
-      {shown.map((q, i) => (
-        <li key={`${sourceOf(q).type}-${sourceOf(q).id}-${q.offsetSeconds}-${i}`}>
-          <EvidenceItem quote={q} />
-        </li>
-      ))}
-    </Stack>
+    <>
+      <Stack component="ul" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }} aria-label="Evidence">
+        {shown.map((q, i) => (
+          <li key={`${sourceOf(q).type}-${sourceOf(q).id}-${q.offsetSeconds}-${i}`}>
+            <EvidenceItem quote={q} />
+          </li>
+        ))}
+      </Stack>
+      {hidden > 0 && (
+        <Button size="small" onClick={() => setAll(true)} sx={{ mt: 0.25, px: 0.5, minWidth: 0 }}>
+          Show {hidden} more
+        </Button>
+      )}
+    </>
   );
 }

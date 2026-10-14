@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState } from "react";
-import { Link as RouterLink } from "react-router";
+import { useState, type ReactNode } from "react";
+import { Link as RouterLink, useNavigate } from "react-router";
 import {
   Accordion,
   AccordionDetails,
@@ -56,8 +56,13 @@ import type {
   EvidenceSourceType,
   FieldValue,
   LetterKey,
+  TimelineMark,
 } from "../types";
-import { activityOf, describeSources, sourcesOf } from "../util/evidenceSource";
+import { activityOf, describeSources, journeyOf, sourcesOf } from "../util/evidenceSource";
+import { defaultGate, gateSummaries, sectionsFor } from "../util/dealSections";
+import { useNow } from "../../util/useNow";
+import DealJourney from "./DealJourney";
+import StagePath from "./StagePath";
 import { meetingPath } from "../../util/salesPaths";
 import {
   EMPTY_DRAFT,
@@ -83,10 +88,6 @@ import StageChip from "./StageChip";
  * left; what to ask next, the activity and products discussed on the right. The
  * approval bar stays in view at the bottom while the fields scroll.
  */
-/** Gates in gates.json order, as the fields carry them. */
-function gatesInOrder(fields: readonly DealField[]): string[] {
-  return [...new Set(fields.map((field) => field.gate))];
-}
 
 export default function DealView({
   detail,
@@ -103,6 +104,12 @@ export default function DealView({
   const includeCalls = useIncludeCalls(deal.opportunityId);
 
   const [letter, setLetter] = useState<LetterKey | null>(initialLetter);
+  // The stage whose fields are shown; null opens on the current stage.
+  const [pickedGate, setPickedGate] = useState<string | null>(null);
+  const pickGate = (next: string) => {
+    setPickedGate(next);
+    setLetter(null);
+  };
   // Which source's evidence to show. Offered only once a deal has more than one kind.
   const [sourceFilter, setSourceFilter] = useState<EvidenceSourceType | null>(null);
   const [edits, setEdits] = useState<ApprovalDraft["edits"]>(EMPTY_DRAFT.edits);
@@ -188,9 +195,13 @@ export default function DealView({
     }
   };
 
-  const gates = gatesInOrder(fields);
-  const currentGateFields = fields.filter((field) => field.gate === detail.currentStage);
-  const otherGates = gates.filter((gate) => gate !== detail.currentStage);
+  // The fields, sorted for the AM: what the AI wants checked, what is missing, and what
+  // Salesforce already has. One stage at a time, or one Letter across every stage.
+  const summaries = gateSummaries(detail, draft);
+  const gate = pickedGate ?? defaultGate(detail, summaries);
+  const sections = sectionsFor(detail, draft, letter ? { letter } : { gate });
+  const askNextByField = new Map(detail.askNext.map((item) => [item.fieldKey, item.question]));
+  const scopeName = letter ? letterLabel(letter) : gate;
 
   const approveHint = readOnly
     ? "Only the Opportunity owner, a call host or a Sales admin can approve."
@@ -200,7 +211,7 @@ export default function DealView({
         ? "Nothing is waiting for approval."
         : null;
 
-  const renderField = (field: DealField) => (
+  const renderField = (field: DealField, variant: "full" | "compact" = "full") => (
     <DealFieldRow
       key={field.key}
       field={field}
@@ -211,11 +222,29 @@ export default function DealView({
       onUndo={undoEdit}
       onRoleMatch={matchRole}
       sourceFilter={sourceFilter}
+      variant={variant}
+      askNext={variant === "full" ? askNextByField.get(field.key) : undefined}
+      gateTag={letter ? field.gate : undefined}
     />
   );
 
   const sources = sourcesOf(detail);
   const activity = activityOf(detail);
+  const now = useNow();
+  const navigate = useNavigate();
+  // The journey's marks: the deal row's own timeline when the backend sends one, else
+  // the activity list, oldest first.
+  const journeyMarks: TimelineMark[] =
+    deal.timeline ??
+    [...activity]
+      .map((a) => ({
+        type: a.type,
+        kind: a.type === "CALL" ? ("CUSTOMER_CALL" as const) : a.type,
+        at: a.occurredAt,
+        title: a.title,
+        meetingId: a.meetingId,
+      }))
+      .sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
   const coverageByMeeting = new Map(detail.calls.map((call) => [call.meetingId, call.coverage]));
   const sourceKinds = (
     [
@@ -360,98 +389,66 @@ export default function DealView({
           )}
           {includeError && <Alert severity="error">{includeError}</Alert>}
 
-          {letter ? (
-            <Box>
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 0.5 }}>
-                <Typography variant="subtitle2">{letterLabel(letter)} across every Gate</Typography>
-                <Chip label="Show all" size="small" onClick={() => setLetter(null)} onDelete={() => setLetter(null)} />
-              </Stack>
-              {gates.map((gate) => {
-                const inGate = fields.filter((field) => field.gate === gate && field.letters.includes(letter));
-                if (inGate.length === 0) return null;
-                return (
-                  <Box key={gate} sx={{ mb: 1 }}>
-                    <Typography variant="overline" color="text.secondary">
-                      {gate}
-                    </Typography>
-                    {inGate.map(renderField)}
-                  </Box>
-                );
-              })}
-              {fields.every((field) => !field.letters.includes(letter)) && (
-                <Typography variant="body2" color="text.secondary">
-                  No Gate field feeds {letterLabel(letter)}.
-                </Typography>
-              )}
-            </Box>
-          ) : (
-            <>
-              {currentGateFields.length > 0 ? (
-                <Box>
-                  <Typography variant="subtitle2">To leave {detail.currentStage}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {detail.gateComplete
-                      ? "Every field this Gate needs is in Salesforce."
-                      : `${detail.incomplete.length} of ${currentGateFields.length} still needed.`}
-                  </Typography>
-                  {currentGateFields.map(renderField)}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  {deal.isClosed ? "This deal is closed." : `${detail.currentStage} has no Gate fields.`}
-                </Typography>
-              )}
+          <StagePath stages={summaries} current={detail.currentStage} selected={letter ? null : gate} onSelect={pickGate} />
 
-              {otherGates.map((gate) => {
-                const inGate = fields.filter((field) => field.gate === gate);
-                const pending = inGate.filter((field) => field.proposal?.pending).length;
-                return (
-                  <Accordion
-                    key={gate}
-                    disableGutters
-                    variant="outlined"
-                    // Other Gates are reference; their fields mount only when opened.
-                    slotProps={{ transition: { unmountOnExit: true } }}
-                    sx={{ "&:before": { display: "none" } }}
-                  >
-                    <AccordionSummary expandIcon={<ChevronDownIcon size={16} />}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {gate} Gate
-                      </Typography>
-                      {pending > 0 && (
-                        <Typography variant="caption" color="warning.dark" sx={{ ml: 1, alignSelf: "center" }}>
-                          {pending} AI {pending === 1 ? "proposal" : "proposals"}
-                        </Typography>
-                      )}
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ pt: 0 }}>{inGate.map(renderField)}</AccordionDetails>
-                  </Accordion>
-                );
-              })}
-            </>
+          {letter && (
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+              <Typography variant="body2" color="text.secondary">
+                Showing {letterLabel(letter)} across every stage
+              </Typography>
+              <Chip label="Back to stages" size="small" onClick={() => setLetter(null)} onDelete={() => setLetter(null)} />
+            </Stack>
           )}
 
+          <FieldSection
+            title="Needs your review"
+            tone="warning"
+            count={sections.review.length}
+            description="Heard on calls and proposed by the AI. Approve all writes them to Salesforce; edit one first if it isn't right."
+            empty={`Nothing is waiting for review in ${scopeName}.`}
+          >
+            {sections.review.map((field) => renderField(field))}
+          </FieldSection>
+
+          <FieldSection
+            title="Missing"
+            tone="info"
+            count={sections.missing.length}
+            description="This stage needs these, and nothing has been heard for them yet."
+            empty={
+              letter
+                ? `Nothing is missing for ${scopeName}.`
+                : deal.isClosed
+                  ? "This deal is closed."
+                  : `Nothing is missing in ${scopeName}.`
+            }
+          >
+            {sections.missing.map((field) => renderField(field))}
+          </FieldSection>
+
+          <SalesforceSection
+            done={sections.done}
+            optional={sections.optional}
+            notNeeded={sections.notNeeded}
+            render={(field) => renderField(field, "compact")}
+          />
         </Stack>
 
         <Stack component="aside" spacing={2.5} sx={{ minWidth: 0 }} aria-label="About this deal">
-          {detail.askNext.length > 0 && (
-            <Box>
-              <Typography variant="subtitle2">Ask next</Typography>
-              <Typography variant="caption" color="text.secondary">
-                Still open for this Gate, with nothing heard yet.
-              </Typography>
-              <Stack component="ol" spacing={0.75} sx={{ pl: 2.5, m: 0, mt: 0.75 }}>
-                {detail.askNext.map((item) => (
-                  <Typography component="li" variant="body2" key={item.fieldKey}>
-                    {item.question}{" "}
-                    <Typography component="span" variant="caption" color="text.secondary">
-                      ({labelOf(item.fieldKey)})
-                    </Typography>
-                  </Typography>
-                ))}
-              </Stack>
-            </Box>
-          )}
+          {/* The deal's journey, as on the Deals list, for this deal alone. */}
+          <Box component="section" aria-label="Journey">
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              Journey
+            </Typography>
+            <DealJourney
+              marks={journeyMarks}
+              journey={journeyOf(deal)}
+              sources={sources}
+              closeDate={deal.closeDate}
+              now={now}
+              onOpenCall={(meetingId) => void navigate(meetingPath(meetingId, { tab: "meddpicc" }))}
+            />
+          </Box>
 
           {detail.productsDiscussed.length > 0 && (
             <Box>
@@ -658,5 +655,105 @@ function ActivityRow({
         )
       )}
     </Stack>
+  );
+}
+
+/**
+ * One of the two sections the AM works through: a heading with its count, a line on what
+ * it holds, and the fields. A coloured edge marks the section; when it is empty it says
+ * so in a line rather than disappearing, so "nothing to review" reads as an answer.
+ */
+function FieldSection({
+  title,
+  tone,
+  count,
+  description,
+  empty,
+  children,
+}: {
+  title: string;
+  tone: "warning" | "info";
+  count: number;
+  description: string;
+  empty: string;
+  children: ReactNode;
+}) {
+  return (
+    <Box
+      component="section"
+      aria-label={title}
+      sx={{
+        borderLeft: 3,
+        borderColor: count > 0 ? `${tone}.main` : "divider",
+        pl: 1.75,
+        py: 0.5,
+      }}
+    >
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
+          {title}
+        </Typography>
+        {count > 0 && (
+          <Chip label={count} size="small" color={tone} sx={{ height: 20, fontWeight: 700 }} />
+        )}
+      </Stack>
+      {count > 0 ? (
+        <>
+          <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 0.5 }}>
+            {description}
+          </Typography>
+          {children}
+        </>
+      ) : (
+        <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
+          {empty}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+/**
+ * What Salesforce already has, folded away: a field that is in needs no work, so it is a
+ * line to read, not a card to act on. Each line still has Edit. Optional fields left
+ * empty, and fields this deal doesn't need, sit at the end.
+ */
+function SalesforceSection({
+  done,
+  optional,
+  notNeeded,
+  render,
+}: {
+  done: DealField[];
+  optional: DealField[];
+  notNeeded: DealField[];
+  render: (field: DealField) => ReactNode;
+}) {
+  const total = done.length + optional.length + notNeeded.length;
+  if (total === 0) return null;
+  return (
+    <Accordion
+      disableGutters
+      variant="outlined"
+      // Read-only reference; its rows mount only when opened.
+      slotProps={{ transition: { unmountOnExit: true } }}
+      sx={{ "&:before": { display: "none" } }}
+    >
+      <AccordionSummary expandIcon={<ChevronDownIcon size={16} />}>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          Already in Salesforce
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+          {done.length}
+          {optional.length > 0 && ` · ${optional.length} optional left empty`}
+          {notNeeded.length > 0 && ` · ${notNeeded.length} not needed`}
+        </Typography>
+      </AccordionSummary>
+      <AccordionDetails sx={{ pt: 0 }}>
+        {done.map(render)}
+        {optional.map(render)}
+        {notNeeded.map(render)}
+      </AccordionDetails>
+    </Accordion>
   );
 }

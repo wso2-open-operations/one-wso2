@@ -29,6 +29,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import {
+  MessageCircleQuestionIcon,
   CircleCheckIcon,
   CircleIcon,
   ExternalLinkIcon,
@@ -99,6 +100,9 @@ export default function DealFieldRow({
   onUndo,
   onRoleMatch,
   sourceFilter = null,
+  variant = "full",
+  askNext,
+  gateTag,
 }: {
   field: DealField;
   draft: ApprovalDraft;
@@ -110,6 +114,15 @@ export default function DealFieldRow({
   onRoleMatch: (key: string, contactId: string | null) => void;
   /** Show evidence from one source only; null shows all. */
   sourceFilter?: EvidenceSourceType | null;
+  /**
+   * "compact": one quiet line, for a field Salesforce already has. Edit opens the full
+   * row in place, and an edited field stays full until approved or undone.
+   */
+  variant?: "full" | "compact";
+  /** The question to ask on the next call, for a field still missing. */
+  askNext?: string;
+  /** The stage this field belongs to, shown when the list spans stages. */
+  gateTag?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const { proposal } = field;
@@ -118,6 +131,62 @@ export default function DealFieldRow({
   const sfEmpty = isEmptyValue(field.salesforceValue);
   const salesforceOnly = !field.conversational;
   const rolePending = field.kind === "role" && Boolean(proposal?.pending) && isRoleProposal(proposal?.value);
+
+  if (variant === "compact" && !editing && !edited) {
+    const value = !field.applicable
+      ? "Not needed for this deal"
+      : field.notInSalesforce
+        ? proposal
+          ? `${formatFieldValue(proposal.value)} (kept in Echo, not in Salesforce yet)`
+          : "Not in Salesforce yet"
+        : sfEmpty
+          ? field.optional
+            ? "Empty · optional"
+            : "Empty"
+          : formatFieldValue(field.salesforceValue);
+    return (
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: "center", py: 0.75, borderBottom: 1, borderColor: "divider", minWidth: 0, opacity: field.applicable ? 1 : 0.6 }}
+      >
+        <StateIcon field={field} />
+        <Typography variant="body2" sx={{ fontWeight: 500, flexShrink: 0 }}>
+          {field.label}
+        </Typography>
+        {gateTag && (
+          <Chip label={gateTag} size="small" variant="outlined" sx={{ height: 18, fontSize: "0.65rem", flexShrink: 0 }} />
+        )}
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          title={value}
+          sx={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        >
+          {value}
+        </Typography>
+        {salesforceOnly ? (
+          <Link
+            href={salesforceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="caption"
+            sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}
+          >
+            Salesforce <ExternalLinkIcon size={12} />
+          </Link>
+        ) : (
+          field.kind !== "role" &&
+          !readOnly &&
+          field.applicable && (
+            <Button size="small" onClick={() => setEditing(true)} aria-label={`Edit ${field.label}`} sx={{ minWidth: 0, flexShrink: 0 }}>
+              Edit
+            </Button>
+          )
+        )}
+      </Stack>
+    );
+  }
 
   return (
     <Box
@@ -151,6 +220,7 @@ export default function DealFieldRow({
         {field.notInSalesforce && (
           <Chip label="Not in Salesforce yet" size="small" color="default" sx={{ height: 18, fontSize: "0.65rem" }} />
         )}
+        {gateTag && <Chip label={gateTag} size="small" variant="outlined" sx={{ height: 18, fontSize: "0.65rem" }} />}
         {field.attest && (
           <Chip
             label="You confirm"
@@ -161,6 +231,21 @@ export default function DealFieldRow({
           />
         )}
       </Stack>
+
+      {/* What to ask, for a field nothing has been heard for yet. */}
+      {askNext && (
+        <Stack direction="row" spacing={0.75} sx={{ alignItems: "flex-start", mt: 0.75, pl: 3 }}>
+          <Box component="span" sx={{ color: "info.main", display: "inline-flex", mt: "2px" }} aria-hidden>
+            <MessageCircleQuestionIcon size={14} />
+          </Box>
+          <Typography variant="body2">
+            <Box component="span" sx={{ color: "text.secondary" }}>
+              Ask next call:{" "}
+            </Box>
+            {askNext}
+          </Typography>
+        </Stack>
+      )}
 
       {!field.applicable && (
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
@@ -227,7 +312,7 @@ export default function DealFieldRow({
             )}
 
             <Box sx={{ mt: 1 }}>
-              <EvidenceList evidence={proposal.evidence} sourceFilter={sourceFilter} />
+              <EvidenceList evidence={proposal.evidence} sourceFilter={sourceFilter} limit={2} />
             </Box>
           </Box>
         )}

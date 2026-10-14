@@ -205,4 +205,49 @@ describe("DealView", { timeout: 20000 }, () => {
     expect(approveButton()).toBeDisabled();
     expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
   });
+
+  // The redesign: the AM's attention goes to what the AI proposes and what is missing;
+  // what Salesforce already has is folded away.
+  it("opens on the current stage with what needs review and what is missing up front", async () => {
+    const user = userEvent.setup();
+    renderPanel("006MOCK0000MERI");
+    await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
+
+    // The stage path: the current stage is open, and an earlier stage's leftover shows.
+    expect(screen.getByRole("button", { name: /^Technical Proof, current stage: / })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Qualify: 1 to review$/ })).toBeInTheDocument();
+
+    const review = screen.getByRole("region", { name: "Needs your review" });
+    for (const label of ["WSO2–customer use case fit", "Competitors", "Cloud service provider", "On Kubernetes"]) {
+      expect(within(review).getByText(label)).toBeInTheDocument();
+    }
+    const missing = screen.getByRole("region", { name: "Missing" });
+    expect(within(missing).getByText("POC completed")).toBeInTheDocument();
+    expect(within(missing).getByText(/Where are we with the POC/)).toBeInTheDocument();
+
+    // Already in Salesforce is folded until opened, and then one line per field.
+    expect(screen.queryByText("POC required")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Already in Salesforce/ }));
+    expect(await screen.findByText("POC required")).toBeInTheDocument();
+    expect(screen.getByText("Empty · optional")).toBeInTheDocument();
+  });
+
+  it("moves to another stage from the path", async () => {
+    const user = userEvent.setup();
+    renderPanel("006MOCK0000MERI");
+    await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
+    await user.click(screen.getByRole("button", { name: /^Qualify: / }));
+    const review = screen.getByRole("region", { name: "Needs your review" });
+    expect(within(review).getByText("Economic buyer")).toBeInTheDocument();
+    expect(within(review).getByRole("combobox", { name: "Matching contact" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Missing" })).toHaveTextContent("Nothing is missing in Qualify.");
+  });
+
+  it("shows the deal's journey beside the fields", async () => {
+    renderPanel("006MOCK0000MERI");
+    await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
+    const aside = screen.getByRole("complementary", { name: "About this deal" });
+    expect(within(aside).getByRole("list", { name: /^Deal journey/ })).toBeInTheDocument();
+  });
 });
+
