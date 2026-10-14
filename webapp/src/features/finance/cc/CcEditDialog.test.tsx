@@ -18,6 +18,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { CcTransaction } from "./ccTypes";
@@ -155,10 +156,22 @@ describe("a travel job number supplies the units", () => {
     await waitFor(() => expect(state.jobQueries).toContain("JOB-1"));
   });
 
-  it("shows the engagement the spend is charged to", async () => {
+  // The engagement, the country and the units read off the job's info
+  // tooltip, as they do in the source. They used to sit on a line under the
+  // field, which an older travel — carrying no engagement code or type at
+  // all — rendered as a row of bare separators.
+  it("shows the engagement the spend is charged to, behind the info icon", async () => {
+    const user = userEvent.setup();
     await categoriseAsTravel();
-    expect(await screen.findByText(/ENG-1/)).toBeInTheDocument();
-    expect(screen.getByText(/Integration — Platform/)).toBeInTheDocument();
+
+    await user.hover(await screen.findByRole("button", { name: "Job number details" }));
+
+    // By their labelled rows: "Integration" alone also names a product unit
+    // in the funding table below, so a bare match finds more than one.
+    expect(await screen.findByText(/Engagement Code: ENG-1/)).toBeInTheDocument();
+    expect(screen.getByText(/Engagement Type: T&M/)).toBeInTheDocument();
+    expect(screen.getByText(/Product Unit: Integration/)).toBeInTheDocument();
+    expect(screen.getByText(/Business Unit: Platform/)).toBeInTheDocument();
   });
 
   it("saves the job's units, which the user never picks", async () => {

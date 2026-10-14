@@ -339,9 +339,19 @@ function CcEditForm({
                    room for seven more lines and does not need them until
                    someone is checking they picked the right job. */
                 info={
-                  jobUsable && jobUnits ? (
+                  jobUnits ? (
+                    // A button, not a bare icon: an icon takes no focus and
+                    // answers no key, so the particulars behind it were
+                    // mouse-only. Named the same as the Categorise panel's,
+                    // which is the same control on the same field.
                     <Tooltip title={<JobNumberDetails details={jobUnits} />} placement="top-end">
-                      <InfoIcon size={16} style={{ marginLeft: 8, marginTop: 10, flexShrink: 0 }} />
+                      <IconButton
+                        size="small"
+                        aria-label="Job number details"
+                        sx={{ ml: 0.5, mt: 0.5, flexShrink: 0 }}
+                      >
+                        <InfoIcon size={16} />
+                      </IconButton>
                     </Tooltip>
                   ) : undefined
                 }
@@ -360,13 +370,12 @@ function CcEditForm({
             )}
             {jobUsable && jobUnits && (
               <Box sx={{ mt: 1 }}>
-                {/* :629-641 — the engagement a travel spend is charged to. */}
-                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
-                  {jobUnits.engagementCode} · {jobUnits.engagementType} · {jobUnits.country}
-                </Typography>
-                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
-                  Units from this job: {jobUnits.productUnit} — {jobUnits.businessUnit}
-                </Typography>
+                {/* The engagement, the country and the units all read off the
+                    job's info tooltip now, as they do in the source — and
+                    they have to: an older travel carries no engagement code
+                    or type at all, and spelling that out as a line of bare
+                    separators ("· · Sri Lanka") was the only thing this said
+                    for exactly the jobs the typed-entry route exists for. */}
                 <FundingSources sources={fundingSources} totalAmount={txn.txnAmount} />
               </Box>
             )}

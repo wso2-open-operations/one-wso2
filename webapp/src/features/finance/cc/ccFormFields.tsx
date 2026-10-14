@@ -592,7 +592,10 @@ export function FundingSources({
  * and it is seven lines the form has no room for.
  */
 export function JobNumberDetails({ details }: { details: CcJobNumberDetails }) {
-  const rows: [string, string][] = [
+  // `string | null`, because an older travel genuinely has no engagement —
+  // the row still appears, reading "—", rather than the line vanishing and
+  // leaving the reader to wonder which of the seven they are looking at.
+  const rows: [string, string | null][] = [
     ["Engagement Code", details.engagementCode],
     ["Engagement Type", details.engagementType],
     ["Travel Country", details.country],
