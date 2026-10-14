@@ -181,7 +181,14 @@ export function SearchableSelect({
       size="small"
       disableClearable
       options={options}
-      value={value || undefined}
+      // `null`, not `undefined` — MUI fixes an Autocomplete's controlled
+      // state from whichever one the FIRST render passes, so starting on
+      // `undefined` here (blank form, no value yet) left it able to drift
+      // out of sync with later `value` props, e.g. changing the category
+      // out from under an already-picked type without the field clearing
+      // visibly. `JobNumberAutocomplete` above never had this because it
+      // already passed `null` for the same case.
+      value={value || null}
       disabled={disabled}
       onChange={(_e, v) => onChange(v ?? "")}
       renderInput={(params) => (

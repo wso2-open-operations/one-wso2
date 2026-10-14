@@ -233,7 +233,15 @@ export function AddExpenseDialog({
                 setJobNumber(v ? v.jobNumber : NO_JOB);
                 setExpenseTypeId(""); // type list depends on the job number
               }}
-              renderInput={(params) => <TextField {...params} placeholder="Select…" />}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="Select…"
+                  // The caption above is a plain Typography, so without this
+                  // the field has no accessible name at all.
+                  slotProps={{ htmlInput: { ...params.inputProps, "aria-label": "Job number" } }}
+                />
+              )}
               // Given the field's own full-width row (not squeezed into a
               // half column next to Bill date), a normal-size label fits one
               // line for virtually every job/country combination; noWrap plus
@@ -322,7 +330,16 @@ export function AddExpenseDialog({
               getOptionLabel={(t) => t.type}
               isOptionEqualToValue={(a, b) => a.id === b.id}
               onChange={(_e, v) => setExpenseTypeId(v ? v.id : "")}
-              renderInput={(params) => <TextField {...params} placeholder="Select a type…" />}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="Select a type…"
+                  // The caption above is a plain Typography, so without this
+                  // the field — required, per `valid` above — has no
+                  // accessible name at all.
+                  slotProps={{ htmlInput: { ...params.inputProps, "aria-label": "Expense type" } }}
+                />
+              )}
             />
           </Box>
 

@@ -161,7 +161,10 @@ function CcEditForm({
    */
   const leadOnly = Boolean(financeAdmin) && txn.status === "pending_lead";
 
-  const categories = menus.expenseTypes.data?.categories ?? [];
+  const categories = useMemo(
+    () => [...(menus.expenseTypes.data?.categories ?? [])].sort((a, b) => a.localeCompare(b)),
+    [menus.expenseTypes.data],
+  );
   const typeOptions = useMemo(
     () => (category ? [...(menus.expenseTypes.data?.types[category] ?? [])].sort((a, b) => a.localeCompare(b)) : []),
     [category, menus.expenseTypes.data],
@@ -171,11 +174,10 @@ function CcEditForm({
   const productUnits = menus.units.data?.productUnits ?? [];
   const businessUnits = menus.units.data?.businessUnits ?? [];
 
-  // InputMenu.tsx:129-150 — the source groups Product Unit options under a
-  // Business Unit subheader rather than spelling the business unit out in
-  // each option's own label, in whichever order the menu arrays list the
-  // business units (first appearance wins a group's position, same as the
-  // source's plain-object accumulator).
+  // Product Unit options are grouped under a Business Unit subheader rather
+  // than spelling the business unit out in each option's own label, in
+  // whichever order the menu arrays list the business units — first
+  // appearance wins a group's position.
   const unitGroups = useMemo(() => {
     const groups = new Map<string, { i: number; label: string }[]>();
     productUnits.forEach((pu, i) => {
@@ -343,11 +345,8 @@ function CcEditForm({
                 renderValue={(v) => (v === "" ? <Placeholder /> : productUnits[Number(v)] ?? String(v))}
               >
                 {unitGroups.flatMap(([bu, items]) => [
-                  // InputMenu.tsx:19-22 — the source's own StyledListSubheader:
-                  // full-opacity white in dark mode rather than a dim
-                  // theme.palette.text.secondary, which MUI's own
-                  // ListSubheader default left this reading as low-contrast
-                  // grey-on-dark.
+                  // Full-opacity heading colour instead of MUI's dim default
+                  // text.secondary, which read as low-contrast grey-on-dark.
                   <ListSubheader
                     key={`h-${bu}`}
                     // A group with few items lets the next sticky header
@@ -365,22 +364,21 @@ function CcEditForm({
                     // never reflects the live DOM colour-scheme attribute).
                     sx={{
                       bgcolor: "action.hover",
-                      // text.primary, not the ListSubheader default of
-                      // text.secondary — the source forced full-opacity
-                      // white here too, for the same reason: a dim label
-                      // reads poorly as a group heading.
+                      // text.primary, not ListSubheader's default
+                      // text.secondary — a dim label reads poorly as a
+                      // group heading.
                       color: "text.primary",
                       // MUI's ListSubheader bolds itself by default (its own
-                      // built-in CSS, not something added here) — forced back
-                      // to normal weight since the source has no bold at all.
+                      // built-in CSS, not something added here) — forced
+                      // back to normal weight to match plain body text.
                       fontWeight: 400,
                     }}
                   >
                     {bu}
                   </ListSubheader>,
                   ...items.map((o) => (
-                    // InputMenu.tsx:24-28 — the source's StyledMenuItem indents
-                    // each option under its group header by theme.spacing(4).
+                    // Indented under its group header so each option reads
+                    // clearly as belonging to the business unit above it.
                     <MenuItem key={o.i} value={o.i} sx={{ pl: 4 }}>
                       {o.label}
                     </MenuItem>
