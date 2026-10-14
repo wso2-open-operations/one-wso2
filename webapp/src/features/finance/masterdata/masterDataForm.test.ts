@@ -276,6 +276,9 @@ describe("initialFormData — seeding the payload from an existing row, or blank
       comment: "",
       employeeEmail: "amila@wso2.com",
       leadEmails: ["lead@wso2.com"],
+      // Carried so the edit dialog's Active/Inactive toggle has something to
+      // show; a create seeds no `status` at all, which the next test covers.
+      status: "active",
     });
   });
   it("a null on the row seeds the form with an empty string, not null", () => {

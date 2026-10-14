@@ -109,3 +109,19 @@ export function describeDeleteError(error: unknown): string {
   }
   return MASTER_DATA_SNACK.error.deleting;
 }
+
+/**
+ * Which sentence a failed update should say.
+ *
+ * An update answers 409 for the same reason a delete does: switching an
+ * expense type to inactive runs the backend's reference check, so a type
+ * still carried by active claims is refused rather than quietly retired.
+ * Without this the reader got "Error updating data", which reads as a fault
+ * rather than as the rule it actually is.
+ */
+export function describeUpdateError(error: unknown): string {
+  if (error instanceof HttpError && error.status === 409) {
+    return MASTER_DATA_SNACK.error.deleteConflict;
+  }
+  return MASTER_DATA_SNACK.error.updating;
+}

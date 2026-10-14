@@ -114,6 +114,8 @@ export interface ExpenseTypePayload {
   expenseTypeDescription: string;
   engagementCodes: string[];
   engagementCodeSuffixes: string[];
+  /** Edits only — see {@link CreditCardPayload.status}, which works the same way. */
+  status?: string;
 }
 
 /** POST body for `search-expense-types`. Every key is optional. */
@@ -158,6 +160,12 @@ export interface CreditCardPayload {
   comment: string;
   employeeEmail: string;
   leadEmails: string[];
+  /**
+   * Only an edit carries one. A new card is created active by the backend,
+   * which hardcodes the value, and `AddCreditCardPayload` is a closed record
+   * there — sending the field on a create is a 400, not a no-op.
+   */
+  status?: string;
 }
 
 /** The two card providers this backend supports. */

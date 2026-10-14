@@ -104,6 +104,8 @@ export function initialFormData(tab: MasterDataTab, row?: MasterDataRow): Master
         expenseTypeDescription: r?.expenseTypeDescription ?? "",
         engagementCodes: r?.engagementCodes ?? [],
         engagementCodeSuffixes: r?.engagementCodeSuffixes ?? [],
+        // Same rule as credit cards: lower-cased, and absent when creating.
+        ...(r ? { status: (r.status ?? "active").toLowerCase() } : {}),
       } satisfies ExpenseTypePayload;
     }
     case "creditCards": {
@@ -114,6 +116,11 @@ export function initialFormData(tab: MasterDataTab, row?: MasterDataRow): Master
         employeeEmail: r?.employeeEmail ?? "",
         leadEmails: r?.leadEmails ?? [],
         comment: r?.comment ?? "",
+        // Lower-cased because the column carries a mix of "Active" and
+        // "active" from older writes, and `isUnchanged` compares by value —
+        // seeding the raw casing would read as an edit the moment the dialog
+        // opened. Absent when creating; see CreditCardPayload.
+        ...(r ? { status: (r.status ?? "active").toLowerCase() } : {}),
       } satisfies CreditCardPayload;
     }
   }
@@ -190,6 +197,11 @@ export function isUnchanged(row: MasterDataRow, form: MasterDataPayload): boolea
       const before = [...((rowValue as string[]) ?? [])].sort();
       const after = [...formValue].sort();
       return JSON.stringify(before) === JSON.stringify(after);
+    }
+    // Status is the one field whose stored casing varies, so compare it the
+    // way every reader of the column does rather than by exact value.
+    if (key === "status") {
+      return String(rowValue).toLowerCase() === String(formValue).toLowerCase();
     }
     return rowValue === formValue;
   });

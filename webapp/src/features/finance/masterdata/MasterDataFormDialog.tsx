@@ -24,6 +24,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
+  Switch,
 } from "@wso2/oxygen-ui";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { MASTER_DATA_FORM_COPY, MASTER_DATA_SNACK } from "./masterDataCopy";
@@ -35,7 +37,11 @@ import {
   SelectInput,
   TextInput,
 } from "./masterDataFields";
-import { useCreateMasterData, useUpdateMasterData } from "./useMasterDataMutations";
+import {
+  describeUpdateError,
+  useCreateMasterData,
+  useUpdateMasterData,
+} from "./useMasterDataMutations";
 import {
   CREDIT_CARD_PROVIDERS,
   type CreditCardPayload,
@@ -119,7 +125,7 @@ export default function MasterDataFormDialog({
             showSuccess(MASTER_DATA_SNACK.success.updated);
             onClose();
           },
-          onError: () => showError(MASTER_DATA_SNACK.error.updating),
+          onError: (error) => showError(describeUpdateError(error)),
         },
       );
     } else {
@@ -306,6 +312,7 @@ function Fields({
               onChange={set}
             />
           </Box>
+          <StatusToggle value={f.status} onChange={set} />
         </>
       );
     }
@@ -355,8 +362,48 @@ function Fields({
             multiline
             onChange={set}
           />
+          <StatusToggle value={f.status} onChange={set} />
         </>
       );
     }
   }
+}
+
+/**
+ * Active / inactive, for the two tabs whose Delete button is gone.
+ *
+ * Renders nothing while creating: both backends hardcode the status on insert
+ * and their Add payloads are closed records, so sending the field there is a
+ * 400 rather than a no-op. `value` is absent in exactly that case — see
+ * `initialFormData`.
+ *
+ * Says which state it is putting the record into, which the Delete button it
+ * replaces never did: that one was a soft delete whose row stayed on screen,
+ * and on an already-inactive record it did nothing observable at all.
+ *
+ * Retiring an expense type can still be refused — the backend runs the same
+ * reference check DELETE used, so a type active claims still carry comes back
+ * 409 rather than quietly going inactive.
+ */
+function StatusToggle({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange: (key: string, value: string) => void;
+}) {
+  if (value === undefined) return null;
+  const active = value === "active";
+  return (
+    <FormControlLabel
+      sx={{ mt: 0.5 }}
+      control={
+        <Switch
+          checked={active}
+          onChange={(_e, checked) => onChange("status", checked ? "active" : "inactive")}
+        />
+      }
+      label={active ? "Active" : "Inactive"}
+    />
+  );
 }

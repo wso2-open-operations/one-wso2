@@ -16,21 +16,27 @@
  * under the License.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+/** Every filter object the page has asked the backend for, in order. */
+const asked: unknown[] = [];
+
 vi.mock("../useMasterData", () => ({
   isFinanceMasterDataBackendConfigured: () => true,
   useExpenseTypeAutoComplete: () => ({ data: undefined, isLoading: false, isError: false }),
-  useExpenseTypes: () => ({
-    data: [],
-    isLoading: false,
-    isError: false,
-    isFetching: false,
-    refetch: vi.fn(),
-  }),
+  useExpenseTypes: (filters: unknown) => {
+    asked.push(filters);
+    return {
+      data: [],
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    };
+  },
 }));
 
 const { default: ExpenseTypesPage } = await import("./ExpenseTypesPage");
@@ -46,13 +52,20 @@ function show() {
   );
 }
 
-const filterBar = () => screen.queryByText(/please fill in at least one|expense category/i);
+// The bar's own Apply button, not a field label: with the table always on
+// screen now, "Expense Category" names a GRID COLUMN as well as a filter, so
+// matching on it found the collapsed bar's twin in the header row.
+const filterBar = () => screen.queryByRole("button", { name: /apply filters/i });
 
-// Nothing is loaded until the first Apply (`hasApplied` in the page), so
-// opening on an already-expanded bar showed a filter form above a screen that
-// had not asked for anything yet. Collapsed is the honest starting state —
-// "Show Filters" is a click the reader makes on purpose.
+// The catalogue is on screen from the first render, so the bar is there for
+// the person who wants to narrow it rather than a gate on the way in.
+// Collapsed keeps the rows the thing you see first — "Show Filters" is a
+// click the reader makes on purpose.
 describe("Expense Types' filter bar", () => {
+  beforeEach(() => {
+    asked.length = 0;
+  });
+
   it("starts collapsed, behind a Show Filters toggle", () => {
     show();
 
@@ -64,10 +77,11 @@ describe("Expense Types' filter bar", () => {
     const user = userEvent.setup();
     show();
 
+    expect(filterBar()).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /show filters/i }));
 
     expect(screen.getByRole("button", { name: /hide filters/i })).toBeInTheDocument();
-    expect(screen.getByText(/please select filters/i)).toBeInTheDocument();
+    expect(filterBar()).toBeInTheDocument();
   });
 
   it("collapses again on a second click", async () => {
@@ -81,13 +95,29 @@ describe("Expense Types' filter bar", () => {
     expect(screen.getByRole("button", { name: /show filters/i })).toBeInTheDocument();
   });
 
-  // The table-side empty state ("Please select filters") is independent of
-  // the bar's own open/closed state — collapsing the bar after Apply must not
-  // make it look like nothing was ever asked for.
-  it("still shows the pre-Apply placeholder on first load, bar collapsed", () => {
+  // Asking someone to pick a filter before they can see what there is to
+  // filter BY had it backwards: the whole catalogue is the starting point,
+  // and an empty filter is the question that asks for it.
+  it("asks for the whole catalogue on first load, with no filter applied", () => {
     show();
 
-    expect(screen.getByText(/please select filters/i)).toBeInTheDocument();
-    expect(filterBar()).not.toBeInTheDocument();
+    expect(asked[0]).toEqual({});
+    expect(screen.queryByText(/please select filters/i)).not.toBeInTheDocument();
+    // The table itself is on screen, not a stand-in for one.
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
+  it("goes back to the whole catalogue when the filters are cleared", async () => {
+    const user = userEvent.setup();
+    show();
+
+    await user.click(screen.getByRole("button", { name: /show filters/i }));
+    await user.click(screen.getByRole("button", { name: /^clear$/i }));
+
+    // Not merely the bar's own fields: what the table is showing goes back to
+    // everything too, or it would stay narrowed by something no longer
+    // readable anywhere on screen.
+    expect(asked.at(-1)).toEqual({});
+    expect(screen.getByRole("grid")).toBeInTheDocument();
   });
 });

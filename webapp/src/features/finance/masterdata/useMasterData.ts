@@ -48,12 +48,26 @@ export { isFinanceMasterDataBackendConfigured };
 const REFERENCE_STALE_TIME = 5 * 60 * 1000;
 
 /**
+ * Alphabetical, case-insensitively and with runs of digits read as numbers.
+ *
+ * Every picker on this screen is sorted with it, because the backend returns
+ * each of these lists in whatever order the rows fall out of the query — no
+ * order at all to a reader hunting one name among hundreds.
+ *
+ * `sensitivity: "base"` keeps a shouted name next to its neighbours rather
+ * than bunching every capitalised one at the top — the catalogue carries both
+ * "ZENDESK, INC" and "Zopim". `numeric` is what puts a GL code like 61015-9
+ * before 61015-10 instead of after it.
+ */
+const byName = (a: string, b: string) =>
+  a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+
+/**
  * One tab's rows.
  *
  * Three of the four are a plain GET. Expense types go through a POST filter
- * instead, because the table is large enough that the screen asks the reader
- * to narrow it before showing anything — see `useExpenseTypes` below, which
- * is the hook that screen actually uses.
+ * instead, because that table carries six filters rather than none — see
+ * `useExpenseTypes` below, which is the hook that screen actually uses.
  */
 export function useMasterDataList<T extends Exclude<MasterDataTab, "expenseTypes">>(tab: T) {
   const { isSignedIn } = useAsgardeo();
@@ -76,12 +90,11 @@ export function useMasterDataList<T extends Exclude<MasterDataTab, "expenseTypes
 /**
  * Expense types matching a filter — POST `search-expense-types`.
  *
- * `enabled` is the caller's, not derived: the page shows an empty
- * "Please select filters" state until Apply Filters is pressed for the
- * first time, and fires nothing before that. Passing `false` is how the
- * page holds that state without this hook needing to know about it.
+ * An empty `filters` is a real question rather than an absent one: the
+ * backend builds no WHERE clause for it and answers with the whole
+ * catalogue, which is what the page asks for on its first render.
  */
-export function useExpenseTypes(filters: ExpenseTypeFilter, enabled: boolean) {
+export function useExpenseTypes(filters: ExpenseTypeFilter, enabled = true) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const configured = isFinanceMasterDataBackendConfigured();
@@ -123,8 +136,15 @@ export function useGlCodes(enabled = true) {
   return useQuery<GlCode[]>({
     queryKey: ["finance-master-data", "gl-codes"],
     enabled: enabled && isSignedIn && configured,
-    queryFn: async () =>
-      authedGet<GlCode[]>(financeMasterDataServiceUrls.glCodes, await getAccessToken()),
+    queryFn: async () => {
+      const rows = await authedGet<GlCode[]>(
+        financeMasterDataServiceUrls.glCodes,
+        await getAccessToken(),
+      );
+      // By the code itself, which is what the picker shows and what someone
+      // scanning the list is reading down.
+      return [...(rows ?? [])].sort((a, b) => byName(a.glCode, b.glCode));
+    },
     staleTime: 30 * 60 * 1000,
     retry: financeRetry,
   });
@@ -144,7 +164,7 @@ export function useEmployeeEmails(enabled = true) {
         financeMasterDataServiceUrls.employeeEmails,
         await getAccessToken(),
       );
-      return (rows ?? []).map((r) => r.workEmail);
+      return (rows ?? []).map((r) => r.workEmail).sort(byName);
     },
     staleTime: 30 * 60 * 1000,
     retry: financeRetry,
@@ -152,10 +172,34 @@ export function useEmployeeEmails(enabled = true) {
 }
 
 /**
+ * Every option list in one payload, alphabetised.
+ *
+ * Exported for its own test: the hook around it needs a signed-in Asgardeo
+ * and a query client to exercise, and neither has anything to do with the
+ * ordering this decides.
+ */
+export function sortAutoCompleteLists(lists: ExpenseTypeAutoComplete): ExpenseTypeAutoComplete {
+  return {
+    expenseCategoryIds: [...(lists.expenseCategoryIds ?? [])].sort((a, b) =>
+      byName(a.label, b.label),
+    ),
+    glCodeIds: [...(lists.glCodeIds ?? [])].sort((a, b) => byName(a.label, b.label)),
+    expenseTypes: [...(lists.expenseTypes ?? [])].sort(byName),
+    engagementCodes: [...(lists.engagementCodes ?? [])].sort(byName),
+    engagementCodeSuffixes: [...(lists.engagementCodeSuffixes ?? [])].sort(byName),
+  };
+}
+
+/**
  * The option lists behind the expense-type filters AND that tab's form.
  *
  * One request serves both, so the category and GL-code pickers inside the
  * dialog are populated from the same payload that fills the filter bar.
+ *
+ * Sorted here rather than at either render site for that reason: the backend
+ * returns these in the order the rows happen to come out of a GROUP BY, which
+ * is no order at all to a reader hunting for one name among hundreds, and
+ * sorting once on arrival fixes the bar and the dialog together.
  */
 export function useExpenseTypeAutoComplete(enabled = true) {
   const { isSignedIn } = useAsgardeo();
@@ -166,9 +210,11 @@ export function useExpenseTypeAutoComplete(enabled = true) {
     queryKey: ["finance-master-data", "expense-type-autocomplete"],
     enabled: enabled && isSignedIn && configured,
     queryFn: async () =>
-      authedGet<ExpenseTypeAutoComplete>(
-        financeMasterDataServiceUrls.expenseTypeAutocomplete,
-        await getAccessToken(),
+      sortAutoCompleteLists(
+        await authedGet<ExpenseTypeAutoComplete>(
+          financeMasterDataServiceUrls.expenseTypeAutocomplete,
+          await getAccessToken(),
+        ),
       ),
     staleTime: 30 * 60 * 1000,
     retry: financeRetry,
