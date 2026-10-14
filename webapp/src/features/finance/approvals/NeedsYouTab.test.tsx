@@ -361,6 +361,36 @@ describe("what it shows", () => {
     expect(screen.getByText("OPD-1")).toBeInTheDocument();
   });
 
+  // Finance can be sitting on fifty-odd OPD claims, and the Expense claims
+  // group below them was reachable only by scrolling past every one.
+  it("folds a group away when its heading is clicked, keeping the count", async () => {
+    flags.lead = false;
+    data.opd = [opdClaim({})];
+    data.finance = [
+      expenseClaim({
+        id: "EXP-FIN",
+        statusDetails: { status: "PENDING_FINANCE", leadApprovedDate: iso(2026, 7, 25) },
+      }),
+    ];
+    const user = userEvent.setup();
+    show();
+
+    const opdHeading = await screen.findByRole("button", { name: /OPD claims · 1/ });
+    expect(opdHeading).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("OPD-1")).toBeInTheDocument();
+
+    await user.click(opdHeading);
+    expect(opdHeading).toHaveAttribute("aria-expanded", "false");
+    // The rows go; the heading and its count stay, so the group is still
+    // accounted for — and the other group has not moved or been touched.
+    expect(screen.queryByText("OPD-1")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /OPD claims · 1/ })).toBeInTheDocument();
+    expect(screen.getByText("EXP-FIN")).toBeInTheDocument();
+
+    await user.click(opdHeading);
+    expect(screen.getByText("OPD-1")).toBeInTheDocument();
+  });
+
   it("offers the toggle only to someone holding both flags", async () => {
     flags.finance = false;
     data.lead = [expenseClaim({})];

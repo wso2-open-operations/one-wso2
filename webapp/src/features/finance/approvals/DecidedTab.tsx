@@ -46,6 +46,7 @@ import type { OpdClaim } from "../opd/opdTypes";
 import { ExpenseApprovalReview } from "../expense/approvals/ExpenseApprovalReview";
 import { makeNameResolver } from "../expense/approvals/expenseApprovalTypes";
 import { OpdApprovalReview } from "../opd/approvals/OpdApprovalReview";
+import { ClaimGroupHeading, useCollapsedGroups } from "./ClaimGroupHeading";
 
 // Claims in this person's scope that already have a decision.
 //
@@ -125,6 +126,7 @@ export default function DecidedTab() {
 
   const [expenseTarget, setExpenseTarget] = useState<ExpenseClaim | null>(null);
   const [opdTarget, setOpdTarget] = useState<OpdClaim | null>(null);
+  const { isCollapsed, toggleGroup } = useCollapsedGroups();
   // Splits this already-decided set by outcome, the same "Pending / Approved /
   // Rejected" tabs Claim Approval's OPD tab offers — minus Pending, since
   // nothing here is still pending by definition. A lead's forwarded claim
@@ -282,8 +284,16 @@ export default function DecidedTab() {
       <Box sx={{ overflowX: "auto" }}>
         <Table size="small">
           <TableBody>
-            {opdRows.length > 0 && <Heading label="OPD claims" count={opdRows.length} />}
-            {opdRows.map((claim) => (
+            {opdRows.length > 0 && (
+              <ClaimGroupHeading
+                label="OPD claims"
+                count={opdRows.length}
+                colSpan={7}
+                collapsed={isCollapsed("opd")}
+                onToggle={() => toggleGroup("opd")}
+              />
+            )}
+            {!isCollapsed("opd") && opdRows.map((claim) => (
               <TableRow key={claim.id} hover>
                 <TableCell sx={ID}>{claim.id}</TableCell>
                 <TableCell sx={CELL}>{claim.employeeEmail}</TableCell>
@@ -299,8 +309,16 @@ export default function DecidedTab() {
               </TableRow>
             ))}
 
-            {expenseRows.length > 0 && <Heading label="Expense claims" count={expenseRows.length} />}
-            {expenseRows.map((claim) => (
+            {expenseRows.length > 0 && (
+              <ClaimGroupHeading
+                label="Expense claims"
+                count={expenseRows.length}
+                colSpan={7}
+                collapsed={isCollapsed("expense")}
+                onToggle={() => toggleGroup("expense")}
+              />
+            )}
+            {!isCollapsed("expense") && expenseRows.map((claim) => (
               <TableRow key={claim.id} hover>
                 <TableCell sx={ID}>{claim.id}</TableCell>
                 <TableCell sx={CELL}>{claim.employeeEmail}</TableCell>
@@ -364,27 +382,6 @@ function ViewCell({ onClick }: { onClick: () => void }) {
 function decidedOn(approved: string | null | undefined, rejected: string | null | undefined): string {
   const when = approved ?? rejected;
   return when ? formatNice(when) : "—";
-}
-
-function Heading({ label, count }: { label: string; count: number }) {
-  return (
-    <TableRow>
-      <TableCell colSpan={7} sx={{ border: 0, pt: 2, pb: 0.75 }}>
-        <Typography
-          component="span"
-          sx={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: "text.secondary",
-          }}
-        >
-          {label} · {count}
-        </Typography>
-      </TableCell>
-    </TableRow>
-  );
 }
 
 type DecidedOutcome = "approved" | "rejected";

@@ -46,6 +46,7 @@ import { ExpenseApprovalReview } from "../expense/approvals/ExpenseApprovalRevie
 import { makeNameResolver } from "../expense/approvals/expenseApprovalTypes";
 import { OpdApprovalReview } from "../opd/approvals/OpdApprovalReview";
 import { byLongestWait, daysWaiting, waitingLabel, waitingSince } from "./claimWaiting";
+import { ClaimGroupHeading, useCollapsedGroups } from "./ClaimGroupHeading";
 
 // Everything waiting on the person looking, grouped by which app it came from.
 //
@@ -150,6 +151,7 @@ export default function NeedsYouTab() {
 
   const [expenseTarget, setExpenseTarget] = useState<ExpenseClaim | null>(null);
   const [opdTarget, setOpdTarget] = useState<OpdClaim | null>(null);
+  const { isCollapsed, toggleGroup } = useCollapsedGroups();
 
   const expenseRows = useMemo(
     () =>
@@ -314,13 +316,16 @@ export default function NeedsYouTab() {
           <Table size="small">
             <TableBody>
               {opdRows.length > 0 && (
-                <GroupHeading
+                <ClaimGroupHeading
                   label="OPD claims"
                   count={opdRows.length}
                   note="you decide as finance"
+                  colSpan={6}
+                  collapsed={isCollapsed("opd")}
+                  onToggle={() => toggleGroup("opd")}
                 />
               )}
-              {opdRows.map((claim) => (
+              {!isCollapsed("opd") && opdRows.map((claim) => (
                 <TableRow key={claim.id} hover>
                   <IdCell id={claim.id} />
                   <WhoCell email={claim.employeeEmail} />
@@ -334,13 +339,16 @@ export default function NeedsYouTab() {
               ))}
 
               {expenseRows.length > 0 && (
-                <GroupHeading
+                <ClaimGroupHeading
                   label="Expense claims"
                   count={expenseRows.length}
                   note={`you decide as ${expenseStage === "LEAD" ? "lead" : "finance"}`}
+                  colSpan={6}
+                  collapsed={isCollapsed("expense")}
+                  onToggle={() => toggleGroup("expense")}
                 />
               )}
-              {expenseRows.map((claim) => (
+              {!isCollapsed("expense") && expenseRows.map((claim) => (
                 <TableRow key={claim.id} hover>
                   <IdCell id={claim.id} />
                   <WhoCell email={claim.employeeEmail} />
@@ -362,35 +370,6 @@ export default function NeedsYouTab() {
 }
 
 const CELL = { fontSize: 12.5, fontVariantNumeric: "tabular-nums" } as const;
-
-function GroupHeading({
-  label,
-  count,
-  note,
-}: {
-  label: string;
-  count: number;
-  note: string;
-}) {
-  return (
-    <TableRow>
-      <TableCell colSpan={6} sx={{ border: 0, pt: 2, pb: 0.75 }}>
-        <Typography
-          component="span"
-          sx={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: "text.secondary",
-          }}
-        >
-          {label} · {count} · {note}
-        </Typography>
-      </TableCell>
-    </TableRow>
-  );
-}
 
 function IdCell({ id }: { id: string }) {
   return <TableCell sx={{ ...CELL, fontWeight: 600 }}>{id}</TableCell>;
