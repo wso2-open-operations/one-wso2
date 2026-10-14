@@ -145,12 +145,11 @@ describe("useUmtProceedFromPrAnalysis", () => {
     const { result } = renderHook(() => useUmtProceedFromPrAnalysis("42"), { wrapper: wrapper(client) });
 
     await act(async () => {
-      await result.current.mutateAsync();
+      await result.current.mutateAsync({ isInstructionsOnly: false });
     });
 
-    expect(authedPut).toHaveBeenCalledWith(umtServiceUrls.update("42"), "token", {
-      lifecycleState: "PRAnalyzed",
-    });
+    expect(authedPut).toHaveBeenCalledWith(umtServiceUrls.update("42"), "token", { lifecycleState: "PRAnalyzed" });
+    expect(authedPost).toHaveBeenCalledTimes(1);
     expect(authedPost).toHaveBeenCalledWith(umtServiceUrls.updateProductAnalysis("42"), "token", {});
 
     const invalidatedKeys = invalidateQueries.mock.calls.map((call) => call[0]?.queryKey?.[0]);
@@ -159,8 +158,48 @@ describe("useUmtProceedFromPrAnalysis", () => {
         "umt-update",
         "umt-updates",
         "umt-update-lifecycle-history",
+        "umt-update-pr-analysis-status",
+        "umt-update-pull-request-analysis",
         "umt-update-product-analysis",
       ]),
+    );
+  });
+
+  it("submits the empty instructions only PR analysis before promoting to PRAnalyzed", async () => {
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const { result } = renderHook(() => useUmtProceedFromPrAnalysis("42"), { wrapper: wrapper(client) });
+
+    await act(async () => {
+      await result.current.mutateAsync({ isInstructionsOnly: true });
+    });
+
+    expect(authedPost).toHaveBeenNthCalledWith(1, umtServiceUrls.updatePullRequestAnalysis("42"), "token", {
+      updateId: "42",
+      pullRequests: [],
+      additionalFileOperations: [],
+      bundlesInfoChanges: [],
+      isInstructionsOnly: true,
+      isContainerizedUpdate: false,
+    });
+    expect(authedPut).toHaveBeenCalledWith(umtServiceUrls.update("42"), "token", { lifecycleState: "PRAnalyzed" });
+    expect(authedPost).toHaveBeenNthCalledWith(2, umtServiceUrls.updateProductAnalysis("42"), "token", {});
+  });
+
+  it("refreshes the PR analysis status and results when an instructions only promotion fails", async () => {
+    authedPut.mockRejectedValueOnce(new Error("Promotion failed"));
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const invalidateQueries = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useUmtProceedFromPrAnalysis("42"), { wrapper: wrapper(client) });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ isInstructionsOnly: true })).rejects.toThrow("Promotion failed");
+    });
+
+    expect(authedPost).toHaveBeenCalledTimes(1);
+    expect(authedPost).toHaveBeenCalledWith(umtServiceUrls.updatePullRequestAnalysis("42"), "token", expect.anything());
+    const invalidatedKeys = invalidateQueries.mock.calls.map((call) => call[0]?.queryKey?.[0]);
+    expect(invalidatedKeys).toEqual(
+      expect.arrayContaining(["umt-update-pr-analysis-status", "umt-update-pull-request-analysis"]),
     );
   });
 });
