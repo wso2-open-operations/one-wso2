@@ -86,23 +86,43 @@ function stageShade(stage: string, order: readonly string[], seen: readonly stri
   return Math.min(0.55, 0.12 + 0.07 * Math.max(0, index));
 }
 
-/** The key to the marks and bands, once, above the column. */
+/**
+ * The key to the marks and bands, for the column title's tooltip. Drawn in the tooltip's
+ * own ink (currentColor), so it reads on the tooltip's surface in either mode.
+ */
 export function DealJourneyLegend() {
   const swatch = (node: ReactNode, label: string) => (
-    <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }} key={label}>
-      <Box sx={{ width: 12, display: "flex", justifyContent: "center" }}>{node}</Box>
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }} key={label}>
+      <Box sx={{ width: 14, display: "flex", justifyContent: "center", flexShrink: 0 }}>{node}</Box>
       <span>{label}</span>
     </Stack>
   );
   return (
-    <Stack
-      direction="row"
-      sx={{ alignItems: "center", flexWrap: "wrap", columnGap: 1.25, rowGap: 0.25, typography: "caption", color: "text.secondary", fontWeight: 400 }}
-    >
+    <Stack spacing={0.5} sx={{ typography: "caption", color: "inherit", py: 0.25 }}>
+      <Box sx={{ fontWeight: 700 }}>Each deal, from its start to its close</Box>
       {KIND_ORDER.map((kind) => swatch(<Mark kind={kind} upcoming={false} />, KINDS[kind].label))}
-      {swatch(<Mark kind="CUSTOMER_CALL" upcoming scale={0.8} />, "Upcoming")}
-      {swatch(<Box sx={{ width: 12, height: 6, borderRadius: 0.5, bgcolor: "action.selected" }} />, "Stage")}
-      {swatch(<Box sx={{ width: "2px", height: 12, bgcolor: "text.secondary" }} />, "Close date")}
+      {swatch(<Mark kind="CUSTOMER_CALL" upcoming scale={0.8} />, "Upcoming (hollow)")}
+      {swatch(
+        <Box sx={{ width: 14, height: 6, borderRadius: 0.5, bgcolor: "currentColor", opacity: 0.45 }} />,
+        "Stage: darker further along",
+      )}
+      {swatch(
+        <Box
+          sx={{
+            width: 14,
+            height: 6,
+            borderRadius: 0.5,
+            background: "repeating-linear-gradient(45deg, currentColor 0 2px, transparent 2px 4px)",
+            opacity: 0.6,
+          }}
+        />,
+        "Stage not recorded before the first call",
+      )}
+      {swatch(<Box sx={{ width: "1px", height: 12, bgcolor: "currentColor", opacity: 0.6 }} />, "Today")}
+      {swatch(<Box sx={{ width: "2px", height: 12, bgcolor: "currentColor" }} />, "Close date")}
+      <Box sx={{ opacity: 0.8, maxWidth: 260 }}>
+        Stages are what Echo saw at each call and today, not Salesforce&apos;s stage history.
+      </Box>
     </Stack>
   );
 }

@@ -90,6 +90,12 @@ describe("SalesDealsPage", { timeout: 20000 }, () => {
     // Amount and close date ride under the name now, to give the timeline the width.
     expect(row.getByText("120,000 USD · closes 31/12/2026")).toBeInTheDocument();
     expect(row.getByRole("list", { name: /^Deal journey/ })).toBeInTheDocument();
+    // The journey's key is behind the column title's info button, not spread across the header.
+    expect(screen.getByRole("columnheader", { name: /^Journey/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "What the journey shows" })).toBeInTheDocument();
+    expect(screen.queryByText("Internal discussion")).not.toBeInTheDocument();
+    await userEvent.hover(screen.getByRole("button", { name: "What the journey shows" }));
+    expect(await screen.findByText("Internal discussion")).toBeInTheDocument();
     expect(row.getByRole("group", { name: /^MEDDPICC for Brightwater/ })).toBeInTheDocument();
     expect(row.getByRole("button", { name: "Champion: AI suggestion waiting for approval" })).toBeInTheDocument();
     expect(row.getByLabelText(/AI proposals waiting for approval/)).toBeInTheDocument();

@@ -113,7 +113,7 @@ describe("DealJourney", () => {
 
   it("has a legend for every kind, the stages and the close date", () => {
     render(<DealJourneyLegend />);
-    for (const label of ["Customer call", "Internal discussion", "Email", "Salesforce activity", "Upcoming", "Stage", "Close date"]) {
+    for (const label of ["Customer call", "Internal discussion", "Email", "Salesforce activity", "Upcoming (hollow)", "Stage: darker further along", "Stage not recorded before the first call", "Today", "Close date"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });

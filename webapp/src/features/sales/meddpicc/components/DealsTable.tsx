@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Box, Chip, Link, ListingTable, Skeleton, Typography } from "@wso2/oxygen-ui";
-import { SparklesIcon } from "@wso2/oxygen-ui-icons-react";
+import { Box, Chip, IconButton, Link, ListingTable, Skeleton, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { InfoIcon, SparklesIcon } from "@wso2/oxygen-ui-icons-react";
 import type { DealSummary, LetterKey } from "../types";
 import { journeyOf, rowSourcesOf, timelineOf } from "../util/evidenceSource";
 import { formatAmount, formatSalesforceDate } from "../util/meddpiccFormat";
@@ -31,7 +31,7 @@ import { useNow } from "../../util/useNow";
 const COLUMNS = [
   { key: "deal", label: "Deal", width: 280 },
   { key: "stage", label: "Stage", width: 130 },
-  { key: "activity", label: "Journey · from the deal's start to its close", width: "auto" },
+  { key: "activity", label: "Journey", width: "auto" },
   { key: "meddpicc", label: "MEDDPICC", width: 250 },
 ] as const;
 
@@ -76,7 +76,15 @@ export default function DealsTable({
               {COLUMNS.map((column) => (
                 <ListingTable.Cell key={column.key} sx={{ width: column.width, whiteSpace: "nowrap" }}>
                   {column.label}
-                  {column.key === "activity" && <DealJourneyLegend />}
+                  {/* The key lives in a tooltip, keeping the header to one line. It opens on
+                      hover and on keyboard focus, and every mark also names itself. */}
+                  {column.key === "activity" && (
+                    <Tooltip title={<DealJourneyLegend />} arrow placement="bottom-start">
+                      <IconButton size="small" aria-label="What the journey shows" sx={{ ml: 0.5, p: 0.25 }}>
+                        <InfoIcon size={14} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </ListingTable.Cell>
               ))}
             </ListingTable.Row>
