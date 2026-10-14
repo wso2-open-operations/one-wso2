@@ -62,8 +62,15 @@ type BreakdownTab = (typeof BREAKDOWN_TABS)[number];
 // Custom starts on the current quarter, so its From and To fields are filled
 // from the first render rather than blank.
 const DEFAULT_CUSTOM_RANGE = getPeriodRange("Quarterly");
+// All Time sends no startDate (expenseDashboardUtils.ts:29-30), so the very
+// first load asked the backend for every claim ever filed, aggregated five
+// ways at once — an unbounded org-wide query the report endpoint can't
+// finish, which took the whole dashboard down with 500s degrading to 503s.
+// Quarterly matches the range already computed above for Custom's initial
+// fields, so this is the one period the default was already carrying data
+// for without using it.
 const DEFAULT_FILTERS: ExpenseDashboardDraftFilters = {
-  period: "All Time",
+  period: "Quarterly",
   entity: ALL_ENTITIES,
   region: ALL_REGIONS,
   category: ALL_CATEGORIES,
