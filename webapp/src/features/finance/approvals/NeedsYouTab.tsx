@@ -84,6 +84,21 @@ export default function NeedsYouTab() {
   // leaving a dual-role approver stuck on Finance.
   const [picked, setPicked] = useState<ApproverView | null>(null);
   const expenseStage: ApproverView = picked ?? (canLead ? "LEAD" : "FINANCE");
+  // The toggle only exists for someone holding both expense flags — the same
+  // condition it renders under below.
+  const showsStageToggle = canLead && canExpenseFinance;
+  // OPD has no lead stage to show: its only roles are CLAIM_SUBMITTER and
+  // FINANCE_APPROVER (opdTypes.ts), and its statuses carry a single PENDING
+  // rather than the PENDING_LEAD/PENDING_FINANCE split expense claims use.
+  // So while the toggle is on As lead, OPD is not this reader's to decide and
+  // is left out entirely, rather than sitting under a lead view labelled "you
+  // decide as finance".
+  //
+  // Gated on the toggle being shown, not on the stage alone: someone who
+  // leads expense claims without holding expense finance never sees a toggle,
+  // so their stage is permanently "LEAD" — and if they hold OPD finance, that
+  // queue is genuinely theirs with no switch to reach it by.
+  const viewingAsLead = showsStageToggle && expenseStage === "LEAD";
 
   // For the review screen's name display — falls back to the bare email until
   // this arrives, same as the standalone Lead/Finance Approvals screens do.
@@ -144,9 +159,13 @@ export default function NeedsYouTab() {
       ),
     [expenseStage, leadQueue.data, financeQueue.data],
   );
+  // Emptied rather than hidden at the render site, so the count behind
+  // "Nothing is waiting on you" below follows from the same decision — a lead
+  // with only OPD pending is waiting on nothing AS LEAD, and a total still
+  // carrying those rows would claim otherwise while showing no list.
   const opdRows = useMemo(
-    () => byLongestWait(opdQueue.data ?? [], waitingSince),
-    [opdQueue.data],
+    () => (viewingAsLead ? [] : byLongestWait(opdQueue.data ?? [], waitingSince)),
+    [viewingAsLead, opdQueue.data],
   );
 
   // `isLoading`, not `isPending`. React Query leaves a DISABLED query pending
@@ -238,7 +257,7 @@ export default function NeedsYouTab() {
         </Alert>
       )}
 
-      {canLead && canExpenseFinance && (
+      {showsStageToggle && (
         <ToggleButtonGroup
           size="small"
           exclusive
