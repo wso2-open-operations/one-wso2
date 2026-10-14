@@ -58,6 +58,7 @@ import type {
   LetterKey,
 } from "../types";
 import { activityOf, describeSources, sourcesOf } from "../util/evidenceSource";
+import { meetingPath } from "../../util/salesPaths";
 import {
   EMPTY_DRAFT,
   buildApproveRequest,
@@ -612,7 +613,12 @@ function ActivityRow({
   const Icon = ACTIVITY_ICON[entry.type] ?? VideoIcon;
   const title =
     entry.type === "CALL" && entry.meetingId !== null ? (
-      <Link component={RouterLink} to={`/sales/meetings/${entry.meetingId}`} underline="hover" color="inherit">
+      <Link
+        component={RouterLink}
+        to={meetingPath(entry.meetingId, { tab: "meddpicc" })}
+        underline="hover"
+        color="inherit"
+      >
         {entry.title}
       </Link>
     ) : entry.url ? (

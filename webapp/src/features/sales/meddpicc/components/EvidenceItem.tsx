@@ -22,6 +22,7 @@ import { formatOffset } from "../../api/salesTypes";
 import { formatDateTime } from "../../util/salesTime";
 import type { EvidenceQuote, EvidenceSourceType } from "../types";
 import { roleOf, sourceOf } from "../util/evidenceSource";
+import { meetingPath } from "../../util/salesPaths";
 
 const SOURCE_ICON: Record<EvidenceSourceType, typeof VideoIcon> = {
   CALL: VideoIcon,
@@ -64,7 +65,7 @@ export default function EvidenceItem({
         <Link
           key="title"
           component={RouterLink}
-          to={`/sales/meetings/${quote.meetingId}`}
+          to={meetingPath(quote.meetingId, { tab: "meddpicc" })}
           variant="caption"
           underline="hover"
           color="inherit"

@@ -141,8 +141,9 @@ function MeetingCell({ meeting }: { meeting: Meeting }) {
  *
  * The MEDDPICC column appears when the page passes `coverage`: one batched
  * lookup for the visible page, made by the page rather than per row. A row
- * whose call belongs to a deal opens that deal's panel; the links and buttons
- * inside it keep their own clicks.
+ * opens its meeting on the MEDDPICC analysis, and a circle opens it at that
+ * Letter; the title link opens the meeting's summary, and the other links and
+ * buttons inside the row keep their own clicks.
  *
  * The Cancel column appears only in the All scope, matching the standalone app.
  * The reasoning holds up: in the Past scope nothing is cancellable — every row
@@ -163,7 +164,7 @@ export default function MeetingsTable({
   canCancel,
   coverage,
   coverageLoading = false,
-  onOpenDeal,
+  onOpenAnalysis,
   canReanalyse,
   onReanalyse,
   reanalysingId = null,
@@ -182,7 +183,8 @@ export default function MeetingsTable({
   /** MEDDPICC coverage by meetingId. Omit to leave the column out. */
   coverage?: Map<number, MeetingCoverage>;
   coverageLoading?: boolean;
-  onOpenDeal?: (opportunityId: string, letter?: LetterKey) => void;
+  /** Open the meeting on its MEDDPICC analysis, at a Letter when a circle was clicked. */
+  onOpenAnalysis?: (meeting: Meeting, letter?: LetterKey) => void;
   canReanalyse?: (meeting: Meeting) => boolean;
   onReanalyse?: (meeting: Meeting) => void;
   /** The meeting whose re-analysis request is in flight. */
@@ -243,18 +245,17 @@ export default function MeetingsTable({
                   const cancellable = canCancel(meeting);
                   const duration = formatDuration(meeting.startTime, meeting.endTime);
                   const meetingCoverage = coverage?.get(meeting.meetingId);
-                  // The backend's link first: an included call belongs to a deal the
-                  // meeting row itself was never linked to.
-                  const dealId = meetingCoverage?.opportunityId ?? meeting.opportunityId ?? null;
-                  const openDeal = dealId && onOpenDeal ? () => onOpenDeal(dealId) : undefined;
+                  // A row is a meeting, so it opens the meeting: its analysis, not its deal.
+                  // The deal is one click on from there.
+                  const openAnalysis = onOpenAnalysis ? () => onOpenAnalysis(meeting) : undefined;
 
                   return (
                     <ListingTable.Row
                       key={meeting.meetingId}
-                      clickable={Boolean(openDeal)}
-                      hover={Boolean(openDeal)}
-                      onClick={openDeal}
-                      sx={openDeal ? { cursor: "pointer" } : undefined}
+                      clickable={Boolean(openAnalysis)}
+                      hover={Boolean(openAnalysis)}
+                      onClick={openAnalysis}
+                      sx={openAnalysis ? { cursor: "pointer" } : undefined}
                     >
                       <ListingTable.Cell sx={{ maxWidth: 300 }}>
                         <MeetingCell meeting={meeting} />
@@ -270,7 +271,7 @@ export default function MeetingsTable({
                             reanalysing={reanalysingId === meeting.meetingId}
                             onReanalyse={() => onReanalyse?.(meeting)}
                             onLetterClick={
-                              dealId && onOpenDeal ? (letter) => onOpenDeal(dealId, letter) : undefined
+                              onOpenAnalysis ? (letter) => onOpenAnalysis(meeting, letter) : undefined
                             }
                           />
                         </ListingTable.Cell>

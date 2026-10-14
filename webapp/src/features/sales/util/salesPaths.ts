@@ -16,6 +16,25 @@
 
 import type { LetterKey } from "../meddpicc/types";
 
+/** The meeting page's tabs. */
+export type MeetingTab = "summary" | "meddpicc" | "transcript";
+export const MEETING_TABS: readonly MeetingTab[] = ["summary", "meddpicc", "transcript"];
+
+/**
+ * Where a meeting lives. `tab` opens it on one of its tabs (Summary when left out), and
+ * `letter`, with the MEDDPICC tab, marks one Letter in it, as a clicked circle does.
+ */
+export function meetingPath(
+  meetingId: number,
+  options: { tab?: MeetingTab; letter?: LetterKey | null } = {},
+): string {
+  const params = new URLSearchParams();
+  if (options.tab && options.tab !== "summary") params.set("tab", options.tab);
+  if (options.tab === "meddpicc" && options.letter) params.set("letter", options.letter);
+  const query = params.toString();
+  return `/sales/meetings/${meetingId}${query ? `?${query}` : ""}`;
+}
+
 /** Where a deal lives. `letter` opens it filtered to one Letter, as a clicked circle does. */
 export function dealPath(opportunityId: string, letter?: LetterKey | null): string {
   const base = `/sales/deals/${encodeURIComponent(opportunityId)}`;

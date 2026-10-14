@@ -15,7 +15,7 @@
 // under the License.
 
 import { useRef, useState } from "react";
-import { Link as RouterLink, useNavigate, useParams } from "react-router";
+import { Link as RouterLink, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   Alert,
   Box,
@@ -45,7 +45,8 @@ import { describeError, isForbidden } from "../util/salesError";
 import { useCallMeddpicc } from "../meddpicc/api/useCallMeddpicc";
 import CallMeddpiccStrip from "../meddpicc/components/CallMeddpiccStrip";
 import CallMeddpiccTab from "../meddpicc/components/CallMeddpiccTab";
-import { dealPath } from "../util/salesPaths";
+import { dealPath, MEETING_TABS, type MeetingTab } from "../util/salesPaths";
+import { LETTER_KEYS } from "../meddpicc/util/meddpiccFormat";
 import type { LetterKey } from "../meddpicc/types";
 import { formatDateTime, splitParticipants } from "../util/salesTime";
 
@@ -62,8 +63,6 @@ import { formatDateTime, splitParticipants } from "../util/salesTime";
  * recording. That interaction is the reason the player is a native <video> and not a Drive
  * iframe — an iframe would show the recording but expose no way to set its position.
  */
-type MeetingTab = "summary" | "meddpicc" | "transcript";
-
 export default function MeetingDetailPage() {
   const { meetingId: rawId } = useParams();
   const meetingId = Number(rawId);
@@ -94,26 +93,42 @@ export default function MeetingDetailPage() {
     setCurrentTime(0);
     setDuration(0);
   }
-  // Tab state is local, not a route. Unlike the meeting itself — which must be linkable —
-  // which pane you were reading is not something anyone shares.
-  // Summary first, and the default: someone opening a call wants to know what it was
-  // about before they want to read it word for word.
-  const [tab, setTab] = useState<MeetingTab>("summary");
   const { data: meeting, isLoading, error } = useMeeting(validId ? meetingId : null);
 
   // The call's MEDDPICC: the strip above the columns, the MEDDPICC tab, and the evidence
   // markers on the timeline all read this one answer.
   const call = useCallMeddpicc(meeting);
-  // A circle in the strip opens the MEDDPICC tab at its Letter.
-  const [focusLetter, setFocusLetter] = useState<LetterKey | null>(null);
+
+  // The tab, and the Letter marked in the MEDDPICC tab, live in the URL (?tab=&letter=):
+  // a click in the meetings table opens a call straight on its analysis, and a refresh or
+  // a pasted link lands on the same pane. Replaced rather than pushed when changed here,
+  // so Back still leaves the meeting instead of stepping through its tabs.
+  // Summary is the default: someone opening a call wants to know what it was about
+  // before they want to read it word for word.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const asked: MeetingTab = (MEETING_TABS as readonly string[]).includes(requestedTab ?? "")
+    ? (requestedTab as MeetingTab)
+    : "summary";
+  // Without the MEDDPICC backend there is no MEDDPICC tab to open.
+  const tab: MeetingTab = asked === "meddpicc" && !call.configured ? "summary" : asked;
+  const rawLetter = searchParams.get("letter");
+  const focusLetter =
+    tab === "meddpicc" && rawLetter && (LETTER_KEYS as readonly string[]).includes(rawLetter)
+      ? (rawLetter as LetterKey)
+      : null;
+  const show = (next: MeetingTab, letter: LetterKey | null = null) => {
+    const params = new URLSearchParams();
+    if (next !== "summary") params.set("tab", next);
+    if (next === "meddpicc" && letter) params.set("letter", letter);
+    setSearchParams(params, { replace: true });
+  };
   const navigate = useNavigate();
   const openDeal = () => {
     if (call.opportunityId) void navigate(dealPath(call.opportunityId));
   };
-  const openLetter = (letter: LetterKey) => {
-    setTab("meddpicc");
-    setFocusLetter(letter);
-  };
+  // A circle in the strip opens the MEDDPICC tab at its Letter.
+  const openLetter = (letter: LetterKey) => show("meddpicc", letter);
   const seek = (seconds: number) => playerRef.current?.seekTo(seconds);
 
   const forbidden = isForbidden(error);
@@ -172,11 +187,8 @@ export default function MeetingDetailPage() {
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Tabs
                 value={tab}
-                onChange={(_, next: MeetingTab) => {
-                  setTab(next);
-                  // Chosen from the tab bar, not from a circle: no Letter to mark.
-                  setFocusLetter(null);
-                }}
+                // Chosen from the tab bar, not from a circle: no Letter to mark.
+                onChange={(_, next: MeetingTab) => show(next)}
                 sx={{ mb: 2, minHeight: 36, "& .MuiTab-root": { minHeight: 36, textTransform: "none" } }}
               >
                 <Tab value="summary" label="Summary" />

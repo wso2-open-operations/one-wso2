@@ -14,11 +14,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import MeetingsTable from "./MeetingsTable";
 import type { Meeting } from "../api/salesTypes";
+import type { MeetingCoverage } from "../meddpicc/types";
 
 const meeting = (overrides: Partial<Meeting>): Meeting => ({
   meetingId: 1,
@@ -34,10 +36,14 @@ const meeting = (overrides: Partial<Meeting>): Meeting => ({
   ...overrides,
 });
 
-function renderTable(meetings: Meeting[]) {
+function renderTable(
+  meetings: Meeting[],
+  extra: Partial<Parameters<typeof MeetingsTable>[0]> = {},
+) {
   return render(
     <MemoryRouter>
       <MeetingsTable
+        {...extra}
         meetings={meetings}
         totalCount={meetings.length}
         loading={false}
@@ -94,4 +100,22 @@ describe("MeetingsTable", () => {
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
     expect(headers).toEqual(["Meeting", "Account Owner", "Start", "Files"]);
   });
+
+  // A meeting row is a meeting: it opens the call's analysis, not its deal.
+  it("opens the meeting's analysis from a row, and at a Letter from a circle", async () => {
+    const onOpenAnalysis = vi.fn();
+    const m = meeting({ meetingId: 7, opportunityId: "006X" });
+    const coverage = new Map<number, MeetingCoverage>([
+      [7, { meetingId: 7, status: "DONE", coverage: { M: 2, E: 0, DC: 1, DP: 0, P: 0, I: 0, CH: 0, CO: 0 },
+        missed: [], stageAtCall: null, quotes: {}, opportunityId: "006X" }],
+    ]);
+    renderTable([m], { coverage, onOpenAnalysis });
+
+    await userEvent.click(within(bodyRows()[0]).getByText("amal@wso2.com"));
+    expect(onOpenAnalysis).toHaveBeenLastCalledWith(m);
+
+    await userEvent.click(screen.getByRole("button", { name: /^Metrics/ }));
+    expect(onOpenAnalysis).toHaveBeenLastCalledWith(m, "M");
+  });
 });
+

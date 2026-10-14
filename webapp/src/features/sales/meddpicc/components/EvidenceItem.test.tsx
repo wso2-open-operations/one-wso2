@@ -34,10 +34,10 @@ describe("EvidenceItem", () => {
     expect(onSeek).toHaveBeenCalledWith(760);
   });
 
-  it("links a quote from another call to that call's page", () => {
+  it("links a quote from another call to that call's analysis", () => {
     renderIn(<EvidenceItem quote={quote({ authorRole: "WSO2", speaker: "Ravi Kumar" })} />);
     expect(screen.getByText("WSO2")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Nordlys – budget sign-off" })).toHaveAttribute("href", "/sales/meetings/22");
+    expect(screen.getByRole("link", { name: "Nordlys – budget sign-off" })).toHaveAttribute("href", "/sales/meetings/22?tab=meddpicc");
   });
 
   it("opens an email quote in Salesforce", () => {

@@ -28,7 +28,7 @@ import { isSalesBackendConfigured, useSalesRegions, useMeetings } from "../api/u
 import { useSalesGate } from "../api/useSalesGate";
 import { useCancelMeeting } from "../api/useSalesMutations";
 import { describeError, isForbidden } from "../util/salesError";
-import { dealPath } from "../util/salesPaths";
+import { meetingPath } from "../util/salesPaths";
 import { isEchoBackendConfigured, useMeetingCoverage } from "../meddpicc/api/useMeddpiccData";
 import { useReanalyseMeeting } from "../meddpicc/api/useMeddpiccMutations";
 
@@ -187,7 +187,9 @@ export default function SalesMeetingsPage() {
           canCancel={gate.canCancel}
           coverage={echoConfigured ? coverageQuery.byId : undefined}
           coverageLoading={coverageQuery.isLoading}
-          onOpenDeal={(id, letter) => void navigate(dealPath(id, letter))}
+          onOpenAnalysis={(meeting, letter) =>
+            void navigate(meetingPath(meeting.meetingId, { tab: "meddpicc", letter }))
+          }
           canReanalyse={canReanalyse}
           onReanalyse={echoConfigured ? (meeting) => void requestReanalysis(meeting) : undefined}
           reanalysingId={reanalyse.isPending ? (reanalyse.variables ?? null) : null}
