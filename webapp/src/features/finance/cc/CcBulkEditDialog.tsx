@@ -78,9 +78,13 @@ export function CcBulkEditDialog({
   const subRegions = menus.subRegions.data?.subRegions ?? [];
   const productUnits = useMemo(() => menus.units.data?.productUnits ?? [], [menus.units.data]);
   const businessUnits = useMemo(() => menus.units.data?.businessUnits ?? [], [menus.units.data]);
-  const typeOptions = form.expenseCategory
-    ? menus.expenseTypes.data?.types[form.expenseCategory] ?? []
-    : [];
+  const typeOptions = useMemo(
+    () =>
+      form.expenseCategory
+        ? [...(menus.expenseTypes.data?.types[form.expenseCategory] ?? [])].sort((a, b) => a.localeCompare(b))
+        : [],
+    [form.expenseCategory, menus.expenseTypes.data],
+  );
 
   // CcEditDialog.tsx — Product Unit options grouped under a Business Unit
   // subheader rather than spelling the business unit out in each option's

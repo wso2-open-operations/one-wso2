@@ -172,7 +172,10 @@ export function CcCategorisePanel({
   const businessUnits = useMemo(() => menus.units.data?.businessUnits ?? [], [menus.units.data]);
 
   const category = draft.expenseCategoryLabel ?? "";
-  const typeOptions = category ? menus.expenseTypes.data?.types[category] ?? [] : [];
+  const typeOptions = useMemo(
+    () => (category ? [...(menus.expenseTypes.data?.types[category] ?? [])].sort((a, b) => a.localeCompare(b)) : []),
+    [category, menus.expenseTypes.data],
+  );
   const isTravel = category === CC_TRAVEL_CATEGORY;
   // EditPane.tsx:1397 matches with startsWith, so a sub-category such as
   // "Marketing - Digital" still needs a sub-region.

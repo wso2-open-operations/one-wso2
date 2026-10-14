@@ -38,7 +38,7 @@ import { money, todayIso, daysAgoIso, toIso } from "../util/financeFormat";
 import { RECEIPT_ACCEPT, EXPENSE_RECEIPT_MAX_BYTES, maxSizeLabel } from "../util/financeReceipts";
 import { useExchangeRates, useExpenseTypes } from "./useExpense";
 import type { ExpenseAppData, ExpenseTransactionPayload } from "./expenseTypes";
-import { formatJobOption, jobSearchText, NO_JOB_OPTION, type JobOption } from "./expenseJobOption";
+import { formatJobOption, formatJobOptionParts, jobSearchText, NO_JOB_OPTION, type JobOption } from "./expenseJobOption";
 
 export const COMMENT_MAX = 100;
 export const NO_JOB = NO_JOB_OPTION.jobNumber;
@@ -122,6 +122,10 @@ export function AddExpenseDialog({
 
   const rates = useExchangeRates(reimbursementCurrency, date);
   const expenseTypes = useExpenseTypes(jobNumber === NO_JOB ? undefined : jobNumber);
+  const expenseTypeOptions = useMemo(
+    () => [...(expenseTypes.data ?? [])].sort((a, b) => a.type.localeCompare(b.type)),
+    [expenseTypes.data],
+  );
 
   // "N/A (non-travel)" first, then every job this employee travelled on —
   // the Job Number field's full option list, shared between its display
@@ -182,11 +186,11 @@ export function AddExpenseDialog({
       <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>{editing ? "Edit expense" : "Add an expense"}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} sx={{ pt: 0.5 }}>
-          {/* Bill date gets a fixed column just wide enough for its own
-              value and the native picker icon — 190px, not squeezed down
-              further — so Job number still keeps most of the row's width
-              while the two stay side by side on one line. */}
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "190px 1fr" }, gap: 1.5 }}>
+          {/* Bill date gets a fixed column wide enough for its value, the
+              native picker icon, and the open calendar popover without
+              clipping — 220px — so it stays fully visible while Job number
+              still gets the rest of the row. */}
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "220px 1fr" }, gap: 1.5 }}>
           <Box>
             <FieldLabel>Bill date</FieldLabel>
             <TextField
@@ -234,13 +238,22 @@ export function AddExpenseDialog({
               // half column next to Bill date), a normal-size label fits one
               // line for virtually every job/country combination; noWrap plus
               // the title attribute is only a fallback for the rare outlier.
-              renderOption={(props, option) => (
-                <Box component="li" {...props} key={option.jobNumber} sx={{ minWidth: 0 }}>
-                  <Typography noWrap title={formatJobOption(option)} sx={{ fontSize: "inherit" }}>
-                    {formatJobOption(option)}
-                  </Typography>
-                </Box>
-              )}
+              renderOption={(props, option) => {
+                const { main, country } = formatJobOptionParts(option);
+                return (
+                  <Box component="li" {...props} key={option.jobNumber} sx={{ minWidth: 0 }}>
+                    <Typography noWrap title={formatJobOption(option)} sx={{ fontSize: "inherit" }}>
+                      {main}
+                      {country && (
+                        <Box component="span" sx={{ color: "text.secondary", fontSize: 12 }}>
+                          {" "}
+                          ({country})
+                        </Box>
+                      )}
+                    </Typography>
+                  </Box>
+                );
+              }}
             />
           </Box>
           </Box>
@@ -300,7 +313,7 @@ export function AddExpenseDialog({
               size="small"
               fullWidth
               disableClearable
-              options={expenseTypes.data ?? []}
+              options={expenseTypeOptions}
               value={selectedType}
               // The source (ExpenseForm.tsx:307) shows a spinner during the
               // refetch a new job number triggers, but never locks the field

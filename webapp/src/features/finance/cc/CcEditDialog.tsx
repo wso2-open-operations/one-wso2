@@ -162,7 +162,10 @@ function CcEditForm({
   const leadOnly = Boolean(financeAdmin) && txn.status === "pending_lead";
 
   const categories = menus.expenseTypes.data?.categories ?? [];
-  const typeOptions = category ? menus.expenseTypes.data?.types[category] ?? [] : [];
+  const typeOptions = useMemo(
+    () => (category ? [...(menus.expenseTypes.data?.types[category] ?? [])].sort((a, b) => a.localeCompare(b)) : []),
+    [category, menus.expenseTypes.data],
+  );
   const subRegions = menus.subRegions.data?.subRegions ?? [];
   const jobNumbers = menus.jobNumbers.data?.jobNumbers ?? [];
   const productUnits = menus.units.data?.productUnits ?? [];

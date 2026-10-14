@@ -40,6 +40,16 @@ export function formatJobOption(t: JobOption): string {
   return t.country ? `${t.jobNumber} (${t.country})` : t.jobNumber;
 }
 
+/**
+ * The same label, split so a dropdown option can render the country as a
+ * visually secondary detail instead of flush with the job number at equal
+ * weight — the job number is what the reader is scanning the list for.
+ */
+export function formatJobOptionParts(t: JobOption): { main: string; country: string | null } {
+  if (t.jobNumber === NO_JOB_OPTION.jobNumber) return { main: "N/A (non-travel)", country: null };
+  return { main: t.jobNumber, country: t.country ?? null };
+}
+
 /** Lower-cased haystack for filtering the dropdown by job number, customer, or country. */
 export function jobSearchText(t: JobOption): string {
   return [t.jobNumber, t.customerName, t.country]
