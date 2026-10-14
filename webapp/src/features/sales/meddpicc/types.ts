@@ -126,11 +126,36 @@ export interface DealSummary {
   sources?: SourceSummary;
   /** The deal's activity, oldest first. Absent from an older backend. */
   timeline?: TimelineMark[];
+  /** The deal's start and the stages Echo saw it in. Absent from an older backend. */
+  journey?: Journey;
+}
+
+/** What a timeline entry was: a customer call, an internal discussion, an email, or a Salesforce activity. */
+export type TimelineKind = "CUSTOMER_CALL" | "INTERNAL_CALL" | "EMAIL" | "ACTIVITY";
+
+/**
+ * A deal's path through its stages, as Echo saw it: the stage each call's snapshot
+ * recorded on the call's date, then the current stage. Not Salesforce's stage history.
+ */
+export interface Journey {
+  /** The Opportunity's created date, when a call's snapshot carries it. */
+  startedAt: string | null;
+  /** Oldest first, consecutive repeats collapsed. */
+  stages: StagePoint[];
+}
+
+export interface StagePoint {
+  stage: string;
+  at: string;
+  /** CALL: a call's snapshot on its date; CURRENT: the stage now. */
+  source: "CALL" | "CURRENT";
 }
 
 /** One entry of a deal's activity, as little as a list row needs to draw it. */
 export interface TimelineMark {
   type: EvidenceSourceType;
+  /** Absent from an older backend; see util/evidenceSource kindOf. */
+  kind?: TimelineKind;
   at: string;
   title: string;
   /** Set for a call. */

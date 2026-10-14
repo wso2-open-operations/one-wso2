@@ -17,21 +17,21 @@
 import { Box, Chip, Link, ListingTable, Skeleton, Typography } from "@wso2/oxygen-ui";
 import { SparklesIcon } from "@wso2/oxygen-ui-icons-react";
 import type { DealSummary, LetterKey } from "../types";
-import { rowSourcesOf, timelineOf } from "../util/evidenceSource";
+import { journeyOf, rowSourcesOf, timelineOf } from "../util/evidenceSource";
 import { formatAmount, formatSalesforceDate } from "../util/meddpiccFormat";
-import DealTimeline, { DealTimelineLegend, TIMELINE_PAST_DAYS } from "./DealTimeline";
+import DealJourney, { DealJourneyLegend } from "./DealJourney";
 import MeddpiccCircles from "./MeddpiccCircles";
 import StageChip from "./StageChip";
 import { useNow } from "../../util/useNow";
 
 /**
  * Four columns. Amount and close date ride under the deal's name, and the pending count
- * beside the circles, so the activity timeline gets the width.
+ * beside the circles, so the deal's journey gets the width.
  */
 const COLUMNS = [
   { key: "deal", label: "Deal", width: 280 },
   { key: "stage", label: "Stage", width: 130 },
-  { key: "activity", label: `Activity · last ${TIMELINE_PAST_DAYS} days`, width: "auto" },
+  { key: "activity", label: "Journey · from the deal's start to its close", width: "auto" },
   { key: "meddpicc", label: "MEDDPICC", width: 250 },
 ] as const;
 
@@ -43,7 +43,7 @@ const COLUMNS = [
  *
  * The deal name is the way in, as a meeting's title is in MeetingsTable; the
  * row is clickable too, for the wide target a board wants. The circles open the
- * deal already filtered to the Letter clicked; a call on the timeline opens that
+ * deal already filtered to the Letter clicked; a call on the journey opens that
  * call's analysis.
  */
 export default function DealsTable({
@@ -51,6 +51,7 @@ export default function DealsTable({
   loading,
   onOpenDeal,
   onOpenCall,
+  stageOrder = [],
   now: fixedNow,
 }: {
   deals: DealSummary[];
@@ -58,6 +59,8 @@ export default function DealsTable({
   onOpenDeal: (opportunityId: string, letter?: LetterKey) => void;
   /** Open a call from the timeline, on its analysis. */
   onOpenCall?: (meetingId: number) => void;
+  /** The stages in the gates' order, so later stages shade darker. */
+  stageOrder?: readonly string[];
   /** The clock the timelines are drawn against; fixed in tests. */
   now?: number;
 }) {
@@ -73,7 +76,7 @@ export default function DealsTable({
               {COLUMNS.map((column) => (
                 <ListingTable.Cell key={column.key} sx={{ width: column.width, whiteSpace: "nowrap" }}>
                   {column.label}
-                  {column.key === "activity" && <DealTimelineLegend />}
+                  {column.key === "activity" && <DealJourneyLegend />}
                 </ListingTable.Cell>
               ))}
             </ListingTable.Row>
@@ -129,9 +132,12 @@ export default function DealsTable({
                       <StageChip stage={deal.stage} />
                     </ListingTable.Cell>
                     <ListingTable.Cell>
-                      <DealTimeline
+                      <DealJourney
                         marks={timelineOf(deal)}
+                        journey={journeyOf(deal)}
                         sources={rowSourcesOf(deal)}
+                        closeDate={deal.closeDate}
+                        stageOrder={stageOrder}
                         now={now}
                         onOpenCall={onOpenCall}
                       />

@@ -104,6 +104,7 @@ export default function SalesDealsPage() {
           loading={dealsQuery.isLoading || dealsQuery.isFetching}
           onOpenDeal={(id, letter) => void navigate(dealPath(id, letter))}
           onOpenCall={(meetingId) => void navigate(meetingPath(meetingId, { tab: "meddpicc" }))}
+          stageOrder={gatesQuery.data?.stages}
         />
       </Box>
 

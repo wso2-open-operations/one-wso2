@@ -89,7 +89,7 @@ describe("SalesDealsPage", { timeout: 20000 }, () => {
     expect(row.getByText("Qualify")).toBeInTheDocument();
     // Amount and close date ride under the name now, to give the timeline the width.
     expect(row.getByText("120,000 USD · closes 31/12/2026")).toBeInTheDocument();
-    expect(row.getByRole("list", { name: /^Activity over the last 90 days/ })).toBeInTheDocument();
+    expect(row.getByRole("list", { name: /^Deal journey/ })).toBeInTheDocument();
     expect(row.getByRole("group", { name: /^MEDDPICC for Brightwater/ })).toBeInTheDocument();
     expect(row.getByRole("button", { name: "Champion: AI suggestion waiting for approval" })).toBeInTheDocument();
     expect(row.getByLabelText(/AI proposals waiting for approval/)).toBeInTheDocument();

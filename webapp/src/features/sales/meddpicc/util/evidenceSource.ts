@@ -30,7 +30,9 @@ import type {
   EvidenceSource,
   EvidenceSourceType,
   LetterKey,
+  Journey,
   SourceSummary,
+  TimelineKind,
   TimelineMark,
 } from "../types";
 import { LETTER_KEYS } from "./meddpiccFormat";
@@ -104,6 +106,22 @@ export function sourcesOf(detail: DealDetail, now: number = Date.now()): SourceS
 export function timelineOf(deal: DealSummary): TimelineMark[] {
   if (deal.timeline) return deal.timeline;
   return deal.lastCallAt ? [{ type: "CALL", at: deal.lastCallAt, title: "Last call", meetingId: null }] : [];
+}
+
+/** What a timeline entry was. Without the backend's kind, every call counts as a customer call. */
+export function kindOf(mark: TimelineMark): TimelineKind {
+  if (mark.kind) return mark.kind;
+  return mark.type === "CALL" ? "CUSTOMER_CALL" : mark.type;
+}
+
+/**
+ * A deal row's journey, from the backend or, without it, the current stage alone, seen at
+ * the row's first activity: no start date, and no stages before today's.
+ */
+export function journeyOf(deal: DealSummary): Journey {
+  if (deal.journey) return deal.journey;
+  const first = timelineOf(deal)[0]?.at;
+  return { startedAt: null, stages: first ? [{ stage: deal.stage, at: first, source: "CURRENT" }] : [] };
 }
 
 /** A deal row's source counts, from the backend or from its call count. */
