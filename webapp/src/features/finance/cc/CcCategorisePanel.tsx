@@ -49,6 +49,7 @@ import {
   FieldRow,
   FundingSources,
   JobNumberAutocomplete,
+  INFO_SIDEBAR_WIDTH,
   JobNumberSideBar,
   Placeholder,
   ReadOnlyField,
@@ -151,6 +152,9 @@ export function CcCategorisePanel({
   // changes" means what it says.
   const [baseline, setBaseline] = useState<CcTransaction>(txn);
   const [saving, setSaving] = useState(false);
+  // Turns an empty required job number from "not filled in yet" into an
+  // error worth pointing at.
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [load, setLoad] = useState<(() => Promise<ReceiptSource>) | null>(null);
   // Which attachment the viewer is open on — needed alongside `load` so the
@@ -187,10 +191,8 @@ export function CcCategorisePanel({
   const isMarketing = category.startsWith(CC_MARKETING_CATEGORY);
 
   // EditPane.tsx:560-600 — the job number decides a travel transaction's units.
-  // A number off the list is real by definition, whatever it looks like. Only
-  // a TYPED one is shape-checked, and only then to keep every keystroke that
-  // survives `autoSelect` from becoming its own query key and its own request
-  // for a job that cannot exist.
+  // Only a typed number is shape-checked; one off the list is real by
+  // definition. The lookup is gated on it, so typing fires no request.
   const jobPicked = Boolean(draft.travelJobNumber && jobNumbers.includes(draft.travelJobNumber));
   const jobLookupKey =
     isTravel &&
@@ -206,16 +208,18 @@ export function CcCategorisePanel({
       !jobPicked &&
       !isValidJobNumberFormat(draft.travelJobNumber),
   );
-  // A lookup that failed is reported HERE, under the field, rather than as a
-  // separate alert beside it: the alert said the same thing a second time,
-  // and the reader needs it next to the value that caused it.
   const jobNotFound = Boolean(jobLookupKey) && jobDetails.isError;
-  const jobNumberError = jobMalformed || jobNotFound;
-  const jobNumberHelp = jobMalformed
-    ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
-    : jobNotFound
-      ? "Could not verify this job number"
-      : "Not listed? Type the full job number.";
+  // Only once a save has been tried: an empty field is the starting state,
+  // not a mistake to point at before the reader has done anything.
+  const jobMissing = Boolean(isTravel && saveAttempted && !draft.travelJobNumber);
+  const jobNumberError = jobMalformed || jobNotFound || jobMissing;
+  const jobNumberHelp = jobMissing
+    ? "Required field"
+    : jobMalformed
+      ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
+      : jobNotFound
+        ? "Could not verify this job number"
+        : "Not listed? Type the full job number.";
   const fundingSources = jobUnits?.fundingSources ?? [];
   // :568-575 — a job with no funding sources cannot be charged against, so the
   // source refuses to apply it rather than filling in half the row.
@@ -267,10 +271,16 @@ export function CcCategorisePanel({
     // autosave, the Save button and `saveNow` would all persist a travel row
     // against a job finance cannot book it to.
     //
-    // Only `jobUnusable`, never `!jobUsable`: a lookup that has not resolved,
-    // or failed, must still let a part-finished draft be saved.
+    setSaveAttempted(true);
     if (isTravel && jobUnusable) {
       setSaveError("No funding sources found for the selected Job number.");
+      return false;
+    }
+    // Both modes, not review only: a draft carrying a job number that cannot
+    // be looked up is submitted from the list later, without passing back
+    // through this form.
+    if (isTravel && (jobMalformed || jobNotFound)) {
+      setSaveError(jobNumberHelp);
       return false;
     }
     setSaving(true);
@@ -312,18 +322,6 @@ export function CcCategorisePanel({
     // of a draft.
     if (review && !ccTxnComplete(effective)) {
       setSaveError("Please fill in all required fields.");
-      return false;
-    }
-    // A job number typed in a shape no job can have is refused here as well
-    // as marked on the field. The field shows the error, but nothing stopped
-    // the value: "Save & Continue" in the unsaved-changes dialog reaches this
-    // without the Save button, and an already-submitted row would go back to
-    // an approver carrying a job number that cannot be looked up.
-    //
-    // Review only, like the completeness check above: a draft is allowed to
-    // be half-finished, and a half-typed job number is exactly that.
-    if (review && jobMalformed) {
-      setSaveError("Enter a valid value in the format TRV-YYYY-MM-NNNN");
       return false;
     }
     const ok = await persist(effective);
@@ -585,6 +583,7 @@ export function CcCategorisePanel({
               onChange={(v) => change({ travelJobNumber: v }, clearDependentFields("travelJobNumber"))}
               error={jobNumberError}
               helperText={jobNumberHelp}
+              infoWidth={INFO_SIDEBAR_WIDTH}
               /* The job's particulars and its funding sit on the field's own
                  row rather than stacked under it, and appear as soon as the
                  lookup succeeds — a job with no funding still has an

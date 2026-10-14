@@ -112,12 +112,7 @@ export interface CcFundingSource {
  * the row rather than asking the user to pick them.
  */
 export interface CcJobNumberDetails {
-  /**
-   * Null on older travels — the Travel entity carries no engagement for them,
-   * and the backend's `TravelDetails` declares both nullable to say so. Typed
-   * `string` here, every screen rendered them raw and an old job showed a row
-   * of bare separators.
-   */
+  /** Null on older travels, which carry no engagement. */
   engagementCode: string | null;
   engagementType: string | null;
   customerName: string;

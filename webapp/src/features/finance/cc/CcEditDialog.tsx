@@ -123,6 +123,9 @@ function CcEditForm({
   const [unitIndex, setUnitIndex] = useState<number | "">("");
   const [subRegion, setSubRegion] = useState(txn.subRegion ?? "");
   const [jobNumber, setJobNumber] = useState(txn.travelJobNumber ?? "");
+  // Turns an empty required job number from "not filled in yet" into an
+  // error worth pointing at.
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [receiptFileName, setReceiptFileName] = useState(txn.receiptFileName);
   const [contractFileName, setContractFileName] = useState(txn.contractFileName);
   // The source shows and writes the FIRST lead of what may be a comma-separated
@@ -210,10 +213,8 @@ function CcEditForm({
   // Fetched only while Travel is selected; the row keeps its stored units until
   // the details arrive, so a slow lookup never blanks them.
   //
-  // A number off the list is real by definition, whatever it looks like. Only
-  // a TYPED one is shape-checked, and only then to keep every keystroke that
-  // survives `autoSelect` from becoming its own query key and its own request
-  // for a job that cannot exist.
+  // Only a typed number is shape-checked; one off the list is real by
+  // definition. The lookup is gated on it, so typing fires no request.
   const jobPicked = jobNumbers.includes(jobNumber);
   const jobLookupKey =
     isTravel && jobNumber && (jobPicked || isValidJobNumberFormat(jobNumber))
@@ -225,15 +226,19 @@ function CcEditForm({
     isTravel && jobNumber && !jobPicked && !isValidJobNumberFormat(jobNumber),
   );
   const jobNotFound = Boolean(jobLookupKey) && jobDetails.isError;
-  const jobNumberError = jobMalformed || jobNotFound;
-  const jobNumberHelp = jobMalformed
-    ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
-    : jobNotFound
-      ? "Could not verify this job number"
-      : // Says the typed route exists at all, which is the only way anyone
-        // would discover it: the dropdown looks like the whole of what can
-        // be chosen.
-        "Not listed? Type the full job number.";
+  // Only once Save has been pressed: an empty field is the starting state,
+  // not a mistake to point at before the reader has done anything.
+  const jobMissing = Boolean(isTravel && saveAttempted && !jobNumber);
+  const jobNumberError = jobMalformed || jobNotFound || jobMissing;
+  const jobNumberHelp = jobMissing
+    ? "Required field"
+    : jobMalformed
+      ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
+      : jobNotFound
+        ? "Could not verify this job number"
+        : // Says the typed route exists at all, which the dropdown alone
+          // does not.
+          "Not listed? Type the full job number.";
   const fundingSources = jobUnits?.fundingSources ?? [];
   // :568-575 — a job with no funding sources cannot be charged against, so the
   // source refuses to apply it rather than filling in half the row.
@@ -291,10 +296,9 @@ function CcEditForm({
   // categorisation is not this mode's to judge or to re-save unchanged.
   const valid = leadOnly
     ? Boolean(leadEmail) && leadEmail !== (txn.leadEmail?.split(",")[0]?.trim() ?? "")
-    // `!jobMalformed` as well: the field marks a job number typed in a shape
-    // no job can have, but marking it is not refusing it, and this dialog
-    // edits rows that are already with an approver.
-    : ccTxnComplete(patched) && !jobUnusable && !jobMalformed;
+    // A job number that cannot be looked up would be saved with the PREVIOUS
+    // job's units still attached.
+    : ccTxnComplete(patched) && !jobUnusable && !jobMalformed && !jobNotFound;
 
   return (
     <>
@@ -338,18 +342,11 @@ function CcEditForm({
                 onChange={(v) => setJobNumber(v ?? "")}
                 error={jobNumberError}
                 helperText={jobNumberHelp}
-                /* The job's own particulars live behind an info icon rather
-                   than on the form, which has no room for nine more lines
-                   and does not need them until someone is checking they
-                   picked the right job. Shown as soon as the lookup
-                   succeeds: a job with no funding still has an engagement
-                   worth reading, and that case has its own warning below. */
+                /* Shown as soon as the lookup succeeds: a job with no
+                   funding still has an engagement worth reading. */
                 info={
                   jobUnits ? (
-                    // A button, not a bare icon: an icon takes no focus and
-                    // answers no key, so the particulars behind it were
-                    // mouse-only. Named the same as the Categorise panel's,
-                    // which is the same control on the same field.
+                    // A button, so the tooltip is reachable by keyboard.
                     <Tooltip title={<JobNumberDetails details={jobUnits} />} placement="top-end">
                       <IconButton
                         size="small"
@@ -376,12 +373,8 @@ function CcEditForm({
             )}
             {jobUsable && jobUnits && (
               <Box sx={{ mt: 1 }}>
-                {/* The engagement, the country and the units all read off
-                    the job's info tooltip now, and they have to: an older
-                    travel carries no engagement code or type at all, and
-                    spelling that out as a line of bare separators
-                    ("· · Sri Lanka") was the only thing this said for
-                    exactly the jobs the typed-entry route exists for. */}
+                {/* The engagement, country and units read off the info
+                    tooltip: an older travel has no engagement to print. */}
                 <FundingSources sources={fundingSources} totalAmount={txn.txnAmount} />
               </Box>
             )}
@@ -526,7 +519,15 @@ function CcEditForm({
             line goes where it can still be read. */}
         <Tooltip title={valid ? "" : "Please fill in all required fields."}>
           <span>
-            <Button size="small" variant="contained" disabled={!valid} onClick={() => onSave(patched)}>
+            <Button
+              size="small"
+              variant="contained"
+              disabled={!valid}
+              onClick={() => {
+                setSaveAttempted(true);
+                onSave(patched);
+              }}
+            >
               Save
             </Button>
           </span>

@@ -58,7 +58,12 @@ const jobDetails = {
   ],
 };
 
-const state = { details: jobDetails as unknown, jobQueries: [] as (string | undefined)[] };
+const state = {
+  details: jobDetails as unknown,
+  jobQueries: [] as (string | undefined)[],
+  /** Makes the next lookup fail, as it does for a job that does not exist. */
+  fail: false,
+};
 
 vi.mock("./useCc", () => ({
   useCcMenus: () => ({
@@ -72,6 +77,9 @@ vi.mock("./useCc", () => ({
   }),
   useCcJobNumberDetails: (jobNumber: string | undefined) => {
     state.jobQueries.push(jobNumber);
+    if (jobNumber && state.fail) {
+      return { data: undefined, isLoading: false, isError: true };
+    }
     return { data: jobNumber ? state.details : undefined, isLoading: false, isError: false };
   },
 }));
@@ -117,6 +125,7 @@ const txn = {
 const onSave = vi.fn();
 
 beforeEach(() => {
+  state.fail = false;
   onSave.mockClear();
   state.details = jobDetails;
   state.jobQueries.length = 0;
@@ -172,6 +181,23 @@ describe("a travel job number supplies the units", () => {
     expect(screen.getByText(/Engagement Type: T&M/)).toBeInTheDocument();
     expect(screen.getByText(/Product Unit: Integration/)).toBeInTheDocument();
     expect(screen.getByText(/Business Unit: Platform/)).toBeInTheDocument();
+  });
+
+  // A job number whose lookup failed would be saved with the PREVIOUS job's
+  // units still attached, since the row keeps them until details arrive.
+  it("refuses to save when the job number could not be verified", async () => {
+    const user = userEvent.setup();
+    await categoriseAsTravel();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeEnabled());
+
+    state.fail = true;
+    const field = screen.getByRole("combobox", { name: "Travel job number" });
+    await user.clear(field);
+    await user.type(field, "TRV-2016-07-0004");
+    await user.tab();
+
+    expect(await screen.findByText("Could not verify this job number")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
   it("saves the job's units, which the user never picks", async () => {

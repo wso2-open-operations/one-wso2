@@ -17,34 +17,19 @@
 /**
  * Travel job numbers that are not in the dropdown.
  *
- * `GET /travels/job-numbers` returns only the past year, because the list
- * would otherwise be enormous. Older spend is rare but real, and there was
- * no way to file it: the picker committed only what it had been handed.
- * People know the exact number in those cases, so the field accepts a typed
- * one and `GET /travels/{jobNumber}`, which has no such date limit, decides
- * whether it is real.
+ * `GET /travels/job-numbers` returns only the past year, so an older job can
+ * only be entered by typing it in full.
  */
 
 /** `TRV-YYYY-MM-NNNN`. */
 export const JOB_NUMBER_PATTERN = /^TRV-\d{4}-\d{2}-\d{4}$/;
 
-/**
- * What gets sent and compared.
- *
- * Upper-cased because the dropdown's own entries are, and a typed "trv-…"
- * would otherwise miss both the list and the lookup's cache key while being
- * the same job to everyone reading it.
- */
+/** Upper-cased, so a typed value matches the list and the lookup's key. */
 export function normalizeJobNumber(value: string): string {
   return value.trim().toUpperCase();
 }
 
-/**
- * Whether this is worth asking the backend about.
- *
- * Shape only — it says nothing about the job existing, which is the
- * lookup's answer, not this one's.
- */
+/** Shape only. Whether the job exists is the lookup's answer. */
 export function isValidJobNumberFormat(value: string): boolean {
   return JOB_NUMBER_PATTERN.test(normalizeJobNumber(value));
 }
@@ -52,15 +37,11 @@ export function isValidJobNumberFormat(value: string): boolean {
 /**
  * A travel date for the job-details tooltip: "10 Jan 2026".
  *
- * Day first, with a padded day, which is how these dates are written on the
- * travel records themselves. Separate from `formatNice`, which is
- * US-ordered and used by every other finance screen — only this tooltip
- * reads this way, so widening `formatNice` would change all of them.
+ * Separate from `formatNice`, which is US-ordered and used elsewhere.
  */
 export function formatJobDate(input: string | null | undefined): string {
   if (!input) return "—";
-  // The entity sends "2016-10-11 00:00:00.0", which Safari will not parse as
-  // an ISO string; the date half is all this needs and parses everywhere.
+  // "2016-10-11 00:00:00.0" is not parsed everywhere; the date half is.
   const date = new Date(input.trim().slice(0, 10));
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-GB", {

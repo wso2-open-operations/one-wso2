@@ -115,22 +115,21 @@ export function Placeholder() {
 }
 
 /**
- * Travel Job Number: a typable Autocomplete rather than a plain Select, so a
- * reader can type "Hilton" to filter a long job list down instead of
- * scrolling it.
+ * Travel Job Number: typable, and not limited to the list.
  *
- * `freeSolo` with `autoSelect`. The list holds only the past year
- * (`GET /travels/job-numbers`), so a job older than that could not be filed
- * at all while the committed value had to come from it. People know the
- * exact number in those cases, so a typed one is committed on blur and
- * `GET /travels/{jobNumber}`, which has no date limit, decides whether it
- * exists. `autoSelect` is what commits it: without it, typing a full number
- * and tabbing away discards the text.
+ * `GET /travels/job-numbers` returns only the past year, so an older job can
+ * only be entered by typing it. `autoSelect` commits what was typed on blur;
+ * without it the text is discarded.
  *
  * `labelId` is what `Field` clones onto the first child to name a Select via
  * `aria-labelledby`; Select accepts that prop itself, Autocomplete does not,
  * so this wrapper takes it and forwards it onto the actual input instead.
  */
+/** Just the info icon button. */
+const INFO_ICON_WIDTH = 40;
+/** The icon plus "Funding Sources" and its button. */
+export const INFO_SIDEBAR_WIDTH = 192;
+
 export function JobNumberAutocomplete({
   value,
   options,
@@ -140,6 +139,7 @@ export function JobNumberAutocomplete({
   error,
   helperText,
   info,
+  infoWidth = INFO_ICON_WIDTH,
 }: {
   value: string | null;
   options: string[];
@@ -149,32 +149,28 @@ export function JobNumberAutocomplete({
   error?: boolean;
   helperText?: string;
   /**
-   * The info icon for the chosen job's particulars, rendered beside the
-   * input. A slot rather than something the caller wraps around this
-   * component, because `Field` clones `labelId` onto its FIRST child — a
-   * wrapper there leaves the input unnamed and unreachable by its label.
+   * Rendered beside the input. A slot rather than something the caller wraps
+   * around this component, because `Field` clones `labelId` onto its FIRST
+   * child — a wrapper there leaves the input unnamed.
    */
   info?: React.ReactNode;
+  /** Width reserved for `info`, whether or not it is showing. */
+  infoWidth?: number;
 }) {
   const field = (
     <Autocomplete
       size="small"
       freeSolo
       autoSelect
-      // `freeSolo` hides the dropdown arrow and stops the list opening on a
-      // click, because a free-text field is assumed to be typed into.
-      // Picking from the list is still how this is used nearly always, so
-      // both are put back: the arrow to show there IS a list, and
-      // `openOnFocus` so reaching the field still shows it.
+      // `freeSolo` hides the arrow and stops the list opening on a click;
+      // both are put back, because picking from the list is the common case.
       forcePopupIcon
       openOnFocus
       isOptionEqualToValue={(option, v) => option === v}
       options={options}
       value={value || null}
       disabled={disabled}
-      // `freeSolo` hands back the raw string for a typed value and the option
-      // for a picked one; both are strings here, so the only thing to add is
-      // the normalising the lookup and the list both key on.
+      // Normalised, because the lookup and the list both key on it.
       onChange={(_e, v) => onChange(v === null ? null : normalizeJobNumber(String(v)))}
       renderInput={(params) => (
         <TextField
@@ -187,12 +183,8 @@ export function JobNumberAutocomplete({
       )}
     />
   );
-  // The field and what the job implies share one row. A flat half each left
-  // the input a couple of characters wide in the Approve dialog, whose
-  // column is much narrower, while "Funding Sources" was still clipped. So
-  // the input takes a generous basis and grows into whatever is left, and
-  // the row WRAPS rather than squeezing either side when there is genuinely
-  // no room for both.
+  // The reserved column keeps the input's width from depending on whether
+  // the value in it has resolved yet.
   return (
     <Box
       sx={{
@@ -203,13 +195,8 @@ export function JobNumberAutocomplete({
         rowGap: 0.5,
       }}
     >
-      <Box sx={{ flex: "1 1 0", minWidth: 0 }}>{field}</Box>
-      {/* A column of its own width WHETHER OR NOT anything is in it. Sized to
-          content, it collapsed to nothing before a job was chosen and the
-          input stretched across the whole row, then snapped narrower the
-          moment the funding appeared. The field's width cannot depend on
-          whether the value in it has resolved. */}
-      <Box sx={{ flex: "0 0 192px", minWidth: 0 }}>{info}</Box>
+      <Box sx={{ flex: "1 1 240px", minWidth: 0 }}>{field}</Box>
+      <Box sx={{ flex: `0 0 ${infoWidth}px`, minWidth: 0 }}>{info}</Box>
     </Box>
   );
 }
@@ -582,18 +569,9 @@ export function FundingSources({
   );
 }
 
-/**
- * What a travel job actually is: the engagement, who it is for, where and
- * when.
- *
- * Shown in the job number's info tooltip rather than on the form. It is what
- * someone checks when they want to be sure they picked the right job, which
- * is not most of the time, and it is nine lines the form has no room for.
- */
+/** The job's particulars, for the field's info tooltip. */
 export function JobNumberDetails({ details }: { details: CcJobNumberDetails }) {
-  // `string | null`, because an older travel genuinely has no engagement —
-  // the row still appears, reading "—", rather than the line vanishing and
-  // leaving the reader to wonder which of the seven they are looking at.
+  // Nullable: a missing value still gets its row, reading "—".
   const rows: [string, string | null][] = [
     ["Engagement Code", details.engagementCode],
     ["Engagement Type", details.engagementType],
