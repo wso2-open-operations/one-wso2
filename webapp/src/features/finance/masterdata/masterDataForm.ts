@@ -184,25 +184,18 @@ export function isFormComplete(tab: MasterDataTab, form: MasterDataPayload): boo
 }
 
 /**
- * Whether the form still matches the row it was opened on.
- *
- * Only the payload's own keys are compared; a row carries resolved display
- * columns (glCode, glAccountName, …) that the form never edits. A null on the
- * row reads as "" so an untouched empty comment does not count as a change.
- */
-/**
  * Whether one field still holds what the row holds.
  *
  * Shared by `isUnchanged` and `changedFields` because they have to agree: if
- * this says a field is untouched, the PATCH must not carry it. Comparing
- * separately, `status` read as equal to "Inactive" when seeded as "inactive"
- * — so Update stayed disabled, as it should — while the PATCH built from the
- * same pair still carried a status the reader never set.
+ * this says a field is untouched, the PATCH must not carry it.
  *
  * Arrays are compared as sets, since the order the reader picked them in is
- * not a change. `status` is compared case-insensitively: the column holds
- * both "Active" and "active" from older writes, and every reader of it
- * lower-cases before looking.
+ * not a change. `status` is compared case-insensitively — the column holds
+ * both "Active" and "active" from older writes — and a nullish row value
+ * falls back to "active" to match `initialFormData`'s own seeding default;
+ * without that, a row with no status on record compared "" against the
+ * seeded "active" and read as changed, so saving any OTHER edit on that row
+ * PATCHed a status the reader never touched.
  */
 function sameFieldValue(key: string, rowValue: unknown, formValue: unknown): boolean {
   if (Array.isArray(formValue)) {
@@ -211,11 +204,19 @@ function sameFieldValue(key: string, rowValue: unknown, formValue: unknown): boo
     return JSON.stringify(before) === JSON.stringify(after);
   }
   if (key === "status") {
-    return String(rowValue).toLowerCase() === String(formValue).toLowerCase();
+    const normalizedRow = rowValue ? String(rowValue).toLowerCase() : "active";
+    return normalizedRow === String(formValue).toLowerCase();
   }
   return rowValue === formValue;
 }
 
+/**
+ * Whether the form still matches the row it was opened on.
+ *
+ * Only the payload's own keys are compared; a row carries resolved display
+ * columns (glCode, glAccountName, …) that the form never edits. A null on the
+ * row reads as "" so an untouched empty comment does not count as a change.
+ */
 export function isUnchanged(row: MasterDataRow, form: MasterDataPayload): boolean {
   return Object.entries(form).every(([key, formValue]) =>
     sameFieldValue(key, (row as unknown as Record<string, unknown>)[key] ?? "", formValue),

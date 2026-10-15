@@ -231,6 +231,21 @@ describe("isUnchanged / changedFields — PATCH diffing against the source row",
     expect(changedFields(stored, edited)).toEqual({ status: "active" });
   });
 
+  // `initialFormData` seeds "active" when the row's own status is nullish.
+  // The generic row lookup these two functions share defaults a missing key
+  // to "" — not "active" — so without matching that default here too, an
+  // untouched status read as changed and rode along with any other edit.
+  it("does not report a status change for a row that never carried one", () => {
+    const stored = { ...row, status: undefined as unknown as string };
+    const seeded = { ...form, status: "active" };
+
+    expect(isUnchanged(stored, seeded)).toBe(true);
+    expect(changedFields(stored, seeded)).not.toHaveProperty("status");
+
+    const edited = { ...seeded, expenseType: "Renamed" };
+    expect(changedFields(stored, edited)).toEqual({ expenseType: "Renamed" });
+  });
+
   it("a real array content change is picked up by both functions", () => {
     const edited = { ...form, engagementCodes: ["RND-GEN"] };
     expect(isUnchanged(row, edited)).toBe(false);
