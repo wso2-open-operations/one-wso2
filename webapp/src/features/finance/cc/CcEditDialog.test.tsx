@@ -63,6 +63,8 @@ const state = {
   jobQueries: [] as (string | undefined)[],
   /** Makes the next lookup fail, as it does for a job that does not exist. */
   fail: false,
+  /** Makes the next lookup never settle, as it does while still in flight. */
+  pending: false,
 };
 
 vi.mock("./useCc", () => ({
@@ -79,6 +81,9 @@ vi.mock("./useCc", () => ({
     state.jobQueries.push(jobNumber);
     if (jobNumber && state.fail) {
       return { data: undefined, isLoading: false, isError: true };
+    }
+    if (jobNumber && state.pending) {
+      return { data: undefined, isLoading: true, isError: false };
     }
     return { data: jobNumber ? state.details : undefined, isLoading: false, isError: false };
   },
@@ -126,6 +131,7 @@ const onSave = vi.fn();
 
 beforeEach(() => {
   state.fail = false;
+  state.pending = false;
   onSave.mockClear();
   state.details = jobDetails;
   state.jobQueries.length = 0;
@@ -185,6 +191,18 @@ describe("a travel job number supplies the units", () => {
 
   // A job number whose lookup failed would be saved with the PREVIOUS job's
   // units still attached, since the row keeps them until details arrive.
+  // A well-formed number has no error while its lookup is still in flight —
+  // "could not be verified" above is only true once the lookup has settled
+  // and failed. Without this check, Save stayed enabled for the whole window
+  // between picking a job and its details arriving.
+  it("keeps Save disabled while the job number's lookup is still pending", async () => {
+    state.pending = true;
+    await categoriseAsTravel();
+
+    expect(await screen.findByText("Checking the job number…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
   it("refuses to save when the job number could not be verified", async () => {
     const user = userEvent.setup();
     await categoriseAsTravel();

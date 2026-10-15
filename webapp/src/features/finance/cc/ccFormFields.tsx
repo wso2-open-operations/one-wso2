@@ -114,6 +114,11 @@ export function Placeholder() {
   return <span style={{ opacity: 0.6 }}>Select…</span>;
 }
 
+/** Just the info icon button. */
+const INFO_ICON_WIDTH = 40;
+/** The icon plus "Funding Sources" and its button. */
+export const INFO_SIDEBAR_WIDTH = 192;
+
 /**
  * Travel Job Number: typable, and not limited to the list.
  *
@@ -125,11 +130,6 @@ export function Placeholder() {
  * `aria-labelledby`; Select accepts that prop itself, Autocomplete does not,
  * so this wrapper takes it and forwards it onto the actual input instead.
  */
-/** Just the info icon button. */
-const INFO_ICON_WIDTH = 40;
-/** The icon plus "Funding Sources" and its button. */
-export const INFO_SIDEBAR_WIDTH = 192;
-
 export function JobNumberAutocomplete({
   value,
   options,

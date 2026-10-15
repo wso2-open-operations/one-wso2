@@ -226,6 +226,10 @@ function CcEditForm({
     isTravel && jobNumber && !jobPicked && !isValidJobNumberFormat(jobNumber),
   );
   const jobNotFound = Boolean(jobLookupKey) && jobDetails.isError;
+  // Set and not yet one of the three settled states above: the lookup is
+  // still in flight. A format that passes and a pick from the list both
+  // start here, and only `jobUnits` arriving moves it out.
+  const jobPending = Boolean(jobLookupKey) && !jobUnits && !jobNotFound;
   // Only once Save has been pressed: an empty field is the starting state,
   // not a mistake to point at before the reader has done anything.
   const jobMissing = Boolean(isTravel && saveAttempted && !jobNumber);
@@ -236,9 +240,11 @@ function CcEditForm({
       ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
       : jobNotFound
         ? "Could not verify this job number"
-        : // Says the typed route exists at all, which the dropdown alone
-          // does not.
-          "Not listed? Type the full job number.";
+        : jobPending
+          ? "Checking the job number…"
+          : // Says the typed route exists at all, which the dropdown alone
+            // does not.
+            "Not listed? Type the full job number.";
   const fundingSources = jobUnits?.fundingSources ?? [];
   // :568-575 — a job with no funding sources cannot be charged against, so the
   // source refuses to apply it rather than filling in half the row.
@@ -297,8 +303,10 @@ function CcEditForm({
   const valid = leadOnly
     ? Boolean(leadEmail) && leadEmail !== (txn.leadEmail?.split(",")[0]?.trim() ?? "")
     // A job number that cannot be looked up would be saved with the PREVIOUS
-    // job's units still attached.
-    : ccTxnComplete(patched) && !jobUnusable && !jobMalformed && !jobNotFound;
+    // job's units still attached. `!jobPending` as well: a well-formed number
+    // whose lookup has not settled yet has no error for the other two checks
+    // to catch, and would otherwise save with no units looked up at all.
+    : ccTxnComplete(patched) && !jobUnusable && !jobMalformed && !jobNotFound && !jobPending;
 
   return (
     <>

@@ -209,6 +209,10 @@ export function CcCategorisePanel({
       !isValidJobNumberFormat(draft.travelJobNumber),
   );
   const jobNotFound = Boolean(jobLookupKey) && jobDetails.isError;
+  // Set and not yet one of the three settled states above: the lookup is
+  // still in flight. A format that passes and a pick from the list both
+  // start here, and only `jobUnits` arriving moves it out.
+  const jobPending = Boolean(jobLookupKey) && !jobUnits && !jobNotFound;
   // Only once a save has been tried: an empty field is the starting state,
   // not a mistake to point at before the reader has done anything.
   const jobMissing = Boolean(isTravel && saveAttempted && !draft.travelJobNumber);
@@ -219,7 +223,9 @@ export function CcCategorisePanel({
       ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
       : jobNotFound
         ? "Could not verify this job number"
-        : "Not listed? Type the full job number.";
+        : jobPending
+          ? "Checking the job number…"
+          : "Not listed? Type the full job number.";
   const fundingSources = jobUnits?.fundingSources ?? [];
   // :568-575 — a job with no funding sources cannot be charged against, so the
   // source refuses to apply it rather than filling in half the row.
@@ -266,12 +272,11 @@ export function CcCategorisePanel({
   latestSignature.current = signature(effective);
 
   const persist = async (row: CcTransaction): Promise<boolean> => {
+    setSaveAttempted(true);
     // :568-575 — a job with no funding sources cannot be charged against, so it
     // is never written. `CcEditDialog` refuses the same case; without this the
     // autosave, the Save button and `saveNow` would all persist a travel row
     // against a job finance cannot book it to.
-    //
-    setSaveAttempted(true);
     if (isTravel && jobUnusable) {
       setSaveError("No funding sources found for the selected Job number.");
       return false;
@@ -280,6 +285,15 @@ export function CcCategorisePanel({
     // be looked up is submitted from the list later, without passing back
     // through this form.
     if (isTravel && (jobMalformed || jobNotFound)) {
+      setSaveError(jobNumberHelp);
+      return false;
+    }
+    // A number can be well-formed and still unverified: the lookup is a
+    // separate round trip, and a pending one has no error (yet) for the
+    // check above to catch. Without this, autosave — which runs on a timer,
+    // not from the Save button — can write a travel row that has never been
+    // looked up at all.
+    if (isTravel && jobPending) {
       setSaveError(jobNumberHelp);
       return false;
     }
@@ -809,7 +823,7 @@ export function CcCategorisePanel({
                       !dirty ||
                       saving ||
                       jobDetails.isFetching ||
-                      (isTravel && jobUnusable) ||
+                      (isTravel && (jobUnusable || jobPending)) ||
                       (review && !ccTxnComplete(effective))
                     }
                     onClick={() => void saveRow()}
