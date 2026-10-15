@@ -289,10 +289,9 @@ export function CcCategorisePanel({
       return false;
     }
     // A number can be well-formed and still unverified: the lookup is a
-    // separate round trip, and a pending one has no error (yet) for the
-    // check above to catch. Without this, autosave — which runs on a timer,
-    // not from the Save button — can write a travel row that has never been
-    // looked up at all.
+    // separate round trip, and a pending one has no error for the check above
+    // to catch. Autosave is kept away by `ready` below rather than by this;
+    // this one stops `saveNow` and the unsaved-changes dialog.
     if (isTravel && jobPending) {
       setSaveError(jobNumberHelp);
       return false;
@@ -367,12 +366,16 @@ export function CcCategorisePanel({
     }
   };
   // `ready` is false for the whole of review mode, which is what keeps the hook
-  // from ever arming — the source guards the same way (`:441-445`), because a
-  // correction to a submitted row goes back to an approver and must not leave
-  // on a timer the reader did not ask for.
+  // from ever arming, because a correction to a submitted row goes back to an
+  // approver and must not leave on a timer the reader did not ask for.
+  //
+  // And false while a job number lookup is in flight. Refusing the write
+  // inside `persist` instead left the hook holding a failure it would not
+  // necessarily retry, and the error it set outlived the lookup that caused
+  // it. Not arming means the timer simply starts once the job resolves.
   const draftState = useDraftAutosave(
     signature(effective),
-    !review && editMode,
+    !review && editMode && !jobPending,
     () => autosave.current(),
     5000,
   );

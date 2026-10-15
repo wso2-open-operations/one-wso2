@@ -302,10 +302,8 @@ function CcEditForm({
   // categorisation is not this mode's to judge or to re-save unchanged.
   const valid = leadOnly
     ? Boolean(leadEmail) && leadEmail !== (txn.leadEmail?.split(",")[0]?.trim() ?? "")
-    // A job number that cannot be looked up would be saved with the PREVIOUS
-    // job's units still attached. `!jobPending` as well: a well-formed number
-    // whose lookup has not settled yet has no error for the other two checks
-    // to catch, and would otherwise save with no units looked up at all.
+    // A job number that is unverified — malformed, not found, or still being
+    // looked up — would save with the PREVIOUS job's units attached.
     : ccTxnComplete(patched) && !jobUnusable && !jobMalformed && !jobNotFound && !jobPending;
 
   return (

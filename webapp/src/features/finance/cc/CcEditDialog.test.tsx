@@ -189,12 +189,9 @@ describe("a travel job number supplies the units", () => {
     expect(screen.getByText(/Business Unit: Platform/)).toBeInTheDocument();
   });
 
-  // A job number whose lookup failed would be saved with the PREVIOUS job's
-  // units still attached, since the row keeps them until details arrive.
-  // A well-formed number has no error while its lookup is still in flight —
-  // "could not be verified" above is only true once the lookup has settled
-  // and failed. Without this check, Save stayed enabled for the whole window
-  // between picking a job and its details arriving.
+  // A well-formed number has no error while its lookup is still in flight, so
+  // Save stayed enabled for the whole window between picking a job and its
+  // details arriving.
   it("keeps Save disabled while the job number's lookup is still pending", async () => {
     state.pending = true;
     await categoriseAsTravel();
@@ -203,6 +200,8 @@ describe("a travel job number supplies the units", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
+  // A job number whose lookup failed would be saved with the PREVIOUS job's
+  // units still attached, since the row keeps them until details arrive.
   it("refuses to save when the job number could not be verified", async () => {
     const user = userEvent.setup();
     await categoriseAsTravel();

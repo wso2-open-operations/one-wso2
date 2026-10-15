@@ -48,10 +48,8 @@ export function formatJobDate(input: string | null | undefined): string {
     year: "numeric",
     month: "short",
     day: "2-digit",
-    // A date-only string parses as midnight UTC, and formatting without this
-    // uses the reader's own zone — anyone west of UTC saw a travel starting
-    // 11 Oct reported as 10 Oct. These are calendar dates, with no time in
-    // them to convert.
+    // These are calendar dates. A date-only string parses as midnight UTC, so
+    // without this a reader behind UTC sees the day before.
     timeZone: "UTC",
   }).format(date);
 }
