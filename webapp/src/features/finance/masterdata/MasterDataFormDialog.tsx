@@ -373,20 +373,13 @@ function Fields({
 }
 
 /**
- * Active / inactive, for the two tabs whose Delete button is gone.
+ * Active / inactive, for the two tabs that retire a record by status.
  *
- * Renders nothing while creating: both backends hardcode the status on insert
- * and their Add payloads are closed records, so sending the field there is a
- * 400 rather than a no-op. `value` is absent in exactly that case — see
- * `initialFormData`.
+ * Renders nothing while creating — `value` is absent in exactly that case,
+ * the status being no part of either Add payload. See `initialFormData`.
  *
- * Says which state it is putting the record into, which the Delete button it
- * replaces never did: that one was a soft delete whose row stayed on screen,
- * and on an already-inactive record it did nothing observable at all.
- *
- * Retiring an expense type can still be refused — the backend runs the same
- * reference check DELETE used, so a type active claims still carry comes back
- * 409 rather than quietly going inactive.
+ * Either direction can be refused with a 409: retiring an expense type that
+ * active claims still carry, and reactivating one whose Gl code is inactive.
  */
 function StatusToggle({
   value,

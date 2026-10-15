@@ -196,10 +196,8 @@ export function sortAutoCompleteLists(lists: ExpenseTypeAutoComplete): ExpenseTy
  * One request serves both, so the category and GL-code pickers inside the
  * dialog are populated from the same payload that fills the filter bar.
  *
- * Sorted here rather than at either render site for that reason: the backend
- * returns these in the order the rows happen to come out of a GROUP BY, which
- * is no order at all to a reader hunting for one name among hundreds, and
- * sorting once on arrival fixes the bar and the dialog together.
+ * Sorted once on arrival rather than at either render site, so the filter bar
+ * and the dialog show the same order.
  */
 export function useExpenseTypeAutoComplete(enabled = true) {
   const { isSignedIn } = useAsgardeo();

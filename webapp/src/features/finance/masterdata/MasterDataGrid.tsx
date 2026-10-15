@@ -285,13 +285,8 @@ function MasterDataToolbar() {
  * One tab's table, with an Actions column of Edit and — on Subsidiaries and
  * Departments — Delete.
  *
- * Credit Cards and Expense Types have no Delete. The endpoint behind it is a
- * soft delete: it sets `status = 'inactive'` and the list query filters
- * nothing, so the row stays on screen and the only outcome is a chip changing
- * colour. On a record already inactive, which is most of the ones anyone
- * reaches for, pressing it does nothing observable at all — the button
- * promised an action it could not perform. Both tabs carry a status column
- * and a toggle in their form, which is the honest way to do the same thing.
+ * Credit Cards and Expense Types have no Delete: both carry a status column
+ * and retire a record through their form's Active/Inactive toggle instead.
  *
  * Rows auto-size their height (`getRowHeight: () => "auto"`) because an
  * expense type can carry a dozen engagement-code chips and a fixed row

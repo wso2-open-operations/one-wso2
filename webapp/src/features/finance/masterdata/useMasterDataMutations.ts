@@ -114,19 +114,15 @@ export function describeDeleteError(error: unknown): string {
 /**
  * Which sentence a failed update should say.
  *
- * An update answers 409 for the same reason a delete does: switching an
- * expense type to inactive runs the backend's reference check, so a type
- * still carried by active claims is refused rather than quietly retired.
- * Without this the reader got "Error updating data", which reads as a fault
- * rather than as the rule it actually is.
+ * A 409 is one of two opposite refusals: retiring a record something still
+ * references, or reactivating an expense type whose Gl code is inactive. They
+ * need opposite things from the reader, so the patch's own status picks the
+ * sentence.
  */
 export function describeUpdateError(error: unknown, patch?: Partial<MasterDataPayload>): string {
   if (error instanceof HttpError && error.status === 409) {
-    // The backend answers 409 to two different refusals, and they need
-    // opposite things from the reader. Retiring is refused because something
-    // still references the record; reactivating is refused because the Gl
-    // code it points at is inactive. The patch's own status says which was
-    // being attempted.
+    // An edit that never touched status carries none, and the references
+    // reading is the one that applies.
     const status = (patch as { status?: string } | undefined)?.status?.toLowerCase();
     return status === MASTER_DATA_STATUS.active
       ? MASTER_DATA_SNACK.error.reactivateConflict

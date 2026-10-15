@@ -193,10 +193,7 @@ export function isFormComplete(tab: MasterDataTab, form: MasterDataPayload): boo
  * Arrays are compared as sets, since the order the reader picked them in is
  * not a change. `status` is compared case-insensitively — the column holds
  * both "Active" and "active" from older writes — and a nullish row value
- * falls back to "active" to match `initialFormData`'s own seeding default;
- * without that, a row with no status on record compared "" against the
- * seeded "active" and read as changed, so saving any OTHER edit on that row
- * PATCHed a status the reader never touched.
+ * falls back to active, matching what `initialFormData` seeds.
  */
 function sameFieldValue(key: string, rowValue: unknown, formValue: unknown): boolean {
   if (Array.isArray(formValue)) {
