@@ -25,16 +25,22 @@ export type DraftState = "idle" | "saving" | "saved" | "error";
 //
 // The first snapshot taken once `ready` is skipped so seeding the list from
 // an existing server draft doesn't immediately re-save an identical draft.
+// `initialBaseline` names that persisted state up front instead, for a caller
+// that holds `ready` back while something resolves: the first ready snapshot
+// is then compared rather than skipped, so an edit made during the wait is
+// still saved.
 export function useDraftAutosave(
   signature: string,
   ready: boolean,
   run: () => Promise<void>,
   delay = 1000,
+  initialBaseline?: string,
 ): DraftState {
   const [state, setState] = useState<DraftState>("idle");
   // baseline = last persisted signature (seeded on first ready render, then
-  // advanced after each successful save).
-  const baseline = useRef<string | null>(null);
+  // advanced after each successful save). Read once, at mount: a later
+  // `initialBaseline` is ignored, the same way the first ready snapshot is.
+  const baseline = useRef<string | null>(initialBaseline ?? null);
   const runRef = useRef(run);
   runRef.current = run;
   // Holds a queued (debounced-but-not-yet-run) save so it can be flushed on

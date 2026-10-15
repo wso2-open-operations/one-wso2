@@ -171,10 +171,6 @@ describe("a travel job number supplies the units", () => {
     await waitFor(() => expect(state.jobQueries).toContain("JOB-1"));
   });
 
-  // The engagement, the country and the units read off the job's info
-  // tooltip. They used to sit on a line under the field, which an older
-  // travel — carrying no engagement code or type at all — rendered as a row
-  // of bare separators.
   it("shows the engagement the spend is charged to, behind the info icon", async () => {
     const user = userEvent.setup();
     await categoriseAsTravel();

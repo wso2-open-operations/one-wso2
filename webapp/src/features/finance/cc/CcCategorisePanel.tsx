@@ -369,15 +369,15 @@ export function CcCategorisePanel({
   // from ever arming, because a correction to a submitted row goes back to an
   // approver and must not leave on a timer the reader did not ask for.
   //
-  // And false while a job number lookup is in flight. Refusing the write
-  // inside `persist` instead left the hook holding a failure it would not
-  // necessarily retry, and the error it set outlived the lookup that caused
-  // it. Not arming means the timer simply starts once the job resolves.
+  // False too while a job number lookup is pending, so the timer starts once
+  // the job resolves. The mounted row goes in as the baseline for that window,
+  // so an edit made during the lookup is still saved once the timer arms.
   const draftState = useDraftAutosave(
     signature(effective),
     !review && editMode && !jobPending,
     () => autosave.current(),
     5000,
+    signature(baseline),
   );
 
   useImperativeHandle(ref, () => ({
@@ -601,11 +601,8 @@ export function CcCategorisePanel({
               error={jobNumberError}
               helperText={jobNumberHelp}
               infoWidth={INFO_SIDEBAR_WIDTH}
-              /* The job's particulars and its funding sit on the field's own
-                 row rather than stacked under it, and appear as soon as the
-                 lookup succeeds — a job with no funding still has an
-                 engagement worth reading, and that case has its own warning
-                 below. */
+              /* Keyed on the lookup landing, not on the job being usable: a
+                 job with no funding still has an engagement worth reading. */
               info={
                 jobUnits ? (
                   <JobNumberSideBar
