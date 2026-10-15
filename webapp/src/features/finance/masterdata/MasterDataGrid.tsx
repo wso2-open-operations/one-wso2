@@ -25,7 +25,13 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { FINANCE_GRID_SX } from "../util/financeGridSx";
 import { INITIAL_SORT_FIELD } from "./masterDataForm";
-import type { Department, ExpenseType, MasterDataRow, MasterDataTab } from "./masterDataTypes";
+import {
+  MASTER_DATA_STATUS,
+  type Department,
+  type ExpenseType,
+  type MasterDataRow,
+  type MasterDataTab,
+} from "./masterDataTypes";
 
 /**
  * The one table all four master-data screens are drawn with.
@@ -66,7 +72,7 @@ function StatusChip({ value }: { value: string }) {
       title={label}
       size="small"
       variant="outlined"
-      color={label === "active" ? "success" : "error"}
+      color={label === MASTER_DATA_STATUS.active ? "success" : "error"}
       sx={{ fontWeight: 600, textTransform: "capitalize" }}
     />
   );

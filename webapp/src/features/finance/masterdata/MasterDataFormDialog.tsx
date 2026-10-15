@@ -44,6 +44,7 @@ import {
 } from "./useMasterDataMutations";
 import {
   CREDIT_CARD_PROVIDERS,
+  MASTER_DATA_STATUS,
   type CreditCardPayload,
   type DepartmentPayload,
   type ExpenseTypeAutoComplete,
@@ -395,14 +396,16 @@ function StatusToggle({
   onChange: (key: string, value: string) => void;
 }) {
   if (value === undefined) return null;
-  const active = value === "active";
+  const active = value === MASTER_DATA_STATUS.active;
   return (
     <FormControlLabel
       sx={{ mt: 0.5 }}
       control={
         <Switch
           checked={active}
-          onChange={(_e, checked) => onChange("status", checked ? "active" : "inactive")}
+          onChange={(_e, checked) =>
+            onChange("status", checked ? MASTER_DATA_STATUS.active : MASTER_DATA_STATUS.inactive)
+          }
         />
       }
       label={active ? "Active" : "Inactive"}

@@ -168,6 +168,17 @@ export interface CreditCardPayload {
   status?: string;
 }
 
+/**
+ * The two statuses a row can carry. The column holds a mix of "Active" and
+ * "active" from older writes, so these are the lower-cased forms everything
+ * normalises to before comparing.
+ */
+export const MASTER_DATA_STATUS = {
+  active: "active",
+  inactive: "inactive",
+} as const;
+export type MasterDataStatus = (typeof MASTER_DATA_STATUS)[keyof typeof MASTER_DATA_STATUS];
+
 /** The two card providers this backend supports. */
 export const CREDIT_CARD_PROVIDERS = ["AMEX", "SVB"] as const;
 export type CreditCardProvider = (typeof CREDIT_CARD_PROVIDERS)[number];

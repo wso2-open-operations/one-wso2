@@ -15,7 +15,12 @@
 // under the License.
 
 import { Autocomplete, Box, Button, Chip, Stack, TextField } from "@wso2/oxygen-ui";
-import type { ExpenseTypeAutoComplete, ExpenseTypeFilter, LabelledId } from "./masterDataTypes";
+import {
+  MASTER_DATA_STATUS,
+  type ExpenseTypeAutoComplete,
+  type ExpenseTypeFilter,
+  type LabelledId,
+} from "./masterDataTypes";
 
 /**
  * The six filters above the expense-type table.
@@ -27,7 +32,7 @@ import type { ExpenseTypeAutoComplete, ExpenseTypeFilter, LabelledId } from "./m
  */
 
 /** The two statuses a row can carry. */
-const STATUS_OPTIONS = ["active", "inactive"] as const;
+const STATUS_OPTIONS = [MASTER_DATA_STATUS.active, MASTER_DATA_STATUS.inactive] as const;
 
 const FIELD_SX = { minWidth: 200, flex: 1 } as const;
 

@@ -14,18 +14,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type {
-  CreditCard,
-  CreditCardPayload,
-  Department,
-  DepartmentPayload,
-  ExpenseType,
-  ExpenseTypePayload,
-  MasterDataPayload,
-  MasterDataRow,
-  MasterDataTab,
-  Subsidiary,
-  SubsidiaryPayload,
+import {
+  MASTER_DATA_STATUS,
+  type CreditCard,
+  type CreditCardPayload,
+  type Department,
+  type DepartmentPayload,
+  type ExpenseType,
+  type ExpenseTypePayload,
+  type MasterDataPayload,
+  type MasterDataRow,
+  type MasterDataTab,
+  type Subsidiary,
+  type SubsidiaryPayload,
 } from "./masterDataTypes";
 
 /**
@@ -105,7 +106,7 @@ export function initialFormData(tab: MasterDataTab, row?: MasterDataRow): Master
         engagementCodes: r?.engagementCodes ?? [],
         engagementCodeSuffixes: r?.engagementCodeSuffixes ?? [],
         // Same rule as credit cards: lower-cased, and absent when creating.
-        ...(r ? { status: (r.status ?? "active").toLowerCase() } : {}),
+        ...(r ? { status: (r.status ?? MASTER_DATA_STATUS.active).toLowerCase() } : {}),
       } satisfies ExpenseTypePayload;
     }
     case "creditCards": {
@@ -120,7 +121,7 @@ export function initialFormData(tab: MasterDataTab, row?: MasterDataRow): Master
         // "active" from older writes, and `isUnchanged` compares by value —
         // seeding the raw casing would read as an edit the moment the dialog
         // opened. Absent when creating; see CreditCardPayload.
-        ...(r ? { status: (r.status ?? "active").toLowerCase() } : {}),
+        ...(r ? { status: (r.status ?? MASTER_DATA_STATUS.active).toLowerCase() } : {}),
       } satisfies CreditCardPayload;
     }
   }
@@ -204,7 +205,7 @@ function sameFieldValue(key: string, rowValue: unknown, formValue: unknown): boo
     return JSON.stringify(before) === JSON.stringify(after);
   }
   if (key === "status") {
-    const normalizedRow = rowValue ? String(rowValue).toLowerCase() : "active";
+    const normalizedRow = rowValue ? String(rowValue).toLowerCase() : MASTER_DATA_STATUS.active;
     return normalizedRow === String(formValue).toLowerCase();
   }
   return rowValue === formValue;

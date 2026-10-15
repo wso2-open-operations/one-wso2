@@ -21,6 +21,7 @@ import { financeMasterDataServiceUrls } from "@config/apiConfig";
 import { MASTER_DATA_SNACK } from "./masterDataCopy";
 import {
   MASTER_DATA_ENDPOINTS,
+  MASTER_DATA_STATUS,
   type MasterDataPayload,
   type MasterDataTab,
 } from "./masterDataTypes";
@@ -127,7 +128,7 @@ export function describeUpdateError(error: unknown, patch?: Partial<MasterDataPa
     // code it points at is inactive. The patch's own status says which was
     // being attempted.
     const status = (patch as { status?: string } | undefined)?.status?.toLowerCase();
-    return status === "active"
+    return status === MASTER_DATA_STATUS.active
       ? MASTER_DATA_SNACK.error.reactivateConflict
       : MASTER_DATA_SNACK.error.deleteConflict;
   }
