@@ -4,10 +4,11 @@ Rules for human and AI reviewers. Formatters and linters own style; review what 
 
 ## Severity
 
-- 🔴 Critical: breaks behaviour, data or security.
-- 🟠 Major: fix before merge.
-- 🟡 Minor: can wait, may bite later.
-- ⚪ Trivial: optional.
+- 🔴 Critical: a security hole, data loss, or a core flow broken. Blocks merge.
+- 🟠 Major: a defect with real impact, such as a wrong result, missing error handling or tests, or a misleading
+  doc. Blocks merge.
+- 🟡 Minor: low impact or easy to recover from, such as an edge case or a maintainability risk. Can wait.
+- ⚪ Trivial: no effect on behaviour. Optional.
 
 ## Scope
 
