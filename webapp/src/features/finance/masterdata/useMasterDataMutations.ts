@@ -119,9 +119,17 @@ export function describeDeleteError(error: unknown): string {
  * Without this the reader got "Error updating data", which reads as a fault
  * rather than as the rule it actually is.
  */
-export function describeUpdateError(error: unknown): string {
+export function describeUpdateError(error: unknown, patch?: Partial<MasterDataPayload>): string {
   if (error instanceof HttpError && error.status === 409) {
-    return MASTER_DATA_SNACK.error.deleteConflict;
+    // The backend answers 409 to two different refusals, and they need
+    // opposite things from the reader. Retiring is refused because something
+    // still references the record; reactivating is refused because the Gl
+    // code it points at is inactive. The patch's own status says which was
+    // being attempted.
+    const status = (patch as { status?: string } | undefined)?.status?.toLowerCase();
+    return status === "active"
+      ? MASTER_DATA_SNACK.error.reactivateConflict
+      : MASTER_DATA_SNACK.error.deleteConflict;
   }
   return MASTER_DATA_SNACK.error.updating;
 }

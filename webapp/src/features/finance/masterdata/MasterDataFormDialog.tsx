@@ -118,14 +118,16 @@ export default function MasterDataFormDialog({
   const handleSubmit = () => {
     if (!canSubmit) return;
     if (row) {
+      const patch = changedFields(row, form);
       update.mutate(
-        { id: row.id, patch: changedFields(row, form) },
+        { id: row.id, patch },
         {
           onSuccess: () => {
             showSuccess(MASTER_DATA_SNACK.success.updated);
             onClose();
           },
-          onError: (error) => showError(describeUpdateError(error)),
+          // The patch says which refusal a 409 was: retiring or reactivating.
+          onError: (error) => showError(describeUpdateError(error, patch)),
         },
       );
     } else {

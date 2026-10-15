@@ -42,6 +42,12 @@ export const MASTER_DATA_SNACK = {
     // what to do about it.
     deleteConflict:
       "Cannot proceed with this operation due to linked data. Delete other active connections to continue",
+    // The same 409, but reached by REACTIVATING: the backend refuses to bring
+    // a type back while the Gl code it points at is inactive. "Linked data"
+    // above would send the reader looking for connections to delete, which
+    // is the opposite of what this needs.
+    reactivateConflict:
+      "Cannot activate this expense type while its Gl code is inactive. Activate the Gl code first",
     loading: "Error retrieving data. Please try again. If the issue persists, contact Internal Apps Team",
     autoComplete:
       "Error retrieving auto complete data. Please try again. If the issue persists, contact Internal Apps Team",

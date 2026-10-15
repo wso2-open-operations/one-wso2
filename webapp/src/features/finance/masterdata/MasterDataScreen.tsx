@@ -56,7 +56,6 @@ export default function MasterDataScreen({
   autoComplete,
   employeeEmails,
   toolbar,
-  showTable = true,
   children,
 }: {
   tab: MasterDataTab;
@@ -69,14 +68,7 @@ export default function MasterDataScreen({
   employeeEmails?: string[];
   /** Extra controls beside "Add New …" — the expense-type filter toggle. */
   toolbar?: ReactNode;
-  /**
-   * False to leave the table out entirely, so `children` can stand in for
-   * it. Expense types does this before its first filter is applied: there is
-   * no empty table to show, because nothing has been asked for yet.
-   */
-  showTable?: boolean;
-  /** Rendered between the header and the table — the filter bar, and on the
-   *  expense-type tab the placeholder that replaces the table. */
+  /** Rendered between the header and the table — the expense-type filter bar. */
   children?: ReactNode;
 }) {
   // `undefined` = closed. `null` = open for a NEW record. A row = editing it.
@@ -112,15 +104,13 @@ export default function MasterDataScreen({
           {MASTER_DATA_SNACK.error.loading}
         </ErrorNotice>
       ) : (
-        showTable && (
-          <MasterDataGrid
-            tab={tab}
-            rows={rows}
-            loading={loading}
-            onEdit={setFormRow}
-            onDelete={setDeleteRow}
-          />
-        )
+        <MasterDataGrid
+          tab={tab}
+          rows={rows}
+          loading={loading}
+          onEdit={setFormRow}
+          onDelete={setDeleteRow}
+        />
       )}
 
       {formRow !== undefined && (
