@@ -42,5 +42,10 @@ reviews:
           request or issue number in another repository, or uses migration wording such as
           "ported from", "the source's own", "the original app", "lifted", "migration" or
           "parallel period". Pass otherwise.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "REVIEW.md"
 chat:
   auto_reply: true
