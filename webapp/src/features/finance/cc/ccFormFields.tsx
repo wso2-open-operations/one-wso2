@@ -541,20 +541,22 @@ export function FundingSources({
       <Table size="small">
         <TableHead>
           <TableRow>
-            {["Region", "Sub Region", "Business Unit", "Product Unit", "Percentage", "Amount"].map((h) => (
-              <TableCell key={h} sx={{ fontSize: 10.5, fontWeight: 700, color: "text.disabled" }}>
-                {h}
-              </TableCell>
-            ))}
+            {["Business Unit", "Product Unit", "Region", "Sub Region", "Percentage", "Amount"].map(
+              (h) => (
+                <TableCell key={h} sx={{ fontSize: 10.5, fontWeight: 700, color: "text.disabled" }}>
+                  {h}
+                </TableCell>
+              ),
+            )}
           </TableRow>
         </TableHead>
         <TableBody>
           {sources.map((f, i) => (
             <TableRow key={i}>
-              <TableCell sx={{ fontSize: 11.5 }}>{f.region}</TableCell>
-              <TableCell sx={{ fontSize: 11.5 }}>{f.subRegion}</TableCell>
               <TableCell sx={{ fontSize: 11.5 }}>{f.businessUnit}</TableCell>
               <TableCell sx={{ fontSize: 11.5 }}>{f.productUnit}</TableCell>
+              <TableCell sx={{ fontSize: 11.5 }}>{f.region}</TableCell>
+              <TableCell sx={{ fontSize: 11.5 }}>{f.subRegion}</TableCell>
               <TableCell sx={{ fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}>
                 {f.percentage}%
               </TableCell>
@@ -563,6 +565,13 @@ export function FundingSources({
               </TableCell>
             </TableRow>
           ))}
+          <TableRow>
+            <TableCell colSpan={4} sx={{ border: 0 }} />
+            <TableCell sx={{ fontSize: 11.5, fontWeight: 700 }}>Total Amount:</TableCell>
+            <TableCell sx={{ fontSize: 11.5, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+              {money(totalAmount, "USD")}
+            </TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </Box>
