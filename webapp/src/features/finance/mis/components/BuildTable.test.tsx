@@ -741,6 +741,60 @@ describe("a Build with more rows than a document should hold", { timeout: 30_000
     expect(scroller().style.maxHeight).toBe("");
   });
 
+  it("follows the page when the page has not overflowed yet", () => {
+    // The page scroller is an ancestor with overflow, not this box. Choosing
+    // it only once it already overflows misses the first paint — and the
+    // choice is not made again — so the window stays on the first customers
+    // while the page moves. jsdom lays nothing out, which is that first paint.
+    const real = HTMLElement.prototype.getBoundingClientRect;
+    const tops = new WeakMap<Element, number>();
+    HTMLElement.prototype.getBoundingClientRect = function placed() {
+      const top = tops.get(this) ?? 0;
+      return { ...new DOMRect(0, top, 800, 0), top, height: 0 } as DOMRect;
+    };
+    try {
+      render(
+        // `overflowY`, not the `overflow` shorthand: jsdom does not compute
+        // the longhand from the shorthand, and a browser's computed style
+        // for the page scroller is the longhand.
+        <div data-testid="page" style={{ overflowY: "auto", height: 400 }}>
+          <BuildTable
+            scrollsWithPage
+            label="Software/Cloud Customers"
+            rowLabelHeader="Customer"
+            columnGroups={periodsOf(5)}
+            subColumns={SUB_COLUMNS}
+            rows={customers(3000)}
+            cell={cell}
+          />
+        </div>,
+      );
+      expect(screen.getByText("Customer 0")).toBeInTheDocument();
+      expect(screen.queryByText("Customer 400")).not.toBeInTheDocument();
+
+      const page = screen.getByTestId("page");
+      const body = scroller();
+      // Customer 400 sits 400 rows down. The page's top is there; the body's
+      // top is that far above it. The header contributes nothing under jsdom.
+      tops.set(page, 0);
+      tops.set(body, -(400 * 30));
+      act(() => {
+        fireEvent.scroll(page);
+      });
+      expect(screen.getByText("Customer 400")).toBeInTheDocument();
+      expect(screen.queryByText("Customer 0")).not.toBeInTheDocument();
+
+      // Sideways scrolling fires on the box. Its own scrollTop is 0, and
+      // reading that would jump the window back to the first customer.
+      act(() => {
+        fireEvent.scroll(body);
+      });
+      expect(screen.getByText("Customer 400")).toBeInTheDocument();
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = real;
+    }
+  });
+
   it("shows the rows further down once the reader scrolls to them", () => {
     renderTable(5, customers(3000));
     expect(screen.queryByText("Customer 1000")).not.toBeInTheDocument();

@@ -261,6 +261,7 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
   const { scrollRef, firstRowRef, onScroll, rowsInView } = useRowWindow(
     visible.length,
     maxBodyHeight,
+    scrollsWithPage,
   );
   const onScreen = visible.slice(rowsInView.first, rowsInView.last);
   /** Every column, for a spacer row to span. */
@@ -734,13 +735,16 @@ function useMeasuredValue<T extends HTMLElement>(
 }
 
 /**
- * The element whose vertical scroll moves this table.
+ * The box that scrolls a capped table.
  *
- * The table's own box, when it is the scroller (a dialog, a capped body).
- * The page, when the box is as tall as its rows and the page moves through
- * them — `overflow-y: hidden` there, so it is not a candidate. jsdom lays
- * nothing out, so nothing overflows and the box itself is the answer the
- * tests drive.
+ * Its own box, once the rows exceed it. An ancestor only when that box
+ * does not overflow and one above it does — a dialog. The current-overflow
+ * check is the whole test: a capped box that still fits its rows is not a
+ * scroller yet. jsdom lays nothing out, so nothing overflows and the box
+ * itself is the answer those tests drive.
+ *
+ * A table that scrolls with the page does not use this. The page is the
+ * scroller before it overflows, and `pageScroller` is that choice.
  */
 function verticalScroller(element: HTMLElement): HTMLElement {
   let node: HTMLElement | null = element;
@@ -755,6 +759,41 @@ function verticalScroller(element: HTMLElement): HTMLElement {
     node = node.parentElement;
   }
   return element;
+}
+
+/**
+ * The element whose scroll moves a table that scrolls with the page.
+ *
+ * The nearest ancestor that can scroll vertically, whether or not this
+ * paint has overflowed it. Requiring current overflow misses the page
+ * until something else makes it overflow, and the choice is made once,
+ * so the window then stays on the first rows.
+ *
+ * The table's own box is not a candidate: page mode sets it to
+ * `overflow-y: hidden`, and it must not be the fallback either. The
+ * app's page is `#main-scroll-container`, an ancestor with
+ * `overflow: auto`. The document is the fallback when nothing above
+ * the table can scroll. A viewport scroll is delivered to `window`,
+ * not to `document.scrollingElement`.
+ */
+function pageScroller(element: HTMLElement): HTMLElement {
+  let node = element.parentElement;
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if (overflowY === "auto" || overflowY === "scroll") return node;
+    node = node.parentElement;
+  }
+  const root = document.scrollingElement;
+  return root instanceof HTMLElement ? root : element;
+}
+
+/** Viewport scrolling is observed on `window`, not on the scrolling element. */
+function scrollsTheViewport(scroller: HTMLElement): boolean {
+  return (
+    scroller === document.scrollingElement ||
+    scroller === document.documentElement ||
+    scroller === document.body
+  );
 }
 
 /**
@@ -799,7 +838,7 @@ function bodyScrollOffset(body: HTMLElement, scroller: HTMLElement): number {
  * what it rendered before. The Subscription Build is 34 rows and takes that
  * path.
  */
-function useRowWindow(total: number, maxBodyHeight: number) {
+function useRowWindow(total: number, maxBodyHeight: number, scrollsWithPage: boolean) {
   const [scrollTop, setScrollTop] = useState(0);
   const windowed = total > ROW_WINDOW_THRESHOLD;
 
@@ -845,14 +884,20 @@ function useRowWindow(total: number, maxBodyHeight: number) {
     // Horizontal scrolling fires this too. Reading `scrollTop` alone would
     // be 0 on a table that scrolls with the page, and the window would jump
     // back to the first customer.
-    remember(bodyScrollOffset(element, verticalScroller(element)));
+    remember(
+      bodyScrollOffset(
+        element,
+        scrollsWithPage ? pageScroller(element) : verticalScroller(element),
+      ),
+    );
   };
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
     if (!element || !windowed) return;
-    const scroller = verticalScroller(element);
+    const scroller = scrollsWithPage ? pageScroller(element) : verticalScroller(element);
     const page = scroller !== element;
+    const onViewport = page && scrollsTheViewport(scroller);
     // The same anchoring that stuck the inner scroller sticks the page once
     // the spacer above the rows changes height under the reader's thumb.
     if (page) scroller.style.overflowAnchor = "none";
@@ -863,14 +908,16 @@ function useRowWindow(total: number, maxBodyHeight: number) {
       if (view > 0) setPageViewport((previous) => (previous === view ? previous : view));
     };
     scroller.addEventListener("scroll", apply, { passive: true });
+    if (onViewport) window.addEventListener("scroll", apply, { passive: true });
     window.addEventListener("resize", apply);
     apply();
     return () => {
       scroller.removeEventListener("scroll", apply);
+      if (onViewport) window.removeEventListener("scroll", apply);
       window.removeEventListener("resize", apply);
       if (page) scroller.style.overflowAnchor = "";
     };
-  }, [windowed, total, scrollRef]);
+  }, [windowed, total, scrollRef, scrollsWithPage]);
 
   if (!windowed) {
     return {

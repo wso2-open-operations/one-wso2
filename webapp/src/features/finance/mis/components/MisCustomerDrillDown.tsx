@@ -28,7 +28,6 @@ import {
 import { XIcon } from "@wso2/oxygen-ui-icons-react";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import BuildTable from "./BuildTable";
-import { MAX_BODY_HEIGHT } from "./buildTableSx";
 import MisAppliedFilterChips from "./MisAppliedFilterChips";
 import { drillDownColumns, drillDownRows, type DrillDownColumn } from "./drillDownColumns";
 import type { MisFilterChip } from "../util/misAppliedFilterChips";
@@ -217,7 +216,10 @@ function DrillDownBody({
       // No figures: every column of this table is identity. Required by the
       // component and never called.
       cell={() => ({ text: "" })}
-      maxBodyHeight={MAX_BODY_HEIGHT}
+      // The page tables share a taller cap. This list stays at the loading
+      // state's height, so the dialog does not jump and the list does not
+      // outgrow it.
+      maxBodyHeight={420}
     />
   );
 }
