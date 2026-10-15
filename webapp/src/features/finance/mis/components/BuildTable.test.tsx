@@ -657,18 +657,18 @@ describe("a Build with more rows than a document should hold", { timeout: 30_000
     // Bounded by what is on screen, not by what exists. Two passes, not one:
     // the first window is computed from the estimated row height and the second
     // from the measured one, which is the same settle the two-row header makes
-    // and for the same reason. ~47 rows then ~43, at ten figures each — 900 of
-    // the 30,000 an unwindowed table would ask for.
+    // and for the same reason. About 80 rows then about 70, at ten figures
+    // each — around 1,500 of the 30,000 an unwindowed table would ask for.
     expect(windowed).toBeGreaterThan(0);
-    expect(windowed).toBeLessThan(1000);
+    expect(windowed).toBeLessThan(2000);
 
     // And the unwindowed table below the threshold asks for every figure it
     // holds, every pass — which is the behaviour being escaped, shown at the
     // largest size that still takes that path.
     const everything = askedFor(customers(ROW_WINDOW_THRESHOLD));
     expect(everything).toBeGreaterThanOrEqual(ROW_WINDOW_THRESHOLD * 5 * 2);
-    // Twenty times the rows, a fraction of the questions.
-    expect(windowed).toBeLessThan(everything / 3);
+    // A fraction of the 30,000 questions an unwindowed 3,000-row table would ask.
+    expect(windowed).toBeLessThan(3000 * 5 * 2 / 4);
   });
 
   it("windows the rows under a section, since every one of them is on screen", () => {
@@ -686,6 +686,59 @@ describe("a Build with more rows than a document should hold", { timeout: 30_000
     expect(spacers().length).toBeGreaterThan(0);
     const padding = spacerHeights().reduce((total, height) => total + height, 0);
     expect(padding + rendered.length * 30).toBe(2001 * 30);
+  });
+
+  it("keeps a scroll where the reader put it, instead of anchoring it back", () => {
+    // The Customers table is the one this window runs on. Replacing the rows
+    // above the viewport with a spacer makes the browser pull scrollTop back,
+    // and a wheel gesture then sticks. The scroller opts out of that.
+    renderTable(5, customers(3000));
+    expect(getComputedStyle(scroller()).overflowAnchor).toBe("none");
+  });
+
+  it("does not ask again for a row that stayed on screen", () => {
+    // Scrolling used to redraw every figure in the window, and the Customers
+    // table — thousands of buttons — froze under the wheel. A one-row move
+    // asks only for the row that entered.
+    const asked = vi.fn(cell);
+    render(
+      <BuildTable
+        label="ARR Build"
+        rowLabelHeader="Customer"
+        columnGroups={periodsOf(5)}
+        subColumns={SUB_COLUMNS}
+        rows={customers(3000)}
+        cell={asked}
+      />,
+    );
+    asked.mockClear();
+    act(() => {
+      Object.defineProperty(scroller(), "scrollTop", { value: 13 * 30, writable: true });
+      fireEvent.scroll(scroller());
+    });
+    expect(asked.mock.calls.length).toBeGreaterThan(0);
+    expect(asked.mock.calls.length).toBeLessThan(10 * 8);
+  });
+
+  it("lets a page-scrolled Customers table grow to its rows", () => {
+    // A max-height on this box makes a second scroller inside the page. The
+    // wheel sticks between them, and the spacer below the window is what the
+    // reader lands on. The page is the scroller; this box only scrolls sideways.
+    render(
+      <BuildTable
+        scrollsWithPage
+        label="Software/Cloud Customers"
+        rowLabelHeader="Customer"
+        columnGroups={periodsOf(5)}
+        subColumns={SUB_COLUMNS}
+        rows={customers(3000)}
+        cell={cell}
+      />,
+    );
+    const style = getComputedStyle(scroller());
+    expect(style.overflowY).toBe("hidden");
+    // No cap. A max-height is what turns this box into the second scroller.
+    expect(scroller().style.maxHeight).toBe("");
   });
 
   it("shows the rows further down once the reader scrolls to them", () => {

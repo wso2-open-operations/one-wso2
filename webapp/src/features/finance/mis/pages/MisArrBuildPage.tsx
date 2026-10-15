@@ -20,6 +20,7 @@ import { useDocumentTitle } from "@hooks/useDocumentTitle";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import MisShell from "../components/MisShell";
 import BuildTable, { type BuildCellFor } from "../components/BuildTable";
+import { MAX_BODY_HEIGHT } from "../components/buildTableSx";
 import {
   arrBuildFieldFor,
   arrBuildRows,
@@ -172,21 +173,12 @@ export default function MisArrBuildPage({ period }: { period: MisPeriod }) {
 
 /** Inside the shell, so it is only mounted once the gate has said yes. */
 /**
- * The column a grid lives in. It takes the height the page has left under the
- * chrome and passes it down, so `BuildTable`'s body is the thing that scrolls
- * rather than the rows growing until the page clips them.
+ * The column a grid lives in. It sizes to the table, up to `MAX_BODY_HEIGHT`,
+ * and the content column scrolls. `minWidth: 0` keeps a wide Period row from
+ * forcing the page sideways; the table scrolls that axis itself.
  */
-/** Tall enough for every All BU Build summary row, so that table is read down
- *  the page instead of inside a short scroller. */
-const BUILD_TABLE_BODY_HEIGHT = 1400;
-
 const gridColumnSx = {
-  flex: 1,
-  // `minWidth: 0` as well as `minHeight`: a flex item's default minimum is its
-  // content, so without it the column grows to the table and the page crops
-  // the Periods that do not fit instead of scrolling them.
   minWidth: 0,
-  minHeight: 0,
   display: "flex",
   flexDirection: "column",
 } as const;
@@ -226,8 +218,8 @@ function ArrBuild({ period }: { period: MisPeriod }) {
   };
 
   return (
-    // All BU Build is drawn at the height of its rows. The other tables fill
-    // whatever height is left under this chrome and scroll inside that.
+    // Every table is drawn up to `MAX_BODY_HEIGHT`. The content column scrolls
+    // when that is taller than the window.
     <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, minHeight: 0 }}>
       <Box sx={{ flex: "none" }}>
         <MisPeriodRow view={view} />
@@ -250,24 +242,7 @@ function ArrBuild({ period }: { period: MisPeriod }) {
           />
         )}
       </Box>
-      {/* All BU Build is a fixed summary. It is drawn at its own height so the
-          rows are on the page, and the content column scrolls if the window is
-          shorter. The other tables stay in the leftover height, with a 320px
-          floor so they are not squashed to a single row. */}
-      <Box
-        sx={
-          view.table === MIS_TABLES.SUBSCRIPTION
-            ? { display: "flex", flexDirection: "column", minWidth: 0 }
-            : {
-                flex: 1,
-                minWidth: 0,
-                minHeight: 320,
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-              }
-        }
-      >
+      <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
         <BuildForTable view={view} scale={scale} />
       </Box>
     </Box>
@@ -470,7 +445,7 @@ function ArrBuildGrid({ view, scaleState }: { view: MisViewState; scaleState: Mi
       />
       )}
       <BuildTable
-        maxBodyHeight={BUILD_TABLE_BODY_HEIGHT}
+        maxBodyHeight={MAX_BODY_HEIGHT}
         label="ARR Dashboard — Subscription Build"
         // One header row when each Period has a single figure column.
         collapseLoneSubHeader
@@ -708,7 +683,8 @@ function CustomersGrid({ view, scaleState }: { view: MisViewState; scaleState: M
             filename={() => exportFilenameFor(MIS_TABLES.SOFTWARE_CLOUD_CUSTOMERS)}
           />,
       )}
-      <BuildTable fill
+      <BuildTable
+        scrollsWithPage
         label="Software/Cloud Customers"
         // The Total row is weight 700, at the table's own size.
         emphasisStyle={{ fontWeight: 700 }}
@@ -871,7 +847,8 @@ function RegionExitGrid({
         />
       }
     >
-      <BuildTable fill
+      <BuildTable
+        maxBodyHeight={MAX_BODY_HEIGHT}
         label="ARR Dashboard — Region Summary"
         // The Total row is 700 at the table's own size.
         emphasisStyle={{ fontWeight: 700 }}
@@ -972,7 +949,8 @@ function RegionMetricsGrid({
         />
       }
     >
-      <BuildTable fill
+      <BuildTable
+        maxBodyHeight={MAX_BODY_HEIGHT}
         label={`ARR Dashboard — ${ALL_ARR_METRICS_LABEL}`}
         // The Total row is 700 at the table's own size.
         emphasisStyle={{ fontWeight: 700 }}
@@ -1045,7 +1023,8 @@ function BuSummaryGrid({ view, scaleState }: { view: MisViewState; scaleState: M
         />
       }
     >
-      <BuildTable fill
+      <BuildTable
+        maxBodyHeight={MAX_BODY_HEIGHT}
         label="ARR Dashboard — BU Summary"
         rowLabelHeader="Business Unit"
         rowLabelWidth={BU_LABEL_WIDTH}

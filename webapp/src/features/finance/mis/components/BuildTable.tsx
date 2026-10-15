@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useId, useLayoutEffect, useMemo, useRef, useState, type UIEvent } from "react";
+import { memo, useId, useLayoutEffect, useMemo, useRef, useState, type Ref, type UIEvent } from "react";
 import { Box, ButtonBase, ListingTable, Typography } from "@wso2/oxygen-ui";
 import WideTableNotice from "@components/wide-table-notice/WideTableNotice";
 import {
@@ -29,6 +29,7 @@ import {
   type BuildLeadColumn,
   type BuildRow,
   type BuildSubColumn,
+  type BuildTableIds,
 } from "./buildTableModel";
 import {
   rowSx,
@@ -150,6 +151,15 @@ export interface BuildTableProps<L extends BuildLeadColumn = BuildLeadColumn> {
   rowLabelWidth?: number;
   maxBodyHeight?: number;
   /**
+   * The rows scroll with the page, not inside this table.
+   *
+   * A second scroller nested in the page — a tall Customers list capped at
+   * `maxBodyHeight` — catches the wheel, then the blank spacer the row window
+   * leaves below the rows on screen. The page is the only vertical scroller.
+   * Horizontal overflow stays here. Dialogs leave this off and keep the cap.
+   */
+  scrollsWithPage?: boolean;
+  /**
    * Sub-column keys that are a GRAND TOTAL — the Customers table's "Total" —
    * set in weight 600 under either header row.
    */
@@ -187,6 +197,7 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
   cell,
   rowLabelWidth = ROW_LABEL_WIDTH,
   maxBodyHeight = MAX_BODY_HEIGHT,
+  scrollsWithPage = false,
   grandTotalKeys,
   emphasisStyle,
   collapseLoneSubHeader = false,
@@ -199,7 +210,10 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
     collapseLoneSubHeader && subColumns.length === 1 && columnGroups.length > 0;
   // The Customers table's Total column is weight 600 and nothing more.
   const grandTotalSx = (key: string) => (grandTotalKeys?.has(key) ? { fontWeight: 600 } : {});
-  const ids = buildTableIds(useId());
+  const baseId = useId();
+  // One object for the life of the table. A fresh one every render would make
+  // every windowed row look changed, and scrolling would redraw them all.
+  const ids = useMemo(() => buildTableIds(baseId), [baseId]);
   const [periodRowRef, periodRowHeight] = useHeaderRowHeight();
 
   // One identity column unless the caller named more. The Subscription Build
@@ -287,8 +301,23 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
           tabIndex={0}
           role="region"
           aria-label={label}
-          sx={{ overflow: "auto", position: "relative", ...(fill ? { flex: 1, minWidth: 0, minHeight: 0 } : {}) }}
-          style={fill ? undefined : { maxHeight: maxBodyHeight }}
+          // The row window replaces rows above the viewport with a spacer.
+          // Scroll anchoring then pulls scrollTop back to keep that content
+          // still, so a wheel gesture on the Customers table sticks. The
+          // window owns the offset; the browser must not adjust it.
+          //
+          // `scrollsWithPage` hides vertical overflow so this box cannot
+          // become a second scroller. The height is the rows' own height
+          // (the spacers included), and the page moves through them.
+          sx={{
+            ...(scrollsWithPage
+              ? { overflowX: "auto", overflowY: "hidden" }
+              : { overflow: "auto" }),
+            overflowAnchor: "none",
+            position: "relative",
+            ...(fill ? { flex: 1, minWidth: 0, minHeight: 0 } : {}),
+          }}
+          style={fill || scrollsWithPage ? undefined : { maxHeight: maxBodyHeight }}
         >
           <ListingTable
             density="compact"
@@ -391,164 +420,27 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
                   should count the ones carrying figures. */}
               <RowSpacer height={rowsInView.topPad} columnCount={columnCount} />
               {onScreen.map(({ row, depth, expandable }, index) => (
-                <ListingTable.Row
+                <WindowedRow
                   key={row.id}
-                  // One row is measured, and every other is assumed to match it.
-                  // They do: the label cannot wrap (`nowrap`), every figure is
-                  // one line and every row is the same text at the same padding.
-                  ref={index === 0 ? firstRowRef : undefined}
-                  sx={[
-                    rowSx({
-                      emphasis: row.emphasis,
-                      // A bold row is weight alone: no fill under it, and no
-                      // rule above Ending ARR — `row.ruleAbove` is not drawn.
-                      emphasisFill: false,
-                      emphasisWeight: emphasisStyle?.fontWeight ?? 600,
-                    }),
-                    // A section band naming the metric group under it (ARR
-                    // movement, Customers, …). It does not react to the pointer.
-                    depth === 0 && expandable ? sectionRowSx : {},
-                  ]}
-                >
-                  <ListingTable.Cell
-                    component="th"
-                    scope="row"
-                    id={ids.rowHeader(row.id)}
-                    style={{
-                      width: lead[0].width,
-                      minWidth: lead[0].width,
-                      maxWidth: lead[0].width,
-                    }}
-                    sx={[leadCellSx(leadOffsets[0])]}
-                  >
-                    {/* No indent under a section and no control on a section
-                        row: every label, band or line, shares the column's left
-                        inset. */}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <Typography
-                        component="span"
-                        sx={[
-                          {
-                            fontSize: "inherit",
-                            fontWeight: "inherit",
-                            lineHeight: "inherit",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            color: "inherit",
-                          },
-                          depth === 0 && expandable ? SECTION_LABEL_SX : {},
-                        ]}
-                      >
-                        {row.label}
-                      </Typography>
-                    </Box>
-                  </ListingTable.Cell>
-
-                  {/* The identity columns after the name. Ordinary cells, not row
-                      headers: an Account ID is a fact ABOUT the row, not a second
-                      name for it, so a screen reader should hear it as a value
-                      under its own column and not as part of the row's name. */}
-                  {lead.slice(1).map((column, offsetIndex) => {
-                    const index = offsetIndex + 1;
-                    // Asked once: the title and the text are the same value.
-                    const text = leadCell?.(row, column) ?? "";
-                    return (
-                      <ListingTable.Cell
-                        key={column.key}
-                        headers={`${ids.rowHeader(row.id)} ${ids.leadHeader(column.key)}`}
-                        style={{
-                          width: column.width,
-                          minWidth: column.width,
-                          maxWidth: column.width,
-                        }}
-                        sx={[leadCellSx(leadOffsets[index])]}
-                      >
-                        {/* The full value on the cell itself. Identity columns
-                            truncate — every row is one line, because the row
-                            window measures one and assumes the rest match — so a
-                            long value would otherwise be readable only as the
-                            fragment that happens to fit. */}
-                        <Typography
-                          component="span"
-                          title={text}
-                          sx={{
-                            fontSize: "inherit",
-                            fontWeight: "inherit",
-                            lineHeight: "inherit",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            display: "block",
-                          }}
-                        >
-                          {text}
-                        </Typography>
-                      </ListingTable.Cell>
-                    );
-                  })}
-
-                  {columnGroups.map((group) =>
-                    sized.map((subColumn) => {
-                      const figure = cell(row, group, subColumn);
-                      return (
-                        <ListingTable.Cell
-                          key={`${group.key}:${subColumn.key}`}
-                          headers={ids.cellHeaders(row.id, group.key, subColumn.key)}
-                          style={{ width: subColumn.width, minWidth: subColumn.width }}
-                          // No rule between figures — only the pinned column's
-                          // and the header's. A negative carries its sign and
-                          // nothing else: no `error.main`.
-                          sx={[
-                            NUMERIC_CELL_SX,
-                            figure.muted ? { color: "grey.500" } : {},
-                            grandTotalSx(subColumn.key),
-                          ]}
-                        >
-                          {figure.onActivate ? (
-                            // A real button inside the cell, not a click handler
-                            // on the cell. A `<td onClick>` is invisible to the
-                            // keyboard and announces nothing, and a drill-down
-                            // only a mouse can reach is one half the readers of a
-                            // finance report cannot use. Inside rather than
-                            // instead, so the cell keeps its `headers` wiring.
-                            <ButtonBase
-                              onClick={figure.onActivate}
-                              // A blank figure is still a control when it opens
-                              // something. With no text, the button has no name.
-                              aria-label={
-                                figure.text.trim()
-                                  ? undefined
-                                  : `View details for ${row.label}, ${group.label}, ${subColumn.label}`
-                              }
-                              sx={{
-                                font: "inherit",
-                                color: "inherit",
-                                // Nothing at rest: a figure that opens shows its
-                                // underline only to a pointer or the keyboard, so
-                                // a column of numbers still reads as a column.
-                                textDecoration: "none",
-                                textDecorationStyle: "dotted",
-                                textUnderlineOffset: 3,
-                                borderRadius: 0.5,
-                                px: 0.25,
-                                // The figure stays where an unopenable one sits,
-                                // so a column of numbers still reads as a column.
-                                justifyContent: "flex-end",
-                                width: "100%",
-                                "&:hover, &.Mui-focusVisible": { textDecoration: "underline" },
-                              }}
-                            >
-                              {figure.text}
-                            </ButtonBase>
-                          ) : (
-                            figure.text
-                          )}
-                        </ListingTable.Cell>
-                      );
-                    }),
-                  )}
-                </ListingTable.Row>
+                  row={row}
+                  depth={depth}
+                  expandable={expandable}
+                  measure={index === 0}
+                  firstRowRef={firstRowRef}
+                  lead={lead}
+                  leadOffsets={leadOffsets}
+                  leadCell={
+                    leadCell as
+                      | ((row: BuildRow, column: BuildLeadColumn) => string)
+                      | undefined
+                  }
+                  columnGroups={columnGroups}
+                  sized={sized}
+                  cell={cell}
+                  ids={ids}
+                  grandTotalKeys={grandTotalKeys}
+                  emphasisWeight={emphasisStyle?.fontWeight ?? 600}
+                />
               ))}
               <RowSpacer height={rowsInView.bottomPad} columnCount={columnCount} />
             </ListingTable.Body>
@@ -558,6 +450,207 @@ export default function BuildTable<L extends BuildLeadColumn = BuildLeadColumn>(
     </Box>
   );
 }
+
+/**
+ * One body row.
+ *
+ * Memoised because a scroll of the Customers table moves the window by a row
+ * or two. Redrawing every figure on screen — thousands of buttons — froze the
+ * gesture. A row whose inputs did not change is the same row and is left as it
+ * was; only the row that entered the window is drawn.
+ */
+const WindowedRow = memo(function WindowedRow({
+  row,
+  depth,
+  expandable,
+  measure,
+  firstRowRef,
+  lead,
+  leadOffsets,
+  leadCell,
+  columnGroups,
+  sized,
+  cell,
+  ids,
+  grandTotalKeys,
+  emphasisWeight,
+}: {
+  row: BuildRow;
+  depth: number;
+  expandable: boolean;
+  measure: boolean;
+  firstRowRef: Ref<HTMLTableRowElement>;
+  lead: readonly BuildLeadColumn[];
+  leadOffsets: readonly (number | undefined)[];
+  leadCell?: (row: BuildRow, column: BuildLeadColumn) => string;
+  columnGroups: readonly BuildColumnGroup[];
+  sized: readonly BuildSubColumn[];
+  cell: BuildCellFor;
+  ids: BuildTableIds;
+  grandTotalKeys?: ReadonlySet<string>;
+  emphasisWeight: number;
+}) {
+  const grand = (key: string) => (grandTotalKeys?.has(key) ? { fontWeight: 600 } : {});
+  return (
+    <ListingTable.Row
+      // One row is measured, and every other is assumed to match it.
+      // They do: the label cannot wrap (`nowrap`), every figure is
+      // one line and every row is the same text at the same padding.
+      ref={measure ? firstRowRef : undefined}
+      sx={[
+        rowSx({
+          emphasis: row.emphasis,
+          // A bold row is weight alone: no fill under it, and no
+          // rule above Ending ARR — `row.ruleAbove` is not drawn.
+          emphasisFill: false,
+          emphasisWeight,
+        }),
+        // A section band naming the metric group under it (ARR
+        // movement, Customers, …). It does not react to the pointer.
+        depth === 0 && expandable ? sectionRowSx : {},
+      ]}
+    >
+      <ListingTable.Cell
+        component="th"
+        scope="row"
+        id={ids.rowHeader(row.id)}
+        style={{
+          width: lead[0].width,
+          minWidth: lead[0].width,
+          maxWidth: lead[0].width,
+        }}
+        sx={[leadCellSx(leadOffsets[0])]}
+      >
+        {/* No indent under a section and no control on a section
+            row: every label, band or line, shares the column's left
+            inset. */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography
+            component="span"
+            sx={[
+              {
+                fontSize: "inherit",
+                fontWeight: "inherit",
+                lineHeight: "inherit",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                color: "inherit",
+              },
+              depth === 0 && expandable ? SECTION_LABEL_SX : {},
+            ]}
+          >
+            {row.label}
+          </Typography>
+        </Box>
+      </ListingTable.Cell>
+
+      {/* The identity columns after the name. Ordinary cells, not row
+          headers: an Account ID is a fact ABOUT the row, not a second
+          name for it, so a screen reader should hear it as a value
+          under its own column and not as part of the row's name. */}
+      {lead.slice(1).map((column, offsetIndex) => {
+        const index = offsetIndex + 1;
+        // Asked once: the title and the text are the same value.
+        const text = leadCell?.(row, column) ?? "";
+        return (
+          <ListingTable.Cell
+            key={column.key}
+            headers={`${ids.rowHeader(row.id)} ${ids.leadHeader(column.key)}`}
+            style={{
+              width: column.width,
+              minWidth: column.width,
+              maxWidth: column.width,
+            }}
+            sx={[leadCellSx(leadOffsets[index])]}
+          >
+            {/* The full value on the cell itself. Identity columns
+                truncate — every row is one line, because the row
+                window measures one and assumes the rest match — so a
+                long value would otherwise be readable only as the
+                fragment that happens to fit. */}
+            <Typography
+              component="span"
+              title={text}
+              sx={{
+                fontSize: "inherit",
+                fontWeight: "inherit",
+                lineHeight: "inherit",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                display: "block",
+              }}
+            >
+              {text}
+            </Typography>
+          </ListingTable.Cell>
+        );
+      })}
+
+      {columnGroups.map((group) =>
+        sized.map((subColumn) => {
+          const figure = cell(row, group, subColumn);
+          return (
+            <ListingTable.Cell
+              key={`${group.key}:${subColumn.key}`}
+              headers={ids.cellHeaders(row.id, group.key, subColumn.key)}
+              style={{ width: subColumn.width, minWidth: subColumn.width }}
+              // No rule between figures — only the pinned column's
+              // and the header's. A negative carries its sign and
+              // nothing else: no `error.main`.
+              sx={[
+                NUMERIC_CELL_SX,
+                figure.muted ? { color: "grey.500" } : {},
+                grand(subColumn.key),
+              ]}
+            >
+              {figure.onActivate ? (
+                // A real button inside the cell, not a click handler
+                // on the cell. A `<td onClick>` is invisible to the
+                // keyboard and announces nothing, and a drill-down
+                // only a mouse can reach is one half the readers of a
+                // finance report cannot use. Inside rather than
+                // instead, so the cell keeps its `headers` wiring.
+                <ButtonBase
+                  onClick={figure.onActivate}
+                  // A blank figure is still a control when it opens
+                  // something. With no text, the button has no name.
+                  aria-label={
+                    figure.text.trim()
+                      ? undefined
+                      : `View details for ${row.label}, ${group.label}, ${subColumn.label}`
+                  }
+                  sx={{
+                    font: "inherit",
+                    color: "inherit",
+                    // Nothing at rest: a figure that opens shows its
+                    // underline only to a pointer or the keyboard, so
+                    // a column of numbers still reads as a column.
+                    textDecoration: "none",
+                    textDecorationStyle: "dotted",
+                    textUnderlineOffset: 3,
+                    borderRadius: 0.5,
+                    px: 0.25,
+                    // The figure stays where an unopenable one sits,
+                    // so a column of numbers still reads as a column.
+                    justifyContent: "flex-end",
+                    width: "100%",
+                    "&:hover, &.Mui-focusVisible": { textDecoration: "underline" },
+                  }}
+                >
+                  {figure.text}
+                </ButtonBase>
+              ) : (
+                figure.text
+              )}
+            </ListingTable.Cell>
+          );
+        }),
+      )}
+    </ListingTable.Row>
+  );
+});
 
 /** The space rows outside the window would have taken, as one empty row. */
 function RowSpacer({ height, columnCount }: { height: number; columnCount: number }) {
@@ -641,6 +734,45 @@ function useMeasuredValue<T extends HTMLElement>(
 }
 
 /**
+ * The element whose vertical scroll moves this table.
+ *
+ * The table's own box, when it is the scroller (a dialog, a capped body).
+ * The page, when the box is as tall as its rows and the page moves through
+ * them — `overflow-y: hidden` there, so it is not a candidate. jsdom lays
+ * nothing out, so nothing overflows and the box itself is the answer the
+ * tests drive.
+ */
+function verticalScroller(element: HTMLElement): HTMLElement {
+  let node: HTMLElement | null = element;
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      node.scrollHeight > node.clientHeight + 1
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return element;
+}
+
+/**
+ * How far into the body the reader has scrolled, in px.
+ *
+ * On the box itself that is `scrollTop`. On the page it is how far the body
+ * — under the header, which is not a row — has travelled above the page's
+ * visible top.
+ */
+function bodyScrollOffset(body: HTMLElement, scroller: HTMLElement): number {
+  if (scroller === body) return body.scrollTop;
+  const thead = body.querySelector("thead");
+  const header = thead?.getBoundingClientRect().height ?? 0;
+  const top = body.getBoundingClientRect().top + header;
+  return Math.max(0, scroller.getBoundingClientRect().top - top);
+}
+
+/**
  * Which rows to put in the document.
  *
  * Required scope of hand-rolling, not a caveat: a hand-rolled
@@ -687,16 +819,58 @@ function useRowWindow(total: number, maxBodyHeight: number) {
   // better answer than rendering every row once and windowing on the next
   // pass — and it means `rowHeight` is never zero, whatever the DOM says.
   const rowHeight = measuredRowHeight || ESTIMATED_ROW_HEIGHT;
+  // The scroll listener outlives this render. The height it buckets by has to
+  // be the one just measured, not the one from the render that attached it.
+  const rowHeightRef = useRef(rowHeight);
+  useLayoutEffect(() => {
+    rowHeightRef.current = rowHeight;
+  });
+  // Set when the page is the scroller, so a 9,000px table does not tell the
+  // window it is 9,000px tall and draw every row. Zero means "this box scrolls
+  // itself" and the measurement below is the one to use.
+  const [pageViewport, setPageViewport] = useState(0);
 
-  const onScroll = (event: UIEvent<HTMLDivElement>) => {
-    const next = event.currentTarget.scrollTop;
+  const remember = (next: number) => {
+    const height = rowHeightRef.current;
     // Only when the window would actually move. A scroll event fires per frame;
     // re-rendering for a change of three pixels re-asks the caller for every
     // figure on screen to produce identical markup.
     setScrollTop((previous) =>
-      Math.floor(previous / rowHeight) === Math.floor(next / rowHeight) ? previous : next,
+      Math.floor(previous / height) === Math.floor(next / height) ? previous : next,
     );
   };
+
+  const onScroll = (event: UIEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    // Horizontal scrolling fires this too. Reading `scrollTop` alone would
+    // be 0 on a table that scrolls with the page, and the window would jump
+    // back to the first customer.
+    remember(bodyScrollOffset(element, verticalScroller(element)));
+  };
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element || !windowed) return;
+    const scroller = verticalScroller(element);
+    const page = scroller !== element;
+    // The same anchoring that stuck the inner scroller sticks the page once
+    // the spacer above the rows changes height under the reader's thumb.
+    if (page) scroller.style.overflowAnchor = "none";
+    const apply = () => {
+      remember(bodyScrollOffset(element, scroller));
+      if (!page) return;
+      const view = scroller.clientHeight;
+      if (view > 0) setPageViewport((previous) => (previous === view ? previous : view));
+    };
+    scroller.addEventListener("scroll", apply, { passive: true });
+    window.addEventListener("resize", apply);
+    apply();
+    return () => {
+      scroller.removeEventListener("scroll", apply);
+      window.removeEventListener("resize", apply);
+      if (page) scroller.style.overflowAnchor = "";
+    };
+  }, [windowed, total, scrollRef]);
 
   if (!windowed) {
     return {
@@ -718,7 +892,7 @@ function useRowWindow(total: number, maxBodyHeight: number) {
       // all under jsdom. `maxBodyHeight` is what it will settle at, so it is
       // the right guess rather than a fallback — and it errs long, which costs
       // a few extra rows rather than leaving a gap at the bottom of the view.
-      viewportHeight: viewportHeight || maxBodyHeight,
+      viewportHeight: pageViewport || viewportHeight || maxBodyHeight,
       rowHeight,
     }),
   };

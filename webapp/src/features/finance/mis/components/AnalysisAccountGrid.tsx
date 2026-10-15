@@ -135,12 +135,15 @@ export default function AnalysisAccountGrid({
   }, [rows.length]);
 
   return (
-    <Box ref={frame} sx={{ height: 660, width: "100%" }}>
+    <Box ref={frame} sx={{ width: "100%" }}>
       <DataGrid.DataGrid
         apiRef={apiRef}
         rows={rows}
         columns={columns}
         loading={isLoading}
+        // The current page of accounts is fully on the page. The content
+        // column scrolls; this grid does not keep its own short scroller.
+        autoHeight
         disableRowSelectionOnClick
         // Rows grow only when the product chips wrap. An estimate is required
         // alongside `auto`, or the grid cannot size its scrollbar before it has

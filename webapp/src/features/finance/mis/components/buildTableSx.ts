@@ -43,9 +43,10 @@ export const ROW_LABEL_WIDTH = 288;
 
 /**
  * How tall the body grows before it scrolls under the header. Tall enough for
- * a full Subscription Build to fit one screenshot.
+ * a full Build summary, and for a large slice of a customer or region table,
+ * so the rows sit on the page and the content column scrolls past them.
  */
-export const MAX_BODY_HEIGHT = 560;
+export const MAX_BODY_HEIGHT = 1400;
 
 /**
  * The stacking order, top to bottom.
