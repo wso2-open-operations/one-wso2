@@ -20,6 +20,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+// `apiConfig.ts`'s `ccBackendUrl` is read once at module load from
+// `window.config`, which jsdom doesn't provide — the Default tab's own
+// `FinanceShell` reads `isCcBackendConfigured()` directly now (unlike
+// before, when `CcDashboardPage` — mocked below — was the only thing that
+// ever touched it), so this has to be set before `FinanceOverviewPage`
+// itself is imported.
+window.config = { ONE_WSO2_CC_EXPENSES_BACKEND_URL: "http://test-cc-backend" } as typeof window.config;
+
 // Per-backend fixture: EACH of cc/opd/expense has its own resolved/role/error
 // state, and `useFinanceGate` is mocked to answer only from whichever subset
 // `needs` names — same contract the real hook has. This is what lets a test
@@ -85,6 +93,9 @@ vi.mock("../expense/dashboard/ExpenseDashboardScreen", () => ({
     <div data-testid="expense-dashboard">{headerActions}</div>
   ),
 }));
+vi.mock("./OverviewDefaultSummary", () => ({
+  default: () => <div data-testid="overview-default" />,
+}));
 
 const { default: FinanceOverviewPage } = await import("./FinanceOverviewPage");
 
@@ -115,6 +126,7 @@ beforeEach(() => {
 });
 
 const aDashboard = () =>
+  screen.queryByTestId("overview-default") ??
   screen.queryByTestId("cc-dashboard") ??
   screen.queryByTestId("opd-dashboard") ??
   screen.queryByTestId("expense-dashboard");
@@ -169,12 +181,12 @@ describe("a reader with neither a card nor an OPD role", () => {
 // A reader holding one side is not offered the other: picking it would only
 // land them on that dashboard's own denial notice.
 describe("what the switcher offers", () => {
-  it("opens the CC dashboard, and offers only it, for a card owner", () => {
+  it("opens the Default summary, and offers only Credit Card alongside it, for a card owner", () => {
     settled({ ccHasOwnCard: true });
     render(<FinanceOverviewPage />);
 
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toHaveTextContent("Credit Card");
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveTextContent("Default");
     expect(screen.queryByTestId("opd-dashboard")).not.toBeInTheDocument();
   });
 
@@ -244,7 +256,7 @@ describe("what the switcher offers", () => {
     // at all until opened — so the combobox has to be opened first.
     await userEvent.click(screen.getByRole("combobox"));
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
-    expect(options).toEqual(["Credit Card", "OPD Claims", "Expense Claims"]);
+    expect(options).toEqual(["Default", "OPD Claims", "Expense Claims", "Credit Card"]);
   });
 
   // Picking Expense Claims would only ever land on its own denial notice for
@@ -358,8 +370,8 @@ describe("a reader shut out by a failed CC lookup, not a missing role", () => {
   });
 });
 
-// Reviewed into this exact order: "Default to OPD, then Expense, then CC".
-describe("default priority: OPD, then Expense, then CC", () => {
+// Reviewed into this exact order: "Default to OPD, then Expense, then Default".
+describe("default priority: OPD, then Expense, then Default", () => {
   it("defaults to OPD for a reader holding all three roles", () => {
     settled({ ccHasOwnCard: true, opdFinance: true, expenseFinance: true });
     render(<FinanceOverviewPage />);
@@ -387,26 +399,26 @@ describe("default priority: OPD, then Expense, then CC", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("falls to CC only once both OPD and Expense have answered no", () => {
+  it("falls to Default only once both OPD and Expense have answered no", () => {
     backend.opd = { resolved: true, role: false, errored: false };
     backend.expense = { resolved: true, role: false, errored: false };
     backend.cc = { resolved: true, role: true, errored: false };
 
     render(<FinanceOverviewPage />);
 
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
   });
 });
 
 // Reviewed: "Overview ... should never switch on its own" — the default,
 // once shown, is not swapped for a later-arriving or later-changing answer.
 describe("locking the first dashboard shown", () => {
-  it("keeps showing CC after it locks in, even once OPD resolves true afterward", () => {
-    // OPD and Expense both answer no first — CC is the only option, and it
-    // locks in as soon as it's reached.
+  it("keeps showing Default after it locks in, even once OPD resolves true afterward", () => {
+    // OPD and Expense both answer no first — Default is the only option, and
+    // it locks in as soon as it's reached.
     settled({ ccHasOwnCard: true });
     const { rerender } = render(<FinanceOverviewPage />);
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
 
     // OPD's answer changes afterward (a background refetch granting a role
     // that was not there a moment ago) — without the lock this would swap
@@ -414,20 +426,21 @@ describe("locking the first dashboard shown", () => {
     backend.opd.role = true;
     rerender(<FinanceOverviewPage />);
 
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
     expect(screen.queryByTestId("opd-dashboard")).not.toBeInTheDocument();
   });
 
   // THE bug reviewed as "after a successful retry, Overview shows the wrong
   // dashboard". Different from the test above in one crucial way: there, OPD
-  // cleanly resolved "no role" before CC locked in, so the lock was correct
-  // to hold. Here, OPD ERRORED — an uncertain "no", not a definitive one — so
-  // CC is shown (it is still the best answer available) but must NOT lock,
-  // precisely so a successful retry can still promote OPD above it.
-  it("switches to OPD once a retry resolves OPD's earlier error, because the CC default was never locked", () => {
+  // cleanly resolved "no role" before Default locked in, so the lock was
+  // correct to hold. Here, OPD ERRORED — an uncertain "no", not a definitive
+  // one — so Default is shown (it is still the best answer available) but
+  // must NOT lock, precisely so a successful retry can still promote OPD
+  // above it.
+  it("switches to OPD once a retry resolves OPD's earlier error, because the Default tab was never locked", () => {
     settled({ ccHasOwnCard: true, opdErrored: true });
     const { rerender } = render(<FinanceOverviewPage />);
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
 
     // The reader presses Retry (or a background refetch succeeds): OPD now
     // resolves with a real role instead of an error.
@@ -435,26 +448,26 @@ describe("locking the first dashboard shown", () => {
     rerender(<FinanceOverviewPage />);
 
     expect(screen.getByTestId("opd-dashboard")).toBeInTheDocument();
-    expect(screen.queryByTestId("cc-dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("overview-default")).not.toBeInTheDocument();
   });
 
   // The flip side of the same fix: if the retry does NOT change the
   // answer (OPD resolves cleanly to "no role" this time, rather than
-  // another error), CC is still correct, and now gets to lock in.
-  it("keeps showing CC if a retry resolves OPD's error into a clean 'no role' rather than a yes", () => {
+  // another error), Default is still correct, and now gets to lock in.
+  it("keeps showing Default if a retry resolves OPD's error into a clean 'no role' rather than a yes", () => {
     settled({ ccHasOwnCard: true, opdErrored: true });
     const { rerender } = render(<FinanceOverviewPage />);
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
 
     backend.opd = { resolved: true, role: false, errored: false };
     rerender(<FinanceOverviewPage />);
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
 
     // Now locked — confirms the retry outcome didn't just coincidentally
     // match, but actually latched the way the first test in this block does.
     backend.opd.role = true;
     rerender(<FinanceOverviewPage />);
-    expect(screen.getByTestId("cc-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("overview-default")).toBeInTheDocument();
   });
 
   it("keeps showing OPD after it locks in, even once a background refetch changes CC's own answer", () => {

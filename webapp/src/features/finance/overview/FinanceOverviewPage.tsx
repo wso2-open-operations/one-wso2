@@ -18,22 +18,34 @@
 
 import { useState } from "react";
 import { Alert, Button, MenuItem, Select } from "@wso2/oxygen-ui";
+import { LayoutDashboardIcon } from "@wso2/oxygen-ui-icons-react";
 import { useFinanceGate } from "../api/useFinanceGate";
 import CcDashboardPage from "../cc/pages/CcDashboardPage";
 import OpdDashboardScreen from "../opd/dashboard/OpdDashboardScreen";
 import ExpenseDashboardScreen from "../expense/dashboard/ExpenseDashboardScreen";
+import OverviewDefaultSummary from "./OverviewDefaultSummary";
+import FinanceShell from "../components/FinanceShell";
+import { isCcBackendConfigured } from "@config/apiConfig";
 
-type OverviewTab = "cc" | "opd" | "expense";
+type OverviewTab = "default" | "cc" | "opd" | "expense";
 
 // "Credit Card", not "Credit Card Expenses" — that name already belongs to
 // the app-section entry in the Finance rail (Pending Submissions, Approve
 // Submissions, ...), a different destination from this dashboard. Same
 // label in two places meaning two different things is exactly the
 // confusion this drops.
+//
+// "Default" is a quick, controls-free glance at Credit Card — the summary
+// tiles, Cardholders Details and Submitted Expenses by Category, with no
+// period/view-mode selectors — not the same thing as "Credit Card", which
+// still opens the full dashboard. It exists so landing on Overview shows
+// something meaningful immediately rather than silently defaulting to one
+// of the full dashboards underneath.
 const OVERVIEW_SECTIONS: { value: OverviewTab; label: string }[] = [
-  { value: "cc", label: "Credit Card" },
+  { value: "default", label: "Default" },
   { value: "opd", label: "OPD Claims" },
   { value: "expense", label: "Expense Claims" },
+  { value: "cc", label: "Credit Card" },
 ];
 
 /**
@@ -77,11 +89,13 @@ export default function FinanceOverviewPage() {
   // early return.
   const [picked, setPicked] = useState<OverviewTab | null>(null);
 
-  // Priority order: OPD, then Expense, then CC — reviewed into this order
-  // because OPD is the common case. Staged rather than flat, so a role that
-  // ranks ABOVE another is never skipped just because it hasn't answered
-  // yet: Expense is not consulted at all until OPD has definitively said
-  // no, and CC (the last resort) not until Expense has too.
+  // Priority order: OPD, then Expense, then Default (the CC-centric landing
+  // summary, shown whenever neither OPD nor Expense wins) — reviewed into
+  // this order because OPD is the common case. Staged rather than flat, so a
+  // role that ranks ABOVE another is never skipped just because it hasn't
+  // answered yet: Expense is not consulted at all until OPD has definitively
+  // said no, and the Default/CC tier (the last resort) not until Expense has
+  // too.
   //
   // `defaultStable` is the second half of this, for a case "definitively
   // no" glossed over: OPD can also settle by ERRORING, which reads exactly
@@ -112,7 +126,7 @@ export default function FinanceOverviewPage() {
     defaultSection = null;
     defaultStable = false;
   } else {
-    defaultSection = "cc";
+    defaultSection = "default";
     defaultStable = !opdGate.opdErrored && !expenseGate.expenseErrored;
   }
 
@@ -187,7 +201,13 @@ export default function FinanceOverviewPage() {
   // placeholder would be the one thing left to blink on the way to the
   // dashboard underneath.
   const sectionGate =
-    section === "opd" ? opdGate : section === "expense" ? expenseGate : section === "cc" ? ccGate : null;
+    section === "opd"
+      ? opdGate
+      : section === "expense"
+        ? expenseGate
+        : section === "cc" || section === "default"
+          ? ccGate
+          : null;
   if (sectionGate === null || sectionGate.isResolving) {
     return null;
   }
@@ -203,7 +223,19 @@ export default function FinanceOverviewPage() {
   // at least one of them is guaranteed true, even if the other two are still
   // resolving (and so, for now, read as the false they will settle into).
   const visibleSections = OVERVIEW_SECTIONS.filter((s) =>
-    s.value === "cc" ? ccGate.ccHasOwnCard : s.value === "opd" ? opdGate.opdFinance : expenseGate.expenseFinance,
+    s.value === "cc" || s.value === "default"
+      ? ccGate.ccHasOwnCard
+      : s.value === "opd"
+        ? opdGate.opdFinance
+        : expenseGate.expenseFinance,
+  );
+
+  // Built from `visibleSections`, not a fixed "Credit Card, Expense Claims
+  // and OPD Claims" string — a reader with only one or two of the three apps
+  // would otherwise see the subtitle promise a dashboard the switcher never
+  // actually offers them.
+  const appNames = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(
+    visibleSections.filter((s) => s.value !== "default").map((s) => s.label),
   );
 
   const switcher = (
@@ -228,7 +260,18 @@ export default function FinanceOverviewPage() {
   // in the dropdown — indistinguishable, until now, from genuinely holding
   // no role there.
   const page =
-    section === "cc" ? (
+    section === "default" ? (
+      <FinanceShell
+        eyebrow={{ icon: LayoutDashboardIcon, label: "Overview" }}
+        title="Finance Overview"
+        subtitle={`A quick glance across ${appNames} — pick one by name above for its full dashboard.`}
+        configured={isCcBackendConfigured()}
+        configKey="ONE_WSO2_CC_EXPENSES_BACKEND_URL"
+        actions={switcher}
+      >
+        <OverviewDefaultSummary />
+      </FinanceShell>
+    ) : section === "cc" ? (
       <CcDashboardPage headerActions={switcher} />
     ) : section === "opd" ? (
       <OpdDashboardScreen headerActions={switcher} />

@@ -16,17 +16,40 @@
  * under the License.
  */
 
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { Navigate, Outlet } from "react-router";
 import { Alert, Box, Typography } from "@wso2/oxygen-ui";
 import RoutedTabs from "@components/routed-tabs/RoutedTabs";
-import { CLAIM_APPROVAL_GATE_APPS, useFinanceGate } from "../api/useFinanceGate";
+import { CLAIM_APPROVAL_GATE_APPS, useFinanceGate, type FinanceGate } from "../api/useFinanceGate";
 import {
   CLAIM_APPROVAL_PATH,
   CLAIM_APPROVAL_TABS,
   firstAllowedClaimTab,
   type ClaimApprovalGateId,
 } from "./claimApprovalTabs";
+
+// Shares the ONE `useFinanceGate()` call this page makes with its own
+// `<Outlet />` descendants (`ClaimApprovalIndex`, `ClaimApprovalTabRoute`),
+// which used to each call the hook again themselves. That meant every one of
+// the four backends `useFinanceGate` reads from (CC, OPD, Expense, Master
+// Data — none of which this screen even needs besides OPD and Expense) got
+// hit 2-3 times on a single visit to this page, each a fresh mount
+// re-resolving from scratch. Reading the already-settled value here instead
+// removes that re-resolution entirely, so it also closes the flicker window
+// `ClaimApprovalTabRoute`'s own comment used to warn about — there is no
+// second fetch left to lag behind the first.
+const ClaimApprovalGateContext = createContext<FinanceGate | null>(null);
+
+/** The gate `ClaimApprovalPage` already resolved, for its own route tree only. */
+function useClaimApprovalGate(): FinanceGate {
+  const gate = useContext(ClaimApprovalGateContext);
+  // Only null if read outside ClaimApprovalPage's <Outlet /> tree, which
+  // never happens in practice — App.tsx nests every consumer under it.
+  if (!gate) {
+    throw new Error("useClaimApprovalGate must be read inside <ClaimApprovalPage />");
+  }
+  return gate;
+}
 
 // FinanceShell's own fillColumn, verbatim.
 const fillColumn = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" } as const;
@@ -77,18 +100,20 @@ export default function ClaimApprovalPage() {
       {gate.isResolving ? null : visible.length === 0 ? (
         <Alert severity="info">You don&apos;t approve claims, so there is nothing here.</Alert>
       ) : (
-        <Box sx={fillColumn}>
-          <Box sx={{ flexShrink: 0 }}>
-            <RoutedTabs
-              basePath={CLAIM_APPROVAL_PATH}
-              tabs={visible}
-              ariaLabel="Claim approval sections"
-            />
+        <ClaimApprovalGateContext.Provider value={gate}>
+          <Box sx={fillColumn}>
+            <Box sx={{ flexShrink: 0 }}>
+              <RoutedTabs
+                basePath={CLAIM_APPROVAL_PATH}
+                tabs={visible}
+                ariaLabel="Claim approval sections"
+              />
+            </Box>
+            <Box sx={scrollBoundary}>
+              <Outlet />
+            </Box>
           </Box>
-          <Box sx={scrollBoundary}>
-            <Outlet />
-          </Box>
-        </Box>
+        </ClaimApprovalGateContext.Provider>
       )}
     </Box>
   );
@@ -97,17 +122,16 @@ export default function ClaimApprovalPage() {
 /**
  * The index route: sends the visitor to the first tab they may open.
  *
- * Its own `isResolving` branch, despite the page above holding the <Outlet />
- * behind one already. That is a DIFFERENT `useFinanceGate()` — a hook call has
- * state of its own, and identity resolution starts over for each one — so this
- * component mounts fresh, the instant the page's gate settles, with its own
- * still unsettled. For the render or two that takes, `canSee` answers no to
- * everything and this redirected an approver away from the tab they were
- * entitled to. A redirect is not undone when the answer arrives.
+ * Reads the gate `ClaimApprovalPage` already resolved via
+ * `useClaimApprovalGate()`, rather than calling `useFinanceGate()` again —
+ * this only ever mounts inside that page's `<Outlet />`, which itself only
+ * renders once the page's own gate has settled, so there is no unresolved
+ * state left for this component to hit. The flicker this used to guard
+ * against (a redirect-away during a SECOND, independent resolution) can't
+ * happen anymore: there is no second resolution.
  */
 export function ClaimApprovalIndex() {
-  const gate = useFinanceGate(true, CLAIM_APPROVAL_GATE_APPS);
-  if (gate.isResolving) return null;
+  const gate = useClaimApprovalGate();
   const first = firstAllowedClaimTab(gate.canSee);
   if (!first) return null; // the page already explains this case
   return <Navigate to={`${CLAIM_APPROVAL_PATH}/${first.segment}`} replace />;
@@ -117,6 +141,10 @@ export function ClaimApprovalIndex() {
  * Guards one tab's route. A tab the gate refuses is not merely absent from the
  * bar — reaching its URL directly redirects to whatever this person may see, or
  * says so plainly when that is nothing. Hiding a tab is not access control.
+ *
+ * Reads the same shared gate as `ClaimApprovalIndex` above, for the same
+ * reason — it only ever mounts inside `ClaimApprovalPage`'s already-settled
+ * `<Outlet />`, so there is nothing left here to resolve or flicker on.
  */
 export function ClaimApprovalTabRoute({
   gateId,
@@ -125,21 +153,7 @@ export function ClaimApprovalTabRoute({
   gateId: ClaimApprovalGateId;
   children: ReactNode;
 }) {
-  const gate = useFinanceGate(true, CLAIM_APPROVAL_GATE_APPS);
-
-  // An unresolved gate reports no roles, and this component decides between
-  // "your tab" and "not available for your role" with no third answer — so
-  // without this it announced the refusal first and the tab a moment later.
-  // That is the flicker on this screen: the approver DID get in, they were
-  // just told they hadn't on the way.
-  //
-  // This gate is not the page's above but a fresh one, mounted the moment the
-  // page's own settled and unsettled again for its first render or two — which
-  // is why the page's guard never covered this one. Nothing rendered while it
-  // resolves, matching the page: a refusal withdrawn a moment later is worse
-  // than a beat of nothing, and the refusal here is the load-bearing one — it
-  // is what a non-approver is left with.
-  if (gate.isResolving) return null;
+  const gate = useClaimApprovalGate();
 
   if (!gate.canSee(gateId)) {
     const first = firstAllowedClaimTab(gate.canSee);

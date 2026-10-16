@@ -16,8 +16,12 @@
  * under the License.
  */
 
-import { wholeAmount } from "../util/financeFormat";
-import type { CcCategoryMonthAmount, CcManagerCompliance } from "./ccTypes";
+import type {
+  CcAgeBucketAmount,
+  CcCategoryMonthAmount,
+  CcLeadTeamCardHolder,
+  CcLeadTeamUnsubmittedSummary,
+} from "./ccTypes";
 
 // The dashboard's date arithmetic and bucketing, as pure functions —
 // transcribed from view/dashboard/utils.ts.
@@ -174,25 +178,30 @@ export function buildBreakdown(
   };
 }
 
-/**
- * Reminder text for a reporting manager about their direct reports' unsubmitted
- * credit card transactions, copied by the manager-compliance table's
- * "Copy reminder" button.
- */
-export function buildManagerReminderMessage(manager: CcManagerCompliance, currency: string): string {
-  // A manager with no name on record still gets a greeting, not "Hi ,".
-  const firstName = manager.managerName.split(" ")[0] || "there";
-  const count = manager.reports.length;
-  const reportLines = manager.reports.map(
-    (report) =>
-      `- ${report.cardHolderName || report.employeeEmail}: ` +
-      `${report.transactionCount} ${report.transactionCount === 1 ? "item" : "items"}, ` +
-      `${currency} ${wholeAmount(report.outstandingAmount)}`,
-  );
-  return [
-    `Hi ${firstName}, ${count} of your direct reports ${count === 1 ? "has" : "have"} `
-      + "unsubmitted credit card transactions:",
-    ...reportLines,
-    "Please remind them to submit their claims promptly.",
-  ].join("\n");
+export interface CcTeamUnsubmittedTotals {
+  count: number;
+  amount: number;
+  avgDaysOutstanding: number | null;
+  ageBuckets: CcAgeBucketAmount[];
 }
+
+/**
+ * A lead's team-wide unsubmitted totals for the drill-down's summary tiles.
+ * The two totals are summed from the card-holder rows already fetched for
+ * `CcLeadTeamUnsubmittedTable` (each row already carries its own unsubmitted
+ * count/amount); the average age and the age buckets come from a separate call
+ * since the rows only carry bucket *counts*, not the dollar value per bucket
+ * (or the team-wide average) the tiles need.
+ */
+export function summarizeTeamUnsubmitted(
+  cardHolders: CcLeadTeamCardHolder[],
+  summary: CcLeadTeamUnsubmittedSummary | undefined,
+): CcTeamUnsubmittedTotals {
+  return {
+    count: cardHolders.reduce((sum, holder) => sum + holder.unsubmittedCount, 0),
+    amount: cardHolders.reduce((sum, holder) => sum + holder.unsubmittedAmount, 0),
+    avgDaysOutstanding: summary?.avgDaysOutstanding ?? null,
+    ageBuckets: Object.values(summary?.ageBuckets ?? {}),
+  };
+}
+
