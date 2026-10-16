@@ -68,7 +68,7 @@ describe("canCancelRisk", () => {
   });
 
   it("allows nothing once the risk is live", () => {
-    for (const status of ["IN_REMEDIATION", "PENDING_COMPLIANCE_REVIEW", "CLOSED", "PENDING_AMENDMENT"]) {
+    for (const status of ["APPROVED", "PENDING_COMPLIANCE_REVIEW", "CLOSED", "PENDING_AMENDMENT"]) {
       expect(canCancelRisk(status, null)).toBe(false);
     }
   });

@@ -153,19 +153,24 @@ const PENDING_AMENDMENT_VISIBLE_STATUSES = new Set([
   "PENDING_COMPLIANCE_REVIEW",
 ]);
 
+// Change-log rows written before the IN_REMEDIATION → APPROVED rename keep the
+// old value in details.to (history was deliberately not rewritten), so both
+// spellings count.
+const isApprovedTarget = (to: unknown) => to === "APPROVED" || to === "IN_REMEDIATION";
+
 // Finds the field-level changes belonging to the amendment currently under
 // review, purely from the history log — no dedicated backend state exists for
 // this (risk_type stays "UPDATED" forever once any mid-remediation edit ever
 // happens, so it can't tell "current" from "long since approved").
 //
 // history is newest-first. The boundary is the most recent REJECT, or the
-// most recent APPROVE that landed the risk back in IN_REMEDIATION — the one
+// most recent APPROVE that landed the risk back in APPROVED — the one
 // point every approval path (the risk's original submission, or an
 // amendment's) converges on. Everything newer than that boundary with action
 // UPDATE belongs to the amendment now under review; a REJECT resets the
 // window so a superseded edit never bleeds into a later cycle.
 //
-// Gated on the risk having reached IN_REMEDIATION at least once, anywhere in
+// Gated on the risk having reached APPROVED at least once, anywhere in
 // its full history — not just as this scan's break point. Without that
 // guard, a risk still churning through its very first approval (rejected
 // during PENDING_REVISION, edited, resubmitted) would have its scan stop at
@@ -173,14 +178,14 @@ const PENDING_AMENDMENT_VISIBLE_STATUSES = new Set([
 // post-remediation amendment, which this banner is specifically not about.
 function pendingAmendmentChanges(history: HistoryEntry[]): HistoryEntry[] {
   const everReachedRemediation = history.some(
-    (e) => e.action === "APPROVE" && e.details?.to === "IN_REMEDIATION",
+    (e) => e.action === "APPROVE" && isApprovedTarget(e.details?.to),
   );
   if (!everReachedRemediation) return [];
 
   const changes: HistoryEntry[] = [];
   for (const entry of history) {
     if (entry.action === "REJECT") break;
-    if (entry.action === "APPROVE" && entry.details?.to === "IN_REMEDIATION") break;
+    if (entry.action === "APPROVE" && isApprovedTarget(entry.details?.to)) break;
     if (entry.action === "UPDATE" && entry.field_changed) changes.push(entry);
   }
   return changes;
@@ -681,7 +686,7 @@ function ActionPlanCard({
   const isOwner = plan.action_owner_id !== null && plan.action_owner_id === currentUserId;
   // Mirrors the backend gate: steps/plan can only be completed while the
   // risk is actively being remediated, not before compliance approval.
-  const riskActive = riskStatus === "IN_REMEDIATION" || riskStatus === "ESCALATED";
+  const riskActive = riskStatus === "APPROVED" || riskStatus === "ESCALATED";
   // Being the plan's action owner IS the authorisation — no privilege check.
   // RISK_COMPLETE_ACTION_STEPS was retired along with the action-owner role,
   // because an Action Owner may be any employee and hold no role at all; the
@@ -887,7 +892,7 @@ export function ActionFooter({
     case "PENDING_MANAGEMENT_CLOSURE_APPROVAL":
       return rejectAndApprove("Approve Closure", actions.onManagementApprove, RiskPrivilege.ManagementApproveRisk, RiskPrivilege.ManagementRejectRisk, isManagementApprover);
 
-    case "IN_REMEDIATION": {
+    case "APPROVED": {
       const showEdit = can(RiskPrivilege.UpdateRisk) && isRiskAssigner;
       // Reassessment is deliberately NOT identity-gated — the backend applies
       // no assigner check to it either, and keeping the two in step matters
@@ -1075,7 +1080,7 @@ export default function RiskDetailDrawer({
   // hide actions the server would have allowed.
   // An unresolved escalation is what puts the risk in the Overdue tab and
   // enables the review action — the workflow status doesn't say, because a
-  // commented escalation is back to IN_REMEDIATION while still open.
+  // commented escalation is back to APPROVED while still open.
   const openEscalation = escalations.find((e) => e.status === "OPEN") ?? null;
 
   const canOverrideAssignee = can(RiskPrivilege.ComplianceApproveRisk);

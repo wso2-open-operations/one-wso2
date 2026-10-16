@@ -83,7 +83,7 @@ export const STATUS_CONFIG: Record<string, StatusCfg> = {
   PENDING_RISK_OWNER_APPROVAL:    { label: "Pending Owner Approval",      color: "warning" },
   PENDING_MANAGEMENT_APPROVAL:    { label: "Pending Management Approval",  color: "warning" },
   PENDING_COMPLIANCE_REVIEW:      { label: "Pending Compliance Approval",  color: "default" },
-  IN_REMEDIATION:                 { label: "In Remediation",               color: "info" },
+  APPROVED:                       { label: "Approved",                     color: "info" },
   PENDING_OWNER_COMPLETION_APPROVAL: { label: "Awaiting Owner Sign-off",   color: "warning" },
   PENDING_MANAGEMENT_CLOSURE_APPROVAL: { label: "Awaiting Management Sign-off", color: "warning" },
   PENDING_COMPLIANCE_CLOSURE:     { label: "Awaiting Closure",             color: "default", sx: { bgcolor: "#c8e6c9", color: "#1b5e20" } },
@@ -234,7 +234,7 @@ export const PENDING_REVISION_STATUSES = [
 ];
 
 // Statuses that appear in the "Approved Risks" tab.
-export const APPROVED_OPEN_STATUSES = ["IN_REMEDIATION"];
+export const APPROVED_OPEN_STATUSES = ["APPROVED"];
 
 // ESCALATED risks stay visible here too (their chip still reads "Open" — see
 // statusLabel()/OutlinedStatusChip() in RiskRegisters.tsx, which special-case
@@ -246,12 +246,12 @@ export const APPROVED_ALL_STATUSES = [...APPROVED_OPEN_STATUSES, "CLOSED", "ESCA
 //
 // The tab itself no longer filters by status — membership is "has an
 // unresolved escalation" (the open_escalation query param), because a
-// commented escalation returns the risk to IN_REMEDIATION while staying open,
+// commented escalation returns the risk to APPROVED while staying open,
 // so it must appear under Approved Risks and Overdue at the same time. These
 // are simply the statuses a risk can realistically be in while escalated.
 export const OVERDUE_STATUSES = [
   "ESCALATED",
-  "IN_REMEDIATION",
+  "APPROVED",
   "PENDING_AMENDMENT",
   "PENDING_OWNER_COMPLETION_APPROVAL",
 ];

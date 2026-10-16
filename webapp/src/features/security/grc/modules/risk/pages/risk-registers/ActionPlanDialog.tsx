@@ -63,7 +63,7 @@ interface StepRow {
 // Mirrors the Standard action plan form (ActionPlanStep.tsx) — description +
 // a repeatable step list + an unrestricted Action Owner picker — but as a
 // standalone dialog rather than a wizard step, since the Risk Assigner
-// creates this while the risk is already IN_REMEDIATION, not at
+// creates this while the risk is already APPROVED, not at
 // risk-creation time. Typically follows an escalation review that asked for
 // more work, but nothing requires the risk to have ever been escalated.
 export default function ActionPlanDialog({
@@ -181,7 +181,7 @@ export default function ActionPlanDialog({
           Create Action Plan
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Lay out another action plan for this risk while it&apos;s in remediation.
+          Lay out another action plan for this risk while it&apos;s approved.
         </Typography>
       </DialogTitle>
       <DialogContent>

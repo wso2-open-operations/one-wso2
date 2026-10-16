@@ -327,7 +327,7 @@ export interface ListRisksParams {
   due_overdue?: boolean;
   // Risks carrying an unresolved escalation — what the Overdue Risks tab
   // filters on. Not the ESCALATED status: once management comments, the risk
-  // returns to IN_REMEDIATION while the escalation stays open, so it shows in
+  // returns to APPROVED while the escalation stays open, so it shows in
   // Approved Risks and Overdue at the same time.
   open_escalation?: boolean;
   offset?: number;
@@ -1049,7 +1049,7 @@ export async function fetchRiskHistory(authFetch: AuthFetch, riskId: number): Pr
 }
 
 // commentOnEscalation answers an escalation. The comment alone returns the risk
-// to its assigner (ESCALATED → IN_REMEDIATION); the escalation stays open, so
+// to its assigner (ESCALATED → APPROVED); the escalation stays open, so
 // the risk remains in the Overdue tab until the assigner submits it for
 // completion approval.
 //
@@ -1097,7 +1097,7 @@ export async function completeActionStep(
 
 // completeActionPlan requires every step already COMPLETED (enforced
 // server-side); for a MANAGEMENT plan this also resolves its escalation and
-// reverts the risk to IN_REMEDIATION.
+// reverts the risk to APPROVED.
 export async function completeActionPlan(
   authFetch: AuthFetch,
   riskId: number,
@@ -1115,7 +1115,7 @@ export async function fetchEscalations(authFetch: AuthFetch, riskId: number): Pr
 }
 
 // escalateRisk is the manual trigger — Compliance/Admin escalating an
-// overdue IN_REMEDIATION risk on demand instead of waiting for the daily job
+// overdue APPROVED risk on demand instead of waiting for the daily job
 // (up to 24h) to reach it. Same outcome either way: the risk moves to
 // ESCALATED and shows up in the Overdue Risks tab.
 export async function escalateRisk(authFetch: AuthFetch, riskId: number): Promise<Escalation> {

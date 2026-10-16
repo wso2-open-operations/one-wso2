@@ -156,14 +156,14 @@ const TABS: TabDef[] = [
 // "Open" (an escalated risk is still just an open remediation to the
 // assigner); the Overdue Risks tab is the only place it shows as "Escalated".
 function statusLabel(status: string, activeTab?: TabKey): string {
-  if (status === "IN_REMEDIATION") return "Open";
+  if (status === "APPROVED") return "Open";
   if (status === "CLOSED") return "Closed";
   if (status === "ESCALATED" && activeTab === "approved") return "Open";
   return STATUS_CONFIG[status]?.label ?? status;
 }
 
 function OutlinedStatusChip({ status, activeTab }: { status: string; activeTab?: TabKey }): JSX.Element {
-  if (status === "IN_REMEDIATION") return <Chip label="Open" color="info" size="small" variant="outlined" />;
+  if (status === "APPROVED") return <Chip label="Open" color="info" size="small" variant="outlined" />;
   if (status === "CLOSED") return <Chip label="Closed" color="success" size="small" variant="outlined" />;
   if (status === "ESCALATED" && activeTab === "approved") {
     return <Chip label="Open" color="info" size="small" variant="outlined" />;
@@ -484,7 +484,7 @@ export default function RiskRegisters(): JSX.Element {
       // so this bypasses the tab partition entirely rather than picking one.
       if (allStagesView) return ALL_OPEN_STATUSES;
       if (activeTab === "approved") {
-        if (approvedFilter === "open") return ["IN_REMEDIATION", "ESCALATED"];
+        if (approvedFilter === "open") return ["APPROVED", "ESCALATED"];
         if (approvedFilter === "closed") return ["CLOSED"];
         return APPROVED_ALL_STATUSES;
       }
@@ -525,7 +525,7 @@ export default function RiskRegisters(): JSX.Element {
     { label: "Updated Risk", value: "UPDATED" },
   ];
   // Deliberately not passing activeTab here: in the Approved tab this would
-  // otherwise render two checkboxes both labeled "Open" (IN_REMEDIATION and
+  // otherwise render two checkboxes both labeled "Open" (APPROVED and
   // ESCALATED as separate filter values) — confusing for a secondary,
   // power-user filter. ESCALATED keeps its own "Escalated" checkbox label;
   // only the primary table chip and the Open/Closed/All dropdown get the
@@ -872,7 +872,7 @@ export default function RiskRegisters(): JSX.Element {
     setActionSuccess("Action plan added.");
   };
 
-  // Commenting returns the risk to its assigner (ESCALATED → IN_REMEDIATION),
+  // Commenting returns the risk to its assigner (ESCALATED → APPROVED),
   // so this closes the drawer and reloads like any other workflow-changing
   // action. The risk stays in the Overdue tab — the escalation is still open —
   // but its status has changed, so the list must refresh.
@@ -914,7 +914,7 @@ export default function RiskRegisters(): JSX.Element {
     }
   };
 
-  // Completing a MANAGEMENT plan reverts the risk to IN_REMEDIATION
+  // Completing a MANAGEMENT plan reverts the risk to APPROVED
   // server-side, moving it out of the Overdue tab — so, unlike step
   // completion, this closes the drawer and reloads the list like any other
   // workflow-changing action.
@@ -941,7 +941,7 @@ export default function RiskRegisters(): JSX.Element {
     if (isPendingRevision) {
       openDrawer(savedId);
     } else {
-      const willMove = editDetail.workflow_status === "IN_REMEDIATION";
+      const willMove = editDetail.workflow_status === "APPROVED";
       setActionSuccess(
         willMove
           ? "Risk updated. It has been moved for Risk Owner Approval."

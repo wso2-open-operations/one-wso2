@@ -199,7 +199,7 @@ describe("EditRiskDialog — other templates and modes", () => {
 
   it("offers none of the template fields in restricted mode, after the owner has approved", async () => {
     renderDialog(
-      riskDetail({ owner_first_approved_at: "2026-06-01", workflow_status: "IN_REMEDIATION" }),
+      riskDetail({ owner_first_approved_at: "2026-06-01", workflow_status: "APPROVED" }),
       "restricted",
     );
     expect((await screen.findAllByText("Implementation Date")).length).toBeGreaterThan(0);

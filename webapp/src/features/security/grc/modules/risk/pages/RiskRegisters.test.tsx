@@ -45,7 +45,7 @@ function item(over: Partial<RiskListItem>): RiskListItem {
     risk_level_color: "#00B050",
     owner_name: "Owner",
     assigner_name: "Assigner",
-    workflow_status: "IN_REMEDIATION",
+    workflow_status: "APPROVED",
     risk_type: "NEW",
     implementation_date: null,
     rejection_comment: null,
