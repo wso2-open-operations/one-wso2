@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState, type JSX } from "react";
-import { Box, Link, Sidebar, Typography } from "@wso2/oxygen-ui";
+import { useMemo, useState, type JSX, type ReactNode } from "react";
+import { alpha, Box, Link, List, Sidebar, Typography, useSidebar } from "@wso2/oxygen-ui";
 import { BookOpenIcon, ExternalLinkIcon, SettingsIcon } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink, matchPath, useLocation, useNavigate } from "react-router";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
@@ -409,39 +409,41 @@ function SectionNode({
 
 
     return (
-      <Sidebar.Item id={section.id}>
-        <Sidebar.ItemIcon
-          sx={containsActiveRoute ? { color: "primary.main" } : undefined}
-        >
-          {section.icon ? <section.icon /> : null}
-        </Sidebar.ItemIcon>
-        <Sidebar.ItemLabel sx={ELLIPSIS_SX}>{section.label}</Sidebar.ItemLabel>
-        {/* Literal Sidebar.Item elements, NOT a wrapper component. Oxygen
-            renders a group's children with
-            `cloneElement(child, { depth: depth + 1 })` and separately reads
-            `child.props.id` / `extractItemContent(child.props.children)` to
-            build the collapsed-rail flyout. Any wrapper — a Link, or one of
-            our own components — swallows the injected `depth` and hides the
-            label from that flyout. These rows navigate via `onSelect`. */}
-        {visible.map((c) => {
-          // A row that names an icon wears it, starting where the parent label
-          // starts. A row that doesn't stays a plain label lined up with that
-          // word. The label itself stays a string: the collapsed flyout reads
-          // it with String(children), and an element there becomes
-          // "[object Object]".
-          const Icon = c.icon;
-          return (
-            <Sidebar.Item key={c.id} id={c.id} sx={{ pl: NESTED_LABEL_PL }}>
-              {Icon ? (
-                <Sidebar.ItemIcon>
-                  <Icon />
-                </Sidebar.ItemIcon>
-              ) : null}
-              <Sidebar.ItemLabel sx={ELLIPSIS_SX}>{c.label}</Sidebar.ItemLabel>
-            </Sidebar.Item>
-          );
-        })}
-      </Sidebar.Item>
+      <GroupFrame id={section.id}>
+        <Sidebar.Item id={section.id}>
+          <Sidebar.ItemIcon
+            sx={containsActiveRoute ? { color: "primary.main" } : undefined}
+          >
+            {section.icon ? <section.icon /> : null}
+          </Sidebar.ItemIcon>
+          <Sidebar.ItemLabel sx={ELLIPSIS_SX}>{section.label}</Sidebar.ItemLabel>
+          {/* Literal Sidebar.Item elements, NOT a wrapper component. Oxygen
+              renders a group's children with
+              `cloneElement(child, { depth: depth + 1 })` and separately reads
+              `child.props.id` / `extractItemContent(child.props.children)` to
+              build the collapsed-rail flyout. Any wrapper — a Link, or one of
+              our own components — swallows the injected `depth` and hides the
+              label from that flyout. These rows navigate via `onSelect`. */}
+          {visible.map((c) => {
+            // A row that names an icon wears it, starting where the parent label
+            // starts. A row that doesn't stays a plain label lined up with that
+            // word. The label itself stays a string: the collapsed flyout reads
+            // it with String(children), and an element there becomes
+            // "[object Object]".
+            const Icon = c.icon;
+            return (
+              <Sidebar.Item key={c.id} id={c.id} sx={{ pl: NESTED_LABEL_PL }}>
+                {Icon ? (
+                  <Sidebar.ItemIcon>
+                    <Icon />
+                  </Sidebar.ItemIcon>
+                ) : null}
+                <Sidebar.ItemLabel sx={ELLIPSIS_SX}>{c.label}</Sidebar.ItemLabel>
+              </Sidebar.Item>
+            );
+          })}
+        </Sidebar.Item>
+      </GroupFrame>
     );
   }
 
@@ -455,6 +457,36 @@ function SectionNode({
       href={section.externalUrl}
       fromPerspective={fromPerspective}
     />
+  );
+}
+
+/**
+ * A faint outline and tint around an open group, so its header and its screens read as one
+ * unit. Nothing while the group is closed or the rail is collapsed.
+ *
+ * The frame is always rendered and only its look changes: dropping it on close would give the
+ * group a different parent, remount it, and cut Collapse's closing animation short. It is an
+ * <li> holding its own <ul>, because Sidebar.Category lays its rows out in a list.
+ */
+function GroupFrame({ id, children }: { id: string; children: ReactNode }): JSX.Element {
+  const { collapsed, expandedMenus } = useSidebar();
+  const framed = !collapsed && Boolean(expandedMenus?.[id]);
+  return (
+    <Box
+      component="li"
+      sx={(theme) => ({
+        listStyle: "none",
+        mx: 1,
+        border: "1px solid",
+        borderRadius: 1.5,
+        borderColor: framed ? alpha(theme.palette.primary.main, 0.24) : "transparent",
+        bgcolor: framed ? alpha(theme.palette.primary.main, 0.04) : "transparent",
+        py: framed ? 0.5 : 0,
+        my: framed ? 0.5 : 0,
+      })}
+    >
+      <List disablePadding>{children}</List>
+    </Box>
   );
 }
 
