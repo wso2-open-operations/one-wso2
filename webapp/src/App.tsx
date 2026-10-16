@@ -231,6 +231,7 @@ import InfraHomePage from "@features/infra/pages/InfraHomePage";
 import InfraNewRepositoryPage from "@features/infra/pages/InfraNewRepositoryPage";
 import InfraGitHubCallbackPage from "@features/infra/pages/InfraGitHubCallbackPage";
 import InfraRepositoryAccessPage from "@features/infra/pages/InfraRepositoryAccessPage";
+import InfraMyRequestsPage from "@features/infra/pages/InfraMyRequestsPage";
 
 export default function App() {
   return (
@@ -274,6 +275,7 @@ export default function App() {
                 path="infra/github/repository-access-requests"
                 element={<InfraRepositoryAccessPage />}
               />
+              <Route path="infra/github/my-requests" element={<InfraMyRequestsPage />} />
             </>
           )}
           {/* My Team — placeholder for now; the real subordinates view is on
