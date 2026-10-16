@@ -26,7 +26,7 @@
     "@wso2/oxygen-ui-icons-react": "0.6.0",
     "@xyflow/react": "12.12.0",
     "axios": "1.20.0",
-    "dompurify": "3.4.13",
+    "dompurify": "3.4.16",
     "exceljs": "4.4.0",
     "html-to-text": "10.0.0",
     "jspdf": "4.2.1",
@@ -44,7 +44,7 @@
     "recharts": "3.10.1"
   },
   "overrides": {
-    "dompurify": "3.4.13",
+    "dompurify": "3.4.16",
     "deepmerge-ts": "^8.0.1",
     "uuid": "^11.1.1"
   },
@@ -71,8 +71,8 @@
     "globals": "16.5.0",
     "jsdom": "27.4.0",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.46.4",
-    "vite": "7.2.4",
+    "typescript-eslint": "8.71.2",
+    "vite": "7.3.7",
     "vitest": "4.1.11"
   },
   "packageManager": "pnpm@10.30.2+sha512.36cdc707e7b7940a988c9c1ecf88d084f8514b5c3f085f53a2e244c2921d3b2545bc20dd4ebe1fc245feec463bb298aecea7a63ed1f7680b877dc6379d8d0cb4"

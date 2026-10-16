@@ -18,15 +18,19 @@ import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 
 // npm audit's range for the brace-expansion denial-of-service advisories is
-// `<=1.1.20 || 2.0.0 - 2.1.6`. exceljs@4.4.0 reaches the 2.x copy through
-// archiver → readdir-glob → minimatch, which asks for ^2.0.1. 2.1.7 is the
-// newest 2.x release that range accepts, and 1.1.21 is the same for ^1.1.7.
+// `<=1.1.20 || 2.0.0 - 2.1.6`, and `4.0.0 - 5.0.11` for the 5.x line.
+// exceljs@4.4.0 reaches the 2.x copy through archiver → readdir-glob →
+// minimatch, which asks for ^2.0.1. 2.1.7 is the newest 2.x release that range
+// accepts, and 1.1.21 is the same for ^1.1.7. typescript-eslint reaches the 5.x
+// copy through minimatch@10, which asks for ^5.0.8; 5.0.12 is the first release
+// outside the range.
 // An unlisted major is not a patched release. The advisory lines in this
-// lockfile are 1.x and 2.x only.
+// lockfile are 1.x, 2.x and 5.x only.
 const isPatchedRelease = (version: string): boolean => {
   const [major, minor, patch] = version.split(".").map(Number);
   if (major === 1) return minor > 1 || (minor === 1 && patch >= 21);
   if (major === 2) return minor > 1 || (minor === 1 && patch >= 7);
+  if (major === 5) return minor > 0 || patch >= 12;
   return false;
 };
 
@@ -48,4 +52,13 @@ it("resolves brace-expansion outside the denial-of-service advisory range", () =
 
   expect(archiveChain?.version).toBeDefined();
   expect(resolved.filter((entry) => !isPatchedRelease(entry.version ?? ""))).toEqual([]);
+});
+
+it("treats the first release outside each advisory range as patched", () => {
+  expect(isPatchedRelease("1.1.20")).toBe(false);
+  expect(isPatchedRelease("1.1.21")).toBe(true);
+  expect(isPatchedRelease("2.1.6")).toBe(false);
+  expect(isPatchedRelease("2.1.7")).toBe(true);
+  expect(isPatchedRelease("5.0.11")).toBe(false);
+  expect(isPatchedRelease("5.0.12")).toBe(true);
 });
