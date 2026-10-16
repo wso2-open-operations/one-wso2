@@ -20,53 +20,68 @@ import type { UmtEditStepId } from "./umtEditSteps";
 
 describe("computeUmtDemoteActions", () => {
   it("returns Demote to Development for product-analysis", () => {
-    expect(computeUmtDemoteActions("product-analysis", null, false, false)).toEqual([
+    expect(computeUmtDemoteActions("product-analysis", null, false, false, null)).toEqual([
       { label: "Demote to Development", targetLifecycleState: "Development" },
     ]);
   });
 
   it("returns both demote buttons for description-instruction when not a hotfix", () => {
-    expect(computeUmtDemoteActions("description-instruction", "ProductAnalyzed", false, false)).toEqual([
+    expect(computeUmtDemoteActions("description-instruction", "ProductAnalyzed", false, false, null)).toEqual([
       { label: "Demote to PRAnalyzed", targetLifecycleState: "PRAnalyzed" },
       { label: "Demote to Development", targetLifecycleState: "Development" },
     ]);
   });
 
   it("returns no demote buttons for description-instruction when it is a hotfix", () => {
-    expect(computeUmtDemoteActions("description-instruction", "ProductAnalyzed", true, false)).toEqual([]);
+    expect(computeUmtDemoteActions("description-instruction", "ProductAnalyzed", true, false, null)).toEqual([]);
   });
 
   it("returns Demote to Staging for file-approval only when isAdmin", () => {
-    expect(computeUmtDemoteActions("file-approval", "WaitingFileApproval", false, true)).toEqual([
+    expect(computeUmtDemoteActions("file-approval", "WaitingFileApproval", false, true, null)).toEqual([
       { label: "Demote to Staging", targetLifecycleState: "Staging" },
     ]);
-    expect(computeUmtDemoteActions("file-approval", "WaitingFileApproval", false, false)).toEqual([]);
+    expect(computeUmtDemoteActions("file-approval", "WaitingFileApproval", false, false, null)).toEqual([]);
   });
 
-  it("returns Demote to Development for testing and validate", () => {
-    expect(computeUmtDemoteActions("testing", "Staging", false, false)).toEqual([
-      { label: "Demote to Development", targetLifecycleState: "Development" },
-    ]);
-    expect(computeUmtDemoteActions("validate", "Staging", false, false)).toEqual([
-      { label: "Demote to Development", targetLifecycleState: "Development" },
-    ]);
+  it("builds testing and validate buttons from the backend's demote stages", () => {
+    for (const stepId of ["testing", "validate"] as const) {
+      expect(computeUmtDemoteActions(stepId, "Staging", false, false, ["DemoteStagingRequested"])).toEqual([
+        { label: "Demote to Development", targetLifecycleState: "DemoteStagingRequested" },
+      ]);
+      expect(
+        computeUmtDemoteActions(stepId, "TestingEnvironmentCreated", false, false, [
+          "Development",
+          "PRAnalyzed",
+          "ProductAnalyzed",
+        ]),
+      ).toEqual([
+        { label: "Demote to Development", targetLifecycleState: "Development" },
+        { label: "Demote to PRAnalyzed", targetLifecycleState: "PRAnalyzed" },
+        { label: "Demote to ProductAnalyzed", targetLifecycleState: "ProductAnalyzed" },
+      ]);
+    }
+  });
+
+  it("shows no testing demote button when the backend offers no demotion", () => {
+    expect(computeUmtDemoteActions("testing", "TestingEnvironmentRequested", false, false, [])).toEqual([]);
+    expect(computeUmtDemoteActions("testing", "StagingRequested", false, false, undefined)).toEqual([]);
   });
 
   it("returns Demote to Testing for verifying at UATStaging", () => {
-    expect(computeUmtDemoteActions("verifying", "UATStaging", false, false)).toEqual([
+    expect(computeUmtDemoteActions("verifying", "UATStaging", false, false, null)).toEqual([
       { label: "Demote to Testing", targetLifecycleState: "Staging" },
     ]);
   });
 
   it("returns a styled Reopen action for verifying at OnHold", () => {
-    expect(computeUmtDemoteActions("verifying", "OnHold", false, false)).toEqual([
+    expect(computeUmtDemoteActions("verifying", "OnHold", false, false, null)).toEqual([
       { label: "Reopen", targetLifecycleState: "Development", color: "error" },
     ]);
   });
 
   it("returns no demote buttons for other verifying-family states", () => {
-    for (const state of ["Released", "UAT", "UATRequested"]) {
-      expect(computeUmtDemoteActions("verifying", state, false, false)).toEqual([]);
+    for (const state of ["Released", "UAT", "UATRequested"] as const) {
+      expect(computeUmtDemoteActions("verifying", state, false, false, null)).toEqual([]);
     }
   });
 
@@ -80,7 +95,7 @@ describe("computeUmtDemoteActions", () => {
       "cloud-released",
     ];
     for (const stepId of stepsWithoutDemote) {
-      expect(computeUmtDemoteActions(stepId, null, false, true)).toEqual([]);
+      expect(computeUmtDemoteActions(stepId, null, false, true, null)).toEqual([]);
     }
   });
 });

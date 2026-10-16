@@ -140,17 +140,21 @@ function mapUmtReleaseChunkUpdateLevel(raw: RawUmtReleaseChunkUpdateLevel): UmtR
   };
 }
 
+// A chunk only gets its update levels when the update synchronizer reports
+// them back, so one still in requestedToCreate has none and the backend leaves
+// the key out. Such a chunk maps to an empty list rather than failing the
+// whole pending list over a single row.
 export interface RawUmtReleaseChunk {
   id: number;
   updateIds: number[];
-  updateLevels: RawUmtReleaseChunkUpdateLevel[];
+  updateLevels?: RawUmtReleaseChunkUpdateLevel[] | null;
 }
 
 export function mapUmtReleaseChunk(raw: RawUmtReleaseChunk): UmtReleaseChunk {
   return {
     id: raw.id,
     updateIds: raw.updateIds,
-    updateLevels: raw.updateLevels.map(mapUmtReleaseChunkUpdateLevel),
+    updateLevels: (raw.updateLevels ?? []).map(mapUmtReleaseChunkUpdateLevel),
   };
 }
 

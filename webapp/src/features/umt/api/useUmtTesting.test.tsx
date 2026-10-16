@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import type { UmtLifecycleState } from "./umtTypes";
 
 vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
 vi.mock("@hooks/useAsgardeoSub", () => ({
@@ -55,7 +56,7 @@ afterEach(() => {
 
 describe("useUmtStagingTestResults", () => {
   it("is enabled for each testing-family lifecycleState and disabled otherwise", () => {
-    const enabledStates = [
+    const enabledStates: UmtLifecycleState[] = [
       "TestingEnvironmentRequested",
       "TestingEnvironmentCreated",
       "TestingEnvironmentFailed",
@@ -107,7 +108,7 @@ describe("useUmtStagingTestResults", () => {
   // The update resource polls itself (useUmtUpdate's own refetchInterval reads
   // its own lifecycleState), so this queryFn stays a pure fetch — it must not
   // reach into the cache on any tick, polling or not.
-  it.each(["TestingEnvironmentRequested", "Staging"])(
+  it.each<UmtLifecycleState>(["TestingEnvironmentRequested", "Staging"])(
     "never invalidates another query from its own queryFn (%s)",
     async (lifecycleState) => {
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

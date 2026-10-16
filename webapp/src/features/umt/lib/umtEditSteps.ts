@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import type { UmtLifecycle, UmtLifecycleState } from "../api/umtTypes";
 import type { UmtPullRequestAnalysis } from "../api/umtUpdates";
 
 export type UmtEditStepId =
@@ -94,7 +95,7 @@ const CLOUD_SUPPORT_STEPS: UmtEditStepDefinition[] = [
 // or already `WaitingFileApproval`) inserts File Approval right before
 // Verifying. Both insertions can apply independently of each other.
 export function computeUmtEditSteps(
-  lifecycle: string | null | undefined,
+  lifecycle: UmtLifecycle | null | undefined,
   hasAdditionalFileOperations: boolean,
 ): UmtEditStepDefinition[] {
   if (lifecycle === "CloudSupportLifecycle") {
@@ -132,7 +133,7 @@ export function computeUmtEditSteps(
 // list even before/without a fresh PR-analysis result.
 export function umtHasAdditionalFileOperations(
   pullRequestAnalysis: UmtPullRequestAnalysis | null | undefined,
-  lifecycleState: string | null | undefined,
+  lifecycleState: UmtLifecycleState | null | undefined,
 ): boolean {
   return (
     (pullRequestAnalysis?.additionalFileOperations?.length ?? 0) > 0 ||
@@ -159,7 +160,7 @@ export function umtHasAdditionalFileOperations(
 // directly from a backend lifecycleState on reload.
 // TestingEnvironmentRequested/Created/Failed all map to "testing" so the step
 // doesn't get stuck at its default.
-const LIFECYCLE_STATE_TO_STEP: Record<string, UmtEditStepId> = {
+const LIFECYCLE_STATE_TO_STEP: Partial<Record<UmtLifecycleState, UmtEditStepId>> = {
   Development: "pr-analysis",
   PRAnalyzed: "product-analysis",
   ProductAnalyzed: "description-instruction",
@@ -177,13 +178,13 @@ const LIFECYCLE_STATE_TO_STEP: Record<string, UmtEditStepId> = {
   Completed: "completed",
 };
 
-const CLOUD_SUPPORT_STATE_TO_STEP: Record<string, UmtEditStepId> = {
+const CLOUD_SUPPORT_STATE_TO_STEP: Partial<Record<UmtLifecycleState, UmtEditStepId>> = {
   Development: "cloud-development",
   Released: "cloud-released",
 };
 
 export function umtActiveStepId(
-  lifecycleState: string | null | undefined,
+  lifecycleState: UmtLifecycleState | null | undefined,
   steps: UmtEditStepDefinition[],
 ): UmtEditStepId {
   const isCloudSupport = steps.some((step) => step.id === "cloud-development");
@@ -196,7 +197,7 @@ export function umtActiveStepId(
 }
 
 export function umtActiveStepIndex(
-  lifecycleState: string | null | undefined,
+  lifecycleState: UmtLifecycleState | null | undefined,
   steps: UmtEditStepDefinition[],
 ): number {
   const activeId = umtActiveStepId(lifecycleState, steps);

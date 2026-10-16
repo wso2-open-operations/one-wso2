@@ -6,7 +6,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 
 import { localIsoDate } from "@utils/localDate";
-import type { UmtMetadataProduct } from "../api/umtTypes";
+import type { UmtLifecycle, UmtMetadataProduct } from "../api/umtTypes";
 import type { UmtCreateUpdateRequest } from "../api/umtUpdates";
 
 export type UmtCreateUpdateType = "regular" | "security" | "cloud-support";
@@ -14,7 +14,7 @@ export type UmtCreateIssueType = "bug" | "improvement" | "new-feature";
 
 const NOT_APPLICABLE = "N/A";
 
-const LIFECYCLE_BY_UPDATE_TYPE: Record<UmtCreateUpdateType, string> = {
+const LIFECYCLE_BY_UPDATE_TYPE: Record<UmtCreateUpdateType, UmtLifecycle> = {
   regular: "UpdateLifecycle",
   security: "SecurityUpdateLifecycle",
   "cloud-support": "CloudSupportLifecycle",

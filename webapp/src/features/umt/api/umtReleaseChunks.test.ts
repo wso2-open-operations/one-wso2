@@ -51,6 +51,16 @@ describe("mapUmtReleaseChunk", () => {
       ],
     });
   });
+
+  it("maps a chunk whose update levels never arrived to an empty list", () => {
+    const raw: RawUmtReleaseChunk = { id: 43, updateIds: [103] };
+
+    expect(mapUmtReleaseChunk(raw)).toEqual({
+      id: 43,
+      updateIds: [103],
+      updateLevels: [],
+    });
+  });
 });
 
 describe("mapUmtReleasedChunk", () => {

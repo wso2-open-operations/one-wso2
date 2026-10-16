@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Chip, Stack, Typography } from "@wso2/oxygen-ui";
+import { Alert, Chip, Stack, Typography } from "@wso2/oxygen-ui";
+import { HttpError } from "@api/http";
 import type {
   UmtFileOperation,
   UmtProductAnalysis,
@@ -32,9 +33,21 @@ import {
   type ViewQueryState,
 } from "./umtViewSectionPrimitives";
 
+function isNotFound(error: unknown): boolean {
+  return error instanceof HttpError && error.status === 404;
+}
+
 export function PullRequestAnalysisSection({ query }: { query: ViewQueryState<UmtPullRequestAnalysis> }) {
   if (query.isPending) return null;
   if (query.isError) {
+    // A 404 means the analysis simply hasn't run yet, so there is nothing to retry.
+    if (isNotFound(query.error)) {
+      return (
+        <DividedTableSection title="Pull Request Analysis Results">
+          <Alert severity="info">Pull Request Analysis has not been performed for this update yet.</Alert>
+        </DividedTableSection>
+      );
+    }
     return <SectionError title="Pull Request Analysis Results" onRetry={() => void query.refetch()} />;
   }
 
@@ -85,6 +98,13 @@ export function PullRequestAnalysisSection({ query }: { query: ViewQueryState<Um
 export function ProductAnalysisSection({ query }: { query: ViewQueryState<UmtProductAnalysis> }) {
   if (query.isPending) return null;
   if (query.isError) {
+    if (isNotFound(query.error)) {
+      return (
+        <DividedTableSection title="Product Analysis Results">
+          <Alert severity="info">Product Analysis has not been performed for this update yet.</Alert>
+        </DividedTableSection>
+      );
+    }
     return <SectionError title="Product Analysis Results" onRetry={() => void query.refetch()} />;
   }
 
@@ -172,7 +192,7 @@ const pullRequestAnalysisColumns: DenseColumn<UmtPullRequestAnalysisItem>[] = [
 ];
 
 const fileOperationColumns: DenseColumn<UmtFileOperation>[] = [
-  { key: "file", label: "Files", render: (row) => displayValue(row.file) },
-  { key: "operation", label: "Operation", render: (row) => displayValue(row.operation) },
+  { key: "file", label: "Files", flex: 0.5, render: (row) => displayValue(row.file) },
+  { key: "operation", label: "Operation", flex: 0.25, minWidth: 90, render: (row) => displayValue(row.operation) },
   { key: "source", label: "Source", render: (row) => renderLinkValue(row.downloadURL) },
 ];

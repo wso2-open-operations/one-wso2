@@ -194,7 +194,7 @@ describe("UMT inside Engineering", () => {
     expect(group?.children?.map((c) => [c.label, c.path])).toEqual([
       ["Overview", "/engineering/umt"],
       ["Updates", "/engineering/umt/updates"],
-      ["Product Management", "/engineering/umt/products"],
+      ["Products", "/engineering/umt/products"],
       ["Release Chunks", "/engineering/umt/release-chunks"],
       ["Statistics", "/engineering/umt/statistics"],
     ]);

@@ -40,8 +40,8 @@ import { isCompleteUpdateValid } from "../../../lib/umtVerifying";
 
 // Existing public PRs are shown disabled, new ones can be appended, and the
 // update completes with either at least one non-blank PR or a reason to
-// skip one — never both. This is the only way an update ever reaches
-// Completed.
+// skip one — never both, so typing into one side disables the other. This
+// is the only way an update ever reaches Completed.
 export default function UmtCompleteUpdateDialog({
   id,
   update,
@@ -77,6 +77,8 @@ export default function UmtCompleteUpdateDialog({
   const allPullRequests = [...existingPullRequests, ...newPullRequests.map((row) => row.value)];
   const trimmedPullRequests = allPullRequests.map((pr) => pr.trim()).filter((pr) => pr !== "");
   const isValid = isCompleteUpdateValid({ publicPullRequests: allPullRequests, reason });
+  const hasPullRequestText = trimmedPullRequests.length > 0;
+  const hasReasonText = reason.trim() !== "";
 
   async function handleSubmit() {
     try {
@@ -117,12 +119,14 @@ export default function UmtCompleteUpdateDialog({
                     ),
                   )
                 }
+                disabled={hasReasonText}
                 fullWidth
               />
               {newPullRequests.length > 1 && (
                 <IconButton
                   aria-label="Remove pull request"
                   size="small"
+                  disabled={hasReasonText}
                   onClick={() =>
                     setNewPullRequests((prev) => prev.filter((current) => current.id !== row.id))
                   }
@@ -138,6 +142,7 @@ export default function UmtCompleteUpdateDialog({
             size="small"
             startIcon={<PlusIcon size={16} />}
             sx={{ alignSelf: "flex-start" }}
+            disabled={hasReasonText}
             onClick={() =>
               setNewPullRequests((prev) => [
                 ...prev,
@@ -152,6 +157,7 @@ export default function UmtCompleteUpdateDialog({
             label="Reason to Skip"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
+            disabled={hasPullRequestText}
             fullWidth
             multiline
             rows={3}

@@ -21,7 +21,9 @@ import { csmUrl, isCsmConfigured, isIsacConfigured, isacUrl } from "@config/apiC
 import { isPreviewEnabled } from "@config/previewFeatures";
 import { CADO2_APPS } from "@constants/cado2Apps";
 import {
+  ArrowBigUpDash,
   AwardIcon,
+  Box as BoxIcon,
   BarChart3,
   BookOpenIcon,
   CheckCheckIcon,
@@ -32,6 +34,8 @@ import {
   LandmarkIcon,
   LifeBuoyIcon,
   LightbulbIcon,
+  LayoutDashboard,
+  LucideLayoutGrid,
   RefreshCw,
   MegaphoneIcon,
   NetworkIcon,
@@ -483,16 +487,16 @@ const UMT_SECTION: PerspectiveSection = {
   icon: RefreshCw,
   alwaysGroup: true,
   children: [
-    { id: "umt-overview", label: "Overview", path: UMT_PATH },
-    { id: "umt-updates", label: "Updates", path: umtPaths.updates },
+    { id: "umt-overview", label: "Overview", icon: LayoutDashboard, path: UMT_PATH },
+    { id: "umt-updates", label: "Updates", icon: ArrowBigUpDash, path: umtPaths.updates },
     // Admin-only. `requires` speaks One WSO2's own capabilities, which have
     // nothing to do with the roles the UMT backend (ONE_WSO2_UMT_BACKEND_URL)
     // assigns — so this is filtered by UMT_ADMIN_ITEM_IDS below instead, the
     // same way Finance/Leave/Subscriptions items are (see the comment above
     // SUBSCRIPTION_ITEM_IDS).
-    { id: "umt-products", label: "Product Management", path: umtPaths.products },
-    { id: "umt-release-chunks", label: "Release Chunks", path: umtPaths.releaseChunks },
-    { id: "umt-statistics", label: "Statistics", path: umtPaths.statistics },
+    { id: "umt-products", label: "Products", icon: BoxIcon, path: umtPaths.products },
+    { id: "umt-release-chunks", label: "Release Chunks", icon: LucideLayoutGrid, path: umtPaths.releaseChunks },
+    { id: "umt-statistics", label: "Statistics", icon: BarChart3, path: umtPaths.statistics },
   ],
 };
 

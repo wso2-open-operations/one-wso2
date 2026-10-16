@@ -14,8 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Box, Button, Stack, ToggleButton, ToggleButtonGroup } from "@wso2/oxygen-ui";
-import { PlusIcon } from "@wso2/oxygen-ui-icons-react";
+import { Box, Button, IconButton, Stack, ToggleButton, ToggleButtonGroup, Tooltip } from "@wso2/oxygen-ui";
+import { PlusIcon, RotateCw } from "@wso2/oxygen-ui-icons-react";
+import { type Query, useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { useUmtGate } from "../api/useUmtGate";
 import UmtPendingReleaseChunksGrid from "../components/release-chunks/UmtPendingReleaseChunksGrid";
@@ -27,6 +28,13 @@ type UmtReleaseChunkStatusFilter = "pending" | "released";
 
 function parseStatus(value: string | null): UmtReleaseChunkStatusFilter {
   return value === "released" ? "released" : "pending";
+}
+
+// Every query behind this page: the pending and released lists and each
+// chunk's lifecycle, build, CST and Docker statuses.
+function isReleaseChunkQuery(query: Query): boolean {
+  const [key] = query.queryKey;
+  return typeof key === "string" && key.startsWith("umt-release");
 }
 
 export default function UmtReleaseChunksPage() {
@@ -46,6 +54,8 @@ function UmtReleaseChunksBody() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const gate = useUmtGate();
+  const queryClient = useQueryClient();
+  const refreshing = useIsFetching({ predicate: isReleaseChunkQuery }) > 0;
   const status = parseStatus(searchParams.get("status"));
 
   const setStatus = (next: UmtReleaseChunkStatusFilter) => {
@@ -73,6 +83,17 @@ function UmtReleaseChunksBody() {
           </ToggleButton>
         </ToggleButtonGroup>
         <Box sx={{ flex: 1 }} />
+        <Tooltip title="Refresh">
+          <span>
+            <IconButton
+              aria-label="Refresh"
+              disabled={refreshing}
+              onClick={() => void queryClient.invalidateQueries({ predicate: isReleaseChunkQuery })}
+            >
+              <RotateCw size={16} />
+            </IconButton>
+          </span>
+        </Tooltip>
         {gate.isAdmin && (
           <Button
             variant="contained"

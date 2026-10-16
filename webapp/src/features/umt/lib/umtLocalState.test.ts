@@ -35,9 +35,14 @@ describe("umtLocalState", () => {
 
   it("round-trips the edit-tab stepper position and removes it on null", () => {
     expect(readPersistedEditStep("100")).toBeNull();
-    writePersistedEditStep("100", "validate");
-    expect(readPersistedEditStep("100")).toBe("validate");
+    writePersistedEditStep("100", { stayKey: "Staging#4", stepId: "validate" });
+    expect(readPersistedEditStep("100")).toEqual({ stayKey: "Staging#4", stepId: "validate" });
     writePersistedEditStep("100", null);
+    expect(readPersistedEditStep("100")).toBeNull();
+  });
+
+  it("ignores an edit-tab position stored without the step it was reached from", () => {
+    window.localStorage.setItem("one-wso2.umt-edit-step.v2.100", JSON.stringify("validate"));
     expect(readPersistedEditStep("100")).toBeNull();
   });
 
@@ -67,7 +72,7 @@ describe("umtLocalState", () => {
   });
 
   it("scopes every key by update id, so two different updates never collide", () => {
-    writePersistedEditStep("100", "validate");
+    writePersistedEditStep("100", { stayKey: "Staging#4", stepId: "validate" });
     writePersistedPullRequests("100", [{ pr: "https://github.com/wso2/x/pull/1", preferredVersion: "" }]);
     writePersistedSelectedTab("100", "branch");
 
@@ -95,7 +100,7 @@ describe("umtLocalState", () => {
       vi.spyOn(window.localStorage.__proto__, "setItem").mockImplementation(() => {
         throw new Error("quota exceeded");
       });
-      expect(() => writePersistedEditStep("100", "validate")).not.toThrow();
+      expect(() => writePersistedEditStep("100", { stayKey: "Staging#4", stepId: "validate" })).not.toThrow();
       expect(() => writePersistedPullRequests("100", [])).not.toThrow();
     });
   });

@@ -55,6 +55,7 @@ vi.mock("../../api/useUmtGate", () => ({
 }));
 
 vi.mock("../../api/useUmtReleaseChunks", () => ({
+  useFetchFreshUmtReleaseChunkBuildStatus: () => async () => undefined,
   useUmtReleaseChunks: () => ({
     data: [CHUNK],
     isError: false,
@@ -89,7 +90,7 @@ vi.mock("../../api/useUmtReleaseChunkActions", () => ({
   useUmtTriggerProductBuild: idleMutation,
   useUmtTriggerTgBuild: idleMutation,
   useUmtTriggerReleaseChunkBuilds: idleMutation,
-  useUmtTriggerCstBuild: idleMutation,
+  useUmtRetriggerCstBuild: idleMutation,
   useUmtRetriggerDockerBuild: () => ({ isPending: false, mutateAsync: state.dockerMutate }),
   useUmtReleaseChunk: idleMutation,
   useUmtSendReleaseChunkEmail: idleMutation,

@@ -21,6 +21,7 @@ import { httpRetry } from "@api/errors";
 import { isUmtBackendConfigured, umtServiceUrls } from "@config/apiConfig";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
+import type { UmtLifecycleState } from "./umtTypes";
 import type {
   UmtUpdateSearchRequest,
   UmtUpdatesByLifecycleStateResponse,
@@ -46,6 +47,11 @@ export function useUmtUpdates(request: UmtUpdateSearchRequest) {
       return response;
     },
     placeholderData: keepPreviousData,
+    // Opted back in because the app-wide client disables it. Changes such as
+    // On Hold or Mark as Duplicate are made on the update's own page, while
+    // this list is unmounted, and invalidating an unmounted query only marks
+    // it stale; without this, returning to the table showed the old state.
+    refetchOnMount: true,
     retry: httpRetry,
   });
 
@@ -56,7 +62,7 @@ export function useUmtUpdates(request: UmtUpdateSearchRequest) {
 // Release Chunk screen needs whole states rather than pages of them: it lists
 // everything in UATStaging to choose from, and checks the choice against
 // everything in UAT, and a page of either would quietly make both incomplete.
-export function useUmtUpdatesByLifecycleState(lifecycleState: string) {
+export function useUmtUpdatesByLifecycleState(lifecycleState: UmtLifecycleState) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const { state: subState, retry: retryIdentity } = useAsgardeoSub();

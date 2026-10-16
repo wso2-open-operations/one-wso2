@@ -15,7 +15,7 @@
 // under the License.
 
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
 import {
   Alert,
   Box,
@@ -45,9 +45,10 @@ import { useUmtMarkAsDuplicate, useUmtOnHoldUpdate } from "../api/useUmtUpdateAc
 import { useUmtUpdateSubscription } from "../api/useUmtUpdateSubscription";
 import { useUmtUserInfo } from "../api/useUmtUserInfo";
 import { readPersistedSelectedTab, writePersistedSelectedTab } from "../lib/umtLocalState";
-import { umtPaths } from "../lib/umtPaths";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import UmtShell from "../components/UmtShell";
+import { umtBackLink } from "../lib/umtBackLink";
+import { umtLifecycleState } from "../lib/umtLifecycleState";
 import UmtUpdateDetailsGrid from "../components/UmtUpdateDetailsGrid";
 import UmtUpdateEditTab from "../components/edit/UmtUpdateEditTab";
 import UmtLifecycleHistory from "../components/UmtLifecycleHistory";
@@ -63,9 +64,10 @@ const UPDATE_VIEW_CHIP_SX = {
 
 export default function UmtUpdateView() {
   const { id } = useParams<{ id: string }>();
+  const { backTo, backState } = umtBackLink(useLocation().state);
 
   return (
-    <UmtShell title="Update Information" backTo={umtPaths.updates}>
+    <UmtShell title="Update Information" backTo={backTo} backState={backState}>
       {/* React Router reuses this element across a params-only change (Back /
           Forward between two detail pages, an edited URL, or the list's own
           openUpdateOnTab while already on a detail page), so every piece of
@@ -134,13 +136,14 @@ function UmtUpdateBody({ id }: { id: string | undefined }) {
   // always match; it's omitted rather than written as a check that can't fail.
   // Genuine role gates live where they belong: admin-only deletes in
   // UmtUpdateViewSections and File Approval in the Edit tab.
-  const canEditDevelopmentFields = update.data?.lifecycleState === "Development";
+  const lifecycleState = umtLifecycleState(update.data?.lifecycleState);
+  const canEditDevelopmentFields = lifecycleState === "Development";
   // Mark as Duplicate and On Hold are only offered before the update has
   // left early triage.
-  const canUseEarlyActionRow = ["Development", "PRAnalyzed", "ProductAnalyzed"].includes(
-    update.data?.lifecycleState ?? "",
+  const canUseEarlyActionRow = (["Development", "PRAnalyzed", "ProductAnalyzed"] as const).some(
+    (state) => state === lifecycleState,
   );
-  const canReopen = update.data?.lifecycleState === "OnHold";
+  const canReopen = lifecycleState === "OnHold";
 
   const handleSubscription = () => {
     subscription.mutate(subscriptionAction, {

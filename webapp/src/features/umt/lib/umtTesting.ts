@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import type { UmtLifecycleState } from "../api/umtTypes";
 import type { UmtStagingTestResultRecord } from "../api/umtUpdates";
 
 export const UMT_TESTING_LIFECYCLE_STATES = [
@@ -22,7 +23,7 @@ export const UMT_TESTING_LIFECYCLE_STATES = [
   "TestingEnvironmentFailed",
   "StagingRequested",
   "Staging",
-] as const;
+] as const satisfies readonly UmtLifecycleState[];
 
 export type UmtTestingResultValue = "success" | "failure" | "not_built";
 
@@ -52,7 +53,7 @@ export function umtStagingRowIsComplete(record: UmtStagingTestResultRecord): boo
 // record list once Staging is reached (nothing to review); false for every
 // other state.
 export function isTestingComplete(
-  lifecycleState: string | null | undefined,
+  lifecycleState: UmtLifecycleState | null | undefined,
   records: UmtStagingTestResultRecord[] | null | undefined,
 ): boolean {
   if (lifecycleState !== "Staging") return false;
@@ -93,7 +94,7 @@ export function umtAutomatedTestResultLabel(value: string | null | undefined): s
 // reached a terminal state (Staging or Failed) — stops polling on failure
 // too, not just success, so a permanently-failed environment isn't polled
 // forever.
-export function umtShouldPollStagingTestResults(lifecycleState: string | null | undefined): boolean {
+export function umtShouldPollStagingTestResults(lifecycleState: UmtLifecycleState | null | undefined): boolean {
   return (
     lifecycleState === "TestingEnvironmentRequested" ||
     lifecycleState === "TestingEnvironmentCreated" ||

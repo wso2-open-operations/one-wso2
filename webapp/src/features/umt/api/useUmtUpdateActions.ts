@@ -15,7 +15,7 @@
 // under the License.
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { authedGet, authedPost, authedPut } from "@api/http";
+import { authedGet, authedPost } from "@api/http";
 import { umtServiceUrls } from "@config/apiConfig";
 import { useAccessToken } from "@hooks/useAccessToken";
 import type { UmtUpdateSummary } from "./umtUpdates";
@@ -34,7 +34,7 @@ export function useUmtOnHoldUpdate(id: string) {
   return useMutation<void, Error, string>({
     mutationFn: async (reason) => {
       const accessToken = await getAccessToken();
-      await authedPut(umtServiceUrls.updateOnHold(id), accessToken, { reason });
+      await authedPost(umtServiceUrls.updateOnHold(id), accessToken, { reason });
     },
     onSuccess: async () => {
       await Promise.all([
