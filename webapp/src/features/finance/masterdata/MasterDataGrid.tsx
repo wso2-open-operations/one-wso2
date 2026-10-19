@@ -133,6 +133,8 @@ const MASTER_DATA_COLUMNS: Record<MasterDataTab, DataGrid.GridColDef[]> = {
     { field: "code", headerName: "Subsidiary Code", flex: 3, minWidth: 170, ...text() },
     { field: "taxCodeInternalId", headerName: "Tax ID", flex: 1, minWidth: 90, ...text() },
     { field: "taxCode", headerName: "Tax Code", flex: 2, minWidth: 120, ...text() },
+    { field: "country", headerName: "Country", flex: 2, minWidth: 140, ...text() },
+    { field: "currencyCode", headerName: "Currency", flex: 1, minWidth: 100, ...text() },
   ],
   departments: [
     { field: "employeeDepartment", headerName: "Employee Department", flex: 4, minWidth: 220, ...text() },

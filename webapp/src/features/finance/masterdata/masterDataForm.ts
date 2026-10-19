@@ -86,6 +86,8 @@ export function initialFormData(tab: MasterDataTab, row?: MasterDataRow): Master
         taxCode: r?.taxCode ?? "",
         legalName: r?.legalName ?? "",
         code: r?.code ?? "",
+        country: r?.country ?? "",
+        currencyCode: r?.currencyCode ?? "",
       } satisfies SubsidiaryPayload;
     }
     case "departments": {

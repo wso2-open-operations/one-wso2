@@ -42,6 +42,7 @@ import {
   useCreateMasterData,
   useUpdateMasterData,
 } from "./useMasterDataMutations";
+import countryCurrency from "./countryCurrency.json";
 import {
   CREDIT_CARD_PROVIDERS,
   MASTER_DATA_STATUS,
@@ -112,6 +113,13 @@ export default function MasterDataFormDialog({
       // validation.
       if (key === "ccProviderCode" && value !== (prev as CreditCardPayload).ccProviderCode) {
         return { ...prev, ccProviderCode: value as string, ccNumber: "" };
+      }
+      // The currency follows the country rather than being typed, so the pair
+      // cannot disagree. Cleared along with it, so a blank country never leaves
+      // the previous country's currency behind.
+      if (key === "country") {
+        const country = value as string;
+        return { ...prev, country, currencyCode: COUNTRY_CURRENCY[country] ?? "" };
       }
       return { ...prev, [key]: value };
     });
@@ -218,6 +226,24 @@ function Fields({
             onChange={set}
           />
           <TextInput id="taxCode" label="Tax Code" value={f.taxCode} required onChange={set} />
+          <SelectInput
+            id="country"
+            label="Country"
+            value={f.country}
+            options={COUNTRIES}
+            required
+            onChange={set}
+          />
+          {/* Shown, not editable: it is whatever the chosen country maps to, and
+              letting it be edited separately is how the two drift apart. */}
+          <TextInput
+            id="currencyCode"
+            label="Currency Code"
+            value={f.currencyCode}
+            required
+            disabled
+            onChange={set}
+          />
         </>
       );
     }
@@ -371,6 +397,13 @@ function Fields({
     }
   }
 }
+
+// The countries a subsidiary may be registered in, read off the country-to-currency
+// mapping so the picker can never offer a country the currency lookup does not know.
+// The names match Expense Claims' own `countryMap`, which resolves them to country
+// codes — a name outside that set is rejected there as invalid.
+const COUNTRY_CURRENCY: Readonly<Record<string, string>> = countryCurrency;
+const COUNTRIES = Object.keys(COUNTRY_CURRENCY);
 
 /**
  * Active / inactive, for the two tabs that retire a record by status.

@@ -51,6 +51,7 @@ export function TextInput({
   required,
   numeric = false,
   multiline = false,
+  disabled = false,
   onChange,
 }: {
   id: string;
@@ -59,6 +60,8 @@ export function TextInput({
   required: boolean;
   numeric?: boolean;
   multiline?: boolean;
+  /** Shown but not editable, for a value another field derives. */
+  disabled?: boolean;
   onChange: (id: string, value: string | number) => void;
 }) {
   const [touched, setTouched] = useState(false);
@@ -85,8 +88,12 @@ export function TextInput({
       type={numeric ? "number" : "text"}
       multiline={multiline}
       minRows={multiline ? 2 : undefined}
-      value={text}
-      error={required && touched && !text.trim()}
+      disabled={disabled}
+      // A derived field is driven by its prop, not by the local draft: `text` is
+      // seeded once at mount, so a value filled in by another field (the currency
+      // the chosen country maps to) would otherwise never show.
+      value={disabled ? String(value ?? "") : text}
+      error={required && !disabled && touched && !text.trim()}
       onBlur={() => required && setTouched(true)}
       onChange={(e) => handleChange(e.target.value)}
     />
