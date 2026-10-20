@@ -605,6 +605,7 @@ export const financeMasterDataServiceUrls = {
   glCodes: `${financeMasterDataBackendUrl}/gl-codes`,
   employeeEmails: `${financeMasterDataBackendUrl}/employees/email`,
   expenseTypeAutocomplete: `${financeMasterDataBackendUrl}/expense-types/autocomplete-values`,
+  countries: `${financeMasterDataBackendUrl}/countries`,
 };
 
 // ---- Updates Manager backend ---------------------------------------------

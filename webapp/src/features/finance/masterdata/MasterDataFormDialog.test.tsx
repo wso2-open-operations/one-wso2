@@ -29,6 +29,12 @@ vi.mock("./useMasterDataMutations", () => ({
   describeDeleteError: () => "",
 }));
 
+// The country list is served by the backend; the form is what is under test.
+vi.mock("./useMasterData", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./useMasterData")>()),
+  useCountries: () => ({ data: { "Sri Lanka": "LKR", Germany: "EUR" } }),
+}));
+
 const card: CreditCard = {
   id: 1,
   ccNumber: "1234-1234",

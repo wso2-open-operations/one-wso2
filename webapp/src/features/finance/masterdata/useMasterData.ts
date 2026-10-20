@@ -218,3 +218,31 @@ export function useExpenseTypeAutoComplete(enabled = true) {
     retry: financeRetry,
   });
 }
+
+/**
+ * The countries a subsidiary may be registered in, and the currency each
+ * reimburses in.
+ *
+ * Read from the backend rather than held here, because the same map decides
+ * what `currency_code` a subsidiary is saved with: a second copy on this side
+ * could offer a country the service rejects, or preview a currency it would
+ * not write.
+ */
+export function useCountries(enabled = true) {
+  const { isSignedIn } = useAsgardeo();
+  const getAccessToken = useAccessToken();
+  const configured = isFinanceMasterDataBackendConfigured();
+
+  return useQuery<Record<string, string>>({
+    queryKey: ["finance-master-data", "countries"],
+    enabled: enabled && isSignedIn && configured,
+    queryFn: async () =>
+      authedGet<Record<string, string>>(
+        financeMasterDataServiceUrls.countries,
+        await getAccessToken(),
+      ),
+    // Fixed reference data; it changes when the service ships, not in session.
+    staleTime: Infinity,
+    retry: financeRetry,
+  });
+}

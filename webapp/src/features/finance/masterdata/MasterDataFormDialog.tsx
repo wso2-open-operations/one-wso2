@@ -42,7 +42,7 @@ import {
   useCreateMasterData,
   useUpdateMasterData,
 } from "./useMasterDataMutations";
-import countryCurrency from "./countryCurrency.json";
+import { useCountries } from "./useMasterData";
 import {
   CREDIT_CARD_PROVIDERS,
   MASTER_DATA_STATUS,
@@ -94,6 +94,9 @@ export default function MasterDataFormDialog({
   const { showSuccess, showError } = useNotifications();
   const create = useCreateMasterData(tab);
   const update = useUpdateMasterData(tab);
+  // Only the subsidiary form asks for a country, so the other three tabs do
+  // not pay for the request.
+  const countries = useCountries(tab === "subsidiaries" && open);
 
   // Seeded once per mount. The page keys this dialog on the row being edited,
   // so opening a different record remounts it rather than carrying the last
@@ -162,6 +165,7 @@ export default function MasterDataFormDialog({
           glCodes={glCodes}
           autoComplete={autoComplete}
           employeeEmails={employeeEmails}
+          countryCurrency={countries.data ?? {}}
         />
       </DialogContent>
       <DialogActions>
@@ -189,6 +193,7 @@ function Fields({
   glCodes,
   autoComplete,
   employeeEmails,
+  countryCurrency,
 }: {
   tab: MasterDataTab;
   form: MasterDataPayload;
@@ -196,6 +201,8 @@ function Fields({
   glCodes?: GlCode[];
   autoComplete?: ExpenseTypeAutoComplete;
   employeeEmails?: string[];
+  /** ISO 4217 currency code by country, from the service. */
+  countryCurrency: Readonly<Record<string, string>>;
 }) {
   switch (tab) {
     case "subsidiaries": {
@@ -223,7 +230,7 @@ function Fields({
             id="country"
             label="Country"
             value={f.country}
-            options={COUNTRIES}
+            options={Object.keys(countryCurrency)}
             required
             onChange={set}
           />
@@ -233,7 +240,7 @@ function Fields({
           <TextInput
             id="currencyCodePreview"
             label="Currency Code"
-            value={COUNTRY_CURRENCY[f.country] ?? ""}
+            value={countryCurrency[f.country] ?? ""}
             required={false}
             disabled
             onChange={() => {}}
@@ -391,12 +398,6 @@ function Fields({
     }
   }
 }
-
-// Countries a subsidiary may be registered in, and the currency each one
-// reimburses in. The currency is shown back to the reader but never sent: the
-// backend derives `currency_code` from the country it is given.
-const COUNTRY_CURRENCY: Readonly<Record<string, string>> = countryCurrency;
-const COUNTRIES = Object.keys(COUNTRY_CURRENCY);
 
 /**
  * Active / inactive, for the two tabs that retire a record by status.
