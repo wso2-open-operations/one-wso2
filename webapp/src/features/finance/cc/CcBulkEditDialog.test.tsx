@@ -100,6 +100,12 @@ function show(txns: CcTransaction[]) {
 
 const jobNumberField = () => screen.queryByRole("combobox", { name: /Job Number/i });
 
+/** Travel has to be chosen here for the field to exist at all. */
+async function chooseTravel(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("combobox", { name: /Expense Category/i }));
+  await user.click(await screen.findByRole("option", { name: "Travel" }));
+}
+
 beforeEach(() => {
   state.fail = false;
   state.noFunding = false;
@@ -114,8 +120,7 @@ describe("the bulk edit dialog's Job Number field", () => {
     show([row(null, 1)]);
     expect(jobNumberField()).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("combobox", { name: /Expense Category/i }));
-    await user.click(await screen.findByRole("option", { name: "Travel" }));
+    await chooseTravel(user);
 
     expect(jobNumberField()).toBeInTheDocument();
   });
@@ -130,11 +135,11 @@ describe("the bulk edit dialog's Job Number field", () => {
     expect(jobNumberField()).not.toBeInTheDocument();
   });
 
-  // The category is left alone in the common case — every row is already
-  // Travel and only the job number is being set across them.
-  it("is offered with no category chosen when every selected row is Travel", () => {
+  // The dialog's own category decides, not the rows' — so Travel has to be
+  // picked here even when every selected row already carries it.
+  it("is not offered with no category chosen, whatever the rows already are", () => {
     show([row("Travel", 1), row("Travel", 2)]);
-    expect(jobNumberField()).toBeInTheDocument();
+    expect(jobNumberField()).not.toBeInTheDocument();
   });
 
   it("is not offered with no category chosen when the selection is mixed", () => {
@@ -149,11 +154,12 @@ describe("the bulk edit dialog refuses a job number it cannot trust", () => {
   it("rejects one that is not shaped like a job number", async () => {
     const user = userEvent.setup();
     show([row("Travel", 1)]);
+    await chooseTravel(user);
 
     await user.type(jobNumberField()!, "ABC-123");
     await user.tab();
 
-    expect(await screen.findByText(/look like TRV/i)).toBeInTheDocument();
+    expect(await screen.findByText(/format TRV-YYYY-MM-NNNN/i)).toBeInTheDocument();
     expect(applyButton()).toBeDisabled();
   });
 
@@ -161,11 +167,12 @@ describe("the bulk edit dialog refuses a job number it cannot trust", () => {
     state.fail = true;
     const user = userEvent.setup();
     show([row("Travel", 1)]);
+    await chooseTravel(user);
 
     await user.type(jobNumberField()!, "TRV-2016-10-0042");
     await user.tab();
 
-    expect(await screen.findByText(/No travel found/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Could not verify this job number/i)).toBeInTheDocument();
     expect(applyButton()).toBeDisabled();
   });
 
@@ -173,11 +180,14 @@ describe("the bulk edit dialog refuses a job number it cannot trust", () => {
     state.noFunding = true;
     const user = userEvent.setup();
     show([row("Travel", 1)]);
+    await chooseTravel(user);
 
     await user.type(jobNumberField()!, "TRV-2026-01-0001");
     await user.tab();
 
-    expect(await screen.findByText(/no funding sources/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/That job has no funding sources to charge against/i),
+    ).toBeInTheDocument();
     expect(applyButton()).toBeDisabled();
   });
 
@@ -185,6 +195,7 @@ describe("the bulk edit dialog refuses a job number it cannot trust", () => {
   it("accepts one typed in full that is not in the list", async () => {
     const user = userEvent.setup();
     show([row("Travel", 1), row("Travel", 2)]);
+    await chooseTravel(user);
 
     await user.type(jobNumberField()!, "TRV-2016-10-0042");
     await user.tab();
@@ -205,6 +216,7 @@ describe("the bulk edit dialog refuses a job number it cannot trust", () => {
     state.halfUnits = true;
     const user = userEvent.setup();
     show([row("Travel", 1)]);
+    await chooseTravel(user);
 
     await user.type(jobNumberField()!, "TRV-2026-01-0001");
     await user.tab();

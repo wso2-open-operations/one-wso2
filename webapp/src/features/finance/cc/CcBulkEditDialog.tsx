@@ -37,7 +37,10 @@ import {
   Field,
   FieldLabel,
   FieldRow,
+  FundingSources,
+  INFO_SIDEBAR_WIDTH,
   JobNumberAutocomplete,
+  JobNumberSideBar,
   Placeholder,
   SearchableSelect,
 } from "./ccFormFields";
@@ -81,6 +84,7 @@ export function CcBulkEditDialog({
   const [form, setForm] = useState<CcBulkEditForm>(CC_BULK_EDIT_EMPTY);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fundingOpen, setFundingOpen] = useState(false);
 
   const categories = useMemo(
     () => [...(menus.expenseTypes.data?.categories ?? [])].sort((a, b) => a.localeCompare(b)),
@@ -122,12 +126,7 @@ export function CcBulkEditDialog({
     ? form.expenseCategory !== CC_TRAVEL_CATEGORY
     : txns.some((t) => t.expenseCategoryLabel !== CC_TRAVEL_CATEGORY);
   const showSubRegion = form.expenseCategory.startsWith(CC_MARKETING_CATEGORY);
-  // The mirror of `showProductUnit`: a job number is Travel's to set, so it is
-  // offered when the edit lands on Travel — by the form's own category, or by
-  // every selected row already being Travel when the form names none.
-  const showJobNumber = form.expenseCategory
-    ? form.expenseCategory === CC_TRAVEL_CATEGORY
-    : txns.every((t) => t.expenseCategoryLabel === CC_TRAVEL_CATEGORY);
+  const showJobNumber = form.expenseCategory === CC_TRAVEL_CATEGORY;
 
   const jobNumbers = menus.jobNumbers.data?.jobNumbers ?? [];
   // Only look a job up once it could exist. The list holds the past year, so a
@@ -148,11 +147,18 @@ export function CcBulkEditDialog({
   // A job with no funding sources cannot be charged against, so it is refused
   // rather than written across the selection — as the single-row panel does.
   const jobUnusable = Boolean(jobUnits) && (jobUnits?.fundingSources.length ?? 0) === 0;
+  const fundingSources = jobUnits?.fundingSources ?? [];
+  // Warned about rather than refused: a job can come back without units and
+  // still be charged against, as the single-row panel treats it.
+  const jobMissingUnits = Boolean(jobUnits) && !(jobUnits?.productUnit && jobUnits?.businessUnit);
+  // The funding shares split what is being charged, which across a bulk edit
+  // is every selected row's amount, not one transaction's.
+  const selectionAmount = txns.reduce((sum, t) => sum + t.txnAmount, 0);
   const jobBlocked = jobMalformed || jobNotFound || jobPending || jobUnusable;
   const jobHelperText = jobMalformed
-    ? "Job numbers look like TRV-2026-01-0001."
+    ? "Enter a valid value in the format TRV-YYYY-MM-NNNN"
     : jobNotFound
-      ? "No travel found for that job number."
+      ? "Could not verify this job number"
       : jobUnusable
         ? "That job has no funding sources to charge against."
         : jobPending
@@ -177,10 +183,7 @@ export function CcBulkEditDialog({
           form,
           txns,
           { productUnits, businessUnits },
-          // Whatever the job carries, including a half-filled pair. Apply is
-          // already refused for an unusable job, and the single-row panel
-          // saves a partial pair rather than keeping the row's old units —
-          // requiring both here would save one job two ways.
+          // The job's units as returned, even if only one of the pair is set.
           jobUnits
             ? { productUnit: jobUnits.productUnit, businessUnit: jobUnits.businessUnit }
             : null,
@@ -226,18 +229,30 @@ export function CcBulkEditDialog({
 
           {showJobNumber && (
             <FieldRow>
-              <Field label="Job Number">
+              <Field label="Travel Job Number">
                 <JobNumberAutocomplete
                   value={form.travelJobNumber}
                   options={jobNumbers}
                   disabled={applying}
                   error={jobMalformed || jobNotFound || jobUnusable}
                   helperText={jobHelperText}
-                  // No info slot here, so its reserved column is given back and
-                  // the input fills the row like Comment below it.
-                  infoWidth={0}
+                  infoWidth={INFO_SIDEBAR_WIDTH}
+                  info={
+                    jobUnits ? (
+                      <JobNumberSideBar
+                        details={jobUnits}
+                        fundingCount={fundingSources.length}
+                        onOpenFunding={() => setFundingOpen(true)}
+                      />
+                    ) : undefined
+                  }
                   onChange={(v) => set("travelJobNumber", v ?? "")}
                 />
+                {!jobUnusable && jobMissingUnits && (
+                  <Alert severity="warning" sx={{ mt: 1, fontSize: 12.5 }}>
+                    No Product unit and/or Business unit found for the selected Job number.
+                  </Alert>
+                )}
               </Field>
             </FieldRow>
           )}
@@ -356,6 +371,23 @@ export function CcBulkEditDialog({
           {applying ? "Applying…" : "Apply"}
         </Button>
       </DialogActions>
+
+      <Dialog open={fundingOpen} onClose={() => setFundingOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>
+          Funding Sources
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary", fontWeight: 400 }}>
+            What the selected transactions cost each share of the job.
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          <FundingSources sources={fundingSources} totalAmount={selectionAmount} />
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={() => setFundingOpen(false)}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }
