@@ -61,7 +61,7 @@ export interface SubsidiaryPayload {
   taxCode: string;
   legalName: string;
   code: string;
-  /** The backend derives `currencyCode` from this, so only the country is sent. */
+  /** Country the subsidiary is registered in. */
   country: string;
 }
 

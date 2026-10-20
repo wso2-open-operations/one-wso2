@@ -222,11 +222,6 @@ export function useExpenseTypeAutoComplete(enabled = true) {
 /**
  * The countries a subsidiary may be registered in, and the currency each
  * reimburses in.
- *
- * Read from the backend rather than held here, because the same map decides
- * what `currency_code` a subsidiary is saved with: a second copy on this side
- * could offer a country the service rejects, or preview a currency it would
- * not write.
  */
 export function useCountries(enabled = true) {
   const { isSignedIn } = useAsgardeo();

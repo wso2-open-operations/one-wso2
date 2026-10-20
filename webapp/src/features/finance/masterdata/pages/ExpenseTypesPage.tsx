@@ -41,6 +41,19 @@ import type { ExpenseTypeFilter } from "../masterDataTypes";
  * Filters start collapsed: the catalogue is already on screen, so the bar is
  * there for the person who wants to narrow it, not a gate on the way in.
  */
+// The filter panel's height slide, and the fade that covers it.
+const FILTER_EASE_IN = "cubic-bezier(0.4, 0, 0.2, 1)";
+const FILTER_EASE_OUT = "cubic-bezier(0.4, 0, 1, 1)";
+const FILTER_SLIDE_MS = 260;
+const FILTER_FADE_IN_MS = 220;
+const FILTER_FADE_OUT_MS = 120;
+// Lets the height open before the contents arrive.
+const FILTER_FADE_DELAY_MS = 40;
+
+const FADE_PROPS = ["opacity", "transform"];
+const fadeTransition = (ms: number, ease: string, delay = 0) =>
+  FADE_PROPS.map((prop) => `${prop} ${ms}ms ${ease} ${delay}ms`).join(", ");
+
 export default function ExpenseTypesPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [draft, setDraft] = useState<ExpenseTypeFilter>({});
@@ -82,31 +95,17 @@ export default function ExpenseTypesPage() {
         </ToggleButton>
       }
     >
-      {/* `flexShrink: 0` because FinanceShell's fill layout is a flex column,
-          and Collapse clips what overflows: without it the Apply and Clear
-          buttons are cut off first when the viewport is short.
-
-          The height slide is paired with a fade on the contents. Collapse
-          alone reveals the filters by un-clipping them a row at a time, which
-          is what read as the panel tearing open; fading them in over the same
-          move hides that edge. Opacity and transform are composited, so the
-          fade costs the table below none of the row re-measures its
-          `getRowHeight: () => "auto"` would owe an animated height. */}
-      <Collapse
-        in={showFilters}
-        timeout={260}
-        easing="cubic-bezier(0.4, 0, 0.2, 1)"
-        sx={{ flexShrink: 0 }}
-      >
+      {/* flexShrink: 0 stops the flex-column parent squeezing Collapse and
+          clipping the buttons. The fade hides Collapse un-clipping the
+          filters a row at a time. */}
+      <Collapse in={showFilters} timeout={FILTER_SLIDE_MS} easing={FILTER_EASE_IN} sx={{ flexShrink: 0 }}>
         <Box
           sx={{
             opacity: showFilters ? 1 : 0,
             transform: showFilters ? "translateY(0)" : "translateY(-4px)",
-            // Slower in than out: opening should settle, closing should get
-            // out of the way before the height starts collapsing.
             transition: showFilters
-              ? "opacity 220ms cubic-bezier(0.4, 0, 0.2, 1) 40ms, transform 220ms cubic-bezier(0.4, 0, 0.2, 1) 40ms"
-              : "opacity 120ms cubic-bezier(0.4, 0, 1, 1), transform 120ms cubic-bezier(0.4, 0, 1, 1)",
+              ? fadeTransition(FILTER_FADE_IN_MS, FILTER_EASE_IN, FILTER_FADE_DELAY_MS)
+              : fadeTransition(FILTER_FADE_OUT_MS, FILTER_EASE_OUT),
           }}
         >
           <ExpenseTypeFilters

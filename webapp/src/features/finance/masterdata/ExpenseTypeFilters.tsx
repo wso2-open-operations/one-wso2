@@ -44,7 +44,7 @@ const FIELD_SX = { minWidth: 0 } as const;
 // stretching across the full bar on its own.
 const FILTER_GRID_SX = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
   gap: 1.5,
   mb: 1.5,
 } as const;

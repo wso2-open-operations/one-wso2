@@ -201,7 +201,7 @@ function Fields({
   glCodes?: GlCode[];
   autoComplete?: ExpenseTypeAutoComplete;
   employeeEmails?: string[];
-  /** ISO 4217 currency code by country, from the service. */
+  /** ISO 4217 currency code by country. */
   countryCurrency: Readonly<Record<string, string>>;
 }) {
   switch (tab) {
@@ -234,9 +234,7 @@ function Fields({
             required
             onChange={set}
           />
-          {/* Read-only, and not part of the payload: it is what the backend
-              will derive from the chosen country, shown so the choice is
-              visible before saving. */}
+          {/* Read-only preview, not part of the payload. */}
           <TextInput
             id="currencyCodePreview"
             label="Currency Code"
