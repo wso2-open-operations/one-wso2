@@ -15,7 +15,7 @@
 // under the License.
 
 import { useEffect, useState } from "react";
-import { Collapse, ToggleButton } from "@wso2/oxygen-ui";
+import { Box, Collapse, ToggleButton } from "@wso2/oxygen-ui";
 import { FilterIcon } from "@wso2/oxygen-ui-icons-react";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import ExpenseTypeFilters from "../ExpenseTypeFilters";
@@ -73,34 +73,59 @@ export default function ExpenseTypesPage() {
           size="small"
           selected={showFilters}
           onChange={() => setShowFilters((v) => !v)}
-          sx={{ textTransform: "none", gap: 0.75, px: 1.5 }}
+          // One width for both labels: the toolbar is right-aligned, so a
+          // button that resizes on click nudges "Add New Expense Type" too.
+          sx={{ textTransform: "none", gap: 0.75, px: 1.5, minWidth: 140 }}
         >
           <FilterIcon size={16} />
           {showFilters ? "Hide Filters" : "Show Filters"}
         </ToggleButton>
       }
     >
-      {/* `FinanceShell fill` lays its children out as a flex column, where a
-          child shrinks before the table does. Collapse clips what overflows,
-          so without this the Apply and Clear buttons are the first thing cut
-          off when the viewport is short. */}
-      <Collapse in={showFilters} unmountOnExit sx={{ flexShrink: 0 }}>
-        <ExpenseTypeFilters
-          draft={draft}
-          options={options.data}
-          optionsLoading={options.isLoading}
-          busy={query.isFetching}
-          onChange={setDraft}
-          onApply={() => setApplied(draft)}
-          // Clears what the table is showing too, not just the bar. With the
-          // catalogue as the starting point, "Clear" means "back to all of
-          // it" — emptying the fields while the table stayed narrowed would
-          // leave no way to read what it was still narrowed by.
-          onClear={() => {
-            setDraft({});
-            setApplied({});
+      {/* `flexShrink: 0` because FinanceShell's fill layout is a flex column,
+          and Collapse clips what overflows: without it the Apply and Clear
+          buttons are cut off first when the viewport is short.
+
+          The height slide is paired with a fade on the contents. Collapse
+          alone reveals the filters by un-clipping them a row at a time, which
+          is what read as the panel tearing open; fading them in over the same
+          move hides that edge. Opacity and transform are composited, so the
+          fade costs the table below none of the row re-measures its
+          `getRowHeight: () => "auto"` would owe an animated height. */}
+      <Collapse
+        in={showFilters}
+        timeout={260}
+        easing="cubic-bezier(0.4, 0, 0.2, 1)"
+        sx={{ flexShrink: 0 }}
+      >
+        <Box
+          sx={{
+            opacity: showFilters ? 1 : 0,
+            transform: showFilters ? "translateY(0)" : "translateY(-4px)",
+            // Slower in than out: opening should settle, closing should get
+            // out of the way before the height starts collapsing.
+            transition: showFilters
+              ? "opacity 220ms cubic-bezier(0.4, 0, 0.2, 1) 40ms, transform 220ms cubic-bezier(0.4, 0, 0.2, 1) 40ms"
+              : "opacity 120ms cubic-bezier(0.4, 0, 1, 1), transform 120ms cubic-bezier(0.4, 0, 1, 1)",
           }}
-        />
+        >
+          <ExpenseTypeFilters
+            draft={draft}
+            options={options.data}
+            optionsLoading={options.isLoading}
+            busy={query.isFetching}
+            onChange={setDraft}
+            onApply={() => setApplied(draft)}
+            // Clears what the table is showing too, not just the bar. With the
+            // catalogue as the starting point, "Clear" means "back to all of
+            // it" — emptying the fields while the table stayed narrowed would
+            // leave no way to read what it was still narrowed by.
+            onClear={() => {
+              setDraft({});
+              setApplied({});
+            }}
+          />
+        </Box>
       </Collapse>
     </MasterDataScreen>
   );
