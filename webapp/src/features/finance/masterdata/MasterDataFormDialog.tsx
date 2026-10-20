@@ -42,7 +42,7 @@ import {
   useCreateMasterData,
   useUpdateMasterData,
 } from "./useMasterDataMutations";
-import countries from "./countries.json";
+import countryCurrency from "./countryCurrency.json";
 import {
   CREDIT_CARD_PROVIDERS,
   MASTER_DATA_STATUS,
@@ -227,6 +227,17 @@ function Fields({
             required
             onChange={set}
           />
+          {/* Read-only, and not part of the payload: it is what the backend
+              will derive from the chosen country, shown so the choice is
+              visible before saving. */}
+          <TextInput
+            id="currencyCodePreview"
+            label="Currency Code"
+            value={COUNTRY_CURRENCY[f.country] ?? ""}
+            required={false}
+            disabled
+            onChange={() => {}}
+          />
         </>
       );
     }
@@ -381,8 +392,11 @@ function Fields({
   }
 }
 
-// Countries a subsidiary may be registered in.
-const COUNTRIES: readonly string[] = countries;
+// Countries a subsidiary may be registered in, and the currency each one
+// reimburses in. The currency is shown back to the reader but never sent: the
+// backend derives `currency_code` from the country it is given.
+const COUNTRY_CURRENCY: Readonly<Record<string, string>> = countryCurrency;
+const COUNTRIES = Object.keys(COUNTRY_CURRENCY);
 
 /**
  * Active / inactive, for the two tabs that retire a record by status.

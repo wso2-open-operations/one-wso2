@@ -150,8 +150,18 @@ describe("the subsidiary form's country", () => {
     expect(screen.getByRole("combobox", { name: /Country/ })).toHaveValue("Sri Lanka");
   });
 
-  it("offers no currency field, since the backend derives it", () => {
+  it("shows the currency the chosen country will be saved with", async () => {
+    const user = userEvent.setup();
     showSubsidiaries();
-    expect(screen.queryByLabelText(/Currency Code/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: /Country/ }));
+    await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
+
+    expect(screen.getByLabelText(/Currency Code/)).toHaveValue("LKR");
+  });
+
+  it("does not let that currency be typed over", () => {
+    showSubsidiaries();
+    expect(screen.getByLabelText(/Currency Code/)).toBeDisabled();
   });
 });
