@@ -105,6 +105,6 @@ export const MASTER_DATA_DELETE_COPY = {
 export const MASTER_DATA_SUBTITLES: Record<MasterDataTab, string> = {
   subsidiaries: "WSO2 legal entities and the tax codes claims are booked against.",
   departments: "Employee departments, their engagement codes and the GL code each maps to.",
-  expenseTypes: "The expense catalogue — category, GL code, and the engagements each type is valid for.",
+  expenseTypes: "The expense catalogue: category, GL code, and the engagements each type is valid for.",
   creditCards: "The corporate card register: which card belongs to whom, and who approves its spend.",
 };

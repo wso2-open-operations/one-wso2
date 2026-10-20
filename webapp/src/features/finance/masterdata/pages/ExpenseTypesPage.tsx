@@ -80,7 +80,11 @@ export default function ExpenseTypesPage() {
         </ToggleButton>
       }
     >
-      <Collapse in={showFilters} unmountOnExit>
+      {/* `FinanceShell fill` lays its children out as a flex column, where a
+          child shrinks before the table does. Collapse clips what overflows,
+          so without this the Apply and Clear buttons are the first thing cut
+          off when the viewport is short. */}
+      <Collapse in={showFilters} unmountOnExit sx={{ flexShrink: 0 }}>
         <ExpenseTypeFilters
           draft={draft}
           options={options.data}
