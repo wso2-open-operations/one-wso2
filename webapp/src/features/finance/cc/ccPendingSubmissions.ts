@@ -183,9 +183,7 @@ export function applyBulkEdit(
           break;
         case "travelJobNumber":
           // One job number across the selection means one set of units, so the
-          // caller resolves them once and they are stamped on every row. A job
-          // that came back without units leaves the row's own alone, which is
-          // what the single-row panel does with `jobMissingUnits`.
+          // caller resolves them once and they are stamped on every row.
           next = {
             ...next,
             travelJobNumber: value,

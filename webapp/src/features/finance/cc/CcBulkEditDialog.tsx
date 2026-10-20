@@ -177,7 +177,11 @@ export function CcBulkEditDialog({
           form,
           txns,
           { productUnits, businessUnits },
-          jobUnits?.productUnit && jobUnits?.businessUnit
+          // Whatever the job carries, including a half-filled pair. Apply is
+          // already refused for an unusable job, and the single-row panel
+          // saves a partial pair rather than keeping the row's old units —
+          // requiring both here would save one job two ways.
+          jobUnits
             ? { productUnit: jobUnits.productUnit, businessUnit: jobUnits.businessUnit }
             : null,
         ),

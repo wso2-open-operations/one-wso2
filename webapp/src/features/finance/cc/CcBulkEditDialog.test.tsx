@@ -41,7 +41,7 @@ const jobDetails = {
   ],
 };
 
-const state = { fail: false, noFunding: false };
+const state = { fail: false, noFunding: false, halfUnits: false };
 
 vi.mock("./useCc", () => ({
   useCcMenus: () => ({
@@ -62,11 +62,12 @@ vi.mock("./useCc", () => ({
   useCcJobNumberDetails: (jobNumber: string | undefined) => {
     if (!jobNumber) return { data: undefined, isLoading: false, isError: false };
     if (state.fail) return { data: undefined, isLoading: false, isError: true };
-    return {
-      data: state.noFunding ? { ...jobDetails, fundingSources: [] } : jobDetails,
-      isLoading: false,
-      isError: false,
-    };
+    const details = state.noFunding
+      ? { ...jobDetails, fundingSources: [] }
+      : state.halfUnits
+        ? { ...jobDetails, businessUnit: "" }
+        : jobDetails;
+    return { data: details, isLoading: false, isError: false };
   },
 }));
 
@@ -102,6 +103,7 @@ const jobNumberField = () => screen.queryByRole("combobox", { name: /Job Number/
 beforeEach(() => {
   state.fail = false;
   state.noFunding = false;
+  state.halfUnits = false;
   onApply.mockClear();
 });
 
@@ -194,5 +196,22 @@ describe("the bulk edit dialog refuses a job number it cannot trust", () => {
     // A travel row's units come from its job, not from a hand-picked unit.
     expect(rows.map((r) => r.productUnit)).toEqual(["Integration", "Integration"]);
     expect(rows.map((r) => r.businessUnit)).toEqual(["Platform", "Platform"]);
+  });
+
+  // The single-row panel saves a half-filled pair rather than keeping the
+  // row's old units, and warns. Bulk writes the same pair, so one job cannot
+  // save two ways depending on which screen was used.
+  it("writes a job's units even when only one of the pair came back", async () => {
+    state.halfUnits = true;
+    const user = userEvent.setup();
+    show([row("Travel", 1)]);
+
+    await user.type(jobNumberField()!, "TRV-2026-01-0001");
+    await user.tab();
+    await user.click(screen.getByRole("button", { name: /Apply/i }));
+
+    const rows = onApply.mock.calls[0][0];
+    expect(rows[0].productUnit).toBe("Integration");
+    expect(rows[0].businessUnit).toBe("");
   });
 });
