@@ -129,35 +129,29 @@ function showSubsidiaries() {
   );
 }
 
-// Expense Claims reads a subsidiary's currency to decide what a claim is
-// reimbursed in, and resolves its country to a country code. A subsidiary saved
-// without them is incomplete there, so the form has to carry both.
-describe("the subsidiary form's country and currency", () => {
-  it("fills the currency from the chosen country, so the two cannot disagree", async () => {
+describe("the subsidiary form's country", () => {
+  it("offers the countries a subsidiary may be registered in", async () => {
+    const user = userEvent.setup();
+    showSubsidiaries();
+
+    await user.click(screen.getByRole("combobox", { name: /Country/ }));
+
+    expect(await screen.findByRole("option", { name: "Sri Lanka" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Germany" })).toBeInTheDocument();
+  });
+
+  it("keeps the chosen country", async () => {
     const user = userEvent.setup();
     showSubsidiaries();
 
     await user.click(screen.getByRole("combobox", { name: /Country/ }));
     await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
 
-    expect(screen.getByLabelText(/Currency Code/)).toHaveValue("LKR");
+    expect(screen.getByRole("combobox", { name: /Country/ })).toHaveValue("Sri Lanka");
   });
 
-  it("does not let the currency be typed over", () => {
+  it("offers no currency field, since the backend derives it", () => {
     showSubsidiaries();
-    expect(screen.getByLabelText(/Currency Code/)).toBeDisabled();
-  });
-
-  it("replaces the currency when the country changes rather than leaving the old one", async () => {
-    const user = userEvent.setup();
-    showSubsidiaries();
-
-    await user.click(screen.getByRole("combobox", { name: /Country/ }));
-    await user.click(await screen.findByRole("option", { name: "Sri Lanka" }));
-    expect(screen.getByLabelText(/Currency Code/)).toHaveValue("LKR");
-
-    await user.click(screen.getByRole("combobox", { name: /Country/ }));
-    await user.click(await screen.findByRole("option", { name: "Germany" }));
-    expect(screen.getByLabelText(/Currency Code/)).toHaveValue("EUR");
+    expect(screen.queryByLabelText(/Currency Code/)).not.toBeInTheDocument();
   });
 });

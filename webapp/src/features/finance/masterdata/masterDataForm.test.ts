@@ -66,7 +66,6 @@ describe("isFormComplete — subsidiaries and departments (every field required)
       legalName: "",
       code: "",
       country: "",
-      currencyCode: "",
     };
     expect(isFormComplete("subsidiaries", empty)).toBe(false);
   });
@@ -77,7 +76,6 @@ describe("isFormComplete — subsidiaries and departments (every field required)
       legalName: "WSO2 Lanka",
       code: "WSO2-LK",
       country: "Sri Lanka",
-      currencyCode: "LKR",
     };
     expect(isFormComplete("subsidiaries", filled)).toBe(true);
   });
@@ -88,7 +86,6 @@ describe("isFormComplete — subsidiaries and departments (every field required)
       legalName: "WSO2 Lanka",
       code: "WSO2-LK",
       country: "Sri Lanka",
-      currencyCode: "LKR",
     };
     expect(isFormComplete("subsidiaries", almost)).toBe(false);
   });
@@ -309,7 +306,6 @@ describe("initialFormData — seeding the payload from an existing row, or blank
       legalName: "",
       code: "",
       country: "",
-      currencyCode: "",
     });
   });
   it("flattens an existing row into its payload shape", () => {
