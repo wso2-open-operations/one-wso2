@@ -33,14 +33,22 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { describeError } from "../util/financeError";
-import { Field, FieldLabel, FieldRow, Placeholder, SearchableSelect } from "./ccFormFields";
+import {
+  Field,
+  FieldLabel,
+  FieldRow,
+  JobNumberAutocomplete,
+  Placeholder,
+  SearchableSelect,
+} from "./ccFormFields";
+import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
 import {
   applyBulkEdit,
   clearBulkDependents,
   CC_BULK_EDIT_EMPTY,
   type CcBulkEditForm,
 } from "./ccPendingSubmissions";
-import { useCcMenus } from "./useCc";
+import { useCcJobNumberDetails, useCcMenus } from "./useCc";
 import { CC_MARKETING_CATEGORY, CC_TRAVEL_CATEGORY, type CcTransaction } from "./ccTypes";
 
 const COMMENT_MAX = 30;
@@ -114,6 +122,42 @@ export function CcBulkEditDialog({
     ? form.expenseCategory !== CC_TRAVEL_CATEGORY
     : txns.some((t) => t.expenseCategoryLabel !== CC_TRAVEL_CATEGORY);
   const showSubRegion = form.expenseCategory.startsWith(CC_MARKETING_CATEGORY);
+  // The mirror of `showProductUnit`: a job number is Travel's to set, so it is
+  // offered when the edit lands on Travel — by the form's own category, or by
+  // every selected row already being Travel when the form names none.
+  const showJobNumber = form.expenseCategory
+    ? form.expenseCategory === CC_TRAVEL_CATEGORY
+    : txns.every((t) => t.expenseCategoryLabel === CC_TRAVEL_CATEGORY);
+
+  const jobNumbers = menus.jobNumbers.data?.jobNumbers ?? [];
+  // Only look a job up once it could exist. The list holds the past year, so a
+  // number typed in full is checked on its shape before the request.
+  const jobLookupKey =
+    showJobNumber && form.travelJobNumber &&
+    (jobNumbers.includes(form.travelJobNumber) || isValidJobNumberFormat(form.travelJobNumber))
+      ? normalizeJobNumber(form.travelJobNumber)
+      : undefined;
+  const jobDetails = useCcJobNumberDetails(jobLookupKey);
+  const jobUnits = jobDetails.data;
+
+  const jobMalformed = Boolean(
+    showJobNumber && form.travelJobNumber && !jobLookupKey,
+  );
+  const jobNotFound = Boolean(jobLookupKey) && jobDetails.isError;
+  const jobPending = Boolean(jobLookupKey) && !jobUnits && !jobNotFound;
+  // A job with no funding sources cannot be charged against, so it is refused
+  // rather than written across the selection — as the single-row panel does.
+  const jobUnusable = Boolean(jobUnits) && (jobUnits?.fundingSources.length ?? 0) === 0;
+  const jobBlocked = jobMalformed || jobNotFound || jobPending || jobUnusable;
+  const jobHelperText = jobMalformed
+    ? "Job numbers look like TRV-2026-01-0001."
+    : jobNotFound
+      ? "No travel found for that job number."
+      : jobUnusable
+        ? "That job has no funding sources to charge against."
+        : jobPending
+          ? "Checking the job number…"
+          : "Not listed? Type the full job number.";
 
   const set = (field: keyof CcBulkEditForm, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value, ...clearBulkDependents(field, prev) }));
@@ -128,7 +172,16 @@ export function CcBulkEditDialog({
     setApplying(true);
     setError(null);
     try {
-      await onApply(applyBulkEdit(form, txns, { productUnits, businessUnits }));
+      await onApply(
+        applyBulkEdit(
+          form,
+          txns,
+          { productUnits, businessUnits },
+          jobUnits?.productUnit && jobUnits?.businessUnit
+            ? { productUnit: jobUnits.productUnit, businessUnit: jobUnits.businessUnit }
+            : null,
+        ),
+      );
       setForm(CC_BULK_EDIT_EMPTY);
       onClose();
     } catch (err) {
@@ -166,6 +219,24 @@ export function CcBulkEditDialog({
               />
             </Field>
           </FieldRow>
+
+          {showJobNumber && (
+            <FieldRow>
+              <Field label="Job Number">
+                <JobNumberAutocomplete
+                  value={form.travelJobNumber}
+                  options={jobNumbers}
+                  disabled={applying}
+                  error={jobMalformed || jobNotFound || jobUnusable}
+                  helperText={jobHelperText}
+                  // No info slot here, so its reserved column is given back and
+                  // the input fills the row like Comment below it.
+                  infoWidth={0}
+                  onChange={(v) => set("travelJobNumber", v ?? "")}
+                />
+              </Field>
+            </FieldRow>
+          )}
 
           <Box>
             <FieldLabel>Comment</FieldLabel>
@@ -272,7 +343,12 @@ export function CcBulkEditDialog({
         <Button size="small" variant="outlined" onClick={close} disabled={applying}>
           Close
         </Button>
-        <Button size="small" variant="contained" onClick={() => void apply()} disabled={applying}>
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => void apply()}
+          disabled={applying || jobBlocked}
+        >
           {applying ? "Applying…" : "Apply"}
         </Button>
       </DialogActions>

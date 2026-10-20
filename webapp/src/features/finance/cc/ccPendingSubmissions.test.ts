@@ -232,16 +232,18 @@ describe("a bulk edit", () => {
 
 // EditPaneModal.tsx:87-109 — narrower than the transaction-level rule.
 describe("the bulk form clears its own dependent choices", () => {
-  it("a new category drops the type, unit and sub region below it", () => {
+  it("a new category drops the type, job number, unit and sub region below it", () => {
     expect(clearBulkDependents("expenseCategory", CC_BULK_EDIT_EMPTY)).toEqual({
       expenseType: "",
+      travelJobNumber: "",
       productUnit: "",
       subRegion: "",
     });
   });
 
-  it("a new type drops the unit only under Travel", () => {
+  it("a new type drops the job number and unit only under Travel", () => {
     expect(clearBulkDependents("expenseType", { ...CC_BULK_EDIT_EMPTY, expenseCategory: "Travel" })).toEqual({
+      travelJobNumber: "",
       productUnit: "",
     });
     expect(clearBulkDependents("expenseType", { ...CC_BULK_EDIT_EMPTY, expenseCategory: "Software" })).toEqual({});

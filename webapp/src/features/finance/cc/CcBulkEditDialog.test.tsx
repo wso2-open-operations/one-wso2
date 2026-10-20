@@ -1,0 +1,198 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import type { CcTransaction } from "./ccTypes";
+
+vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "token" }));
+vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
+
+const jobDetails = {
+  engagementCode: "ENG-1",
+  engagementType: "T&M",
+  customerName: "Acme",
+  city: "Colombo",
+  country: "Sri Lanka",
+  globalPod: "APAC",
+  startDate: "2026-01-01",
+  endDate: "2026-12-31",
+  productUnit: "Integration",
+  businessUnit: "Platform",
+  fundingSources: [
+    { region: "APAC", subRegion: "South Asia", businessUnit: "Platform", productUnit: "Integration", percentage: 100 },
+  ],
+};
+
+const state = { fail: false, noFunding: false };
+
+vi.mock("./useCc", () => ({
+  useCcMenus: () => ({
+    expenseTypes: {
+      data: {
+        categories: ["Travel", "Software"],
+        types: { Travel: ["Flights"], Software: ["Licence"] },
+      },
+      isLoading: false,
+    },
+    subRegions: { data: { subRegions: ["South Asia"] }, isLoading: false },
+    units: {
+      data: { productUnits: ["Integration", "Other"], businessUnits: ["Platform", "Corp"] },
+      isLoading: false,
+    },
+    jobNumbers: { data: { jobNumbers: ["TRV-2026-01-0001"] }, isLoading: false },
+  }),
+  useCcJobNumberDetails: (jobNumber: string | undefined) => {
+    if (!jobNumber) return { data: undefined, isLoading: false, isError: false };
+    if (state.fail) return { data: undefined, isLoading: false, isError: true };
+    return {
+      data: state.noFunding ? { ...jobDetails, fundingSources: [] } : jobDetails,
+      isLoading: false,
+      isError: false,
+    };
+  },
+}));
+
+const { CcBulkEditDialog } = await import("./CcBulkEditDialog");
+
+const row = (category: string | null, id: number): CcTransaction =>
+  ({
+    id,
+    ccNumber: "1234",
+    txnDate: "2026-08-01",
+    txnDescription: "Flight",
+    txnAmount: 100,
+    expenseCategoryLabel: category,
+    expenseTypeLabel: null,
+    txnComment: null,
+    subRegion: null,
+    travelJobNumber: null,
+    productUnit: null,
+    businessUnit: null,
+    status: "new",
+  }) as unknown as CcTransaction;
+
+const onApply = vi.fn<(rows: CcTransaction[]) => Promise<void>>(async () => undefined);
+
+function show(txns: CcTransaction[]) {
+  return render(
+    <CcBulkEditDialog open txns={txns} onClose={vi.fn()} onApply={onApply} />,
+  );
+}
+
+const jobNumberField = () => screen.queryByRole("combobox", { name: /Job Number/i });
+
+beforeEach(() => {
+  state.fail = false;
+  state.noFunding = false;
+  onApply.mockClear();
+});
+
+// Finance's requirement: the Job Number field appears only for Travel.
+describe("the bulk edit dialog's Job Number field", () => {
+  it("is offered when Travel is the category being applied", async () => {
+    const user = userEvent.setup();
+    show([row(null, 1)]);
+    expect(jobNumberField()).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: /Expense Category/i }));
+    await user.click(await screen.findByRole("option", { name: "Travel" }));
+
+    expect(jobNumberField()).toBeInTheDocument();
+  });
+
+  it("is not offered when a non-Travel category is being applied", async () => {
+    const user = userEvent.setup();
+    show([row("Travel", 1)]);
+
+    await user.click(screen.getByRole("combobox", { name: /Expense Category/i }));
+    await user.click(await screen.findByRole("option", { name: "Software" }));
+
+    expect(jobNumberField()).not.toBeInTheDocument();
+  });
+
+  // The category is left alone in the common case — every row is already
+  // Travel and only the job number is being set across them.
+  it("is offered with no category chosen when every selected row is Travel", () => {
+    show([row("Travel", 1), row("Travel", 2)]);
+    expect(jobNumberField()).toBeInTheDocument();
+  });
+
+  it("is not offered with no category chosen when the selection is mixed", () => {
+    show([row("Travel", 1), row("Software", 2)]);
+    expect(jobNumberField()).not.toBeInTheDocument();
+  });
+});
+
+describe("the bulk edit dialog refuses a job number it cannot trust", () => {
+  const applyButton = () => screen.getByRole("button", { name: /Apply/i });
+
+  it("rejects one that is not shaped like a job number", async () => {
+    const user = userEvent.setup();
+    show([row("Travel", 1)]);
+
+    await user.type(jobNumberField()!, "ABC-123");
+    await user.tab();
+
+    expect(await screen.findByText(/look like TRV/i)).toBeInTheDocument();
+    expect(applyButton()).toBeDisabled();
+  });
+
+  it("rejects one that no travel matches", async () => {
+    state.fail = true;
+    const user = userEvent.setup();
+    show([row("Travel", 1)]);
+
+    await user.type(jobNumberField()!, "TRV-2016-10-0042");
+    await user.tab();
+
+    expect(await screen.findByText(/No travel found/i)).toBeInTheDocument();
+    expect(applyButton()).toBeDisabled();
+  });
+
+  it("rejects one with no funding sources to charge against", async () => {
+    state.noFunding = true;
+    const user = userEvent.setup();
+    show([row("Travel", 1)]);
+
+    await user.type(jobNumberField()!, "TRV-2026-01-0001");
+    await user.tab();
+
+    expect(await screen.findByText(/no funding sources/i)).toBeInTheDocument();
+    expect(applyButton()).toBeDisabled();
+  });
+
+  // The list only holds the past year, so an older job has to be typed out.
+  it("accepts one typed in full that is not in the list", async () => {
+    const user = userEvent.setup();
+    show([row("Travel", 1), row("Travel", 2)]);
+
+    await user.type(jobNumberField()!, "TRV-2016-10-0042");
+    await user.tab();
+    await user.click(applyButton());
+
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const rows = onApply.mock.calls[0][0];
+    expect(rows.map((r) => r.travelJobNumber)).toEqual(["TRV-2016-10-0042", "TRV-2016-10-0042"]);
+    // A travel row's units come from its job, not from a hand-picked unit.
+    expect(rows.map((r) => r.productUnit)).toEqual(["Integration", "Integration"]);
+    expect(rows.map((r) => r.businessUnit)).toEqual(["Platform", "Platform"]);
+  });
+});

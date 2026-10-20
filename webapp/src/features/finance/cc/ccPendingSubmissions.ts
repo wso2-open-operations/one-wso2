@@ -119,6 +119,7 @@ export interface CcBulkEditForm {
   comment: string;
   expenseCategory: string;
   expenseType: string;
+  travelJobNumber: string;
   productUnit: string;
   subRegion: string;
 }
@@ -127,6 +128,7 @@ export const CC_BULK_EDIT_EMPTY: CcBulkEditForm = {
   comment: "",
   expenseCategory: "",
   expenseType: "",
+  travelJobNumber: "",
   productUnit: "",
   subRegion: "",
 };
@@ -144,6 +146,7 @@ const BULK_APPLY_ORDER: readonly (keyof CcBulkEditForm)[] = [
   "comment",
   "expenseCategory",
   "expenseType",
+  "travelJobNumber",
   "productUnit",
   "subRegion",
 ];
@@ -157,6 +160,7 @@ export function applyBulkEdit(
   form: CcBulkEditForm,
   txns: CcTransaction[],
   units: { productUnits: string[]; businessUnits: string[] },
+  jobUnits?: { productUnit: string; businessUnit: string } | null,
 ): CcTransaction[] {
   return txns.map((txn) => {
     let next: CcTransaction = { ...txn };
@@ -176,6 +180,21 @@ export function applyBulkEdit(
           break;
         case "expenseType":
           next = { ...next, expenseTypeLabel: value, ...clearDependentFields("expenseType") };
+          break;
+        case "travelJobNumber":
+          // One job number across the selection means one set of units, so the
+          // caller resolves them once and they are stamped on every row. A job
+          // that came back without units leaves the row's own alone, which is
+          // what the single-row panel does with `jobMissingUnits`.
+          next = {
+            ...next,
+            travelJobNumber: value,
+            ...clearDependentFields("travelJobNumber"),
+          };
+          if (jobUnits) {
+            next.productUnit = jobUnits.productUnit;
+            next.businessUnit = jobUnits.businessUnit;
+          }
           break;
         case "productUnit":
           // The row's category as it stands after this edit — which is the
@@ -214,9 +233,11 @@ export function clearBulkDependents(
 ): Partial<CcBulkEditForm> {
   switch (field) {
     case "expenseCategory":
-      return { expenseType: "", productUnit: "", subRegion: "" };
+      return { expenseType: "", travelJobNumber: "", productUnit: "", subRegion: "" };
     case "expenseType":
-      return form.expenseCategory === CC_TRAVEL_CATEGORY ? { productUnit: "" } : {};
+      return form.expenseCategory === CC_TRAVEL_CATEGORY
+        ? { travelJobNumber: "", productUnit: "" }
+        : {};
     default:
       return {};
   }
