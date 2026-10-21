@@ -75,6 +75,28 @@ export function useCcSaveDraft() {
   });
 }
 
+/**
+ * POST /transactions/manager-reminder — email one reporting manager the
+ * unsubmitted backlog of their direct reports, copying the caller.
+ *
+ * Sends only the manager and the date range, never the message. The dashboard
+ * holds its summary for five minutes, so a body built here could chase a card
+ * holder who has already submitted; the backend reads the figures at send time
+ * instead.
+ */
+export function useCcManagerReminder() {
+  const getAccessToken = useAccessToken();
+  return useMutation<string, Error, { managerEmail: string; dateFrom?: string }>({
+    mutationFn: async ({ managerEmail, dateFrom }) => {
+      const accessToken = await getAccessToken();
+      return authedPostText(ccServiceUrls.managerReminder, accessToken, {
+        managerEmail,
+        dateFrom: dateFrom ?? null,
+      });
+    },
+  });
+}
+
 // POST /transactions/save-edit — edit categorisation while still pending.
 export function useCcSaveEdit() {
   const getAccessToken = useAccessToken();
