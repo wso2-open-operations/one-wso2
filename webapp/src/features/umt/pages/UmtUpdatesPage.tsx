@@ -9,12 +9,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
   Badge,
   Box,
@@ -60,6 +61,13 @@ import { gridCellContentSx } from "../lib/umtGrid";
 import { umtLifecycleState } from "../lib/umtLifecycleState";
 import { writePersistedSelectedTab } from "../lib/umtLocalState";
 import { umtPaths } from "../lib/umtPaths";
+import type { UmtBackLinkState } from "../lib/umtBackLink";
+import {
+  UMT_UPDATES_RETURN_STATE,
+  isUmtUpdatesReturn,
+  readRememberedUmtUpdatesView,
+  rememberUmtUpdatesView,
+} from "../lib/umtUpdatesFilterMemory";
 import UmtCreateUpdateDialog from "../components/UmtCreateUpdateDialog";
 import UmtShell from "../components/UmtShell";
 import UmtUpdateFiltersDrawer from "../components/UmtUpdateFiltersDrawer";
@@ -172,9 +180,40 @@ export default function UmtUpdatesPage() {
 
 function UmtUpdatesBody() {
   const navigate = useNavigate();
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
-  const [filters, setFilters] = useState<UmtUpdateFilters>(EMPTY_UMT_UPDATE_FILTERS);
+  const location = useLocation();
+  // Filters and page come back only on a return from an update (see
+  // umtUpdatesFilterMemory); any other visit starts clean.
+  const [restored] = useState(() =>
+    isUmtUpdatesReturn(location.state) ? readRememberedUmtUpdatesView() : null,
+  );
+  const [page, setPage] = useState(restored?.page ?? 0);
+  const [pageSize, setPageSize] = useState(restored?.pageSize ?? PAGE_SIZE_OPTIONS[0]);
+  const [filters, setFilters] = useState<UmtUpdateFilters>(restored?.filters ?? EMPTY_UMT_UPDATE_FILTERS);
+
+  // Choosing Updates in the rail while already here is a new visit to the same
+  // route, so this stays mounted and the initial values above don't apply
+  // again. A new history entry without the return marker resets them instead.
+  const [seenLocationKey, setSeenLocationKey] = useState(location.key);
+  if (location.key !== seenLocationKey) {
+    setSeenLocationKey(location.key);
+    if (!isUmtUpdatesReturn(location.state)) {
+      setFilters(EMPTY_UMT_UPDATE_FILTERS);
+      setPage(0);
+      setPageSize(PAGE_SIZE_OPTIONS[0]);
+    }
+  }
+
+  // Always what's on screen, so a fresh visit's clean view also replaces an
+  // earlier visit's, and a later return can't bring that one back.
+  useEffect(() => {
+    rememberUmtUpdatesView({ filters, page, pageSize });
+  }, [filters, page, pageSize]);
+
+  useEffect(() => {
+    if (isUmtUpdatesReturn(location.state)) return;
+    // Stamped so the browser's Back to this entry counts as a return.
+    void navigate(location, { replace: true, state: UMT_UPDATES_RETURN_STATE });
+  }, [location, navigate]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(DEFAULT_COLUMNS);
@@ -212,9 +251,18 @@ function UmtUpdatesBody() {
     setActionRow(null);
   };
 
+  // The update page's back arrow returns here as a return, filters and all.
+  const goToUpdate = useCallback(
+    (id: number) =>
+      navigate(umtPaths.update(id), {
+        state: { backTo: umtPaths.updates, backState: UMT_UPDATES_RETURN_STATE } satisfies UmtBackLinkState,
+      }),
+    [navigate],
+  );
+
   const viewUpdate = (id: number) => {
     closeActions();
-    navigate(umtPaths.update(id));
+    goToUpdate(id);
   };
 
   // "View"/"Edit"/"Branch" are one detail page with three tabs, not three
@@ -224,7 +272,7 @@ function UmtUpdatesBody() {
   const openUpdateOnTab = (id: number, tab: string) => {
     closeActions();
     writePersistedSelectedTab(String(id), tab);
-    navigate(umtPaths.update(id));
+    goToUpdate(id);
   };
 
   const gridColumns = useMemo<DataGrid.GridColDef<UmtUpdateSummary>[]>(
@@ -317,7 +365,7 @@ function UmtUpdatesBody() {
               getRowHeight={() => "auto"}
               hideFooter
               loading={search.isPending}
-              onRowClick={(params) => navigate(umtPaths.update(params.row.id))}
+              onRowClick={(params) => goToUpdate(params.row.id)}
               rows={rows}
               slots={{ noRowsOverlay: UpdatesEmptyState }}
               sx={updatesGridSx}

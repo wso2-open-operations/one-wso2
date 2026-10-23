@@ -46,7 +46,13 @@ vi.mock("@context/perspective/PerspectiveContext", () => ({
         alwaysGroup: true,
         children: [
           { id: "umt-overview", label: "Overview", path: "/engineering/umt" },
-          { id: UMT_DOCUMENTATION_ITEM_ID, label: "Documentation", icon: Book, onSelect: openUmtDocumentation },
+          {
+            id: UMT_DOCUMENTATION_ITEM_ID,
+            label: "Documentation",
+            icon: Book,
+            onSelect: openUmtDocumentation,
+            opensInNewTab: true,
+          },
         ],
       },
     ],
@@ -96,6 +102,14 @@ describe("UMT's Documentation row", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Documentation/ }));
     expect(open).toHaveBeenCalledOnce();
     expect(open).toHaveBeenCalledWith(DOCS, "_blank", "noopener,noreferrer");
+  });
+
+  it("shows an arrow saying it leaves the app, and no other row does", () => {
+    renderSideRail({ collapsed: false, url: DOCS });
+
+    const arrow = ".lucide-arrow-up-right";
+    expect(screen.getByRole("button", { name: /Documentation/ }).querySelector(arrow)).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Overview/ }).querySelector(arrow)).toBeNull();
   });
 
   it("opens nothing until the documentation link is known", () => {

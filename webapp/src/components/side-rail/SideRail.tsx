@@ -17,7 +17,7 @@
 import { useMemo, useState, type JSX, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { alpha, Box, Link, List, Sidebar, Typography, useSidebar } from "@wso2/oxygen-ui";
-import { BookOpenIcon, ExternalLinkIcon, SettingsIcon } from "@wso2/oxygen-ui-icons-react";
+import { ArrowUpRight, BookOpenIcon, ExternalLinkIcon, SettingsIcon } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink, matchPath, useLocation, useNavigate } from "react-router";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
 import type { PerspectiveSection } from "@constants/perspectives";
@@ -461,6 +461,22 @@ function SectionNode({
                   </Sidebar.ItemIcon>
                 ) : null}
                 <Sidebar.ItemLabel sx={ELLIPSIS_SX}>{c.label}</Sidebar.ItemLabel>
+                {/* Inside a badge only because Oxygen takes any other child of
+                    a row for a nested item; the badge itself is not drawn. */}
+                {c.opensInNewTab ? (
+                  <Sidebar.ItemBadge
+                    color="default"
+                    // The row button keeps spacing(2) clear on its right; the
+                    // arrow sits in that gutter instead of taking label room.
+                    sx={{ bgcolor: "transparent", mr: -1.5 }}
+                  >
+                    {/* Centres the arrow, and takes back the chip label's 8px
+                        sides: 4px on the left, none on the right. */}
+                    <Box sx={{ display: "flex", ml: -0.5, mr: -1 }}>
+                      <ArrowUpRight size={11} />
+                    </Box>
+                  </Sidebar.ItemBadge>
+                ) : null}
               </Sidebar.Item>
             );
           })}
