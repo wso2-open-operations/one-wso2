@@ -53,16 +53,39 @@ export function useUmtBranches(id: string) {
   return foldIdentityError(query, subState, retryIdentity);
 }
 
+const branchRequestUrl = (id: string | number, hotfix: boolean) =>
+  hotfix ? umtServiceUrls.createHotfixBranch(id) : umtServiceUrls.createUpdateBranch(id);
+
 export function useUmtCreateBranch(id: string, hotfix: boolean) {
   const getAccessToken = useAccessToken();
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, UmtBranchCreationRequest>({
     mutationFn: async (request) => {
-      const url = hotfix
-        ? umtServiceUrls.createHotfixBranch(id)
-        : umtServiceUrls.createUpdateBranch(id);
-      await authedPost<void>(url, await getAccessToken(), request);
+      await authedPost<void>(branchRequestUrl(id, hotfix), await getAccessToken(), request);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["umt-update-branches"] });
+    },
+  });
+}
+
+export interface UmtRequestBranchVariables {
+  id: string | number;
+  hotfix: boolean;
+  request: UmtBranchCreationRequest;
+}
+
+// Asks for a branch on an update named when the request is made, for a caller
+// that does not hold the update's id when it mounts, such as the Create Update
+// dialog asking for a new hotfix's branch.
+export function useUmtRequestBranch() {
+  const getAccessToken = useAccessToken();
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, UmtRequestBranchVariables>({
+    mutationFn: async ({ id, hotfix, request }) => {
+      await authedPost<void>(branchRequestUrl(id, hotfix), await getAccessToken(), request);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["umt-update-branches"] });

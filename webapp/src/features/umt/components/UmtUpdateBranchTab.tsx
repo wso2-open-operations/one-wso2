@@ -49,6 +49,7 @@ import {
   useUmtComponentMaxUpdateLevel,
   useUmtCreateBranch,
 } from "../api/useUmtBranches";
+import { umtBranchCreationPayload, umtReleaseTag } from "../lib/umtBranches";
 
 const { DataGrid: DataGridComponent } = DataGrid;
 
@@ -130,7 +131,7 @@ export default function UmtUpdateBranchTab({
       (update.products ?? []).map((updateProduct, index) => {
         const productName = updateProduct.product?.name ?? "N/A";
         const rawVersion = updateProduct.product?.version ?? "N/A";
-        const version = rawVersion.endsWith(".full") ? rawVersion.slice(0, -5) : rawVersion;
+        const version = umtReleaseTag(rawVersion);
         const metadata = products[productName]?.find((product) => product.version === rawVersion);
 
         return {
@@ -181,7 +182,7 @@ export default function UmtUpdateBranchTab({
   const submitBranch = useCallback(
     async (request: UmtBranchCreationRequest, successMessage: string) => {
       try {
-        await createBranch.mutateAsync(toBranchCreationPayload(request, update));
+        await createBranch.mutateAsync(umtBranchCreationPayload(request, update));
         showSuccess(successMessage);
         return true;
       } catch (error) {
@@ -586,29 +587,6 @@ function UpdateLevelDialog({
       </Box>
     </Dialog>
   );
-}
-
-// The non-hotfix endpoint binds `BranchCreationRequest`, which declares exactly
-// these five fields; `productVersion`/`jiraId`/`wso2CaseId` only exist on
-// `HotfixBranchCreationRequest`. This is a projection onto the backend
-// contract, not a trim of "extra" fields — sending productVersion to the
-// non-hotfix branch endpoint is a no-op the backend discards.
-function toBranchCreationPayload(request: UmtBranchCreationRequest, update: UmtUpdateSummary): UmtBranchCreationRequest {
-  if (!update.isHotfix) {
-    return {
-      branchType: request.branchType,
-      channel: request.channel,
-      productName: request.productName,
-      publicRepoUrl: request.publicRepoUrl,
-      releaseTag: request.releaseTag,
-    };
-  }
-  return {
-    ...request,
-    jiraId: update.jiraId ?? "",
-    wso2CaseId: update.wso2CaseId ?? "",
-    productVersion: request.productVersion ?? "",
-  };
 }
 
 function branchProductKey(name: string | null | undefined, version: string | null | undefined): string {

@@ -105,6 +105,12 @@ export function resolveCreateUpdateProductId(
   return match?.id ?? null;
 }
 
+// A product's base level is the one its updates start from, `X.Y.Z.0.full`,
+// which is the level customers are on.
+export function umtIsBaseLevelVersion(version: string | null | undefined): boolean {
+  return (version ?? "").trim().endsWith(".0.full");
+}
+
 export interface UmtCreateUpdateFormValues {
   isProactive: boolean;
   isHotfix: boolean;

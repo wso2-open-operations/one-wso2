@@ -46,7 +46,9 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import type { UmtCreateUpdateRequest, UmtUpdateSummary } from "../api/umtUpdates";
 import { useUmtMeta } from "../api/useUmtMeta";
+import { useUmtRequestBranch } from "../api/useUmtBranches";
 import { useUmtCheckDuplicateUpdatesByCaseId, useUmtCreateUpdate } from "../api/useUmtCreateUpdate";
+import { umtHotfixProductBranchRequest } from "../lib/umtBranches";
 import {
   buildUmtCreateUpdateRequest,
   isAfterDay,
@@ -58,6 +60,7 @@ import {
   laterDate,
   nextThursday,
   resolveCreateUpdateProductId,
+  umtIsBaseLevelVersion,
   type UmtCreateIssueType,
   type UmtCreateUpdateFormValues,
   type UmtCreateUpdateType,
@@ -79,9 +82,10 @@ export default function UmtCreateUpdateDialog({
 }) {
   const meta = useUmtMeta();
   const navigate = useNavigate();
-  const { showSuccess } = useNotifications();
+  const { showSuccess, showWarning } = useNotifications();
   const checkDuplicates = useUmtCheckDuplicateUpdatesByCaseId();
   const createUpdate = useUmtCreateUpdate();
+  const requestBranch = useUmtRequestBranch();
 
   const [isProactive, setIsProactive] = useState(false);
   const [isHotfix, setIsHotfix] = useState(false);
@@ -104,6 +108,8 @@ export default function UmtCreateUpdateDialog({
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateResults, setDuplicateResults] = useState<UmtUpdateSummary[]>([]);
   const [pendingRequest, setPendingRequest] = useState<UmtCreateUpdateRequest | null>(null);
+  const [baseLevelDialogOpen, setBaseLevelDialogOpen] = useState(false);
+  const [isRequestingBranch, setIsRequestingBranch] = useState(false);
 
   const isSecurityUpdate = updateType === "security";
   const isCloudSupportUpdate = updateType === "cloud-support";
@@ -174,7 +180,7 @@ export default function UmtCreateUpdateDialog({
 
   const isChecking = checkDuplicates.isPending;
   const isCreating = createUpdate.isPending;
-  const isBusy = isChecking || isCreating;
+  const isBusy = isChecking || isCreating || isRequestingBranch;
   // The create payload is snapshotted before the duplicate pre-check runs and
   // is held across the confirmation dialog, so any edit made after that point
   // would be silently discarded. Freeze the form while the snapshot is live.
@@ -208,16 +214,49 @@ export default function UmtCreateUpdateDialog({
     resetEstimatesToNextThursday();
     setSubmitError(null);
     setDuplicateDialogOpen(false);
+    setBaseLevelDialogOpen(false);
     setDuplicateResults([]);
     setPendingRequest(null);
     onClose();
   };
+
+  // A new hotfix is given its product branch straight away, the one the Branch
+  // tab's Create button asks for. The update exists by then, so a branch that
+  // cannot be requested is a warning, not a failure: the Branch tab can still
+  // create it.
+  async function requestHotfixBranches(created: UmtUpdateSummary[]) {
+    const hotfixes = created.filter((update) => update.isHotfix);
+    if (hotfixes.length === 0) return;
+    setIsRequestingBranch(true);
+    try {
+      for (const hotfix of hotfixes) {
+        const request = umtHotfixProductBranchRequest(hotfix, meta.data?.products ?? {});
+        if (!request) {
+          showWarning(
+            `Hotfix ${hotfix.id} was created, but its product branch could not be requested because the product's public repository is not known. Create it from the update's Branch tab.`,
+          );
+          continue;
+        }
+        try {
+          await requestBranch.mutateAsync({ id: hotfix.id, hotfix: true, request });
+          showSuccess(`Product branch requested for hotfix ${hotfix.id}.`);
+        } catch (error) {
+          showWarning(
+            `Hotfix ${hotfix.id} was created, but its product branch could not be requested. ${describeError(error)} Create it from the update's Branch tab.`,
+          );
+        }
+      }
+    } finally {
+      setIsRequestingBranch(false);
+    }
+  }
 
   async function submitCreate(request: UmtCreateUpdateRequest) {
     try {
       const created = await createUpdate.mutateAsync(request);
       const newId = created[0]?.id;
       showSuccess("Update created successfully.");
+      await requestHotfixBranches(created);
       handleClose();
       if (newId) navigate(umtPaths.update(newId));
     } catch (error) {
@@ -228,9 +267,19 @@ export default function UmtCreateUpdateDialog({
       // the dialog and losing everything. Matches the duplicate dialog's own
       // Cancel handler, which clears all three.
       setDuplicateDialogOpen(false);
+      setBaseLevelDialogOpen(false);
       setPendingRequest(null);
       setDuplicateResults([]);
     }
+  }
+
+  // An update at a product's base level has to be acknowledged as the
+  // customer's level before it is created. It is asked last, after any
+  // duplicates have been answered.
+  function confirmBaseLevelThenCreate(request: UmtCreateUpdateRequest) {
+    if (!umtIsBaseLevelVersion(version)) return submitCreate(request);
+    setPendingRequest(request);
+    setBaseLevelDialogOpen(true);
   }
 
   async function handleCreateClick() {
@@ -254,7 +303,7 @@ export default function UmtCreateUpdateDialog({
       }
     }
 
-    await submitCreate(request);
+    await confirmBaseLevelThenCreate(request);
   }
 
   return (
@@ -507,7 +556,7 @@ export default function UmtCreateUpdateDialog({
           loading={isBusy}
           onClick={() => void handleCreateClick()}
         >
-          {isChecking ? "Checking…" : isCreating ? "Creating…" : "Create"}
+          {isChecking ? "Checking…" : isCreating ? "Creating…" : isRequestingBranch ? "Requesting branch…" : "Create"}
         </Button>
       </DialogActions>
 
@@ -521,9 +570,62 @@ export default function UmtCreateUpdateDialog({
           setDuplicateResults([]);
         }}
         onProceed={() => {
+          if (!pendingRequest) return;
+          if (!umtIsBaseLevelVersion(version)) {
+            void submitCreate(pendingRequest);
+            return;
+          }
+          setDuplicateDialogOpen(false);
+          setBaseLevelDialogOpen(true);
+        }}
+      />
+
+      <UmtBaseLevelDialog
+        open={baseLevelDialogOpen}
+        busy={isBusy}
+        onCancel={() => {
+          setBaseLevelDialogOpen(false);
+          setPendingRequest(null);
+          setDuplicateResults([]);
+        }}
+        onProceed={() => {
           if (pendingRequest) void submitCreate(pendingRequest);
         }}
       />
+    </Dialog>
+  );
+}
+
+// Asks for an acknowledgement before an update is created at a product's base
+// level, which is the level customers are on.
+function UmtBaseLevelDialog({
+  open,
+  busy,
+  onCancel,
+  onProceed,
+}: {
+  open: boolean;
+  busy: boolean;
+  onCancel: () => void;
+  onProceed: () => void;
+}) {
+  return (
+    <Dialog open={open} onClose={busy ? undefined : onCancel} maxWidth="xs" fullWidth>
+      <DialogTitle>Base level update</DialogTitle>
+      <DialogContent>
+        <DialogContentText>
+          You are creating an update for the base level of the product. Please acknowledge that this is the customer
+          level before proceeding.
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+        <Button variant="contained" loading={busy} onClick={onProceed}>
+          Acknowledge and Create
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }

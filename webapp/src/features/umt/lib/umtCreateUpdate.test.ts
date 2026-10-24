@@ -15,6 +15,7 @@ import {
   isValidEstimateDate,
   isValidGithubIssueUrl,
   resolveCreateUpdateProductId,
+  umtIsBaseLevelVersion,
   type UmtCreateUpdateFormValues,
 } from "./umtCreateUpdate";
 
@@ -42,6 +43,22 @@ describe("isValidGithubIssueUrl", () => {
     expect(isValidGithubIssueUrl("https://gitlab.com/wso2/repo/issues/123")).toBe(false);
     expect(isValidGithubIssueUrl("not a url")).toBe(false);
     expect(isValidGithubIssueUrl("")).toBe(false);
+  });
+});
+
+describe("umtIsBaseLevelVersion", () => {
+  it("is true for a version at the product's base level", () => {
+    expect(umtIsBaseLevelVersion("4.2.0.0.full")).toBe(true);
+    expect(umtIsBaseLevelVersion(" 7.0.0.0.full ")).toBe(true);
+  });
+
+  it("is false for a later level, another channel, or no version", () => {
+    expect(umtIsBaseLevelVersion("4.2.0.15.full")).toBe(false);
+    expect(umtIsBaseLevelVersion("4.2.0.10.full")).toBe(false);
+    expect(umtIsBaseLevelVersion("4.2.0.0.security")).toBe(false);
+    expect(umtIsBaseLevelVersion("")).toBe(false);
+    expect(umtIsBaseLevelVersion(null)).toBe(false);
+    expect(umtIsBaseLevelVersion(undefined)).toBe(false);
   });
 });
 
