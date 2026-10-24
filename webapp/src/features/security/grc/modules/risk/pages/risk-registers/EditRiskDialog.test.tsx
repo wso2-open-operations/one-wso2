@@ -208,3 +208,48 @@ describe("EditRiskDialog — other templates and modes", () => {
     expect(requested().filter((u) => u.startsWith("/risks/"))).toEqual([]);
   });
 });
+
+describe("EditRiskDialog — Accepted By", () => {
+  const acceptorSelect = () => screen.getByRole("combobox", { name: "Accepted By" });
+
+  it("says a risk with no acceptor is not set yet, and sends nothing for it when saved untouched", async () => {
+    const user = userEvent.setup();
+    const onSave = renderDialog(riskDetail({ risk_acceptor: null }));
+    await screen.findByRole("button", { name: "API Manager" });
+    expect(screen.getByText(/Not set yet/)).toBeInTheDocument();
+    await save(user);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0].risk_acceptor).toBeUndefined();
+  });
+
+  it("sends the acceptor that was chosen", async () => {
+    const user = userEvent.setup();
+    const onSave = renderDialog(riskDetail({ risk_acceptor: null }));
+    await screen.findByRole("button", { name: "API Manager" });
+    await user.click(acceptorSelect());
+    await user.click(await screen.findByRole("option", { name: "WSO2" }));
+    await save(user);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0].risk_acceptor).toBe("WSO2");
+  });
+
+  it("shows the recorded acceptor and no not-set hint", async () => {
+    renderDialog(riskDetail({ risk_acceptor: "CUSTOMER" }));
+    await screen.findByRole("button", { name: "API Manager" });
+    expect(acceptorSelect()).toHaveTextContent("Customer");
+    expect(screen.queryByText(/Not set yet/)).not.toBeInTheDocument();
+  });
+
+  it("is editable in restricted mode, after the owner has approved", async () => {
+    const user = userEvent.setup();
+    const onSave = renderDialog(
+      riskDetail({ owner_first_approved_at: "2026-06-01", workflow_status: "APPROVED", risk_acceptor: null }),
+      "restricted",
+    );
+    await user.click(await screen.findByRole("combobox", { name: "Accepted By" }));
+    await user.click(await screen.findByRole("option", { name: "Customer" }));
+    await save(user);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0].risk_acceptor).toBe("CUSTOMER");
+  });
+});

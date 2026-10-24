@@ -241,6 +241,8 @@ export interface RiskDetail {
   owner_id: number;
   impact_description: string | null;
   treatment_strategy: string | null;
+  // CUSTOMER | WSO2; null until recorded (risks that predate the field).
+  risk_acceptor?: string | null;
   source_register_id: number;
   assignment_team_id: number;
   progress: string | null;
@@ -362,6 +364,8 @@ export interface UpdateRiskPayload {
   gross_score_id?: number;
   implementation_date?: string;
   treatment_strategy?: string;
+  // Omit to leave unchanged; it cannot be cleared.
+  risk_acceptor?: string;
   assignment_team_id?: number;
   action_plan_description?: string;
   action_owner_id?: number;
@@ -814,6 +818,7 @@ export function buildCreateRiskPayload(data: AddRiskFormValues): Record<string, 
     action_plan_description: data.actionPlanDescription,
     action_steps: data.actionSteps.map((s) => ({ description: s.description })),
     treatment_strategy: data.treatmentStrategy,
+    risk_acceptor: data.riskAcceptor || undefined,
     progress: data.progress || undefined,
     git_issue_url: data.gitIssueUrl || undefined,
     email_subject: data.emailSubject,

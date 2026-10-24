@@ -55,7 +55,7 @@ import type {
   UpdateRiskPayload,
   UserOption,
 } from "../../api/riskApi";
-import { TREATMENT_STRATEGIES } from "../add-risk/constants";
+import { RISK_ACCEPTORS, TREATMENT_STRATEGIES } from "../add-risk/constants";
 import PillMultiSelect from "../add-risk/PillMultiSelect";
 import {
   ENVIRONMENTS,
@@ -149,6 +149,7 @@ export default function EditRiskDialog({
     parseDateOnly(detail.reassessment_date),
   );
   const [treatmentStrategy, setTreatmentStrategy] = useState(detail.treatment_strategy ?? "");
+  const [riskAcceptor, setRiskAcceptor] = useState(detail.risk_acceptor ?? "");
   const [assignmentTeamId, setAssignmentTeamId] = useState<number>(detail.assignment_team_id);
   const [actionOwnerId, setActionOwnerId] = useState<number | "">(
     detail.action_plan?.action_owner_id ?? "",
@@ -330,6 +331,7 @@ export default function EditRiskDialog({
     setGrossScoreId(detail.gross_score?.id ?? null);
     setReassessmentDate(parseDateOnly(detail.reassessment_date));
     setTreatmentStrategy(detail.treatment_strategy ?? "");
+    setRiskAcceptor(detail.risk_acceptor ?? "");
     setAssignmentTeamId(detail.assignment_team_id);
     prevAssignmentTeamId.current = detail.assignment_team_id;
     setActionOwnerId(detail.action_plan?.action_owner_id ?? "");
@@ -401,6 +403,10 @@ export default function EditRiskDialog({
         risk_description: mode === "full" ? riskDescription.trim() : detail.risk_description,
         email_subject: emailSubject.trim(),
         implementation_date: toDateOnlyString(implementationDate),
+        // Accepted By is editable in both modes and is not a restricted field,
+        // so changing it never sends the risk back for approval. Left out while
+        // unset: the server reads an omitted value as "leave unchanged".
+        risk_acceptor: riskAcceptor || undefined,
         action_steps: actionSteps.length > 0
           ? actionSteps.map((s) => ({ id: s.id, description: s.description.trim() }))
           : undefined,
@@ -469,6 +475,26 @@ export default function EditRiskDialog({
   };
 
   // ── Action steps (shared between both modes) ───────────────────────────────
+  const riskAcceptorSection = (
+    <Box>
+      <SectionLabel>Accepted By</SectionLabel>
+      <FormControl fullWidth disabled={submitting}>
+        <InputLabel id="risk-acceptor-label">Accepted By</InputLabel>
+        <Select
+          labelId="risk-acceptor-label"
+          label="Accepted By"
+          value={riskAcceptor}
+          onChange={(e) => setRiskAcceptor(e.target.value as string)}
+        >
+          {RISK_ACCEPTORS.map((a) => <MenuItem key={a.value} value={a.value}>{a.label}</MenuItem>)}
+        </Select>
+        {!detail.risk_acceptor && (
+          <FormHelperText>Not set yet. Select who accepted this risk.</FormHelperText>
+        )}
+      </FormControl>
+    </Box>
+  );
+
   const actionStepsSection = (
     <Box>
       <SectionLabel>Action Steps</SectionLabel>
@@ -584,6 +610,8 @@ export default function EditRiskDialog({
                   disabled={submitting}
                 />
               </Box>
+              <Divider />
+              {riskAcceptorSection}
             </>
           )}
 
@@ -801,6 +829,8 @@ export default function EditRiskDialog({
                 </Stack>
               </Box>
 
+              <Divider />
+              {riskAcceptorSection}
               <Divider />
 
               {/* Risk Assessment */}

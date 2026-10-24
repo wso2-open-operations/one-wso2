@@ -15,7 +15,7 @@
 // under the License.
 
 import { describe, expect, it } from "vitest";
-import { changedValue, fieldLabel } from "./utils";
+import { changedValue, fieldLabel, riskAcceptorLabel } from "./utils";
 
 describe("changedValue", () => {
   it("hides the id values of the five assignee fields", () => {
@@ -37,5 +37,18 @@ describe("fieldLabel", () => {
     expect(fieldLabel("management_approver_id")).toBe("management approver");
     expect(fieldLabel("assignment_team_id")).toBe("assignment team");
     expect(fieldLabel("action_owner_id")).toBe("action owner");
+  });
+});
+
+describe("riskAcceptorLabel", () => {
+  it("names the two acceptors", () => {
+    expect(riskAcceptorLabel("CUSTOMER")).toBe("Customer");
+    expect(riskAcceptorLabel("WSO2")).toBe("WSO2");
+  });
+
+  it("reads a risk with no recorded acceptor as not set", () => {
+    expect(riskAcceptorLabel(null)).toBe("Not set");
+    expect(riskAcceptorLabel(undefined)).toBe("Not set");
+    expect(riskAcceptorLabel("")).toBe("Not set");
   });
 });

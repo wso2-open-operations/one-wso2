@@ -73,6 +73,7 @@ import {
   downloadBlob,
   fieldLabel,
   formatDate,
+  riskAcceptorLabel,
   riskRoles,
   viewBlob,
 } from "./utils";
@@ -1348,6 +1349,7 @@ export default function RiskDetailDrawer({
                 <InfoGrid>
                   <InfoTile label="Assignment Team">{detail.assignment_team_name}</InfoTile>
                   <InfoTile label="Treatment Strategy">{detail.treatment_strategy}</InfoTile>
+                  <InfoTile label="Accepted By">{riskAcceptorLabel(detail.risk_acceptor)}</InfoTile>
                 </InfoGrid>
               </SectionCard>
 

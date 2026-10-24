@@ -30,6 +30,9 @@ export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 // Matches risk.treatment_strategy ENUM in risk_schema.sql.
 export type TreatmentStrategy = "REMEDIATE" | "ACCEPT" | "TRANSFER" | "AVOID";
 
+// Matches risk.risk_acceptor ENUM in risk_schema.sql: who accepted the risk.
+export type RiskAcceptor = "CUSTOMER" | "WSO2";
+
 import type { RiskEnvironment } from "../../api/riskApi";
 export type { RiskEnvironment };
 
@@ -55,6 +58,8 @@ export interface AddRiskFormValues {
   // Integer ID of the selected risk_category row. Fetched from
   // GET /api/v1/risks/categories. Single-select today; the schema is M2M-capable.
   riskCategory: number | "";
+  // Who accepted the risk. Required here; stored as null on risks that predate it.
+  riskAcceptor: RiskAcceptor | "";
   identifiedByType: IdentifiedByType;
   // Selected person/tool's name for all three identifiedByType values.
   // EMPLOYEE: picked from a live HR entity search (GET /api/v1/risks/employees/search),

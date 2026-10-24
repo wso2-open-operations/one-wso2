@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type { Quarter, TreatmentStrategy } from "./types";
+import type { Quarter, RiskAcceptor, TreatmentStrategy } from "./types";
 
 export const QUARTERS: { value: Quarter; label: string }[] = [
   { value: "Q1", label: "Q1 (Jan – Mar)" },
@@ -28,6 +28,11 @@ export const TREATMENT_STRATEGIES: { value: TreatmentStrategy; label: string }[]
   { value: "ACCEPT",   label: "Accept" },
   { value: "TRANSFER", label: "Transfer" },
   { value: "AVOID",    label: "Avoid" },
+];
+
+export const RISK_ACCEPTORS: { value: RiskAcceptor; label: string }[] = [
+  { value: "CUSTOMER", label: "Customer" },
+  { value: "WSO2",     label: "WSO2" },
 ];
 
 export const getCurrentYear = (): number => new Date().getFullYear();

@@ -45,6 +45,7 @@ export const FIELD_LABELS: Record<string, string> = {
   management_approver_id: "management approver",
   assignment_team_id: "assignment team",
   action_owner_id: "action owner",
+  risk_acceptor: "accepted by",
 };
 
 // Fields whose history values are internal user/team ids. An id means nothing
@@ -56,6 +57,14 @@ const ID_VALUED_FIELDS = new Set([
   "assignment_team_id",
   "action_owner_id",
 ]);
+
+const RISK_ACCEPTOR_LABELS: Record<string, string> = { CUSTOMER: "Customer", WSO2: "WSO2" };
+
+// riskAcceptorLabel names who accepted a risk, or "Not set" for a risk whose
+// acceptor has not been recorded yet.
+export function riskAcceptorLabel(acceptor: string | null | undefined): string {
+  return (acceptor && RISK_ACCEPTOR_LABELS[acceptor]) || "Not set";
+}
 
 export function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field.replace(/_/g, " ");

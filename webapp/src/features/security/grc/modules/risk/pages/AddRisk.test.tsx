@@ -223,6 +223,15 @@ describe("Add Risk — register templates", () => {
     expect(screen.getByText("Step 1 of 3")).toBeInTheDocument();
   });
 
+  it("will not leave Step 1 without saying who accepted the risk", async () => {
+    const user = userEvent.setup();
+    render(<AddRisk />);
+    await screen.findByRole("button", { name: "ISO 27001" });
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("Please select who accepted this risk")).toBeInTheDocument();
+    expect(screen.getByText("Step 1 of 3")).toBeInTheDocument();
+  });
+
   it("opens the add-customer dialog from the link under Customer Name", async () => {
     const user = userEvent.setup();
     render(<AddRisk />);

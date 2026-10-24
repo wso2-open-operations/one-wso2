@@ -37,7 +37,7 @@ import {
 } from "@wso2/oxygen-ui";
 import type { JSX } from "react";
 import type { AddRiskFormValues } from "./types";
-import { QUARTERS, YEAR_OPTIONS } from "./constants";
+import { QUARTERS, RISK_ACCEPTORS, YEAR_OPTIONS } from "./constants";
 import FieldLabel from "./FieldLabel";
 import TemplateFields, { CustomerField } from "./TemplateFields";
 import type { TemplateLookups } from "./TemplateFields";
@@ -497,6 +497,40 @@ export default function BasicInformationStep({
                   {riskCategories.map((cat) => (
                     <ComplexSelect.MenuItem key={cat.id} value={cat.id}>
                       {cat.name}
+                    </ComplexSelect.MenuItem>
+                  ))}
+                </ComplexSelect>
+                {fieldState.error && (
+                  <FormHelperText error>{fieldState.error.message}</FormHelperText>
+                )}
+              </Box>
+            )}
+          />
+
+          {/* Risk Acceptor (single-select) */}
+          <Controller
+            name="riskAcceptor"
+            control={control}
+            rules={{ required: "Please select who accepted this risk" }}
+            render={({ field, fieldState }) => (
+              <Box>
+                <FieldLabel required>Accepted By</FieldLabel>
+                <ComplexSelect
+                  {...field}
+                  fullWidth
+                  error={!!fieldState.error}
+                  displayEmpty
+                  onChange={(e) => {
+                    field.onChange(e);
+                    if (e.target.value) clearErrors("riskAcceptor");
+                  }}
+                >
+                  <ComplexSelect.MenuItem value="" disabled sx={{ display: "none" }}>
+                    Select who accepted the risk
+                  </ComplexSelect.MenuItem>
+                  {RISK_ACCEPTORS.map((a) => (
+                    <ComplexSelect.MenuItem key={a.value} value={a.value}>
+                      {a.label}
                     </ComplexSelect.MenuItem>
                   ))}
                 </ComplexSelect>
