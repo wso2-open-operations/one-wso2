@@ -49,6 +49,7 @@ import {
   useUmtComponentMaxUpdateLevel,
   useUmtCreateBranch,
 } from "../api/useUmtBranches";
+import { umtIssueLink } from "../lib/umtIssueLink";
 
 const { DataGrid: DataGridComponent } = DataGrid;
 
@@ -515,11 +516,11 @@ function ExternalValue({ value }: { value: string | null | undefined }) {
 }
 
 function InternalIssueLink({ value }: { value: string | null | undefined }) {
-  if (!value?.includes("internal/")) return "N/A";
-  const parts = value.split("/");
+  const issue = umtIssueLink(value);
+  if (!issue) return displayValue(value);
   return (
-    <Link href={value} target="_blank" rel="noopener noreferrer" underline="hover">
-      {parts[4] && parts.at(-1) ? `${parts[4]}#${parts.at(-1)}` : value}
+    <Link href={issue.href} target="_blank" rel="noopener noreferrer" underline="hover">
+      {issue.label}
     </Link>
   );
 }

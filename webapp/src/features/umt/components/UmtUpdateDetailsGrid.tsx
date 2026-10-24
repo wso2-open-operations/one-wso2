@@ -42,6 +42,7 @@ import type { UmtUpdateSummary, UmtWorstCaseEstimateLogEntry } from "../api/umtU
 import type { UmtUpdateFieldChange } from "../api/useUmtUpdateFieldMutation";
 import { useUmtWorstCaseEstimateLog } from "../api/useUmtWorstCaseEstimateLog";
 import { formatCalendarDate, formatTimestamp } from "../lib/umtDates";
+import { umtIssueLink } from "../lib/umtIssueLink";
 import { renderLinkValue } from "./umtViewSectionPrimitives";
 
 const { DatePicker, LocalizationProvider } = DatePickers;
@@ -588,29 +589,25 @@ function UpdateField({
 }
 
 function GitHubIssueLink({ value }: { value: string | null | undefined }) {
-  const url = displayValue(value);
+  const issue = umtIssueLink(value);
 
-  if (url === "N/A" || !url.includes("internal/")) {
+  if (!issue) {
     return (
       <Typography variant="body1" sx={{ fontWeight: 600 }}>
-        {displayValue(undefined)}
+        {displayValue(value)}
       </Typography>
     );
   }
 
-  const parts = url.split("/");
-  const repository = parts[4];
-  const issueNumber = parts.at(-1);
-
   return (
     <Link
-      href={url}
+      href={issue.href}
       target="_blank"
       rel="noopener noreferrer"
       underline="hover"
       sx={{ fontWeight: 600 }}
     >
-      {repository && issueNumber ? `${repository}#${issueNumber}` : url}
+      {issue.label}
     </Link>
   );
 }
