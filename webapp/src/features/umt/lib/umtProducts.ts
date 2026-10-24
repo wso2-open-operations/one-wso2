@@ -41,15 +41,32 @@ export const EMPTY_CREATE_PRODUCT_FORM: UmtCreateProductFormValues = {
   ftpAbsolutePath: "",
 };
 
+// A well-formed address: text, one @, and a domain of at least two labels
+// split by single dots, so no empty label and no leading or trailing dot, with
+// no spaces anywhere.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+
+// Whether the value, ignoring surrounding whitespace, is a well-formed email
+// address. A format check only, which is all a form can know about an address:
+// it says nothing about whether the address is deliverable.
+export function isValidEmail(value: string): boolean {
+  return EMAIL_REGEX.test(value.trim());
+}
+
 // A product version is three dot-separated numbers, such as 4.0.0.
 export function isValidProductVersion(value: string): boolean {
   return /^\d+\.\d+\.\d+$/.test(value.trim());
 }
 
-// Every field is required, blank after trimming is not accepted, and the
-// version must be X.Y.Z.
+// Every field is required, blank after trimming is not accepted, the version
+// must be X.Y.Z, and the lead and ED emails must be well formed.
 export function isCreateProductFormValid(values: UmtCreateProductFormValues): boolean {
-  return Object.values(values).every((value) => value.trim().length > 0) && isValidProductVersion(values.version);
+  return (
+    Object.values(values).every((value) => value.trim().length > 0) &&
+    isValidProductVersion(values.version) &&
+    isValidEmail(values.leadMail) &&
+    isValidEmail(values.edMail)
+  );
 }
 
 // Legacy suffixes the typed version with `.0.full` before submitting (e.g.

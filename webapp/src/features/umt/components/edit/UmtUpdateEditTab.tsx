@@ -249,12 +249,7 @@ export default function UmtUpdateEditTab({
     if (prevStep) setLocalStepOverride(prevStep.id);
   };
 
-  const demoteActions = computeUmtDemoteActions(
-    currentStep.id,
-    lifecycleState,
-    update.isHotfix ?? false,
-    gate.isAdmin,
-  );
+  const demoteActions = computeUmtDemoteActions(currentStep.id, lifecycleState, gate.isAdmin);
   const handleDemote = async (target: UmtLifecycleState) => {
     if (isLocked) return;
     try {
@@ -319,9 +314,13 @@ export default function UmtUpdateEditTab({
         {isLocked ? (
           <Alert severity="info">{UMT_UPDATE_LOCKED_MESSAGE}</Alert>
         ) : isTerminal ? (
-          <Typography variant="h6" sx={{ color: "info.main", fontWeight: 700, textAlign: "center", py: 4 }}>
-            All states completed.
-          </Typography>
+          lifecycleState === "OnHold" ? (
+            <Alert severity="info">This update is on hold.</Alert>
+          ) : (
+            <Typography variant="h6" sx={{ color: "info.main", fontWeight: 700, textAlign: "center", py: 4 }}>
+              All states completed.
+            </Typography>
+          )
         ) : isFilesAnalysis ? (
           <UmtFilesAnalysisStep id={id} update={update} onDirtyChange={setIsFilesAnalysisDirty} />
         ) : currentStep.id === "description-instruction" ? (

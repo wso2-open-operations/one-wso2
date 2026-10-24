@@ -189,9 +189,14 @@ export function isFilesAnalysisPrAnalyzed(lifecycleState: string | null | undefi
   return lifecycleState === "PRAnalyzed";
 }
 
+// Development is the only state whose step proceeds, to Released. Completed
+// and OnHold sit past it with nothing to proceed to, so they land on the final
+// step, which has no Proceed, rather than on Development's.
 const CLOUD_SUPPORT_STATE_TO_STEP: Partial<Record<UmtLifecycleState, UmtEditStepId>> = {
   Development: "cloud-development",
   Released: "cloud-released",
+  Completed: "cloud-released",
+  OnHold: "cloud-released",
 };
 
 export function umtActiveStepId(

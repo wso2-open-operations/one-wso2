@@ -32,6 +32,7 @@ import { umtCanReleaseHotfix, umtHotfixTestStatusLabel } from "../lib/umtHotfixR
 
 const NORMAL = computeUmtEditSteps("UpdateLifecycle", false);
 const NORMAL_WITH_FILES = computeUmtEditSteps("UpdateLifecycle", true);
+const CLOUD = computeUmtEditSteps("CloudSupportLifecycle", false);
 
 function demoteTargets(...args: Parameters<typeof computeUmtDemoteActions>): string[] {
   return computeUmtDemoteActions(...args).map((action) => action.targetLifecycleState);
@@ -53,24 +54,38 @@ describe("lifecycle state → step mapping", () => {
   it("keeps DemoteStagingRequested on the Testing step, not Files Analysis", () => {
     expect(umtActiveStepId("DemoteStagingRequested", NORMAL)).toBe("testing");
   });
+
+  // Cloud Support's Development step proceeds to Released, a move that is not
+  // available from Completed or OnHold, so those states have no step that
+  // proceeds.
+  it("keeps a Completed or OnHold Cloud Support update off its Development step", () => {
+    expect(umtActiveStepId("Development", CLOUD)).toBe("cloud-development");
+    expect(umtActiveStepId("Completed", CLOUD)).toBe("cloud-released");
+    expect(umtActiveStepId("OnHold", CLOUD)).toBe("cloud-released");
+  });
 });
 
 describe("demote actions", () => {
   it("offers Development from Files Analysis at PRAnalyzed, and only PRAnalyzed from Description", () => {
-    expect(demoteTargets("files-analysis", "PRAnalyzed", false, false)).toEqual(["Development"]);
-    expect(demoteTargets("description-instruction", "ProductAnalyzed", false, false)).toEqual(["PRAnalyzed"]);
+    expect(demoteTargets("files-analysis", "PRAnalyzed", false)).toEqual(["Development"]);
+    expect(demoteTargets("description-instruction", "ProductAnalyzed", false)).toEqual(["PRAnalyzed"]);
   });
 
   it("lets an admin send a UATStaging update back to Staging, and offers Reopen on OnHold", () => {
-    expect(demoteTargets("verifying", "UATStaging", false, true)).toEqual(["Staging"]);
-    expect(demoteTargets("verifying", "OnHold", false, false)).toEqual(["Development"]);
+    expect(demoteTargets("verifying", "UATStaging", true)).toEqual(["Staging"]);
+    expect(demoteTargets("verifying", "OnHold", false)).toEqual(["Development"]);
+  });
+
+  // Moving an update out of UATStaging is an administrator's move.
+  it("hides UATStaging's Demote to Testing from anyone but an admin", () => {
+    expect(demoteTargets("verifying", "UATStaging", false)).toEqual([]);
   });
 
   // A demotion from Staging goes through DemoteStagingRequested, which tears
   // staging down; it can't go straight to Development.
   it("demotes Testing/Validate at Staging via DemoteStagingRequested", () => {
-    expect(demoteTargets("testing", "Staging", false, false)).toEqual(["DemoteStagingRequested"]);
-    expect(demoteTargets("validate", "Staging", false, false)).toEqual(["DemoteStagingRequested"]);
+    expect(demoteTargets("testing", "Staging", false)).toEqual(["DemoteStagingRequested"]);
+    expect(demoteTargets("validate", "Staging", false)).toEqual(["DemoteStagingRequested"]);
   });
 });
 

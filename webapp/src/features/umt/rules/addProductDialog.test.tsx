@@ -66,6 +66,41 @@ describe("Add Product dialog", () => {
     expect(createProduct.mutateAsync).not.toHaveBeenCalled();
   });
 
+  describe("a lead or ED email", () => {
+    const emailMessage = () => screen.queryAllByText("Enter a valid email address.");
+
+    it.each([/Lead Email/, /ED Email/])("is called out as it is typed when it is malformed (%s)", (label) => {
+      render(<UmtAddProductDialog open onClose={() => {}} />);
+
+      fireEvent.change(screen.getByLabelText(label), { target: { value: "not-an-email" } });
+
+      expect(emailMessage()).toHaveLength(1);
+      expect(screen.getByLabelText(label)).toBeInvalid();
+    });
+
+    it("says nothing while it is empty or well formed, and stops once a malformed one is corrected", () => {
+      render(<UmtAddProductDialog open onClose={() => {}} />);
+      expect(emailMessage()).toHaveLength(0);
+
+      fireEvent.change(screen.getByLabelText(/Lead Email/), { target: { value: "lead@wso2..com" } });
+      expect(emailMessage()).toHaveLength(1);
+
+      fireEvent.change(screen.getByLabelText(/Lead Email/), { target: { value: "lead@wso2.com" } });
+      expect(emailMessage()).toHaveLength(0);
+    });
+
+    it("keeps the form from submitting", async () => {
+      render(<UmtAddProductDialog open onClose={() => {}} />);
+      fillForm("4.2.0");
+      fireEvent.change(screen.getByLabelText(/ED Email/), { target: { value: "ed@" } });
+
+      await userEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      expect(emailMessage()).toHaveLength(1);
+      expect(createProduct.mutateAsync).not.toHaveBeenCalled();
+    });
+  });
+
   it("submits an X.Y.Z version", async () => {
     render(<UmtAddProductDialog open onClose={() => {}} />);
     fillForm("4.2.0");

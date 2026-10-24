@@ -287,6 +287,55 @@ describe("descriptions on the way out of a state", () => {
   });
 });
 
+describe("demote buttons", () => {
+  const demoteButton = (name: string) => screen.queryByRole("button", { name });
+
+  it("offers a hotfix the same Demote to PRAnalyzed as any other update on Description and Instruction", () => {
+    renderTab(makeUpdate({ isHotfix: true }));
+
+    expect(demoteButton("Demote to PRAnalyzed")).toBeInTheDocument();
+    expect(demoteButton("Demote to Development")).not.toBeInTheDocument();
+  });
+
+  it("leaves a UATStaging update's Demote to Testing to an admin", () => {
+    renderTab(makeUpdate({ lifecycleState: "UATStaging", promoteStages: [] }));
+    expect(demoteButton("Demote to Testing")).not.toBeInTheDocument();
+  });
+
+  it("shows an admin a UATStaging update's Demote to Testing", () => {
+    state.isAdmin = true;
+    renderTab(makeUpdate({ lifecycleState: "UATStaging", promoteStages: [] }));
+
+    expect(demoteButton("Demote to Testing")).toBeInTheDocument();
+  });
+});
+
+describe("a Cloud Support update", () => {
+  const cloud = (lifecycleState: string) => makeUpdate({ lifecycle: "CloudSupportLifecycle", lifecycleState });
+  const proceedButton = () => screen.queryByRole("button", { name: "Proceed" });
+
+  it("proceeds from Development", () => {
+    renderTab(cloud("Development"));
+
+    expect(proceedButton()).toBeInTheDocument();
+  });
+
+  it("has nothing to proceed to once it is Completed", () => {
+    renderTab(cloud("Completed"));
+
+    expect(proceedButton()).not.toBeInTheDocument();
+    expect(screen.getByText("All states completed.")).toBeInTheDocument();
+  });
+
+  it("has nothing to proceed to while it is on hold, and says it is on hold", () => {
+    renderTab(cloud("OnHold"));
+
+    expect(proceedButton()).not.toBeInTheDocument();
+    expect(screen.getByText("This update is on hold.")).toBeInTheDocument();
+    expect(screen.queryByText("All states completed.")).not.toBeInTheDocument();
+  });
+});
+
 describe("a step with no usable next lifecycle state", () => {
   it("says why Proceed is disabled when the backend sends none", () => {
     persistStep("integration-tests");

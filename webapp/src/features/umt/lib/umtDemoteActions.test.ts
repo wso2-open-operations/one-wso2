@@ -20,59 +20,56 @@ import type { UmtEditStepId } from "./umtEditSteps";
 
 describe("computeUmtDemoteActions", () => {
   it("returns Demote to Development for files-analysis once the update is PRAnalyzed", () => {
-    expect(computeUmtDemoteActions("files-analysis", "PRAnalyzed", false, false)).toEqual([
+    expect(computeUmtDemoteActions("files-analysis", "PRAnalyzed", false)).toEqual([
       { label: "Demote to Development", targetLifecycleState: "Development" },
     ]);
   });
 
   it("returns no demote buttons for files-analysis while the update is in Development", () => {
-    expect(computeUmtDemoteActions("files-analysis", "Development", false, false)).toEqual([]);
+    expect(computeUmtDemoteActions("files-analysis", "Development", false)).toEqual([]);
   });
 
-  it("returns only Demote to PRAnalyzed for description-instruction when not a hotfix", () => {
-    expect(computeUmtDemoteActions("description-instruction", "ProductAnalyzed", false, false)).toEqual([
+  it("returns only Demote to PRAnalyzed for description-instruction", () => {
+    expect(computeUmtDemoteActions("description-instruction", "ProductAnalyzed", false)).toEqual([
       { label: "Demote to PRAnalyzed", targetLifecycleState: "PRAnalyzed" },
     ]);
   });
 
-  it("returns no demote buttons for description-instruction when it is a hotfix", () => {
-    expect(computeUmtDemoteActions("description-instruction", "ProductAnalyzed", true, false)).toEqual([]);
-  });
-
   it("returns Demote to Staging for file-approval only when isAdmin", () => {
-    expect(computeUmtDemoteActions("file-approval", "WaitingFileApproval", false, true)).toEqual([
+    expect(computeUmtDemoteActions("file-approval", "WaitingFileApproval", true)).toEqual([
       { label: "Demote to Staging", targetLifecycleState: "Staging" },
     ]);
-    expect(computeUmtDemoteActions("file-approval", "WaitingFileApproval", false, false)).toEqual([]);
+    expect(computeUmtDemoteActions("file-approval", "WaitingFileApproval", false)).toEqual([]);
   });
 
   it("returns Demote to Development for testing and validate, via DemoteStagingRequested from Staging", () => {
-    expect(computeUmtDemoteActions("testing", "Staging", false, false)).toEqual([
+    expect(computeUmtDemoteActions("testing", "Staging", false)).toEqual([
       { label: "Demote to Development", targetLifecycleState: "DemoteStagingRequested" },
     ]);
-    expect(computeUmtDemoteActions("validate", "Staging", false, false)).toEqual([
+    expect(computeUmtDemoteActions("validate", "Staging", false)).toEqual([
       { label: "Demote to Development", targetLifecycleState: "DemoteStagingRequested" },
     ]);
-    expect(computeUmtDemoteActions("testing", "TestingEnvironmentCreated", true, false)).toEqual([
+    expect(computeUmtDemoteActions("testing", "TestingEnvironmentCreated", false)).toEqual([
       { label: "Demote to Development", targetLifecycleState: "Development" },
     ]);
   });
 
-  it("returns Demote to Testing for verifying at UATStaging", () => {
-    expect(computeUmtDemoteActions("verifying", "UATStaging", false, false)).toEqual([
+  it("returns Demote to Testing for verifying at UATStaging only when isAdmin", () => {
+    expect(computeUmtDemoteActions("verifying", "UATStaging", true)).toEqual([
       { label: "Demote to Testing", targetLifecycleState: "Staging" },
     ]);
+    expect(computeUmtDemoteActions("verifying", "UATStaging", false)).toEqual([]);
   });
 
   it("returns a styled Reopen action for verifying at OnHold", () => {
-    expect(computeUmtDemoteActions("verifying", "OnHold", false, false)).toEqual([
+    expect(computeUmtDemoteActions("verifying", "OnHold", false)).toEqual([
       { label: "Reopen", targetLifecycleState: "Development", color: "error" },
     ]);
   });
 
   it("returns no demote buttons for other verifying-family states", () => {
     for (const state of ["Released", "UAT", "UATRequested"] as const) {
-      expect(computeUmtDemoteActions("verifying", state, false, false)).toEqual([]);
+      expect(computeUmtDemoteActions("verifying", state, false)).toEqual([]);
     }
   });
 
@@ -85,7 +82,7 @@ describe("computeUmtDemoteActions", () => {
       "cloud-released",
     ];
     for (const stepId of stepsWithoutDemote) {
-      expect(computeUmtDemoteActions(stepId, null, false, true)).toEqual([]);
+      expect(computeUmtDemoteActions(stepId, null, true)).toEqual([]);
     }
   });
 });

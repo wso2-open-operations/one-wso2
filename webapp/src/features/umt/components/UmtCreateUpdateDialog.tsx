@@ -53,7 +53,7 @@ import {
   isCreateUpdateFormValid,
   isValidCaseId,
   isValidEstimateDate,
-  isValidGithubIssueUrl,
+  isValidInternalGithubIssueUrl,
   isValidPublicOrSecurityIssueUrl,
   laterDate,
   nextThursday,
@@ -290,7 +290,17 @@ export default function UmtCreateUpdateDialog({
         >
           <Tabs
             value={isProactive ? "proactive" : "customer"}
-            onChange={(_event, value) => setIsProactive(value === "proactive")}
+            onChange={(_event, value) => {
+              const proactive = value === "proactive";
+              setIsProactive(proactive);
+              // A proactive update is never a hotfix, and the switch is
+              // disabled there, so a hotfix chosen on the other tab is
+              // cleared along with the dates it freed from Thursdays.
+              if (proactive && isHotfix) {
+                setIsHotfix(false);
+                resetEstimatesToNextThursday();
+              }
+            }}
             variant="fullWidth"
             aria-label="Update source"
             sx={{ mb: 3 }}
@@ -389,10 +399,10 @@ export default function UmtCreateUpdateDialog({
               size="small"
               value={internalGitIssue}
               onChange={(event) => setInternalGitIssue(event.target.value)}
-              error={internalGitIssue.length > 0 && !isValidGithubIssueUrl(internalGitIssue)}
+              error={internalGitIssue.length > 0 && !isValidInternalGithubIssueUrl(internalGitIssue)}
               helperText={
-                internalGitIssue.length > 0 && !isValidGithubIssueUrl(internalGitIssue)
-                  ? "Must be a WSO2 GitHub issue URL."
+                internalGitIssue.length > 0 && !isValidInternalGithubIssueUrl(internalGitIssue)
+                  ? "Must be a GitHub issue URL in a wso2- organisation."
                   : undefined
               }
             />

@@ -31,6 +31,7 @@ import { describeError } from "@api/errors";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import {
   EMPTY_CREATE_PRODUCT_FORM,
+  isValidEmail,
   buildUmtCreateProductRequest,
   isCreateProductFormValid,
   isValidProductVersion,
@@ -54,13 +55,19 @@ export default function UmtAddProductDialog({ open, onClose }: { open: boolean; 
   const isBusy = createProduct.isPending;
   const isFormValid = isCreateProductFormValid(values);
 
-  const field = (key: keyof UmtCreateProductFormValues, label: string) => ({
-    value: values[key],
-    onChange: (event: ChangeEvent<HTMLInputElement>) =>
-      setValues((current) => ({ ...current, [key]: event.target.value })),
-    error: submitted && values[key].trim().length === 0,
-    helperText: submitted && values[key].trim().length === 0 ? `${label} is required` : undefined,
-  });
+  const field = (key: keyof UmtCreateProductFormValues, label: string) => {
+    const text = values[key].trim();
+    const isMissing = submitted && text.length === 0;
+    // An address is checked as it is typed, once there is something to check.
+    const isMalformedEmail = (key === "leadMail" || key === "edMail") && text.length > 0 && !isValidEmail(text);
+    return {
+      value: values[key],
+      onChange: (event: ChangeEvent<HTMLInputElement>) =>
+        setValues((current) => ({ ...current, [key]: event.target.value })),
+      error: isMissing || isMalformedEmail,
+      helperText: isMissing ? `${label} is required` : isMalformedEmail ? "Enter a valid email address." : undefined,
+    };
+  };
 
   const handleClose = () => {
     if (isBusy) return;

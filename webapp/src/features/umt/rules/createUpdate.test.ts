@@ -76,6 +76,57 @@ describe("Create Update", () => {
     expect(request.publicGitIssue).toBe("N/A");
   });
 
+  it("accepts an internal issue only in a wso2- organisation", () => {
+    for (const org of ["wso2-enterprise", "wso2-support"]) {
+      expect(
+        isCreateUpdateFormValid({ ...REGULAR, internalGitIssue: `https://github.com/${org}/product-apim/issues/1` }),
+      ).toBe(true);
+    }
+    for (const url of [
+      "https://github.com/wso2/carbon-kernel/issues/1",
+      "https://github.com/notwso2/repo/issues/1",
+      "https://github.com/wso2-/repo/issues/1",
+    ]) {
+      expect(isCreateUpdateFormValid({ ...REGULAR, internalGitIssue: url })).toBe(false);
+    }
+  });
+
+  it("refuses an issue URL with a trailing slash, in either issue field", () => {
+    expect(
+      isCreateUpdateFormValid({
+        ...REGULAR,
+        internalGitIssue: "https://github.com/wso2-enterprise/wso2-apim-internal/issues/12/",
+      }),
+    ).toBe(false);
+    expect(
+      isCreateUpdateFormValid({ ...REGULAR, publicOrSecurityGitIssue: "https://github.com/wso2/api-manager/issues/34/" }),
+    ).toBe(false);
+  });
+
+  // The request follows the update's source, not the raw hotfix flag: a
+  // proactive update has no case id to go with a hotfix.
+  it("never sends hotfixRequired for a proactive update", () => {
+    const request = buildUmtCreateUpdateRequest({ ...REGULAR, caseId: "", isProactive: true, isHotfix: true });
+
+    expect(request.hotfixRequired).toBe(false);
+  });
+
+  it("holds a proactive update to a regular update's dates, whatever the hotfix switch was left on", () => {
+    const offThursday = laterDate(best, 1);
+    const proactive = {
+      ...REGULAR,
+      caseId: "",
+      isProactive: true,
+      isHotfix: true,
+      bestCaseEstimate: offThursday,
+      mostLikelyEstimate: laterDate(offThursday, 7),
+      worstCaseEstimate: laterDate(offThursday, 14),
+    };
+
+    expect(isCreateUpdateFormValid(proactive)).toBe(false);
+    expect(isCreateUpdateFormValid({ ...proactive, isProactive: false, caseId: "CS0012345" })).toBe(true);
+  });
+
   it("only accepts a wso2-enterprise/security-internals issue for a security update", () => {
     const withIssue = (publicOrSecurityGitIssue: string) => ({ ...SECURITY, publicOrSecurityGitIssue });
 
@@ -91,14 +142,14 @@ describe("Create Update", () => {
     );
   });
 
-  it("accepts a trailing slash on a security issue URL, as it does on a public one", () => {
+  it("refuses a trailing slash on a security issue URL, as it does on a public one", () => {
     const withIssue = (publicOrSecurityGitIssue: string) => ({ ...SECURITY, publicOrSecurityGitIssue });
 
     expect(isCreateUpdateFormValid(withIssue("https://github.com/wso2-enterprise/security-internals/issues/5/"))).toBe(
-      true,
-    );
-    expect(isCreateUpdateFormValid(withIssue("https://github.com/wso2-enterprise/security-internals/issues/5//"))).toBe(
       false,
+    );
+    expect(isCreateUpdateFormValid(withIssue("https://github.com/wso2-enterprise/security-internals/issues/5"))).toBe(
+      true,
     );
   });
 
@@ -133,6 +184,29 @@ describe("Add Product", () => {
 
   it("suffixes the base version with .0.full", () => {
     expect(buildUmtCreateProductRequest(PRODUCT).version).toBe("4.2.0.0.full");
+  });
+
+  it("rejects a lead or ED email that is not a well-formed address", () => {
+    for (const bad of [
+      "not-an-email",
+      "ed@",
+      "@wso2.com",
+      "lead @wso2.com",
+      "lead@wso2",
+      "a@b@wso2.com",
+      "lead@wso2..com",
+      "lead@wso2.com.",
+      "lead@.wso2.com",
+    ]) {
+      expect(isCreateProductFormValid({ ...PRODUCT, leadMail: bad })).toBe(false);
+      expect(isCreateProductFormValid({ ...PRODUCT, edMail: bad })).toBe(false);
+    }
+  });
+
+  it("accepts a well-formed address, ignoring surrounding whitespace", () => {
+    expect(isCreateProductFormValid({ ...PRODUCT, leadMail: " lead.name+tag@wso2.com ", edMail: "ed@mail.wso2.com" })).toBe(
+      true,
+    );
   });
 
   it("accepts only an X.Y.Z product version", () => {

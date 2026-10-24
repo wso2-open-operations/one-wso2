@@ -30,7 +30,6 @@ export interface UmtDemoteAction {
 export function computeUmtDemoteActions(
   stepId: UmtEditStepId,
   lifecycleState: UmtLifecycleState | null | undefined,
-  isHotfix: boolean,
   isAdmin: boolean,
 ): UmtDemoteAction[] {
   switch (stepId) {
@@ -39,9 +38,8 @@ export function computeUmtDemoteActions(
         ? [{ label: "Demote to Development", targetLifecycleState: "Development" }]
         : [];
     case "description-instruction":
-      // This step's demote button is gated on !isHotfix; there is no separate
-      // rule for the hotfix branch.
-      return isHotfix ? [] : [{ label: "Demote to PRAnalyzed", targetLifecycleState: "PRAnalyzed" }];
+      // A hotfix is offered the same demotion as any other update.
+      return [{ label: "Demote to PRAnalyzed", targetLifecycleState: "PRAnalyzed" }];
     case "file-approval":
       // Gated on isAdmin specifically (UMT_ADMIN role), narrower than the
       // Admin-or-Product-Lead gate on this step's own Proceed/approve action.
@@ -59,8 +57,10 @@ export function computeUmtDemoteActions(
         },
       ];
     case "verifying":
+      // Moving an update out of UATStaging is an administrator's move, so no
+      // one else is offered the button.
       if (lifecycleState === "UATStaging") {
-        return [{ label: "Demote to Testing", targetLifecycleState: "Staging" }];
+        return isAdmin ? [{ label: "Demote to Testing", targetLifecycleState: "Staging" }] : [];
       }
       if (lifecycleState === "OnHold") {
         return [{ label: "Reopen", targetLifecycleState: "Development", color: "error" }];
