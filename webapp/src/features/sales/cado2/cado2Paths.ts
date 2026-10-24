@@ -28,6 +28,8 @@ export type Cado2AdminSection =
   | "legal-entities"
   | "currencies"
   | "product-categories"
+  | "product-bundles"
+  | "legal-texts"
   | "quote-access"
   | "salesforce-sync"
   | "pricing-formulas";

@@ -15,9 +15,9 @@
 // under the License.
 
 import { describe, expect, it } from "vitest";
-import { emptyDraftForm, fromVersion } from "@features/sales/cado2/quotes/form/draftForm";
+import { durationShort, emptyDraftForm, fromVersion } from "@features/sales/cado2/quotes/form/draftForm";
 import { draft, fullPartnerQuote } from "@features/sales/cado2/quotes/testing/fixtures";
-import { expiryState, sheetFromForm, sheetFromVersion, hasYearlySchedule, orderForm, termLabel, termShort, yearOpportunity } from "./sheetModel";
+import { expiryState, sheetFromForm, sheetFromVersion, hasYearlySchedule, orderForm, termLabel, yearOpportunity } from "./sheetModel";
 import { initialsOfName as initialsFor } from "@features/sales/cado2/utils/initials";
 import { lifecycleSteps } from "./lifecycleSteps";
 
@@ -37,12 +37,11 @@ describe("sheetFromVersion", () => {
       startDate: "2026-10-01",
       endDate: "2027-09-30",
       billingFrequency: "ANNUAL",
-      termMode: "YEARS",
       recurring: true,
       netTermsDays: 45,
       poNumber: "PO-4471",
       specialTerms: "Custom SLA credits",
-      governingTerms: null,
+      legal: null, // the fixture has no legal sections
       justification: "Strategic logo in the region",
       pricingRulesVersion: "2026-09-M9",
     });
@@ -90,9 +89,12 @@ describe("sheetFromForm", () => {
     const form = fromVersion(fullPartnerQuote);
     const fromForm = sheetFromForm(form, null, { name: "WSO2, LLC.", country: "USA" });
     const saved = sheetFromVersion(fullPartnerQuote);
-    for (const k of ["accountName", "opportunityName", "dealType", "partner", "currency", "startDate", "endDate", "termMode", "recurring", "billingFrequency", "poNumber", "specialTerms", "justification"] as const) {
+    for (const k of ["accountName", "opportunityName", "dealType", "partner", "currency", "startDate", "endDate", "recurring", "billingFrequency", "poNumber", "specialTerms", "justification"] as const) {
       expect(fromForm[k], k).toEqual(saved[k]);
     }
+    // The same years; the form's amounts wait for the live preview.
+    const dates = (s: typeof saved) => s.contractYears.map(({ number, start, end }) => ({ number, start, end }));
+    expect(dates(fromForm)).toEqual(dates(saved));
     expect(fromForm.contacts.map((c) => c?.name ?? null)).toEqual(["Jane Payables", "Marco Ruiz"]);
     expect(fromForm.previousOpportunityCount).toBe(1);
   });
@@ -147,11 +149,11 @@ describe("labels", () => {
     expect(termLabel({ startDate: "2027-01-01", endDate: "2028-01-01" })).toBe("1 year + 1 day");
     expect(termLabel({ startDate: "", endDate: "" })).toBe("");
     // Short, for the products table (D94).
-    expect(termShort({ startDate: "2027-01-01", endDate: "2029-12-31" })).toBe("3Y");
-    expect(termShort({ startDate: "2027-01-01", endDate: "2028-01-01" })).toBe("1Y 1D");
-    expect(termShort({ startDate: "2027-01-01", endDate: "2028-02-01" })).toBe("1Y 1M 1D");
-    expect(termShort({ startDate: "2027-01-01", endDate: "2027-12-30" })).toBe("11M 30D");
-    expect(termShort({ startDate: "", endDate: "" })).toBe("");
+    expect(durationShort("2027-01-01", "2029-12-31")).toBe("3Y");
+    expect(durationShort("2027-01-01", "2028-01-01")).toBe("1Y 1D");
+    expect(durationShort("2027-01-01", "2028-02-01")).toBe("1Y 1M 1D");
+    expect(durationShort("2027-01-01", "2027-12-30")).toBe("11M 30D");
+    expect(durationShort("", "")).toBe("");
   });
 
   it("names each year's opportunity, and shows a schedule only past one year", () => {

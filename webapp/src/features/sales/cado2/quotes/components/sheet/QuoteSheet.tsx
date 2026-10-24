@@ -22,6 +22,7 @@ import DealSection from "./DealSection";
 import ProductsSection from "./ProductsSection";
 import ScheduleSection from "./ScheduleSection";
 import { AddressesSection, JustificationSection, TermsSection } from "./TermsSections";
+import LegalSection from "./LegalSection";
 
 /**
  * Everything the quote says, read-only. The same sheet on the quote page
@@ -37,6 +38,7 @@ export default function QuoteSheet({ sheet }: { sheet: Sheet }): JSX.Element {
       <DealFiguresSection sheet={sheet} />
       <ScheduleSection sheet={sheet} />
       <TermsSection sheet={sheet} />
+      <LegalSection sheet={sheet} />
       <AddressesSection sheet={sheet} />
       <JustificationSection sheet={sheet} />
     </Stack>

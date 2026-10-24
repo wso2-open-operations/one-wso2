@@ -21,6 +21,7 @@ import {
   Box,
   Button,
   Chip,
+  DatePickers,
   Dialog,
   DialogActions,
   DialogContent,
@@ -32,12 +33,12 @@ import {
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { PackageIcon, PercentIcon } from "@wso2/oxygen-ui-icons-react";
+import { CalendarDaysIcon, PackageIcon, PercentIcon } from "@wso2/oxygen-ui-icons-react";
 import { formatMoney } from "@features/sales/cado2/utils/money";
 import { useDebouncedValue } from "@hooks/useDebouncedValue";
 import { descriptionAfterName } from "@features/sales/cado2/utils/productDescription";
 import { lineProblems } from "@features/sales/cado2/quotes/components/lineProblems";
-import { usePricingFormulas, useProducts } from "@features/sales/cado2/quotes/api/useQuoteApi";
+import { useBundleChildren, usePricingFormulas, useProducts } from "@features/sales/cado2/quotes/api/useQuoteApi";
 import type {
   CategorySource,
   LineCategory,
@@ -53,7 +54,19 @@ import {
   useProductList,
 } from "@features/sales/cado2/components/product-list/productList";
 import { ProductListPaper, ProductOption } from "@features/sales/cado2/components/product-list/ProductListParts";
-import { formatDate, LINE_CATEGORIES, type LineValue } from "@features/sales/cado2/quotes/form/draftForm";
+import {
+  formatDate,
+  LINE_CATEGORIES,
+  lineDatesProblem,
+  newLineKey,
+  parseDateString,
+  salesPriceProblem,
+  toDateString,
+  type ContractYear,
+  type LineValue,
+} from "@features/sales/cado2/quotes/form/draftForm";
+
+const { DatePicker } = DatePickers;
 
 /** A small heading for a group of fields in the dialog. */
 function Group({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }): JSX.Element {
@@ -190,7 +203,12 @@ interface AddLineDialogProps {
   readonly currency: string;
   /** The quote's price book, which is the opportunity's: every product and price comes from it. */
   readonly pricebook: PricebookRef;
-  readonly onSave: (line: LineValue) => void;
+  /** The contract year the line is in; its dates stay within it. Null before the start date. */
+  readonly year: ContractYear | null;
+  /** Editing a bundle child: its parent's name; it keeps the parent's dates. */
+  readonly parentName?: string | null;
+  /** The line, and for a new bundle parent the children that come with it. */
+  readonly onSave: (line: LineValue, children: LineValue[]) => void;
   readonly onClose: () => void;
 }
 
@@ -211,6 +229,8 @@ export default function AddLineDialog({
   line,
   currency,
   pricebook,
+  year,
+  parentName = null,
   onSave,
   onClose,
 }: AddLineDialogProps): JSX.Element {
@@ -230,8 +250,17 @@ export default function AddLineDialog({
   // Locked for now (2026-10-14): a saved line keeps its value; a new one has none.
   const [quantity, setQuantity] = useState(line?.quantity ?? "1");
   const [discount, setDiscount] = useState(line?.discount ?? "0");
+  // The unit price charged: "" = the list price.
+  const [salesPrice, setSalesPrice] = useState(line?.salesPrice ?? "");
   const [tried, setTried] = useState(false);
+  // Its dates within the year, shown filled in; saved as "" when they are the year's own.
+  const [startDate, setStartDate] = useState(line?.startDate || year?.start || "");
+  const [endDate, setEndDate] = useState(line?.endDate || year?.end || "");
   const formulas = usePricingFormulas();
+  // A new product's bundle: what comes with it from this price book.
+  const bundle = useBundleChildren(!line && product ? product.id : null, currency, pricebook.id);
+  const bundled = bundle.data?.children ?? [];
+  const isChild = Boolean(line?.parentKey);
 
   // A product carries one price: the quote's book's.
   const entry = product?.pricebookEntries[0];
@@ -302,6 +331,19 @@ export default function AddLineDialog({
     quantity,
     discount: formula ? "0" : discount,
   });
+  const recurring = keepsExisting ? line.recurring : (product?.recurring ?? true);
+  const datesProblem = !year
+    ? ""
+    : !startDate || (recurring && !endDate)
+      ? "Choose the dates"
+      : lineDatesProblem(
+          { yearNumber: year.number, startDate, endDate: recurring ? endDate : "", recurring },
+          Array.from({ length: year.number }, () => year),
+        );
+  // The list price the sales price can't go below: the price book's (a kept
+  // line's stored one); a formula line has no sales price.
+  const listPrice = keepsExisting ? keptUnitPrice : (entry?.unitPrice ?? "");
+  const salesProblem = formula ? "" : salesPriceProblem(salesPrice, listPrice);
   const show = (k: string) => (tried ? problems[k] : undefined);
 
   const chooseProduct = (p: Product | null) => {
@@ -312,7 +354,7 @@ export default function AddLineDialog({
 
   const save = () => {
     setTried(true);
-    if (Object.keys(problems).length > 0) return;
+    if (Object.keys(problems).length > 0 || (!isChild && datesProblem) || salesProblem) return;
     const base: LineValue = keepsExisting
       ? { ...line }
       : {
@@ -328,11 +370,18 @@ export default function AddLineDialog({
           category: mapped ?? (category as LineCategory),
           categorySource: source,
           recurring: product!.recurring,
+          classification: product!.classification ?? "",
           unitOfMeasure: "",
           quantity: "",
           discount: "",
+          yearNumber: year?.number ?? 1,
+          startDate: "",
+          endDate: "",
+          salesPrice: "",
+          key: newLineKey(),
+          parentKey: "",
         };
-    onSave({
+    const saved: LineValue = {
       ...base,
       category: mapped ?? (category as LineCategory),
       categorySource: source,
@@ -341,7 +390,45 @@ export default function AddLineDialog({
       discount: formula ? "0" : discount.trim() || "0",
       unitPrice: keepsExisting ? keptUnitPrice : base.unitPrice,
       useLatestPricing: keepsExisting && moved ? true : undefined,
-    });
+      salesPrice: formula || !salesPrice.trim() || Number(salesPrice) === Number(listPrice) ? "" : String(Number(salesPrice)),
+      startDate: year && startDate !== year.start ? startDate : "",
+      endDate: year && recurring && endDate !== year.end ? endDate : "",
+    };
+    // Its bundle comes with it: same year and dates, its quantity to start
+    // with, no discount, priced from the same book.
+    const children: LineValue[] = line
+      ? []
+      : bundled.flatMap((p) => {
+          const e = p.pricebookEntries[0];
+          if (!e) return [];
+          return [
+            {
+              lineId: null,
+              pricebookEntryId: e.id,
+              productId: p.id,
+              productName: p.name ?? p.id,
+              productCode: p.productCode ?? "",
+              productDescription: p.description ?? "",
+              pricebookId: e.pricebook?.id ?? "",
+              pricebookName: e.pricebook?.name ?? "",
+              unitPrice: e.unitPrice ?? "",
+              category: p.category ?? "",
+              categorySource: p.category ? "MAPPED" : "REP",
+              recurring: p.recurring,
+              classification: p.classification ?? "",
+              unitOfMeasure: "",
+              quantity: saved.quantity,
+              discount: "0",
+              yearNumber: saved.yearNumber,
+              startDate: saved.startDate,
+              endDate: p.recurring ? saved.endDate : "",
+              salesPrice: "",
+              key: newLineKey(),
+              parentKey: saved.key,
+            } satisfies LineValue,
+          ];
+        });
+    onSave(saved, children);
   };
 
   return (
@@ -445,7 +532,18 @@ export default function AddLineDialog({
                 />
               </ProductListContext.Provider>
             )}
-            {chosen && mapped ? (
+            {bundled.length ? (
+            <Alert severity="info" variant="outlined" aria-label="Bundle">
+              Comes with {bundled.map((p) => p.name ?? p.id).join(", ")}. {bundled.length === 1 ? "It is" : "They are"} added with it, in
+              the same year and dates, and can only be removed with it.
+            </Alert>
+          ) : null}
+          {bundle.data?.missing.length ? (
+            <Alert severity="warning" aria-label="Not in the price book">
+              Not in {pricebook.name}, so not added: {bundle.data.missing.join(", ")}.
+            </Alert>
+          ) : null}
+          {chosen && mapped ? (
               <Stack
                 direction="row"
                 spacing={1}
@@ -485,7 +583,26 @@ export default function AddLineDialog({
               </>
             ) : null}
           </Group>
-          <Group icon={<PercentIcon size={14} />} title="Quantity & Discount">
+          <Group icon={<PercentIcon size={14} />} title="Price, Quantity & Discount">
+            {/* The sales price: the list price unless raised; never
+                lower. A formula sets its own price, which can't be changed. */}
+            <TextField
+              label="Sales price"
+              value={formula ? "" : salesPrice}
+              placeholder={formula ? "Set by the formula" : listPrice ? Number(listPrice).toFixed(2) : ""}
+              onChange={(e) => setSalesPrice(e.target.value)}
+              size="small"
+              inputMode="decimal"
+              disabled={Boolean(formula) || !chosen}
+              error={Boolean(tried && salesProblem)}
+              helperText={
+                formula
+                  ? "Priced by formula: the price can't be changed"
+                  : (tried && salesProblem) ||
+                    (listPrice ? `List price ${currency} ${formatMoney(listPrice)}. You can raise it, not lower it.` : undefined)
+              }
+              slotProps={{ input: { startAdornment: <InputAdornment position="start">{currency}</InputAdornment> } }}
+            />
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
               <TextField
                 label="Quantity"
@@ -523,12 +640,42 @@ export default function AddLineDialog({
               helperText={uomSource}
             />
           </Group>
+          {/* Its dates within its year: the whole year
+              unless narrowed; a one-off is charged on its start. A bundle
+              child keeps its parent's. */}
+          {isChild ? (
+            <Typography variant="body2" color="text.secondary">
+              Comes with {parentName ?? "its bundle's product"}: same year and dates, and removed only with it.
+            </Typography>
+          ) : year ? (
+            <Group icon={<CalendarDaysIcon size={14} />} title={`Dates in Year ${year.number}`}>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                {[
+                  { label: recurring ? "Start" : "Charged on", value: startDate, set: setStartDate },
+                  ...(recurring ? [{ label: "End", value: endDate, set: setEndDate }] : []),
+                ].map((f) => (
+                  <DatePicker
+                    key={f.label}
+                    label={f.label}
+                    value={parseDateString(f.value)}
+                    minDate={parseDateString(year.start) ?? undefined}
+                    maxDate={parseDateString(year.end) ?? undefined}
+                    onChange={(d: Date | null) => f.set(d && !Number.isNaN(d.getTime()) ? toDateString(d) : "")}
+                    slotProps={{ textField: { size: "small", required: true, fullWidth: true } }}
+                  />
+                ))}
+              </Stack>
+              <Typography variant="caption" color={tried && datesProblem ? "error" : "text.secondary"}>
+                {(tried && datesProblem) || `Year ${year.number} runs ${formatDate(year.start)} – ${formatDate(year.end)}`}
+              </Typography>
+            </Group>
+          ) : null}
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={save}>
-          {line ? "Save line" : "Add line"}
+        <Button variant="contained" onClick={save} disabled={!line && Boolean(product) && bundle.isFetching}>
+          {line ? "Save line" : bundled.length ? `Add ${bundled.length + 1} lines` : "Add line"}
         </Button>
       </DialogActions>
     </Dialog>

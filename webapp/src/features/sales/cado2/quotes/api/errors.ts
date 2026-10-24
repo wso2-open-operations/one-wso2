@@ -32,3 +32,14 @@ export function problemOf(err: unknown): ValidationProblem | null {
 export function isConflict(err: unknown): boolean {
   return err instanceof HttpError && err.status === 409;
 }
+
+/** The backend's own words for a refused request ({"message": …}), or null. */
+export function messageOf(err: unknown): string | null {
+  if (!(err instanceof HttpError) || !err.responseBody) return null;
+  try {
+    const parsed = JSON.parse(err.responseBody) as { message?: unknown };
+    return typeof parsed.message === "string" ? parsed.message : null;
+  } catch {
+    return null;
+  }
+}

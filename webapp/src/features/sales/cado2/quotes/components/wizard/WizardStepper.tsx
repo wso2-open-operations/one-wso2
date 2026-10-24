@@ -43,7 +43,8 @@ export default function WizardStepper({ active, reachable, readOnly, onSelect }:
     i === active ? "current" : readOnly ? "open" : i > reachable ? "locked" : i < reachable ? "done" : "open";
   return (
     <Paper variant="outlined" sx={{ px: { xs: 1.5, sm: 3 }, py: 2.5, borderRadius: 2 }}>
-      <Box component="nav" aria-label="Quote steps" sx={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
+      {/* One column per step, however many there are (five since the Legal step). */}
+      <Box component="nav" aria-label="Quote steps" sx={{ display: "grid", gridTemplateColumns: `repeat(${STEPS.length}, minmax(0,1fr))` }}>
         {STEPS.map((label, i) => {
           const state = stateOf(i);
           const status = readOnly

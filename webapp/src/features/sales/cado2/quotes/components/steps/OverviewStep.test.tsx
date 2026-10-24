@@ -94,12 +94,12 @@ function Start() {
   return <p>start: {start || "none"}</p>;
 }
 
-/** The term the form holds. */
+/** The contract years the form holds. */
 function Term() {
-  const [mode, years, end] = useWatch<DraftFormValues, ["termMode", "termYears", "termEndDate"]>({
-    name: ["termMode", "termYears", "termEndDate"],
+  const [count, lastEnd] = useWatch<DraftFormValues, ["yearCount", "lastYearEndDate"]>({
+    name: ["yearCount", "lastYearEndDate"],
   });
-  return <p>term: {`${mode} ${years} ${end || "no end"}`}</p>;
+  return <p>years: {`${count} ${lastEnd || "full"}`}</p>;
 }
 
 /** The lines the form holds. */
@@ -266,12 +266,13 @@ describe("OverviewStep — Salesforce first (2026-09-28)", () => {
     }
   });
 
-  // D85: the term starts from the opportunity's own subscription dates.
+  // The start comes from the opportunity; its end doesn't
+  // split anything: the quote keeps Year 1 and the AM adds the rest.
   it.each([
-    ["whole years", { subsStartDate: "2027-02-01", subsEndDate: "2030-01-31" }, "start: 2027-02-01", "term: YEARS 3 no end"],
-    ["a year and a day", { subsStartDate: "2027-02-01", subsEndDate: "2028-02-01" }, "start: 2027-02-01", "term: END_DATE 1 2028-02-01"],
-    ["no dates", {}, "start: none", "term: YEARS 1 no end"],
-  ])("pre-fills the term from the chosen opportunity: %s", async (_, dates, start, term) => {
+    ["3 years in Salesforce", { subsStartDate: "2027-02-01", subsEndDate: "2030-01-31" }, "start: 2027-02-01", "years: 1 full"],
+    ["a year and a day", { subsStartDate: "2027-02-01", subsEndDate: "2028-02-01" }, "start: 2027-02-01", "years: 1 full"],
+    ["no dates", {}, "start: none", "years: 1 full"],
+  ])("takes the contract start from the chosen opportunity: %s", async (_, dates, start, term) => {
     oppDates = dates;
     try {
       render(<Harness values={account} />);
@@ -295,13 +296,13 @@ describe("OverviewStep — Salesforce first (2026-09-28)", () => {
     }
   });
 
-  it("reads the opportunity's end against a start from the renewed one (D85)", async () => {
+  it("starts a renewal the day after the renewed one ends, without splitting years (D85)", async () => {
     oppDates = { subsEndDate: "2028-02-01" };
     try {
       render(<Harness values={deal} locked />);
       await userEvent.click(await screen.findByRole("option", { name: "APIM Subs 2026" }));
       expect(screen.getByText("start: 2027-02-01")).toBeInTheDocument();
-      expect(screen.getByText("term: END_DATE 1 2028-02-01")).toBeInTheDocument(); // 1 Feb 2027 → 1 Feb 2028: a year and a day
+      expect(screen.getByText("years: 1 full")).toBeInTheDocument();
     } finally {
       oppDates = {};
     }

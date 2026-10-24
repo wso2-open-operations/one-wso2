@@ -43,6 +43,7 @@ import { formatDate } from "@features/sales/cado2/quotes/form/draftForm";
 import { formatMoney } from "@features/sales/cado2/utils/money";
 import { cado2Paths } from "@features/sales/cado2/cado2Paths";
 import StatusChip from "@features/sales/cado2/components/status-chip/StatusChip";
+import { visuallyHidden } from "@features/sales/cado2/utils/visuallyHidden";
 
 const CHANGE_LABEL = { added: "Added", removed: "Removed", changed: "Changed", same: "" };
 
@@ -65,7 +66,7 @@ export default function VersionsTab({ quote, currency }: { quote: QuoteView; cur
               <TableCell align="right">TCV</TableCell>
               <TableCell>Last changed</TableCell>
               <TableCell align="right">
-                <Box component="span" sx={{ position: "absolute", width: 1, height: 1, overflow: "hidden" }}>
+                <Box component="span" sx={visuallyHidden}>
                   Actions
                 </Box>
               </TableCell>

@@ -35,7 +35,6 @@ export type CategorySource = "MAPPED" | "REP";
  * How the subscription term is set (D85): a number of years (1–10), or an
  * end date of any length up to 10 years.
  */
-export type TermMode = "YEARS" | "END_DATE";
 
 /** A problem with one field, e.g. { field: "lines[2].quantity", message: "…" }. */
 export interface Issue {
@@ -205,14 +204,107 @@ export interface ScheduleRow {
   readonly netBilling?: string;
 }
 
+/** GET /bundles/{productId}: the children a parent brings, priced from the quote's book; Missing names those not in it. */
+export interface BundleChildren {
+  readonly children: readonly Product[];
+  readonly missing: readonly string[];
+}
+
 export interface PricingYear {
   readonly yearNumber: number;
   readonly periodStart: string;
   readonly periodEnd: string;
   readonly net: string;
+  /** The year's recurring lines at their full yearly rate. */
+  readonly arr?: string;
   readonly billing: string;
   readonly commission?: string;
   readonly netBilling?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Legal terms (2026-10-24): Admin › Legal Texts and a quote's sections
+// ---------------------------------------------------------------------------
+
+/** A section 05 notice and when it applies; an empty list matches any. */
+export interface LegalNoticeConfig {
+  readonly id: number;
+  readonly title: string;
+  readonly body: string;
+  readonly showTitle: boolean;
+  readonly finePrint: boolean;
+  readonly channels: readonly string[] | null;
+  readonly regions: readonly string[] | null;
+  readonly dealKinds: readonly string[] | null;
+}
+
+/** GET /legal: the texts as quotes use them; the EULA link is in the texts. */
+export interface LegalConfig {
+  /** TERMS_ONPREM_DIRECT, TERMS_ONPREM_PARTNER, TERMS_SAAS_DIRECT, TERMS_SAAS_PARTNER. */
+  readonly texts: Readonly<Record<string, string>>;
+  readonly notices: readonly LegalNoticeConfig[];
+  /** Salesforce partner role → the agreement named on the order form. */
+}
+
+export type LegalBlockKind = "ONPREM" | "SAAS";
+
+/** A section 04 block: the standard text filled in, or Legal's terms; "" while Legal hasn't written it. */
+export interface LegalBlock {
+  readonly kind: LegalBlockKind;
+  readonly nonStandard: boolean;
+  readonly text: string;
+}
+
+/** A notice that applies, with what added it ("" for every deal). */
+export interface LegalNoticeOut {
+  readonly title: string;
+  readonly body: string;
+  readonly showTitle: boolean;
+  readonly finePrint: boolean;
+  readonly reason: string;
+}
+
+/** Sections 04 and 05, resolved. */
+export interface LegalSections {
+  readonly blocks: readonly LegalBlock[];
+  readonly notices: readonly LegalNoticeOut[];
+  readonly contractName: string;
+}
+
+/** A version's legal sections, frozen at submission; Legal's texts laid over. */
+export interface LegalView {
+  readonly onPrem: boolean;
+  readonly saas: boolean;
+  readonly onPremNonStandard: boolean;
+  readonly saasNonStandard: boolean;
+  readonly contractName: string;
+  readonly partnerName: string;
+  readonly contractDate: string | null;
+  readonly sections: LegalSections;
+  /** What section 06 says: Legal's wording when they changed it, else the AM's; null when off. */
+  readonly specialTerms: string | null;
+  readonly specialTermsByLegal: boolean;
+  readonly amSpecialTerms: string | null;
+  readonly frozen: boolean;
+}
+
+/**
+ * A deal whose TCV is under the small-deal amount in USD, at Salesforce's
+ * current rate (2026-10-24): the AM is asked to contact their Sales
+ * Manager and the BU GM. A warning only.
+ */
+export interface SmallDeal {
+  readonly thresholdUsd: string;
+  readonly tcvUsd: string;
+}
+
+/** One contract year of a saved version; net and ARR are null while unpriced. */
+export interface ContractYearView {
+  readonly yearNumber: number;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly net: string | null;
+  readonly arr: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -276,13 +368,20 @@ export interface PricingPreview {
   readonly termMonths: string;
   readonly totals: Totals;
   readonly years: readonly PricingYear[];
+  /** TCV under USD 30,000 (a warning); null otherwise. */
+  readonly smallDeal?: SmallDeal | null;
   readonly lines: readonly {
     readonly pricebookEntryId: string;
+    readonly yearNumber?: number;
+    readonly startDate?: string;
+    readonly endDate?: string;
     /** The category priced: a mapped product's comes from its mapping. */
     readonly category?: LineCategory;
     readonly categorySource?: CategorySource;
-    /** The unit price priced: a formula line's is worked out (D81). */
+    /** The list price priced: a formula line's is worked out (D81). */
     readonly unitPrice?: string;
+    /** The unit price charged. */
+    readonly salesPrice?: string;
     readonly pricingMethod?: PricingMethod;
     readonly formula?: LineFormula | null;
     readonly discretionaryDiscountPercent?: string;
@@ -328,6 +427,15 @@ export interface DraftLineInput {
   readonly unitOfMeasure?: string;
   /** A kept line moved to its product's pricing in force: the latest formula version, or the price book (D82). */
   readonly useLatestFormula?: boolean;
+  /** The contract year the line belongs to. */
+  readonly yearNumber: number;
+  /** Within its year; omitted = the whole year. A one-off is charged on its start. */
+  readonly startDate?: string;
+  readonly endDate?: string;
+  /** The unit price charged; omitted = the list price. Never below it; none on a formula line. */
+  readonly salesPrice?: string;
+  /** A bundle child: the position in lines of its parent. */
+  readonly parentIndex?: number;
 }
 
 /** POST /quotes and PUT /quotes/{id}/versions/{n} body. */
@@ -344,13 +452,18 @@ export interface DraftInput {
   /** The quote's price book; omitted = none chosen. */
   readonly defaultPricebookId?: string;
   readonly subscriptionStartDate?: string;
-  readonly termMode?: TermMode;
-  /** YEARS only (1–10). */
-  readonly termYears?: number;
-  /** END_DATE only; YEARS derives it. */
-  readonly subscriptionEndDate?: string;
+  /** How many contract years the AM added, 1–10; omitted = none yet. */
+  readonly yearCount?: number;
+  /** The last year's end when it is shorter than 12 months; omitted = a full year. */
+  readonly lastYearEndDate?: string;
   /** With a recurring line only (D85). */
   readonly billingFrequency?: BillingFrequency;
+  /** Section 04: blocks the AM marks non-standard (Legal writes them). */
+  readonly termsOnPremNonStandard?: boolean;
+  readonly termsSaasNonStandard?: boolean;
+  /** The partner agreement: its name when the partner role has none, and its date (YYYY-MM-DD). */
+  readonly partnerContractName?: string;
+  readonly partnerContractDate?: string;
   /** Partner-led quotes only: one % for every line. */
   readonly partnerCommissionPercent?: string;
   readonly netTermsDays?: number;
@@ -382,7 +495,10 @@ export interface LineView {
   readonly pricebookEntryId: string;
   readonly pricebookId?: string;
   readonly pricebookName: string;
+  /** The list price: the price book's, or the formula's. */
   readonly unitPrice: string;
+  /** What the customer is charged per unit: the list price unless the AM raised it. */
+  readonly salesPrice?: string;
   /** PRICE_BOOK, or FORMULA: worked out by an Admin's formula, with no discount (D81). */
   readonly pricingMethod?: PricingMethod;
   readonly formula?: LineFormula | null;
@@ -395,7 +511,11 @@ export interface LineView {
   readonly category: LineCategory;
   readonly categorySource?: CategorySource;
   readonly discretionaryDiscountPercent: string;
-  /** Null until the quote has a start date (D78). */
+  /** The contract year it belongs to. */
+  readonly yearNumber: number | null;
+  /** A bundle child's parent line number; null otherwise. */
+  readonly parentLineNumber?: number | null;
+  /** Null until the quote has a start date and a year (D78). */
   readonly startDate: string | null;
   readonly endDate: string | null;
   readonly annualList: string;
@@ -485,10 +605,20 @@ export interface VersionView {
   /** The quote's price book; null until the rep chooses. */
   readonly defaultPricebook?: PricebookRef | null;
   readonly subscriptionStartDate: string | null;
+  /** The contract's end: the last year's end. */
   readonly subscriptionEndDate: string | null;
-  /** Null for a services-only quote, or a version submitted before term modes. */
-  readonly termMode: TermMode | null;
-  readonly termYears: number | null;
+  /** The contract years; null/empty before Year 1 is added. */
+  readonly yearCount: number | null;
+  readonly years: readonly ContractYearView[];
+  /** A priced quote under USD 30,000 (a warning); null otherwise. */
+  readonly smallDeal?: SmallDeal | null;
+  /** The legal sections; null when not configured. */
+  readonly legal?: LegalView | null;
+  /** Section 04 choices and the partner agreement. */
+  readonly termsOnPremNonStandard?: boolean;
+  readonly termsSaasNonStandard?: boolean;
+  readonly partnerContractName?: string | null;
+  readonly partnerContractDate?: string | null;
   /** "15.00" on a partner-led quote with a commission; null otherwise. */
   readonly partnerCommissionPercent?: string | null;
   readonly billingFrequency: BillingFrequency | null;

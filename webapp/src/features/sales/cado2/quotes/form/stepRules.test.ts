@@ -19,13 +19,18 @@ import { emptyDraftForm, fromVersion, type DraftFormValues } from "./draftForm";
 import { nextHint, reachableStep, stepChecks } from "./stepRules";
 import { fullPartnerQuote } from "@features/sales/cado2/quotes/testing/fixtures";
 
-const complete = (): DraftFormValues => fromVersion({ ...fullPartnerQuote, version: { ...fullPartnerQuote.version, status: "DRAFT" } });
+// A complete partner quote; its agreement is dated and its role names the agreement.
+const complete = (): DraftFormValues => ({
+  ...fromVersion({ ...fullPartnerQuote, version: { ...fullPartnerQuote.version, status: "DRAFT" } }),
+  partnerContractName: "Value Added Reseller",
+  partnerContractDate: "2024-03-12",
+});
 
 describe("stepChecks", () => {
   it("finds nothing missing on a complete quote, so Review is reachable", () => {
     const checks = stepChecks(complete());
-    expect(checks).toEqual([[], [], []]);
-    expect(reachableStep(checks)).toBe(3);
+    expect(checks).toEqual([[], [], [], []]);
+    expect(reachableStep(checks)).toBe(4);
   });
 
   it("starts a new quote at Overview with everything to choose", () => {
@@ -59,21 +64,30 @@ describe("stepChecks", () => {
     expect(stepChecks({ ...complete(), shipTo: emptyDraftForm().shipTo })[2].map((c) => c.field)).toEqual(["shipTo"]);
   });
 
-  it("wants text for switched-on terms", () => {
-    const v = { ...complete(), governingTermsEnabled: true, governingTerms: " " };
-    expect(stepChecks(v)[2].map((c) => c.field)).toEqual(["governingTerms.text"]);
+  // The Legal step wants the special terms' text when on,
+  // and a partner deal's agreement, always the AM's choice, and its date.
+  it("checks the special terms and the partner agreement on the Legal step", () => {
+    const legal = (v: Partial<DraftFormValues>) => stepChecks({ ...complete(), ...v })[3].map((c) => c.field);
+    expect(legal({ specialTermsEnabled: true, specialTerms: " " })).toEqual(["specialTerms.text"]);
+    expect(legal({ partnerContractDate: "" })).toEqual(["partnerContractDate"]);
+    expect(legal({ partnerContractName: "" })).toEqual(["partnerContractName"]);
+    expect(legal({ dealType: "DIRECT", partnerContractName: "", partnerContractDate: "" })).toEqual([]); // a direct deal has no agreement
+    // Non-standard terms need nothing from the AM: Legal writes them.
+    expect(legal({ termsOnPremNonStandard: true })).toEqual([]);
   });
 
-  it("checks the subscription term on Products & Pricing", () => {
+  // Year 1 at least, the last year within 12 months,
+  // and each product's dates within its own year (from 1 Oct 2026).
+  it("checks the contract years on Products & Pricing", () => {
     const products = (v: Partial<DraftFormValues>) => stepChecks({ ...complete(), ...v })[1];
-    expect(products({ termMode: "" }).map((c) => c.field)).toEqual(["termMode"]);
+    expect(products({ yearCount: 0 }).map((c) => c.field)).toContain("years");
     // Billing is chosen on Commercials (D86).
-    expect(products({ termMode: "YEARS", billingFrequency: "" })).toEqual([]);
-    expect(products({ termMode: "YEARS", termYears: "3" })).toEqual([]);
-    expect(products({ termMode: "END_DATE", termEndDate: "" })[0].message).toBe("Choose the end date");
-    // Any length up to 10 years, a year and a day included (from 1 Oct 2026).
-    expect(products({ termMode: "END_DATE", termEndDate: "2027-10-01" })).toEqual([]);
-    expect(products({ termMode: "END_DATE", termEndDate: "2036-10-01" })[0].message).toMatch(/at most 10 years/);
+    expect(products({ yearCount: 1, billingFrequency: "" })).toEqual([]);
+    expect(products({ yearCount: 3 })).toEqual([]);
+    expect(products({ yearCount: 2, lastYearEndDate: "2028-03-31" })).toEqual([]);
+    expect(products({ yearCount: 2, lastYearEndDate: "2028-10-01" })[0].message).toMatch(/at most 12 months/);
+    const late = { ...complete().lines[0], startDate: "2027-10-01" }; // after Year 1 ends
+    expect(products({ lines: [late] }).map((c) => c.field)).toEqual(["lines[0].startDate"]);
   });
 
   // D85, D86, D88: every quote chooses its billing on Commercials, services-only included.
@@ -86,7 +100,8 @@ describe("stepChecks", () => {
 
   // D86: "See Special Terms" billing points at the special terms.
   it("needs the special terms on when the billing says See Special Terms", () => {
-    const step3 = (v: Partial<DraftFormValues>) => stepChecks({ ...complete(), billingFrequency: "SPECIAL_TERMS", ...v })[2];
+    // On the Legal step, with the switch.
+    const step3 = (v: Partial<DraftFormValues>) => stepChecks({ ...complete(), billingFrequency: "SPECIAL_TERMS", ...v })[3];
     expect(step3({ specialTermsEnabled: false })).toEqual([
       { field: "specialTerms.billing", message: "Billing says See Special Terms: switch on special terms and describe the billing" },
     ]);

@@ -15,7 +15,7 @@
 // under the License.
 
 import type { JSX, ReactNode } from "react";
-import { Box, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
+import { Box, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
 import { CalculatorIcon, ReceiptIcon, RepeatIcon, ScaleIcon } from "@wso2/oxygen-ui-icons-react";
 import SectionCard from "@features/sales/cado2/components/section-card/SectionCard";
 import { dealFigures, NOT_APPLICABLE, type QuoteSheet } from "@features/sales/cado2/quotes/sheet/sheetModel";
@@ -34,7 +34,8 @@ function Figure({
   icon: ReactNode;
   tone: Tone;
   label: string;
-  value: string;
+  /** The figure; null when the workings below say it all (ARR over several years). */
+  value: string | null;
   children: ReactNode;
 }): JSX.Element {
   return (
@@ -49,9 +50,11 @@ function Figure({
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.3 }}>
           {label}
         </Typography>
-        <Typography variant="h6" component="p" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1.3 }}>
-          {value}
-        </Typography>
+        {value !== null ? (
+          <Typography variant="h6" component="p" sx={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1.3 }}>
+            {value}
+          </Typography>
+        ) : null}
         <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
           {children}
         </Typography>
@@ -83,21 +86,41 @@ export default function DealFiguresSection({
       ) : (
         <Stack spacing={2}>
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0,1fr))" }, gap: 1.5 }}>
-            <Figure icon={<RepeatIcon size={20} />} tone="secondary" label="ARR · annual recurring revenue" value={f.arr ? money(f.arr) : NOT_APPLICABLE}>
-              {f.arr ? (
-                <>
-                  One year of every Subscription and Support line
-                  <br />
-                  {plus(f.arrParts.map((p) => `${p.productName} ${formatMoney(p.amount)}`))}
-                  {f.arrExcluded.length ? (
-                    <>
-                      <br />
-                      Left out, one-time: {f.arrExcluded.join(", ")}
-                    </>
-                  ) : null}
-                </>
+            {/* ARR per year, every year alike, as a mini table
+                (2026-10-23). One year: the figure itself. */}
+            <Figure
+              icon={<RepeatIcon size={20} />}
+              tone="secondary"
+              label="ARR · annual recurring revenue"
+              value={!f.arr ? NOT_APPLICABLE : f.arrByYear.length > 1 ? null : money(f.arr)}
+            >
+              {!f.arr ? (
+                "No recurring products: only TCV applies"
+              ) : f.arrByYear.length > 1 ? (
+                <Table
+                  size="small"
+                  aria-label="ARR by year"
+                  sx={{ mt: 0.5, "& td, & th": { px: 0, py: 0.4, typography: "body2" }, "& th": { color: "text.secondary", fontWeight: 600 } }}
+                >
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Year</TableCell>
+                      <TableCell align="right">ARR{sheet.currency ? ` (${sheet.currency})` : ""}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {f.arrByYear.map((y) => (
+                      <TableRow key={y.yearNumber}>
+                        <TableCell>Year {y.yearNumber}</TableCell>
+                        <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                          {formatMoney(y.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               ) : (
-                "No subscriptions or support: only TCV applies"
+                "One year of the recurring products"
               )}
             </Figure>
             <Figure icon={<ReceiptIcon size={20} />} tone="primary" label="TCV · total contract value" value={money(f.tcv)}>
@@ -116,51 +139,6 @@ export default function DealFiguresSection({
             </Figure>
             {/* Commission and net order value are in the order form's totals (C2, 2026-10-14). */}
           </Box>
-
-          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
-            <Table size="small" aria-label="Figures by product">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Product</TableCell>
-                  <TableCell align="right">ARR</TableCell>
-                  <TableCell align="right">TCV</TableCell>
-                  {f.partner ? <TableCell align="right">Commission</TableCell> : null}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {f.byProduct.map((p) => (
-                  <TableRow key={p.number}>
-                    <TableCell>{p.productName}</TableCell>
-                    <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums" }}>
-                      {p.arr === null ? "One-time" : formatMoney(p.arr)}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums" }}>
-                      {formatMoney(p.tcv)}
-                    </TableCell>
-                    {f.partner ? (
-                      <TableCell align="right" sx={{ fontVariantNumeric: "tabular-nums" }}>
-                        {formatMoney(p.commission)}
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                ))}
-                <TableRow sx={{ bgcolor: "action.hover" }}>
-                  <TableCell sx={{ fontWeight: 700, borderBottom: 0 }}>Total</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, borderBottom: 0, fontVariantNumeric: "tabular-nums" }}>
-                    {f.arr ? formatMoney(f.arr) : NOT_APPLICABLE}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, borderBottom: 0, fontVariantNumeric: "tabular-nums" }}>
-                    {formatMoney(f.tcv)}
-                  </TableCell>
-                  {f.partner ? (
-                    <TableCell align="right" sx={{ fontWeight: 700, borderBottom: 0, fontVariantNumeric: "tabular-nums" }}>
-                      {formatMoney(f.partner.commission)}
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TableContainer>
         </Stack>
       )}
     </SectionCard>

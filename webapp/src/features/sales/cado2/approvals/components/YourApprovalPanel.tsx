@@ -46,6 +46,10 @@ interface YourApprovalPanelProps {
   readonly repCategories?: readonly ReasonRow[];
   /** Opens the confirmation for a decision on one of the viewer's steps. */
   readonly onDecide: (outcome: ApprovalOutcome, step: ApprovalStep) => void;
+  /** Legal's editor for the terms they write, under their reasons. */
+  readonly legalEditor?: ReactNode;
+  /** Why Legal can't approve yet (terms to write); "" when they can. */
+  readonly legalApproveBlock?: string;
 }
 
 /** Where the header's "Your approval" link scrolls to. */
@@ -193,6 +197,8 @@ export default function YourApprovalPanel({
   actionable,
   repCategories = [],
   onDecide,
+  legalEditor,
+  legalApproveBlock = "",
 }: YourApprovalPanelProps): JSX.Element | null {
   if (actionable.length === 0) return null;
   return (
@@ -219,11 +225,23 @@ export default function YourApprovalPanel({
               stretch
             >
               {deskReview ? <DeskReview steps={steps} step={s} repCategories={repCategories} /> : <OwnReasons step={s} />}
+              {s.role === "LEGAL" && legalEditor ? <Box sx={{ mt: 2 }}>{legalEditor}</Box> : null}
               {/* The decision sits with its reasons; the card already names the role. */}
               {/* Under the reasons, Approve first: where the eye ends after reading. Pushed
                   to the card's foot, so side-by-side cards line their buttons up. */}
+              {/* What Legal still has to do, on its own line above the decision. */}
+              {s.role === "LEGAL" && legalApproveBlock ? (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  {legalApproveBlock}, saved, before approving.
+                </Typography>
+              ) : null}
               <Stack direction="row" spacing={1} justifyContent="flex-start" sx={{ mt: "auto", pt: 2, flexWrap: "wrap", rowGap: 1 }}>
-                <Button variant="contained" color="success" onClick={() => onDecide("approve", s)}>
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={() => onDecide("approve", s)}
+                  disabled={s.role === "LEGAL" && legalApproveBlock !== ""}
+                >
                   Approve
                 </Button>
                 <Button variant="outlined" onClick={() => onDecide("return", s)}>

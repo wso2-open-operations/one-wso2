@@ -30,6 +30,8 @@ import { cado2ServiceUrls } from "@config/apiConfig";
 import { useCado2Basis } from "@features/sales/cado2/api/cado2Basis";
 import type {
   Account,
+  BundleChildren,
+  LegalConfig,
   ActiveLegalEntity,
   Contact,
   DeleteDraftResult,
@@ -110,6 +112,45 @@ export function useAccountContacts(accountId: string | null) {
 
 /** How many products one page of the Add-line list loads. */
 export const PRODUCT_PAGE = 50;
+
+/** The legal texts quotes use: standard terms and notices. */
+export function useLegalConfig() {
+  const { getToken, ready, key } = useCado2Basis();
+  return useQuery<LegalConfig, Error>({
+    queryKey: key("legal-config"),
+    queryFn: async () => authedGet<LegalConfig>(cado2ServiceUrls.legalConfig, await getToken()),
+    enabled: ready,
+    staleTime: LOOKUP_STALE_MS,
+    retry: httpRetry,
+  });
+}
+
+/** Legal writes the non-standard terms (and may reword the special terms) during their approval. */
+export function useWriteLegalTerms(quoteId: number, versionNumber: number) {
+  const { getToken, key } = useCado2Basis();
+  const queryClient = useQueryClient();
+  return useMutation<DraftResponse, Error, { onPremTerms?: string; saasTerms?: string; specialTerms?: string }>({
+    mutationFn: async (body) =>
+      cado2Send<DraftResponse>("PUT", cado2ServiceUrls.legalTerms(quoteId, versionNumber), await getToken(), body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key() }),
+  });
+}
+
+/**
+ * The children a bundle parent brings, priced from the quote's
+ * book; none for a product without a bundle. Idle until a product is chosen.
+ */
+export function useBundleChildren(productId: string | null, currency: string, pricebookId: string) {
+  const { getToken, ready, key } = useCado2Basis();
+  return useQuery<BundleChildren, Error>({
+    queryKey: key("bundle-children", productId, currency, pricebookId),
+    queryFn: async () =>
+      authedGet<BundleChildren>(cado2ServiceUrls.bundleChildren(productId!, currency, pricebookId), await getToken()),
+    enabled: ready && Boolean(productId && currency && pricebookId),
+    staleTime: LOOKUP_STALE_MS,
+    retry: httpRetry,
+  });
+}
 
 /**
  * The products of the quote's price book (the opportunity's), by name,

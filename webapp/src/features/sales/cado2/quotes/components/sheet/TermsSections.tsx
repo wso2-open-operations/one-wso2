@@ -30,8 +30,8 @@ function TextBlock({ children }: { children: ReactNode }): JSX.Element {
 }
 
 /**
- * Billing (every quote, D88), payment terms, PO, and any special or
- * governing terms: as on the Commercials step (D86).
+ * Billing (every quote, D88), payment terms and PO: as on the Commercials
+ * step (D86). The terms are in the Legal section.
  */
 export function TermsSection({ sheet }: { sheet: QuoteSheet }): JSX.Element {
   return (
@@ -45,24 +45,15 @@ export function TermsSection({ sheet }: { sheet: QuoteSheet }): JSX.Element {
         />
         <Fact label="PO number" value={sheet.poNumber ?? "None"} />
       </FactGrid>
-      <Stack spacing={2} sx={{ mt: 2.5 }}>
-        <Box>
+      {/* Without the legal sections (texts not configured), the special terms show here. */}
+      {!sheet.legal ? (
+        <Box sx={{ mt: 2.5 }}>
           <Typography variant="overline" color="text.secondary">
             Special terms
           </Typography>
           {sheet.specialTerms ? <TextBlock>{sheet.specialTerms}</TextBlock> : <Typography variant="body2">None</Typography>}
         </Box>
-        <Box>
-          <Typography variant="overline" color="text.secondary">
-            Governing terms
-          </Typography>
-          {sheet.governingTerms ? (
-            <TextBlock>{sheet.governingTerms}</TextBlock>
-          ) : (
-            <Typography variant="body2">WSO2 standard terms</Typography>
-          )}
-        </Box>
-      </Stack>
+      ) : null}
     </SheetCard>
   );
 }

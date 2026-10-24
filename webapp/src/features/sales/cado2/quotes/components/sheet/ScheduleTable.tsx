@@ -59,8 +59,14 @@ export default function ScheduleTable({
           </TableRow>
         </TableHead>
         <TableBody>
-          {lines.map((l) => (
-            <TableRow key={l.number}>
+          {/* Year by year (a step per year), whenever each line was added. */}
+          {[...lines]
+            .sort((a, b) => a.yearNumber - b.yearNumber)
+            .map((l, i, sorted) => (
+            <TableRow
+              key={l.number}
+              sx={i > 0 && sorted[i - 1].yearNumber !== l.yearNumber ? { "& td": { borderTop: 2, borderTopColor: "divider" } } : undefined}
+            >
               <TableCell>
                 {l.number}. {l.productName}
               </TableCell>
@@ -75,9 +81,7 @@ export default function ScheduleTable({
                           {formatMoney(row.gross)} − {formatMoney(row.discount)} · {Number(row.yearFraction).toFixed(3)} yr
                         </Typography>
                       </>
-                    ) : (
-                      "–"
-                    )}
+                    ) : null}
                   </TableCell>
                 );
               })}

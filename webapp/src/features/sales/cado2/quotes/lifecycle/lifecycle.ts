@@ -65,7 +65,7 @@ export function quoteStatusLabel(status: VersionStatus, latestVersion: number): 
 export type Change = "same" | "changed" | "added" | "removed";
 
 export interface CompareRow {
-  readonly section: "Overview" | "Products" | "Commercials" | "Totals";
+  readonly section: "Overview" | "Products" | "Commercials" | "Legal" | "Totals";
   readonly label: string;
   readonly from: string;
   readonly to: string;
@@ -160,8 +160,13 @@ export function compareVersions(a: DraftResponse, b: DraftResponse): CompareRow[
   add("Commercials", "Billing", text(va.billingFrequency && BILLING_LABEL[va.billingFrequency]), text(vb.billingFrequency && BILLING_LABEL[vb.billingFrequency]));
   add("Commercials", "Payment terms", va.netTermsDays ? `Net ${va.netTermsDays}` : DASH, vb.netTermsDays ? `Net ${vb.netTermsDays}` : DASH);
   add("Commercials", "PO number", text(va.poNumber), text(vb.poNumber));
-  add("Commercials", "Special terms", terms(va.specialTerms, "None"), terms(vb.specialTerms, "None"));
-  add("Commercials", "Governing terms", terms(va.governingTerms, "Standard"), terms(vb.governingTerms, "Standard"));
+  // Section 04: standard, or non-standard written by Legal.
+  const blocks = (x: typeof va) =>
+    [x.termsOnPremNonStandard ? "On-prem: non-standard" : "", x.termsSaasNonStandard ? "SaaS: non-standard" : ""].filter(Boolean).join(" · ") ||
+    "Standard";
+  add("Legal", "Governing terms", blocks(va), blocks(vb));
+  add("Legal", "Special terms", terms(va.specialTerms, "None"), terms(vb.specialTerms, "None"));
+  add("Legal", "Partner agreement date", formatDate(va.partnerContractDate ?? null), formatDate(vb.partnerContractDate ?? null));
   add("Commercials", "Bill to", address(a, "BILL_TO"), address(b, "BILL_TO"));
   add("Commercials", "Ship to", address(a, "SHIP_TO"), address(b, "SHIP_TO"));
   add("Commercials", "Billing contact", contact(a, "BILLING"), contact(b, "BILLING"));

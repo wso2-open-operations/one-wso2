@@ -47,6 +47,8 @@ import {
 import type { ApprovalOutcome, ApprovalStep } from "@features/sales/cado2/approvals/api/approvalTypes";
 import { decisionNote, renewalStartPoints, repCategoryPoints } from "@features/sales/cado2/approvals/model/myApprovals";
 import { useCado2Toast } from "@features/sales/cado2/components/toast/toastContext";
+import LegalTermsEditor from "@features/sales/cado2/approvals/components/LegalTermsEditor";
+import { legalApproveBlock } from "@features/sales/cado2/quotes/form/legalModel";
 import YourApprovalPanel, { YOUR_APPROVAL_ANCHOR } from "@features/sales/cado2/approvals/components/YourApprovalPanel";
 import { ArrowDownIcon, ArrowLeftIcon, PencilIcon, RotateCcwIcon, StarIcon, Trash2Icon, Undo2Icon, XCircleIcon } from "@wso2/oxygen-ui-icons-react";
 import QuoteActionsMenu from "@features/sales/cado2/quotes/components/detail/QuoteActionsMenu";
@@ -297,6 +299,8 @@ export default function QuoteDetailPage(): JSX.Element {
                   actionable={actionable}
                   repCategories={[...repCategoryPoints(sheet.lines), ...renewalStartPoints(sheet)]}
                   onDecide={openDecision}
+                  legalEditor={v.legal ? <LegalTermsEditor key={v.updatedAt} quoteId={q.id} versionNumber={v.versionNumber} legal={v.legal} /> : undefined}
+                  legalApproveBlock={legalApproveBlock(v.legal)}
                 />
               </Box>
             ) : null}

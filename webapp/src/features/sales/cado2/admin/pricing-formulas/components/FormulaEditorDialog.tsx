@@ -14,13 +14,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState, type HTMLAttributes, type JSX, type Key } from "react";
+import { useState, type JSX } from "react";
 import {
   Alert,
-  Autocomplete,
   Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -32,18 +30,11 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { useDebouncedValue } from "@hooks/useDebouncedValue";
 import { problemOf } from "@features/sales/cado2/quotes/api/errors";
 import type { FormulaProduct, Issue, PricingFormula } from "@features/sales/cado2/quotes/api/quoteTypes";
 import { formatMoney } from "@features/sales/cado2/utils/money";
+import { ProductField, ProductsField } from "@features/sales/cado2/admin/components/AdminProductFields";
 import {
-  ProductListContext,
-  productLabel,
-  useProductList,
-} from "@features/sales/cado2/components/product-list/productList";
-import { ProductListPaper, ProductOption } from "@features/sales/cado2/components/product-list/ProductListParts";
-import {
-  useFormulaProducts,
   useSavePricingFormula,
   useTryPricingFormula,
 } from "@features/sales/cado2/admin/pricing-formulas/api/usePricingFormulaAdmin";
@@ -58,119 +49,6 @@ import {
 } from "./formulaModel";
 
 const MONO = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" };
-
-/** A product in a list: a formula's chosen product may lack a description. */
-type ListedProduct = FormulaProduct & { readonly description?: string | null };
-
-/**
- * The product dropdown, as the Add line dialog's (2026-10-15): opening it
- * lists products a page at a time as it scrolls; typing searches the name or
- * product code; each shows as "Name (CODE)" with its description.
- */
-function useProductDropdown(term: string, open: boolean) {
-  const products = useFormulaProducts(useDebouncedValue(term, 300), open);
-  const options: ListedProduct[] = products.data ?? [];
-  const { state, listboxProps } = useProductList(products, options.length);
-  return {
-    options,
-    state,
-    common: {
-      getOptionLabel: (p: ListedProduct) => productLabel(p.name, p.code),
-      isOptionEqualToValue: (a: ListedProduct, b: ListedProduct) => a.id === b.id,
-      filterOptions: (x: ListedProduct[]) => x,
-      loading: products.isPending && products.fetchStatus !== "idle",
-      slots: { paper: ProductListPaper },
-      slotProps: { listbox: listboxProps },
-      renderOption: ({ key, ...props }: HTMLAttributes<HTMLLIElement> & { key: Key }, p: ListedProduct) => (
-        <ProductOption key={key} liProps={props} name={p.name} code={p.code} description={p.description} />
-      ),
-      noOptionsText: products.error ? "Couldn't load the products. Try again." : "No matching products",
-    },
-  };
-}
-
-function ProductField({
-  value,
-  onChange,
-  error,
-}: {
-  value: FormulaProduct | null;
-  onChange: (p: FormulaProduct | null) => void;
-  error?: string;
-}): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const [term, setTerm] = useState("");
-  const list = useProductDropdown(term, open);
-  return (
-    <ProductListContext.Provider value={list.state}>
-      <Autocomplete
-        {...list.common}
-        options={list.options}
-        value={value}
-        onOpen={() => setOpen(true)}
-        onChange={(_, p) => onChange(p)}
-        // Choosing fills the box with the label: that isn't a search.
-        onInputChange={(_, v, reason) => setTerm(reason === "reset" ? "" : v)}
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label="Product"
-            placeholder="Search by name or product code"
-            error={!!error}
-            helperText={error}
-          />
-        )}
-      />
-    </ProductListContext.Provider>
-  );
-}
-
-function ProductsField({
-  name,
-  value,
-  onChange,
-  error,
-}: {
-  name: string;
-  value: readonly FormulaProduct[];
-  onChange: (p: FormulaProduct[]) => void;
-  error?: string;
-}): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const [term, setTerm] = useState("");
-  const list = useProductDropdown(term, open);
-  return (
-    <ProductListContext.Provider value={list.state}>
-      <Autocomplete
-        {...list.common}
-        multiple
-        disableCloseOnSelect
-        size="small"
-        options={list.options}
-        value={[...value]}
-        onOpen={() => setOpen(true)}
-        onChange={(_, p) => onChange(p)}
-        onInputChange={(_, v, reason) => reason !== "reset" && setTerm(v)}
-        inputValue={term}
-        renderValue={(chosen, getItemProps) =>
-          chosen.map((p, i) => {
-            const { key, ...props } = getItemProps({ index: i });
-            return <Chip key={key} size="small" label={productLabel(p.name, p.code)} {...props} />;
-          })
-        }
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            placeholder={value.length ? "" : "Search by name or product code"}
-            error={!!error}
-            helperText={error ?? "Stands for the total of these products' lines on the quote, after their discount"}
-            inputProps={{ ...params.inputProps, "aria-label": `Products of ${name}` }}
-          />
-        )}
-      />
-    </ProductListContext.Provider>
-  );
-}
 
 /** One placeholder: a fixed value, or the products whose lines it adds up. */
 function BindingRow({

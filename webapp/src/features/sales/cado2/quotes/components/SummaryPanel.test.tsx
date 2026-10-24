@@ -47,7 +47,7 @@ describe("SummaryPanel (F5 review)", () => {
     expect(terms.getByText("USD")).toBeInTheDocument();
     expect(terms.queryByText(/uplift/i)).toBeNull(); // no uplift
     expect(terms.getByText(/1 Oct 2026 – 30 Sept 2027/)).toBeInTheDocument();
-    expect(terms.getByText("1 year")).toBeInTheDocument();
+    expect(terms.getByText("1 year · 1 year")).toBeInTheDocument(); // its length, then how many years
     expect(terms.queryByText("Annually in Advance")).toBeNull(); // on Commercials (D86)
     expect(screen.queryByText("First invoice")).toBeNull(); // removed (D85)
 
@@ -95,13 +95,13 @@ describe("SummaryPanel (F5 review)", () => {
 });
 
 describe("SummaryPanel — services only", () => {
-  it("shows the start date without a term", () => {
+  it("shows the term with Year 1 too", () => {
     const services = { ...values, lines: values.lines.map((l) => ({ ...l, category: "PROFESSIONAL_SERVICE" as const, recurring: false })) };
     const t = { arr: null, acv: null, tcv: "720.00" };
     render(<SummaryPanel values={services} legalEntityName={null} totals={t} pricing={false} />);
     expect(screen.getAllByText("USD 720.00")).toHaveLength(1); // total order value
     const terms = within(screen.getByRole("region", { name: "Deal Terms" }));
-    expect(terms.getByText("No subscription term: no recurring products")).toBeInTheDocument();
+    expect(terms.getByText("Term")).toBeInTheDocument(); // services sit in Year 1 like any product
     expect(terms.queryByText("Billing")).toBeNull();
   });
 });

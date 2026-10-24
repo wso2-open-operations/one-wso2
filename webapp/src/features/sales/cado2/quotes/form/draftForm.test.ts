@@ -22,7 +22,9 @@ import {
   durationText,
   emptyDraftForm,
   endDateFor,
-  endDateProblem,
+  addYear,
+  cloneYear,
+  contractYears,
   expiryFor,
   formatDate,
   fromVersion,
@@ -31,10 +33,14 @@ import {
   isExpired,
   parseDateString,
   splitStreet,
-  termFromDates,
   stepOfField,
   storedPricing,
-  termEnd,
+  lastYearEndProblem,
+  lineDatesProblem,
+  deleteYear,
+  insertIndex,
+  salesPriceProblem,
+  setLastYearEnd,
   toDateString,
   toDraftInput,
   toPreviewBody,
@@ -94,8 +100,7 @@ function filled(): DraftFormValues {
     opportunityId: "006VM00000O4AUSYA3",
     currencyIsoCode: "USD",
     startDate: "2027-01-01",
-    termMode: "YEARS",
-    termYears: "3",
+    yearCount: 3,
     billingFrequency: "ANNUAL",
     legalEntityId: "7",
     netTermsDays: "30",
@@ -138,9 +143,16 @@ function filled(): DraftFormValues {
         category: "SUBSCRIPTION",
         categorySource: "REP",
         recurring: true,
+        classification: "PS",
         unitOfMeasure: "",
         quantity: "20",
         discount: "10",
+        yearNumber: 1,
+        startDate: "",
+        endDate: "",
+        salesPrice: "",
+        key: `k-${Math.random()}`,
+        parentKey: "",
       },
       {
         lineId: null,
@@ -154,9 +166,16 @@ function filled(): DraftFormValues {
         category: "SUBSCRIPTION",
         categorySource: "REP",
         recurring: true,
+        classification: "PS",
         unitOfMeasure: "Portals",
         quantity: "1",
         discount: "",
+        yearNumber: 1,
+        startDate: "",
+        endDate: "",
+        salesPrice: "",
+        key: `k-${Math.random()}`,
+        parentKey: "",
       },
     ],
   };
@@ -171,8 +190,7 @@ describe("toDraftInput", () => {
   it("sends choices, never prices, and keeps saved lines' snapshots", () => {
     const input = toDraftInput(filled(), "2026-09-25T10:00:00.123Z");
 
-    expect(input).toMatchObject({ termMode: "YEARS", termYears: 3, billingFrequency: "ANNUAL" });
-    expect(input.subscriptionEndDate).toBeUndefined(); // derived by the backend
+    expect(input).toMatchObject({ yearCount: 3, lastYearEndDate: undefined, billingFrequency: "ANNUAL" });
     expect(input.expectedUpdatedAt).toBe("2026-09-25T10:00:00.123Z");
     expect(input.legalEntityId).toBe(7);
     expect(input.netTermsDays).toBe(30);
@@ -183,6 +201,10 @@ describe("toDraftInput", () => {
       category: "SUBSCRIPTION",
       discretionaryDiscountPercent: "10",
       unitOfMeasure: undefined,
+      useLatestFormula: undefined,
+      yearNumber: 1,
+      startDate: undefined, // the whole year: the backend fills it in
+      endDate: undefined,
     });
     expect(input.lines[1]).toMatchObject({
       discretionaryDiscountPercent: "0",
@@ -222,21 +244,18 @@ describe("toDraftInput", () => {
     expect(input.specialTerms).toEqual({ enabled: false, text: undefined });
   });
 
-  it("sends only the term fields each mode uses, and the billing (D85)", () => {
-    const years = toDraftInput({ ...filled(), termMode: "YEARS", termYears: "2", termEndDate: "2027-06-30", billingFrequency: "MONTHLY" });
-    expect(years).toMatchObject({ termMode: "YEARS", termYears: 2, subscriptionEndDate: undefined, billingFrequency: "MONTHLY" });
-    const date = toDraftInput({ ...filled(), termMode: "END_DATE", termEndDate: "2028-01-01", billingFrequency: "UPFRONT" });
-    expect(date).toMatchObject({ termMode: "END_DATE", termYears: undefined, subscriptionEndDate: "2028-01-01", billingFrequency: "UPFRONT" });
-    expect(date).not.toHaveProperty("coTermOpportunityId");
-  });
-
-  it("sends no term when no product recurs in Salesforce (D76), but still the billing (D88)", () => {
+  it("sends the years, a shortened last year, and each line's own dates", () => {
     const v = filled();
-    // Still under Subscription: the category doesn't decide.
-    const input = toDraftInput({ ...v, billingFrequency: "MONTHLY", lines: v.lines.map((l) => ({ ...l, recurring: false })) });
-    expect(input.termMode).toBeUndefined();
-    expect(input.billingFrequency).toBe("MONTHLY");
-    expect(input.subscriptionStartDate).toBe("2027-01-01");
+    const input = toDraftInput({
+      ...v,
+      yearCount: 2,
+      lastYearEndDate: "2028-06-30",
+      lines: [{ ...v.lines[0], yearNumber: 2, startDate: "2028-03-01" }, { ...v.lines[1], recurring: false, endDate: "2027-05-01" }],
+    });
+    expect(input).toMatchObject({ yearCount: 2, lastYearEndDate: "2028-06-30" });
+    expect(input.lines[0]).toMatchObject({ yearNumber: 2, startDate: "2028-03-01", endDate: undefined });
+    expect(input.lines[1]).toMatchObject({ yearNumber: 1, endDate: undefined }); // a one-off has no end
+    expect(toDraftInput({ ...v, yearCount: 0 }).yearCount).toBeUndefined();
   });
 
   it("drops previous opportunities when the quote is not a renewal", () => {
@@ -254,8 +273,10 @@ describe("toPreviewBody", () => {
     expect(toPreviewBody(emptyDraftForm())).toBeNull();
     expect(toPreviewBody({ ...filled(), billingFrequency: "" })).toBeNull();
     expect(toPreviewBody({ ...filled(), lines: [] })).toBeNull();
-    expect(toPreviewBody({ ...filled(), termMode: "END_DATE", termEndDate: "" })).toBeNull();
-    expect(toPreviewBody({ ...filled(), termMode: "END_DATE", termEndDate: "2037-01-01" })).toBeNull(); // over 10 years
+    expect(toPreviewBody({ ...filled(), yearCount: 0 })).toBeNull();
+    expect(toPreviewBody({ ...filled(), lastYearEndDate: "2030-01-01" })).toBeNull(); // Year 3 over 12 months
+    const v = filled();
+    expect(toPreviewBody({ ...v, lines: [{ ...v.lines[0], startDate: "2028-01-01" }] })).toBeNull(); // outside Year 1
   });
 
   it("prices a line waiting for its category too (D72, D76)", () => {
@@ -263,43 +284,98 @@ describe("toPreviewBody", () => {
     const waiting = { ...v, lines: [...v.lines, { ...v.lines[0], pricebookEntryId: "01uWAIT", category: "" as const }] };
     const body = toPreviewBody(waiting) as { lines: { pricebookEntryId: string; category: string }[] };
     expect(body.lines.at(-1)).toMatchObject({ pricebookEntryId: "01uWAIT", category: "" });
-    // An uncategorised recurring product still needs the term.
-    expect(toPreviewBody({ ...v, termMode: "", lines: [{ ...v.lines[0], category: "" }] })).toBeNull();
+    // An uncategorised product still needs a year.
+    expect(toPreviewBody({ ...v, yearCount: 0, lines: [{ ...v.lines[0], category: "" }] })).toBeNull();
   });
 
-  it("carries the term and the lines' choices", () => {
+  it("carries the years and the lines' choices", () => {
     expect(toPreviewBody(filled())).toMatchObject({
-      subscriptionEndDate: "2029-12-31",
+      yearCount: 3,
       billingFrequency: "ANNUAL",
-      lines: [{ pricebookEntryId: "01uA", quantity: 20 }, { pricebookEntryId: "01uB" }],
+      lines: [{ pricebookEntryId: "01uA", quantity: 20, yearNumber: 1 }, { pricebookEntryId: "01uB", yearNumber: 1 }],
     });
     expect(JSON.stringify(toPreviewBody(filled()))).not.toContain("uplift");
   });
 
-  it("prices any end date, a year and a day included, with the chosen billing (D85)", () => {
-    expect(toPreviewBody({ ...filled(), termMode: "END_DATE", termEndDate: "2028-01-01", billingFrequency: "QUARTERLY" })).toMatchObject({
-      subscriptionEndDate: "2028-01-01",
+  it("prices a shortened last year with the chosen billing", () => {
+    expect(toPreviewBody({ ...filled(), yearCount: 2, lastYearEndDate: "2028-03-31", billingFrequency: "QUARTERLY" })).toMatchObject({
+      yearCount: 2,
+      lastYearEndDate: "2028-03-31",
       billingFrequency: "QUARTERLY",
     });
   });
 
-  it("prices a quote with no recurring product from its start date and billing (D88)", () => {
+  it("prices a quote with no recurring product in Year 1, with its billing (D88)", () => {
     const v = filled();
-    const services = { ...v, termMode: "" as const, billingFrequency: "UPFRONT" as const, lines: v.lines.map((l) => ({ ...l, recurring: false })) };
-    expect(toPreviewBody(services)).toMatchObject({ subscriptionStartDate: "2027-01-01", subscriptionEndDate: undefined, billingFrequency: "UPFRONT" });
+    const services = { ...v, yearCount: 1, billingFrequency: "UPFRONT" as const, lines: v.lines.map((l) => ({ ...l, recurring: false })) };
+    expect(toPreviewBody(services)).toMatchObject({ subscriptionStartDate: "2027-01-01", yearCount: 1, billingFrequency: "UPFRONT" });
     expect(toPreviewBody({ ...services, billingFrequency: "" })).toBeNull();
   });
 });
 
-describe("subscription term", () => {
-  const term = { startDate: "2027-03-15", termYears: "4", termEndDate: "2027-09-30" };
+describe("contract years", () => {
+  const line = (yearNumber: number, recurring = true, startDate = "", endDate = "") =>
+    ({ ...filled().lines[0], lineId: 9, yearNumber, recurring, startDate, endDate });
 
-  it("works out the end for a number of years, and takes an end date as set", () => {
-    expect(termEnd({ ...term, termMode: "YEARS", termYears: "1" })).toBe("2028-03-14");
-    expect(termEnd({ ...term, termMode: "YEARS" })).toBe("2031-03-14");
-    expect(termEnd({ ...term, termMode: "END_DATE" })).toBe("2027-09-30");
-    expect(termEnd({ ...term, termMode: "" })).toBe("");
-    expect(termEnd({ ...term, startDate: "", termMode: "YEARS" })).toBe("");
+  it("lays out 12-month years from the start, the last one shortened when set", () => {
+    expect(contractYears("2027-03-15", 3)).toEqual([
+      { number: 1, start: "2027-03-15", end: "2028-03-14" },
+      { number: 2, start: "2028-03-15", end: "2029-03-14" },
+      { number: 3, start: "2029-03-15", end: "2030-03-14" },
+    ]);
+    expect(contractYears("2027-01-01", 2, "2028-06-30").at(-1)).toEqual({ number: 2, start: "2028-01-01", end: "2028-06-30" });
+    expect(contractYears("", 2)).toEqual([]);
+    expect(lastYearEndProblem("2027-01-01", 2, "2029-01-01")).toMatch(/at most 12 months/);
+    expect(lastYearEndProblem("2027-01-01", 2, "2027-12-31")).toMatch(/on or after it starts/);
+  });
+
+  it("keeps a line's dates within its own year", () => {
+    const years = contractYears("2027-01-01", 2);
+    expect(lineDatesProblem(line(2, true, "2028-04-01"), years)).toBe("");
+    expect(lineDatesProblem(line(2, true, "2027-06-01"), years)).toMatch(/within Year 2/);
+    expect(lineDatesProblem(line(1, true, "2027-06-01", "2027-05-01"), years)).toMatch(/before the start/);
+  });
+
+  it("clones only a year's recurring lines into a new last year, as new lines", () => {
+    const v = { ...filled(), yearCount: 2, lastYearEndDate: "2028-06-30", lines: [line(1), line(1, false), line(2, true, "2028-03-01")] };
+    const next = cloneYear(v, 2);
+    expect(next.yearCount).toBe(3);
+    expect(next.lastYearEndDate).toBe(""); // Year 2 is a full year again
+    const copies = next.lines.slice(3);
+    expect(copies).toHaveLength(1);
+    expect(copies[0]).toMatchObject({ yearNumber: 3, lineId: null, startDate: "2029-03-01", endDate: "" });
+    expect(cloneYear(v, 1).lines.slice(3).map((l) => l.recurring)).toEqual([true]); // the one-off stays behind
+  });
+
+  it("adds a year at the end", () => {
+    expect(addYear({ yearCount: 2 })).toEqual({ yearCount: 3, lastYearEndDate: "" });
+  });
+
+  it("deletes any year; later years move up 12 months, with their products' own dates", () => {
+    const v = { ...filled(), yearCount: 3, lastYearEndDate: "2029-06-30", lines: [line(1), line(2), line(3, true, "2029-03-01")] };
+    const next = deleteYear(v, 2);
+    expect(next.yearCount).toBe(2);
+    expect(next.lastYearEndDate).toBe("2028-06-30"); // the short last year keeps its length
+    expect(next.lines.map((l) => [l.yearNumber, l.startDate])).toEqual([[1, ""], [2, "2028-03-01"]]);
+    // Deleting the last year leaves a full one.
+    expect(deleteYear(v, 3)).toMatchObject({ yearCount: 2, lastYearEndDate: "" });
+  });
+
+  it("puts a new line after its year's lines, so numbers run year by year", () => {
+    const lines = [{ yearNumber: 1 }, { yearNumber: 1 }, { yearNumber: 2 }, { yearNumber: 3 }];
+    expect(insertIndex(lines, 1)).toBe(2);
+    expect(insertIndex(lines, 2)).toBe(3);
+    expect(insertIndex(lines, 3)).toBe(4);
+    expect(insertIndex([{ yearNumber: 2 }], 1)).toBe(0);
+  });
+
+  it("pulls the last year's products back within a shortened year", () => {
+    const v = { ...filled(), yearCount: 2, lines: [line(2, true, "2028-09-01", "2028-11-30"), line(1)] };
+    const next = setLastYearEnd(v, "2028-06-30");
+    expect(next.lastYearEndDate).toBe("2028-06-30");
+    expect(next.lines[0]).toMatchObject({ startDate: "", endDate: "" });
+    expect(next.lines[1]).toBe(v.lines[1]);
+    expect(setLastYearEnd(v, "2028-12-31").lastYearEndDate).toBe(""); // a full year again
   });
 
   it("says the duration in words, as the backend does (D85)", () => {
@@ -313,18 +389,49 @@ describe("subscription term", () => {
     expect(durationText("2027-03-05", "2027-03-04")).toBe("");
   });
 
-  it("reads Salesforce's dates as whole years when they make them, else as an end date (D85)", () => {
-    expect(termFromDates("2027-01-01", "2029-12-31")).toEqual({ termMode: "YEARS", termYears: "3", termEndDate: "" });
-    expect(termFromDates("2027-01-01", "2028-01-01")).toEqual({ termMode: "END_DATE", termYears: "1", termEndDate: "2028-01-01" });
-    expect(termFromDates("2027-01-01", null)).toEqual({ termMode: "YEARS", termYears: "1", termEndDate: "" });
-    expect(termFromDates("", "2027-12-31")).toEqual({ termMode: "YEARS", termYears: "1", termEndDate: "" });
+});
+
+describe("bundles", () => {
+  const base = () => filled().lines[0];
+  const parent = { ...base(), key: "p", parentKey: "", yearNumber: 1 };
+  const child = { ...base(), pricebookEntryId: "01uC", key: "c", parentKey: "p", yearNumber: 1, recurring: false };
+
+  it("names a child's parent by position when saving", () => {
+    const input = toDraftInput({ ...filled(), lines: [base(), parent, child] });
+    expect(input.lines[2].parentIndex).toBe(1);
+    expect(input.lines[1].parentIndex).toBeUndefined();
   });
 
-  it("allows an end date from the start up to 10 years (D85)", () => {
-    expect(endDateProblem("2027-03-15", "2027-09-30")).toBe("");
-    expect(endDateProblem("2027-03-15", "2037-03-14")).toBe("");
-    expect(endDateProblem("2027-03-15", "2037-03-15")).toMatch(/at most 10 years/);
-    expect(endDateProblem("2027-03-15", "2027-03-14")).toMatch(/before the start/);
+  it("clones a recurring parent with its children, as new linked lines", () => {
+    const next = cloneYear({ ...filled(), yearCount: 1, lines: [parent, child] }, 1);
+    const [p2, c2] = next.lines.slice(2);
+    expect(p2.yearNumber).toBe(2);
+    expect(c2).toMatchObject({ yearNumber: 2, parentKey: p2.key, pricebookEntryId: "01uC" }); // a one-off child comes along
+    expect(p2.key).not.toBe("p");
+  });
+
+  it("leaves a child behind with its non-recurring parent", () => {
+    const oneOff = { ...parent, recurring: false };
+    const recurringChild = { ...child, recurring: true };
+    expect(cloneYear({ ...filled(), yearCount: 1, lines: [oneOff, recurringChild] }, 1).lines).toHaveLength(2);
+  });
+});
+
+describe("sales price", () => {
+  it("sends a raised sales price, and none when it is the list price", () => {
+    const v = filled();
+    const input = toDraftInput({ ...v, lines: [{ ...v.lines[0], salesPrice: "400" }, v.lines[1]] });
+    expect(input.lines[0].salesPrice).toBe("400");
+    expect(input.lines[1].salesPrice).toBeUndefined();
+    expect((toPreviewBody({ ...v, lines: [{ ...v.lines[0], salesPrice: "400" }] }) as { lines: { salesPrice?: string }[] }).lines[0].salesPrice).toBe("400");
+  });
+
+  it("allows the list price or more, with at most 2 decimals", () => {
+    expect(salesPriceProblem("", "360")).toBe("");
+    expect(salesPriceProblem("360", "360")).toBe("");
+    expect(salesPriceProblem("400.50", "360")).toBe("");
+    expect(salesPriceProblem("359.99", "360")).toMatch(/below the list price \(360.00\)/);
+    expect(salesPriceProblem("400.123", "360")).toMatch(/2 decimals/);
   });
 });
 
@@ -342,8 +449,8 @@ describe("fromVersion", () => {
         currencyIsoCode: "USD",
         subscriptionStartDate: "2027-01-01",
         subscriptionEndDate: "2027-06-30",
-        termMode: "END_DATE",
-        termYears: null,
+        yearCount: 1,
+        years: [{ yearNumber: 1, startDate: "2027-01-01", endDate: "2027-06-30", net: null, arr: null }],
         billingFrequency: "ANNUAL",
         netTermsDays: 45,
         specialTerms: { enabled: true, text: "SLA" },
@@ -402,8 +509,11 @@ describe("fromVersion", () => {
             quantity: 20,
             category: "SUBSCRIPTION",
             discretionaryDiscountPercent: "10.00",
+            recurring: true,
+            classification: "PS",
+            yearNumber: 1,
             startDate: "2027-01-01",
-            endDate: "2027-06-30",
+            endDate: "2027-04-30",
           },
         ],
       },
@@ -412,8 +522,8 @@ describe("fromVersion", () => {
 
     const v = fromVersion(res);
 
-    expect(v.termMode).toBe("END_DATE");
-    expect(v.termEndDate).toBe("2027-06-30");
+    expect(v.yearCount).toBe(1);
+    expect(v.lastYearEndDate).toBe("2027-06-30"); // a shortened Year 1
     expect(v.billingFrequency).toBe("ANNUAL");
     expect(v.netTermsDays).toBe("45");
     expect(v.shipToSameAsBillTo).toBe(true);
@@ -425,6 +535,9 @@ describe("fromVersion", () => {
     expect(v.lines[0]).toMatchObject({
       lineId: 55,
       discount: "10",
+      yearNumber: 1,
+      startDate: "", // the year's own start
+      endDate: "2027-04-30", // narrowed within the year
     });
     expect(v.partner?.name).toBe("Acme");
   });
@@ -439,13 +552,15 @@ describe("stepOfField", () => {
     expect(stepOfField("lines[2].quantity")).toBe(1);
     expect(stepOfField("subscriptionStartDate")).toBe(1); // with the term (D73)
     expect(stepOfField("billingFrequency")).toBe(2); // Commercials (D86)
-    expect(stepOfField("termMode")).toBe(1);
-    expect(stepOfField("subscriptionEndDate")).toBe(1);
+    expect(stepOfField("years")).toBe(1);
+    expect(stepOfField("lastYearEndDate")).toBe(1);
     expect(stepOfField("billTo.city")).toBe(2);
     expect(stepOfField("contacts.billing")).toBe(2);
     expect(stepOfField("netTermsDays")).toBe(2); // the Payment Terms card on Commercials (D86)
     expect(stepOfField("poNumber")).toBe(2);
-    expect(stepOfField("specialTerms.billing")).toBe(2);
+    expect(stepOfField("specialTerms.billing")).toBe(3); // the Legal step
+    expect(stepOfField("partnerContractDate")).toBe(3);
+    expect(stepOfField("legalTerms")).toBe(3);
   });
 });
 
@@ -458,6 +573,10 @@ describe("storedPricing", () => {
       pricingRulesVersion: "2026-09-D4",
       subscriptionStartDate: "2027-01-01",
       subscriptionEndDate: "2028-06-30",
+      years: [
+        { yearNumber: 1, startDate: "2027-01-01", endDate: "2027-12-31", net: "1000.30", arr: "1000.30" },
+        { yearNumber: 2, startDate: "2028-01-01", endDate: "2028-06-30", net: "500.15", arr: "1000.30" },
+      ],
       totals: { arr: "1000.30", acv: "1000.30", tcv: "1500.45", payableNow: "1000.30" },
       lines: [
         { pricebookEntryId: "01uA", annualList: "1000.10", annualNet: "1000.10", arr: "1000.10", tcv: "1500.15",
@@ -472,8 +591,8 @@ describe("storedPricing", () => {
     const p = storedPricing(res);
     expect(p?.totals.tcv).toBe("1500.45");
     expect(p?.years).toEqual([
-      { yearNumber: 1, periodStart: "2027-01-01", periodEnd: "2027-12-31", net: "1000.30", billing: "1000.30", commission: "0.00", netBilling: "1000.30" },
-      { yearNumber: 2, periodStart: "2028-01-01", periodEnd: "2028-06-30", net: "500.15", billing: "500.15", commission: "0.00", netBilling: "500.15" },
+      { yearNumber: 1, periodStart: "2027-01-01", periodEnd: "2027-12-31", net: "1000.30", arr: "1000.30", billing: "1000.30", commission: "0.00", netBilling: "1000.30" },
+      { yearNumber: 2, periodStart: "2028-01-01", periodEnd: "2028-06-30", net: "500.15", arr: "1000.30", billing: "500.15", commission: "0.00", netBilling: "500.15" },
     ]);
     expect(p?.lines[1].annualNet).toBe("0.20");
   });
@@ -492,17 +611,18 @@ describe("storedPricing", () => {
     expect(storedPricing(unpriced)).toBeNull();
   });
 
-  it("shows a services-only quote as one row at its start date", () => {
+  it("shows a services-only quote in its one year", () => {
     const services = {
       version: {
         ...res.version,
-        subscriptionEndDate: null,
+        subscriptionEndDate: "2027-12-31",
+        years: [{ yearNumber: 1, startDate: "2027-01-01", endDate: "2027-12-31", net: "720.00", arr: "0.00" }],
         totals: { arr: null, acv: null, tcv: "720.00", payableNow: "720.00" },
         lines: [{ ...res.version.lines[0], category: "PROFESSIONAL_SERVICE", schedule: [row(1, "2027-01-01", "2027-01-01", "720.00", "720.00")] }],
       },
     } as unknown as DraftResponse;
     expect(storedPricing(services)?.years).toEqual([
-      { yearNumber: 1, periodStart: "2027-01-01", periodEnd: "2027-01-01", net: "720.00", billing: "720.00", commission: "0.00", netBilling: "720.00" },
+      { yearNumber: 1, periodStart: "2027-01-01", periodEnd: "2027-12-31", net: "720.00", arr: "0.00", billing: "720.00", commission: "0.00", netBilling: "720.00" },
     ]);
   });
 });

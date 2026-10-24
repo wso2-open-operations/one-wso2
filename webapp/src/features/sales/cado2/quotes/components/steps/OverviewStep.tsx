@@ -39,7 +39,6 @@ import {
   emptyContact,
   parseDateString,
   pulledLines,
-  termFromDates,
   type DraftFormValues,
 } from "@features/sales/cado2/quotes/form/draftForm";
 import SalesforceFindings, { type Finding } from "@features/sales/cado2/quotes/components/SalesforceFindings";
@@ -257,14 +256,10 @@ export default function OverviewStep({ locked, quoteId = null }: OverviewStepPro
     setValue("recordTypeName", o.recordTypeName ?? "", { shouldDirty: true });
     setValue("isRenewal", o.dealKind === "RENEWAL", { shouldDirty: true });
     if (o.dealKind !== "RENEWAL") setValue("previousOpportunityIds", [], { shouldDirty: true });
-    // The term from the opportunity's subscription dates (D85): its start,
-    // and its end as a number of years when it makes one, else as a date.
+    // The contract start from the opportunity; without
+    // one the AM enters it. Its end is not read: the AM adds the years.
     const start = o.subsStartDate && parseDateString(o.subsStartDate) ? o.subsStartDate : "";
     setValue("startDate", start, { shouldDirty: true });
-    const term = termFromDates(start, o.subsEndDate);
-    setValue("termMode", term.termMode, { shouldDirty: true });
-    setValue("termYears", term.termYears, { shouldDirty: true });
-    setValue("termEndDate", term.termEndDate, { shouldDirty: true });
     // Pre-fill addresses: partner deals bill the partner and ship
     // to the customer; direct deals bill and ship to the customer.
     const v = getValues();
@@ -300,13 +295,6 @@ export default function OverviewStep({ locked, quoteId = null }: OverviewStepPro
     const own = opportunities.data?.find((o) => o.id === opportunityId);
     const locked = lockedRenewalStart(own, renewedOf(ids));
     setValue("startDate", locked?.date ?? "", { shouldDirty: true });
-    // The end is still the opportunity's own, now read against this start (D85).
-    if (own?.subsEndDate && locked && locked.source === "RENEWED") {
-      const term = termFromDates(locked.date, own.subsEndDate);
-      setValue("termMode", term.termMode, { shouldDirty: true });
-      setValue("termYears", term.termYears, { shouldDirty: true });
-      setValue("termEndDate", term.termEndDate, { shouldDirty: true });
-    }
   };
 
   // Watched, not read once: picking an account re-renders on its id before

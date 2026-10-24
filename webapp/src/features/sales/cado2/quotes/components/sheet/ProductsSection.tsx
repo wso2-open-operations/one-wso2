@@ -15,34 +15,64 @@
 // under the License.
 
 import type { JSX } from "react";
-import { Typography } from "@wso2/oxygen-ui";
-import { PackageIcon } from "@wso2/oxygen-ui-icons-react";
-import { termShort, type QuoteSheet } from "@features/sales/cado2/quotes/sheet/sheetModel";
+import { Button, Typography } from "@wso2/oxygen-ui";
+import { ChevronsDownUpIcon, ChevronsUpDownIcon, PackageIcon } from "@wso2/oxygen-ui-icons-react";
+import type { QuoteSheet } from "@features/sales/cado2/quotes/sheet/sheetModel";
 import SheetCard from "@features/sales/cado2/components/section-card/SectionCard";
 import EmptyState from "@features/sales/cado2/components/empty-state/EmptyState";
-import OrderFormTable from "./OrderFormTable";
+import YearSections, { OrderTotalsFooter } from "./YearSections";
+import { useCollapsedYears } from "./useCollapsedYears";
 
-/** Every line, as on the order form. */
+/**
+ * Every line, as on the order form, year by year in one card,
+ * closed by the order total over every year.
+ */
 export default function ProductsSection({ sheet }: { sheet: QuoteSheet }): JSX.Element {
+  const fold = useCollapsedYears();
+  const years = sheet.contractYears;
+  const anyFolded = fold.collapsed.size > 0;
+  // Lines saved before the years model have no year: shown in one plain group.
+  const yearless = sheet.lines.some((l) => !years.some((y) => y.number === l.yearNumber));
+  const sections = yearless ? [{ number: 0, start: "", end: "" }, ...years] : years;
   return (
     <SheetCard
       title="Products"
       icon={<PackageIcon size={18} />}
       aside={
-        <Typography variant="body2" color="text.secondary">
-          {sheet.lines.length} line{sheet.lines.length === 1 ? "" : "s"}
-        </Typography>
+        years.length > 1 ? (
+          <Button
+            size="small"
+            startIcon={anyFolded ? <ChevronsUpDownIcon size={14} /> : <ChevronsDownUpIcon size={14} />}
+            onClick={() => fold.toggleAll(years.map((y) => y.number))}
+          >
+            {anyFolded ? "Expand all" : "Collapse all"}
+          </Button>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            {sheet.lines.length} line{sheet.lines.length === 1 ? "" : "s"}
+          </Typography>
+        )
       }
     >
       {sheet.lines.length === 0 ? (
         <EmptyState compact icon={<PackageIcon size={20} />} title="No products yet" />
       ) : (
-        <OrderFormTable
-          lines={sheet.lines}
-          currency={sheet.currency}
-          commissionPercent={sheet.partnerCommissionPercent}
-          duration={termShort(sheet)}
-        />
+        <>
+          <YearSections
+            years={sections}
+            lines={yearless ? sheet.lines.map((l) => (years.some((y) => y.number === l.yearNumber) ? l : { ...l, yearNumber: 0 })) : sheet.lines}
+            currency={sheet.currency}
+            commissionPercent={sheet.partnerCommissionPercent}
+            collapsed={fold.collapsed}
+            onToggle={fold.toggle}
+          />
+          <OrderTotalsFooter
+            lines={sheet.lines}
+            currency={sheet.currency}
+            commissionPercent={sheet.partnerCommissionPercent}
+            yearCount={years.length}
+          />
+        </>
       )}
     </SheetCard>
   );

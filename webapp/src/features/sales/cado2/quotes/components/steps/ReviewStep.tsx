@@ -18,7 +18,7 @@ import { useMemo, type JSX, type ReactNode } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { Stack } from "@wso2/oxygen-ui";
 import type { PricingPreview } from "@features/sales/cado2/quotes/api/quoteTypes";
-import { useActiveLegalEntities } from "@features/sales/cado2/quotes/api/useQuoteApi";
+import { useActiveLegalEntities, useLegalConfig } from "@features/sales/cado2/quotes/api/useQuoteApi";
 import type { DraftFormValues } from "@features/sales/cado2/quotes/form/draftForm";
 import { sheetFromForm } from "@features/sales/cado2/quotes/sheet/sheetModel";
 import QuoteSheet from "@features/sales/cado2/quotes/components/sheet/QuoteSheet";
@@ -41,6 +41,7 @@ export default function ReviewStep({ preview, savedLegalEntityName, approvals }:
   const { control } = useFormContext<DraftFormValues>();
   const v = useWatch({ control }) as DraftFormValues;
   const legalEntities = useActiveLegalEntities();
+  const legalConfig = useLegalConfig();
 
   const active = legalEntities.data?.find((e) => String(e.id) === v.legalEntityId);
   const sheet = useMemo(() => {
@@ -49,8 +50,8 @@ export default function ReviewStep({ preview, savedLegalEntityName, approvals }:
       : v.legalEntityId && savedLegalEntityName
         ? { name: savedLegalEntityName }
         : null;
-    return sheetFromForm(v, preview, legalEntity);
-  }, [v, preview, active, savedLegalEntityName]);
+    return sheetFromForm(v, preview, legalEntity, legalConfig.data ?? null);
+  }, [v, preview, active, savedLegalEntityName, legalConfig.data]);
 
   return (
     <Stack spacing={2.5}>

@@ -21,8 +21,7 @@ import type { Totals } from "@features/sales/cado2/quotes/api/quoteTypes";
 import {
   BILLING_LABEL,
   formatDate,
-  hasRecurring,
-  termEnd,
+  contractEnd,
   type ContactValue,
   type DraftFormValues,
 } from "@features/sales/cado2/quotes/form/draftForm";
@@ -136,8 +135,7 @@ const hasContact = (c: ContactValue) =>
  */
 export default function SummaryPanel({ values: v, legalEntityName, totals, pricing, approvals }: SummaryPanelProps): JSX.Element {
   const money = (x: string | null | undefined) => (x ? `${v.currencyIsoCode} ${formatMoney(x)}` : "—");
-  const recurring = hasRecurring(v.lines);
-  const end = termEnd(v);
+  const end = contractEnd(v);
   const billing = v.billingFrequency;
   const partner = v.dealType === "PARTNER" ? v.partner : null;
   const addressLines = (a: DraftFormValues["billTo"]) =>
@@ -235,14 +233,18 @@ export default function SummaryPanel({ values: v, legalEntityName, totals, prici
         <Group title="Deal Terms" icon={<LandmarkIcon size={14} />}>
           <Field label="WSO2 legal entity">{v.legalEntityId ? legalEntityName : null}</Field>
           <Field label="Currency">{v.currencyIsoCode}</Field>
-          {recurring || v.lines.length === 0 ? (
-            <Field label="Subscription term" detail={termLabel({ startDate: v.startDate, endDate: end }) || undefined}>
-              {v.startDate && end ? `${formatDate(v.startDate)} – ${formatDate(end)}` : null}
+          {/* The term: its dates, length and years. */}
+          {v.startDate && end ? (
+            <Field
+              label="Term"
+              detail={[termLabel({ startDate: v.startDate, endDate: end }), `${v.yearCount} year${v.yearCount === 1 ? "" : "s"}`]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              {`${formatDate(v.startDate)} – ${formatDate(end)}`}
             </Field>
           ) : (
-            <Field label="Start date" detail="No subscription term: no recurring products">
-              {v.startDate ? formatDate(v.startDate) : null}
-            </Field>
+            <Field label="Start date">{v.startDate ? formatDate(v.startDate) : null}</Field>
           )}
 
         </Group>

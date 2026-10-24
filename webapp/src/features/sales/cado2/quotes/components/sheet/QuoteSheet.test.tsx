@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { draft, fullPartnerQuote } from "@features/sales/cado2/quotes/testing/fixtures";
-import { sheetFromVersion } from "@features/sales/cado2/quotes/sheet/sheetModel";
+import { dealFigures, sheetFromVersion } from "@features/sales/cado2/quotes/sheet/sheetModel";
 import CustomerBand from "./CustomerBand";
 import QuoteSheet from "./QuoteSheet";
 import DealFiguresSection from "./DealFiguresSection";
@@ -64,7 +64,6 @@ describe("QuoteSheet", () => {
       "Net 45",
       "PO-4471",
       "Custom SLA credits",
-      "WSO2 standard terms",
       "Acme Reseller Ltd",
       "Tax ID GB123",
       "Suite 400",
@@ -105,13 +104,14 @@ describe("QuoteSheet", () => {
 // A 3-year quote: two subscriptions, support and a one-time service.
 const line = (number: number, productName: string, category: SheetLine["category"], tcv: string, arr: string): SheetLine => ({
   number, productName, productCode: null, productDescription: null, pricebookName: "FY26 USD", category, categoryByRep: false, recurring: category !== "PROFESSIONAL_SERVICE", quantity: "1", unitOfMeasure: null, unitPrice: "1",
-  discountPercent: "0", formula: null, startDate: "2027-01-01", endDate: "2029-12-31", annualList: null, annualNet: null, arr, acv: null, tcv, commission: "0.00",
+  discountPercent: "0", formula: null, yearNumber: 1, startDate: "2027-01-01", endDate: "2027-12-31", ownDates: false, parentName: null, annualList: null, annualNet: null, arr, acv: null, tcv, commission: "0.00",
   schedule: [1, 2, 3].map((y) => ({ yearNumber: y, periodStart: "", periodEnd: "", yearFraction: "1.0000", gross: "1.00", discount: "0.00", net: "1.00", billing: "1.00" })),
 });
 const threeYears: Sheet = {
   ...sheet,
-  termMode: "YEARS",
-  termYears: 3,
+  contractYears: [1, 2, 3].map((n) => ({
+    number: n, start: `${2026 + n}-01-01`, end: `${2026 + n}-12-31`, net: null, arr: null,
+  })),
   endDate: "2029-12-31",
   lines: [
     line(1, "Gateway", "SUBSCRIPTION", "19440.00", "6480.00"),
@@ -143,9 +143,14 @@ describe("Order form", () => {
     expect(rows[at("Support subtotal")]).toContain("75,000.00");
     expect(rows[at("Professional Services subtotal")]).toContain("10,700.00");
     expect(rows.some((r) => r?.includes("Support and services"))).toBe(false);
-    // The order total is in its own box under the table (D97).
+    // One card, a section per year (here every line is in
+    // Year 1); the card closes with the total over every year.
     expect(at("Total order value")).toBe(-1);
-    expect(screen.getByRole("region", { name: "Order totals" })).toHaveTextContent("Total order value (USD)119,540.00");
+    expect(screen.getByRole("region", { name: "Order totals" })).toHaveTextContent("Total order value · all 3 years (USD)119,540.00");
+    // Each year closes with its own total, inside its table.
+    expect(rows.at(-1)).toContain("Year 1 total (USD)119,540.00");
+    expect(screen.getByRole("button", { name: /^Year 1/ })).toHaveTextContent("4 products");
+    expect(screen.getAllByText("No products in this year.")).toHaveLength(2);
   });
 
   // 2026-10-12 (amends D53): a line shows its product's name and SKU only; the
@@ -195,7 +200,7 @@ describe("Partner commission", () => {
     render(<QuoteSheet sheet={partner} />);
     // In the order totals box under the table (D97), in this order.
     const totals = screen.getByRole("region", { name: "Order totals" }).textContent ?? "";
-    expect(totals).toContain("Total order value (USD)119,540.00");
+    expect(totals).toContain("Total order value · all 3 years (USD)119,540.00");
     expect(totals).toContain("Partner commission (15%) (USD)− 17,931.00");
     expect(totals).toContain("Net order value (USD)101,609.00");
     expect(totals.indexOf("Total order value")).toBeLessThan(totals.indexOf("Net order value"));
@@ -207,7 +212,7 @@ describe("Partner commission", () => {
     expect(screen.queryByLabelText("Partner Commission")).toBeNull();
     expect(screen.queryByLabelText("Net order value")).toBeNull();
     expect(screen.queryByLabelText("First invoice")).toBeNull(); // removed (D85)
-    expect(within(screen.getByRole("table", { name: "Figures by product" })).getByText("Commission")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Figures by product" })).toBeNull(); // removed: ARR by year instead
   });
 
   it("shows the schedule's billing net of commission", () => {
@@ -218,7 +223,7 @@ describe("Partner commission", () => {
   it("says a one-off line is one-time in the Term column (D85, D94)", () => {
     render(<QuoteSheet sheet={{ ...threeYears, startDate: "2027-01-01" }} />);
     const products = within(screen.getByRole("table", { name: "Products" }));
-    expect(products.getAllByText("3Y")).toHaveLength(3); // two subscriptions and support
+    expect(products.getAllByText("1Y")).toHaveLength(3); // two subscriptions and support, each for its year
     expect(products.getByText("One-time")).toBeInTheDocument(); // the onboarding service
   });
 
@@ -258,23 +263,24 @@ describe("DealFiguresSection", () => {
     const lines = threeYears.lines.map((l) =>
       l === gateway ? { ...l, category: "PROFESSIONAL_SERVICE" as const } : l === onboarding ? { ...l, category: "" as const } : l,
     );
-    render(<DealFiguresSection sheet={{ ...threeYears, lines }} />);
-    const arr = within(screen.getByLabelText("ARR · annual recurring revenue"));
-    expect(arr.getByText(/Gateway 6,480.00/)).toBeInTheDocument(); // recurring, though placed under Professional Services
-    expect(arr.getByText(/Left out, one-time: Onboarding/)).toBeInTheDocument(); // one-off, though uncategorised
+    const f = dealFigures({ ...threeYears, lines })!;
+    expect(f.arrParts.map((p) => p.productName)).toContain("Gateway"); // recurring, though placed under Professional Services
+    expect(f.arrExcluded).toEqual(["Onboarding"]); // one-off, though uncategorised
   });
 
-  it("shows how ARR, TCV and ACV are worked out, and each product's share", () => {
-    render(<DealFiguresSection sheet={threeYears} />);
+  it("shows ARR for each year alike, then how TCV and ACV are worked out", () => {
+    const sheet = { ...threeYears, years: threeYears.years.map((y, i) => ({ ...y, arr: ["36280.00", "36280.00", "40000.00"][i] })) };
+    render(<DealFiguresSection sheet={sheet} />);
     const arr = within(screen.getByLabelText("ARR · annual recurring revenue"));
-    expect(arr.getByText("USD 36,280.00")).toBeInTheDocument();
-    expect(arr.getByText(/Gateway 6,480.00 \+ API Portal 4,800.00 \+ Enterprise Support 25,000.00/)).toBeInTheDocument();
-    expect(arr.getByText(/Left out, one-time: Onboarding/)).toBeInTheDocument();
+    // Every year alike in a mini table, the currency in its heading; no headline figure and no product list.
+    const byYear = within(screen.getByRole("table", { name: "ARR by year" }));
+    expect(byYear.getByText("ARR (USD)")).toBeInTheDocument();
+    expect(byYear.getAllByText("36,280.00")).toHaveLength(2);
+    expect(byYear.getByText("40,000.00")).toBeInTheDocument();
+    expect(arr.queryByText(/approvals/)).toBeNull();
+    expect(arr.queryByText(/Left out/)).toBeNull();
     expect(within(screen.getByLabelText("TCV · total contract value")).getByText(/Year 1 46,980.00 \+ Year 2 36,280.00 \+ Year 3 36,280.00/)).toBeInTheDocument();
     expect(within(screen.getByLabelText("ACV · average per contract year")).getByText("TCV ÷ 3 contract years")).toBeInTheDocument();
-    const byProduct = within(screen.getByRole("table", { name: "Figures by product" }));
-    expect(byProduct.getByText("One-time")).toBeInTheDocument();
-    expect(byProduct.getByText("19,440.00")).toBeInTheDocument();
   });
 
   // D86: billing sits with the payment terms, as on the Commercials step.
@@ -304,5 +310,48 @@ describe("DealFiguresSection", () => {
     render(<DealFiguresSection sheet={services} />);
     expect(within(screen.getByLabelText("ARR · annual recurring revenue")).getByText("Not applicable")).toBeInTheDocument();
     expect(within(screen.getByLabelText("ACV · average per contract year")).getByText("Not applicable")).toBeInTheDocument();
+  });
+});
+
+// The quote page shows sections 04–06 as they print.
+describe("LegalSection", () => {
+  const withLegal: Sheet = {
+    ...sheet,
+    dealType: "PARTNER",
+    legal: {
+      sections: {
+        blocks: [
+          { kind: "ONPREM", nonStandard: false, text: "Governed by the Value Added Reseller Agreement." },
+          { kind: "SAAS", nonStandard: true, text: "" },
+        ],
+        notices: [{ title: "Auto Renewal", body: "Renews for 12 months.", showTitle: true, finePrint: false, reason: "partner deal" }],
+        contractName: "Value Added Reseller",
+       
+      },
+      contractName: "Value Added Reseller",
+      contractDate: "2024-03-12",
+      partnerName: "Acme Reseller",
+      specialTerms: "Legal's wording",
+      specialTermsByLegal: true,
+      frozen: true,
+    },
+  };
+
+  it("shows the terms per product type, the notices and the special terms", () => {
+    render(<QuoteSheet sheet={withLegal} />);
+    const legal = within(screen.getByRole("region", { name: "Legal" }));
+    expect(legal.getByText("As submitted")).toBeInTheDocument();
+    expect(legal.getByText(/Value Added Reseller · Acme Reseller · 12 Mar 2024/)).toBeInTheDocument();
+    expect(legal.getByText("Governed by the Value Added Reseller Agreement.")).toBeInTheDocument();
+    expect(legal.getByText("SaaS products")).toBeInTheDocument();
+    expect(legal.getByText("Legal writes these terms during their approval.")).toBeInTheDocument();
+    expect(legal.getByText("Auto Renewal")).toBeInTheDocument();
+    expect(legal.getByText("Legal's wording")).toBeInTheDocument();
+    expect(legal.getByText("Reworded by Legal during their approval")).toBeInTheDocument();
+  });
+
+  it("isn't shown without the legal texts", () => {
+    render(<QuoteSheet sheet={{ ...sheet, legal: null }} />);
+    expect(screen.queryByRole("region", { name: "Legal" })).toBeNull();
   });
 });
