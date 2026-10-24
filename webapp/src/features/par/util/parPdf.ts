@@ -21,8 +21,9 @@ import { decodeParComment, sanitizeParHtml } from "./parComment";
 import { pdfRatingText } from "./parLabels";
 import {
   formatLegacyCycleName,
-  formatLegacyQuestionAnswers,
+  getLegacySharedByName,
   hasLegacyContent,
+  isThreeSixtyConfirmation,
   parseLegacyFeedback360,
   stripRedundantRatingPrefix,
 } from "./parLegacyHistory";
@@ -139,8 +140,10 @@ export function downloadLegacyParPdf(
   // ParLegacyRecordDetail.tsx's own threeSixtyConfirmationAnswer -- shown
   // here too (not gated to admin), per explicit local request.
   const threeSixtyConfirmationAnswer = questionAnswers.find(
-    (qa) => qa.title?.trim().replace(/\.$/, "") === "360 Confirmation" && hasLegacyContent(qa.managerFeedback),
+    (qa) => isThreeSixtyConfirmation(qa) && hasLegacyContent(qa.managerFeedback),
   )?.managerFeedback;
+
+  const sharedByName = getLegacySharedByName(questionAnswers);
 
   const contentStyles = { textColor: [50, 50, 50] as [number, number, number], cellPadding: 6 };
   const baseTableStyles = { fontSize: 9, cellPadding: 4, overflow: "linebreak" as const, valign: "top" as const };
@@ -154,8 +157,21 @@ export function downloadLegacyParPdf(
   // can't, and autoTable reprints the same head again at the top of the
   // next page right above itself.
   const MIN_BLOCK_HEIGHT = 90;
-  const addBlock = (title: string, rows: PdfRow[], level: "section" | "group") => {
-    if (rows.length === 0) return;
+  // alwaysShow keeps a section title when it has no rows -- on 2015
+  // category cycles, a side's top rows can be empty while its category
+  // groups still print below it.
+  // blockColumnStyles: a block whose only rows span both columns (the
+  // overall-comment blocks) must pass {} -- with the shared fixed/"auto"
+  // widths, the empty "auto" column gets an invalid width and jsPDF throws
+  // "Invalid arguments passed to jsPDF.rect".
+  const addBlock = (
+    title: string,
+    rows: PdfRow[],
+    level: "section" | "group",
+    alwaysShow = false,
+    blockColumnStyles: typeof columnStyles | Record<string, never> = columnStyles,
+  ) => {
+    if (rows.length === 0 && !alwaysShow) return;
     if (pageHeight - cursorY < MIN_BLOCK_HEIGHT) {
       doc.addPage();
       cursorY = 30;
@@ -183,10 +199,26 @@ export function downloadLegacyParPdf(
       startY: cursorY,
       showHead: "everyPage",
       styles: baseTableStyles,
-      columnStyles,
+      columnStyles: blockColumnStyles,
       margin: { top: 30, bottom: 30 },
     });
     cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
+  };
+
+  // Prints 2015's named category groups as their own titled blocks; every
+  // other layout's rows go straight into the side's top rows below. `side`
+  // selects the answer field.
+  const addAnswerGroups = (groups: typeof employeeGroups, side: "employee" | "lead") => {
+    for (const group of groups) {
+      addBlock(
+        group.title,
+        group.rows.map((row) => [
+          row.label,
+          { content: (side === "employee" ? row.employeeAnswer : row.managerFeedback) || "-", styles: contentStyles },
+        ]),
+        "group",
+      );
+    }
   };
 
   // Top 5%/20% was only introduced starting 2021 -- every earlier era never
@@ -195,12 +227,17 @@ export function downloadLegacyParPdf(
   // (even as "Not Assigned"), matching ParLegacyRecordDetail.tsx's own
   // hideSpecialRating / dedicated Top 5%/20% Rating row.
   const hideSpecialRating = (Number(cycleName.match(/^(\d{4})/)?.[1]) || 0) < 2021;
+  // Explicit local request, 2015 cycles only: those have both an employee
+  // and a lead rating, so neither goes in the header -- each side's rating
+  // sits in its own section instead (Employee's Feedback already carries
+  // the employee's; Lead's Feedback gets the lead's below).
+  const isLegacy2015Cycle = cycleName.startsWith("2015 ");
   const headerLines = [
     ` - Employee: ${record.employeeEmail}`,
     ` - Cycle: ${cycleName} (Legacy - PeopleHR)`,
-    ` - PAR Rating: ${pdfRatingText(rating ?? undefined)}`,
+    ...(isLegacy2015Cycle ? [] : [` - PAR Rating: ${pdfRatingText(rating ?? undefined)}`]),
     ...(hideSpecialRating ? [] : [` - Top 5%/20% Rating: ${pdfRatingText(special ?? undefined)}`]),
-    ` - PAR Shared By: ${record.reviewerEmail || record.reviewerName || "Not Provided"}`,
+    ` - PAR Shared By: ${sharedByName ?? "-"}`,
   ];
 
   autoTable(doc, {
@@ -221,55 +258,66 @@ export function downloadLegacyParPdf(
   });
   cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
 
+  // Same as the on-screen detail view: each side shows its per-question
+  // feedback first, then its overall comment as its own headed block --
+  // always both, each "N/A" when blank, never one standing in for the other.
+  const addOverallComment = (title: string, comment: string | null) => {
+    addBlock(
+      title,
+      [[{ content: hasLegacyContent(comment) ? htmlToPdfText(comment!) : "N/A", colSpan: 2, styles: contentStyles }]],
+      "group",
+      false,
+      {},
+    );
+  };
+
+  // Explicit local request: each side's answers sit directly under its
+  // "Employee's Feedback" / "Lead's Feedback" bar -- no separate "Employee
+  // Feedback" / "Lead Feedback" sub-heading echoing it. 2015's named
+  // categories still print as their own titled blocks below the bar.
+  const addSideAnswers = (
+    sectionTitle: string,
+    emptyLabel: string,
+    topRows: PdfRow[],
+    groups: typeof employeeGroups,
+    side: "employee" | "lead",
+  ) => {
+    const hasCategories = groups.some((group) => group.layout === "category");
+    if (groups.length === 0) {
+      topRows.push([emptyLabel, { content: "N/A", styles: contentStyles }]);
+    } else if (!hasCategories) {
+      for (const group of groups) {
+        for (const row of group.rows) {
+          topRows.push([
+            row.label,
+            { content: (side === "employee" ? row.employeeAnswer : row.managerFeedback) || "-", styles: contentStyles },
+          ]);
+        }
+      }
+    }
+    addBlock(sectionTitle, topRows, "section", true);
+    if (hasCategories) {
+      addAnswerGroups(groups, side);
+    }
+  };
+
   // ---- Employee's Feedback ----
   const employeeTopRows: PdfRow[] = [];
   if (legacy2015EmployeeRating) {
     employeeTopRows.push(["PAR Rating", { content: legacy2015EmployeeRating, styles: contentStyles }]);
   }
-  // Same "N/A" (and flat-layout-suppressed) treatment as the on-screen
-  // detail view's employeeComment. For a cycle with no question catalog,
-  // employeeGroups is empty and the per-question answers would otherwise
-  // be silently dropped from the export even though the screen shows them
-  // (as a flat formatted block) -- fall back to that same formatting here.
-  if (hasLegacyContent(record.overallCommentEmployee)) {
-    employeeTopRows.push(["Employee Comment", { content: htmlToPdfText(record.overallCommentEmployee!), styles: contentStyles }]);
-  } else if (employeeGroups.length > 0 && employeeGroups[0]?.layout !== "flat") {
-    employeeTopRows.push(["Employee Comment", { content: "N/A", styles: contentStyles }]);
-  } else if (employeeGroups.length === 0) {
-    const flat = formatLegacyQuestionAnswers(questionAnswers);
-    if (flat) employeeTopRows.push(["Employee Comment", { content: htmlToPdfText(flat), styles: contentStyles }]);
-  }
-  addBlock("Employee's Feedback", employeeTopRows, "section");
-  for (const group of employeeGroups) {
-    addBlock(
-      group.title,
-      group.rows.map((row) => [row.label, { content: row.employeeAnswer || "-", styles: contentStyles }]),
-      "group",
-    );
-  }
+  addSideAnswers("Employee's Feedback", "Employee Feedback", employeeTopRows, employeeGroups, "employee");
+  addOverallComment("Overall Comment Given by the Employee", record.overallCommentEmployee);
 
   // ---- Lead's Feedback ----
-  // Explicit local request, scoped to this one cycle: "Is the employees in
-  // the top 5% or top 20% in the team?" goes right after Lead Comment inside
-  // the main Lead's Feedback table, not as its own separate "Performance
-  // Questions and Answers" block below it.
-  const isLegacy2021H1 = cycleName === "2021 Performance Evaluation - H1";
   const leadTopRows: PdfRow[] = [];
+  if (isLegacy2015Cycle) {
+    leadTopRows.push(["PAR Rating", { content: pdfRatingText(rating ?? undefined), styles: contentStyles }]);
+  }
+  addSideAnswers("Lead's Feedback", "Lead Feedback", leadTopRows, leadGroups, "lead");
   if (!isLegacy2017ScoreCycle) {
-    if (hasLegacyContent(record.overallCommentManager)) {
-      leadTopRows.push(["Lead Comment", { content: htmlToPdfText(record.overallCommentManager!), styles: contentStyles }]);
-    } else if (leadGroups.length > 0 && leadGroups[0]?.layout !== "flat") {
-      leadTopRows.push(["Lead Comment", { content: "N/A", styles: contentStyles }]);
-    }
+    addOverallComment("Overall Comment Given by the Lead", record.overallCommentManager);
   }
-  if (isLegacy2021H1) {
-    for (const group of leadGroups) {
-      for (const row of group.rows) {
-        leadTopRows.push([row.label, { content: row.managerFeedback || "-", styles: contentStyles }]);
-      }
-    }
-  }
-  addBlock("Lead's Feedback", leadTopRows, "section");
   if (threeSixtyConfirmationAnswer) {
     addBlock(
       "360 Confirmation",
@@ -277,17 +325,11 @@ export function downloadLegacyParPdf(
       "section",
     );
   }
-  if (!isLegacy2021H1) {
-    for (const group of leadGroups) {
-      addBlock(
-        group.title,
-        group.rows.map((row) => [row.label, { content: row.managerFeedback || "-", styles: contentStyles }]),
-        "group",
-      );
-    }
-  }
-  if (isLegacy2017ScoreCycle && hasLegacyContent(record.overallCommentManager)) {
-    addBlock("Score", [["Score", { content: htmlToPdfText(record.overallCommentManager!), styles: contentStyles }]], "section");
+  // Takes the overall comment's place on score cycles -- always printed,
+  // "N/A" when blank, same as the on-screen view.
+  if (isLegacy2017ScoreCycle) {
+    const score = hasLegacyContent(record.overallCommentManager) ? htmlToPdfText(record.overallCommentManager!) : "N/A";
+    addBlock("Score", [["Score", { content: score, styles: contentStyles }]], "section");
   }
 
   // ---- 360° Feedback ----

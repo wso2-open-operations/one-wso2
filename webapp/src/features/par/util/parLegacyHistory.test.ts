@@ -19,6 +19,8 @@ import {
   deriveLegacyCycleDates,
   deriveLegacyRatingFromScore,
   formatLegacyCycleName,
+  getLegacySharedByName,
+  isThreeSixtyConfirmation,
   parseLegacyFeedback360,
   parseLegacyQuestionAnswers,
 } from "./parLegacyHistory";
@@ -121,5 +123,39 @@ describe("deriveLegacyCycleDates", () => {
 
   it("returns nulls for a name that doesn't match the convention", () => {
     expect(deriveLegacyCycleDates("Some Other Cycle")).toEqual({ startDate: null, endDate: null });
+  });
+});
+
+describe("isThreeSixtyConfirmation", () => {
+  const qa = (title: string | null) => ({ title, employeeAnswer: null, managerFeedback: null });
+
+  it("matches the title with or without a trailing period", () => {
+    expect(isThreeSixtyConfirmation(qa("360 Confirmation."))).toBe(true);
+    expect(isThreeSixtyConfirmation(qa(" 360 Confirmation "))).toBe(true);
+    expect(isThreeSixtyConfirmation(qa("360 Feedback"))).toBe(false);
+    expect(isThreeSixtyConfirmation(qa(null))).toBe(false);
+  });
+});
+
+describe("getLegacySharedByName", () => {
+  const qa = (managerAnsweredBy?: string | null) => ({
+    title: "Q",
+    employeeAnswer: null,
+    managerFeedback: null,
+    managerAnsweredBy,
+  });
+
+  it("returns the first recorded Manager Answer By", () => {
+    expect(getLegacySharedByName([qa(null), qa("Lead One"), qa("Lead Two")])).toBe("Lead One");
+  });
+
+  it("skips blank names and trims the one it returns", () => {
+    expect(getLegacySharedByName([qa("   "), qa("  Lead One ")])).toBe("Lead One");
+  });
+
+  it("returns null when no answerer was recorded", () => {
+    expect(getLegacySharedByName([qa()])).toBeNull();
+    expect(getLegacySharedByName([qa("  ")])).toBeNull();
+    expect(getLegacySharedByName([])).toBeNull();
   });
 });

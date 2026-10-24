@@ -32,8 +32,9 @@ import {
 import { ChevronDownIcon, FileDownIcon } from "@wso2/oxygen-ui-icons-react";
 import {
   formatLegacyCycleName,
-  formatLegacyQuestionAnswers,
+  getLegacySharedByName,
   hasLegacyContent,
+  isThreeSixtyConfirmation,
   parseLegacyQuestionAnswers,
 } from "../util/parLegacyHistory";
 import { getLegacyQuestionGroups } from "../util/legacyParCatalogs";
@@ -73,10 +74,8 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-// Renders either the category-grouped (2015) or flat (2016/2017/2018 Q1-Q2)
-// "Performance Questions and Answers" accordions for one side. Null groups
-// means this cycle has no catalog at all (2020+ or an unrecognized cycle
-// name) -- the caller falls back to the plain flat comment box instead.
+// One per-question answer box for one side -- used directly by the flat
+// layout and (label omitted) inside each perQuestion/category accordion.
 function QuestionRow({ row, type, side }: { row: LegacyGroup["rows"][number]; type: "rating" | "text"; side: "employee" | "lead" }) {
   const answer = (side === "employee" ? row.employeeAnswer : row.managerFeedback) || "—";
   return (
@@ -140,17 +139,43 @@ const ACCORDION_SUMMARY_SX = {
   },
 };
 
-function QuestionGroupAccordions({ groups, side }: { groups: LegacyGroup[]; side: "employee" | "lead" }) {
-  // 2018 Q3/Q4 and all of 2019 (1-3 questions, always exactly one flat
-  // group) render as plain boxes -- no accordion, no "Performance
-  // Questions and Answers" heading -- for these shorter cycles.
+/**
+ * One side's per-question answers: flat boxes, per-question accordions, or
+ * 2015's category accordions depending on the group layout. Null groups
+ * (no answers on this side) render the side's heading with "N/A".
+ */
+function QuestionGroupAccordions({ groups, side }: { groups: LegacyGroup[] | null; side: "employee" | "lead" }) {
+  // Each side's per-question answers are headed for that side -- "Employee
+  // Feedback" under Employee's Feedback, "Lead Feedback" under Lead's
+  // Feedback -- not the catalog's own shared group title.
+  const heading = side === "employee" ? "Employee Feedback" : "Lead Feedback";
+  // The per-question answers are always their own clearly headed section,
+  // separate from the overall comment above -- shown as "N/A" when this
+  // side has no recorded answers, rather than disappearing.
+  if (!groups) {
+    return (
+      <Box>
+        <Typography sx={{ fontWeight: 600, mb: 1.5 }}>{heading}</Typography>
+        <Box sx={{ bgcolor: "action.hover", borderRadius: 1.5, p: 2 }}>
+          <Typography variant="body2">N/A</Typography>
+        </Box>
+      </Box>
+    );
+  }
+
+  // 2018 Q3/Q4, 2019-2024, and uncatalogued cycles (1-3 questions, always
+  // exactly one flat group) render as plain boxes -- no accordion -- for
+  // these shorter cycles, under the same section heading as every other era.
   if (groups.length === 1 && groups[0].layout === "flat") {
     return (
-      <Stack spacing={2}>
-        {groups[0].rows.map((row) => (
-          <QuestionRow key={row.label} row={row} type={groups[0].type} side={side} />
-        ))}
-      </Stack>
+      <Box>
+        <Typography sx={{ fontWeight: 600, mb: 1.5 }}>{heading}</Typography>
+        <Stack spacing={2}>
+          {groups[0].rows.map((row, index) => (
+            <QuestionRow key={`${index}-${row.label}`} row={row} type={groups[0].type} side={side} />
+          ))}
+        </Stack>
+      </Box>
     );
   }
 
@@ -161,9 +186,9 @@ function QuestionGroupAccordions({ groups, side }: { groups: LegacyGroup[]; side
   if (groups.length === 1 && groups[0].layout === "perQuestion") {
     return (
       <Box>
-        <Typography sx={{ fontWeight: 600, mb: 1.5 }}>{groups[0].title}</Typography>
-        {groups[0].rows.map((row) => (
-          <Accordion key={row.label} variant="outlined" disableGutters sx={{ mb: 1.5, "&:last-of-type": { mb: 0 } }}>
+        <Typography sx={{ fontWeight: 600, mb: 1.5 }}>{heading}</Typography>
+        {groups[0].rows.map((row, index) => (
+          <Accordion key={`${index}-${row.label}`} variant="outlined" disableGutters sx={{ mb: 1.5, "&:last-of-type": { mb: 0 } }}>
             <AccordionSummary expandIcon={<ChevronDownIcon size={16} />} sx={ACCORDION_SUMMARY_SX}>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 {row.label}
@@ -183,7 +208,7 @@ function QuestionGroupAccordions({ groups, side }: { groups: LegacyGroup[]; side
   // inside rendered as a plain labeled box, not its own accordion.
   return (
     <Box>
-      <Typography sx={{ fontWeight: 600, mb: 1.5 }}>Performance Questions and Answers</Typography>
+      <Typography sx={{ fontWeight: 600, mb: 1.5 }}>{heading}</Typography>
       {groups.map((group) => (
         <Accordion key={group.title} variant="outlined" disableGutters sx={{ mb: 1.5, "&:last-of-type": { mb: 0 } }}>
           <AccordionSummary expandIcon={<ChevronDownIcon size={16} />} sx={ACCORDION_SUMMARY_SX}>
@@ -232,6 +257,15 @@ export default function ParLegacyRecordDetail({
   hideThreeSixtyFeedback?: boolean;
 }) {
   const questionAnswers = parseLegacyQuestionAnswers(record.questionAnswers);
+  // record.reviewerName/reviewerEmail come from the sheet's "Reports To"
+  // column -- the employee's CURRENT lead (a static org-chart field), not
+  // who actually reviewed THIS cycle. Deliberately not used here: showing
+  // the current lead's name as "PAR Shared By" on an old cycle they never
+  // reviewed would be actively wrong. Per-question "Manager Answer By" is
+  // the real answerer for that cycle; null (rendered as hidden/"Not
+  // Provided") when no per-question answerer was recorded, rather than
+  // guessing from the org chart.
+  const sharedByName = getLegacySharedByName(questionAnswers);
   // Real migrated data can carry either the raw or canonical 2015 cycle
   // name (see formatLegacyCycleName's own comment) -- normalize before any
   // catalog/rating lookup.
@@ -243,27 +277,13 @@ export default function ParLegacyRecordDetail({
   const employeeGroups = getLegacyQuestionGroups(cycleName, questionAnswers, "employee");
   const leadGroups = getLegacyQuestionGroups(cycleName, questionAnswers, "lead");
 
-  // The overall comment and the catalogued question groups are NOT mutually
-  // exclusive -- both show together when both exist. For a 2017 Q1,
-  // "perQuestion"-layout cycle: when there's a catalog but no real overall
-  // comment, the Employee/Lead Comment box still shows -- with the literal
-  // "N/A" -- rather than being hidden. But for a 2018 Q3, "flat"-layout
-  // cycle, it's the opposite: no comment box at all when blank, not even
-  // "N/A" -- the flat question's own box already carries the real content
-  // there, and leadContent CAN be genuinely blank in that case. Only fall
-  // back to the flat per-question dump when there's no catalogued groups
-  // at all.
-  const isFlatLayout = (groups: LegacyGroup[] | null) => groups?.[0]?.layout === "flat";
-  const employeeComment = hasLegacyContent(record.overallCommentEmployee)
-    ? record.overallCommentEmployee!
-    : employeeGroups
-      ? (isFlatLayout(employeeGroups) ? "" : "N/A")
-      : formatLegacyQuestionAnswers(questionAnswers);
-  const leadComment = hasLegacyContent(record.overallCommentManager)
-    ? record.overallCommentManager!
-    : leadGroups
-      ? (isFlatLayout(leadGroups) ? "" : "N/A")
-      : "";
+  // Real migrated data puts a side's feedback in EITHER the overall
+  // comment OR the per-question answers, varying record to record -- so
+  // both are always shown as two separate sections per side (per-question
+  // answers first, then the overall comment), each as "N/A" when blank,
+  // instead of one silently standing in for the other.
+  const employeeComment = hasLegacyContent(record.overallCommentEmployee) ? record.overallCommentEmployee! : "N/A";
+  const leadComment = hasLegacyContent(record.overallCommentManager) ? record.overallCommentManager! : "N/A";
 
   // "category" layout is exclusive to the 2015 catalog (see
   // getLegacyQuestionGroups) -- gating on employeeGroups alone showed this
@@ -295,7 +315,7 @@ export default function ParLegacyRecordDetail({
   // its own section -- explicit local request: shown to the employee too,
   // on their own Lead's Feedback panel, not admin-only.
   const threeSixtyConfirmationAnswer = questionAnswers.find(
-    (qa) => qa.title?.trim().replace(/\.$/, "") === "360 Confirmation" && hasLegacyContent(qa.managerFeedback),
+    (qa) => isThreeSixtyConfirmation(qa) && hasLegacyContent(qa.managerFeedback),
   )?.managerFeedback;
 
   return (
@@ -325,17 +345,15 @@ export default function ParLegacyRecordDetail({
                 </InfoRow>
               </InfoRowGroup>
             )}
-            {employeeComment && (
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                  Employee Comment
-                </Typography>
-                <Box sx={{ bgcolor: "action.hover", borderRadius: 1.5, p: 2 }}>
-                  <ParCommentView html={employeeComment} />
-                </Box>
+            <QuestionGroupAccordions groups={employeeGroups} side="employee" />
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                Overall Comment Given by the Employee
+              </Typography>
+              <Box sx={{ bgcolor: "action.hover", borderRadius: 1.5, p: 2 }}>
+                <ParCommentView html={employeeComment} />
               </Box>
-            )}
-            {employeeGroups && <QuestionGroupAccordions groups={employeeGroups} side="employee" />}
+            </Box>
           </Stack>
         </Card>
       </Grid>
@@ -346,9 +364,9 @@ export default function ParLegacyRecordDetail({
             <Avatar variant="rounded" alt="Lead Thumbnail" />
             <Stack>
               <Typography sx={{ fontWeight: 600 }}>Lead's Feedback</Typography>
-              {(record.reviewerName || record.reviewerEmail) && (
+              {sharedByName && (
                 <Typography variant="body2" color="text.secondary">
-                  {record.reviewerName ?? record.reviewerEmail}
+                  {sharedByName}
                 </Typography>
               )}
             </Stack>
@@ -364,16 +382,17 @@ export default function ParLegacyRecordDetail({
                   <ParStatusChip content={special && special !== "NOT_ASSIGNED" ? special : "Not Assigned"} />
                 </InfoRow>
               )}
-              {(record.reviewerEmail || record.reviewerName) && (
-                <InfoRow label="PAR Shared By">
-                  <Typography variant="body2">{record.reviewerEmail ?? record.reviewerName}</Typography>
-                </InfoRow>
-              )}
+              {/* Always shown -- "-" when no per-question "Manager Answer By"
+                  was recorded for this cycle, rather than hiding the row. */}
+              <InfoRow label="PAR Shared By">
+                <Typography variant="body2">{sharedByName ?? "-"}</Typography>
+              </InfoRow>
             </InfoRowGroup>
-            {leadComment && !isLegacy2017ScoreCycle && (
+            <QuestionGroupAccordions groups={leadGroups} side="lead" />
+            {!isLegacy2017ScoreCycle && (
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                  Lead Comment
+                  Overall Comment Given by the Lead
                 </Typography>
                 <Box sx={{ bgcolor: "action.hover", borderRadius: 1.5, p: 2 }}>
                   <ParCommentView html={leadComment} />
@@ -390,8 +409,8 @@ export default function ParLegacyRecordDetail({
                 </Box>
               </Box>
             )}
-            {leadGroups && <QuestionGroupAccordions groups={leadGroups} side="lead" />}
-            {leadComment && isLegacy2017ScoreCycle && (
+            {/* Takes the overall comment's place on score cycles, so it is always shown, "N/A" when blank. */}
+            {isLegacy2017ScoreCycle && (
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
                   Score

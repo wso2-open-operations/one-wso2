@@ -56,6 +56,7 @@ import {
   deriveLegacyRatingFromScore,
   formatLegacyCycleName,
   formatLegacyQuestionAnswers,
+  getLegacySharedByName,
   hasLegacyContent,
   parseLegacyQuestionAnswers,
 } from "../util/parLegacyHistory";
@@ -345,9 +346,9 @@ export default function ParLeadEmployeeHistoryTab() {
   // the employee's own answers get concatenated. The lead's side stays a
   // single overall comment — per-question managerFeedback entries aren't
   // the lead's actual feedback.
-  const legacyEmployeeContent = formatLegacyQuestionAnswers(
-    parseLegacyQuestionAnswers(selectedLegacyRecord?.questionAnswers ?? null),
-  );
+  const legacyQuestionAnswers = parseLegacyQuestionAnswers(selectedLegacyRecord?.questionAnswers ?? null);
+  const legacyEmployeeContent = formatLegacyQuestionAnswers(legacyQuestionAnswers);
+  const legacySharedByName = getLegacySharedByName(legacyQuestionAnswers);
   const legacyLeadContent = hasLegacyContent(selectedLegacyRecord?.overallCommentManager)
     ? selectedLegacyRecord!.overallCommentManager!
     : "";
@@ -523,12 +524,12 @@ export default function ParLeadEmployeeHistoryTab() {
                       {special && special !== "NOT_ASSIGNED" && <ParStatusChip content={special} />}
                       {rating2 && rating2 !== "NOT_ASSIGNED" && <ParStatusChip content={rating2} />}
                     </Stack>
-                    {(selectedLegacyRecord.reviewerEmail || selectedLegacyRecord.reviewerName) && (
+                    {legacySharedByName && (
                       <Chip
                         size="small"
                         variant="outlined"
                         sx={{ mt: 1 }}
-                        label={`PAR shared by: ${selectedLegacyRecord.reviewerEmail ?? selectedLegacyRecord.reviewerName}`}
+                        label={`PAR shared by: ${legacySharedByName}`}
                       />
                     )}
                   </Grid>

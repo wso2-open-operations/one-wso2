@@ -15,7 +15,7 @@
 // under the License.
 
 // Groups each era's known PeopleHR question labels into named categories
-// (2015) or a single flat "Performance Questions and Answers" list
+// (2015) or a single flat "Employee Feedback" list
 // (2016/2017/2018), with the full question wording ("subtext") shown above
 // each answer, and (2015's rating categories only) the raw 0-5 answer
 // shown as a filled chip rather than body text. No
@@ -23,6 +23,7 @@
 // "manager score as comment" special case -- neither is needed for parity
 // on this main view.
 import type { ParLegacyQuestionAnswer } from "../api/types";
+import { isThreeSixtyConfirmation } from "./parLegacyHistory";
 
 export type LegacyCatalogAnswerType = "rating" | "text";
 
@@ -465,6 +466,10 @@ function hasData(text: string | null | undefined, treatNAAsAbsent: boolean): boo
   return !(treatNAAsAbsent && text.trim().toUpperCase() === "N/A");
 }
 
+// Title of a side's non-category (flat/perQuestion) group -- 2015's
+// category groups keep their own catalog titles instead.
+const sideFeedbackTitle = (side: "employee" | "lead") => (side === "employee" ? "Employee Feedback" : "Lead Feedback");
+
 export interface LegacyGroupRow {
   label: string;
   subtext: string;
@@ -495,14 +500,23 @@ export interface LegacyGroup {
 }
 
 // One dispatcher covering every catalogued era -- returns grouped sections
-// for the Employee's Feedback / Lead's Feedback panels, or null when this cycle
-// name has no catalog at all; callers fall back to the flat
-// questionAnswers list in that case.
+// for the Employee's Feedback / Lead's Feedback panels. A cycle with no
+// catalog lists its recorded questions as-is (getUncataloguedQuestionGroups).
+// Null when the side has no answers to show; callers render "N/A" then.
 export function getLegacyQuestionGroups(
   cycleName: string,
   questionAnswers: ParLegacyQuestionAnswer[],
   side: "employee" | "lead",
 ): LegacyGroup[] | null {
+  // employeeOnly/leadOnly hide a question's other side only when that side
+  // is genuinely empty -- real migrated data does carry a lead's own answer
+  // on some "employee-only" prompts (e.g. 2020+'s SHARE FEEDBACK question),
+  // and that real answer must not be silently dropped.
+  const showOnSide = (question: LegacyCatalogQuestion, answer: ParLegacyQuestionAnswer | undefined) =>
+    side === "employee"
+      ? !question.leadOnly || hasData(answer?.employeeAnswer, true)
+      : !question.employeeOnly || hasData(answer?.managerFeedback, true);
+
   const categories = LEGACY_2015_CATALOG[cycleName];
   if (categories) {
     const groups = categories
@@ -511,9 +525,9 @@ export function getLegacyQuestionGroups(
         type: category.type,
         layout: "category" as const,
         rows: category.questions
-          .filter((question) => (side === "employee" ? !question.leadOnly : !question.employeeOnly))
-          .map((question) => {
-            const answer = findAnswer(question.label, questionAnswers);
+          .map((question) => ({ question, answer: findAnswer(question.label, questionAnswers) }))
+          .filter(({ question, answer }) => showOnSide(question, answer))
+          .map(({ question, answer }) => {
             return {
               label: question.label,
               subtext: question.subtext,
@@ -538,7 +552,7 @@ export function getLegacyQuestionGroups(
     LEGACY_2020_CATALOG[cycleName] ??
     LEGACY_2021_CATALOG[cycleName];
   if (!flatQuestions) {
-    return null;
+    return getUncataloguedQuestionGroups(questionAnswers, side);
   }
   const treatNAAsAbsent = Boolean(LEGACY_2016_CATALOG[cycleName]);
   const isFlatDisplay =
@@ -547,9 +561,9 @@ export function getLegacyQuestionGroups(
     LEGACY_2020_FLAT_DISPLAY_CYCLES.has(cycleName) ||
     LEGACY_2021_FLAT_DISPLAY_CYCLES.has(cycleName);
   const rows = flatQuestions
-    .filter((question) => (side === "employee" ? !question.leadOnly : !question.employeeOnly))
-    .map((question) => {
-      const answer = findAnswer(question.label, questionAnswers);
+    .map((question) => ({ question, answer: findAnswer(question.label, questionAnswers) }))
+    .filter(({ question, answer }) => showOnSide(question, answer))
+    .map(({ question, answer }) => {
       return {
         label: question.label,
         subtext: question.subtext,
@@ -560,6 +574,28 @@ export function getLegacyQuestionGroups(
     })
     .filter((row) => hasData(side === "employee" ? row.employeeAnswer : row.managerFeedback, treatNAAsAbsent));
   return rows.length > 0
-    ? [{ title: "Performance Questions and Answers", type: "text", layout: isFlatDisplay ? "flat" : "perQuestion", rows }]
+    ? [{ title: sideFeedbackTitle(side), type: "text", layout: isFlatDisplay ? "flat" : "perQuestion", rows }]
     : null;
+}
+
+// A cycle with no catalog still has real per-question answers on BOTH
+// sides -- previously only the employee's were shown (flattened into the
+// Employee Comment box) and the lead's were dropped entirely. Lists every
+// recorded question as-is, in stored order. "360 Confirmation" is excluded
+// here too -- it has its own dedicated section (see
+// ParLegacyRecordDetail.tsx's threeSixtyConfirmationAnswer).
+function getUncataloguedQuestionGroups(
+  questionAnswers: ParLegacyQuestionAnswer[],
+  side: "employee" | "lead",
+): LegacyGroup[] | null {
+  const rows = questionAnswers
+    .filter((qa) => !isThreeSixtyConfirmation(qa))
+    .filter((qa) => hasData(side === "employee" ? qa.employeeAnswer : qa.managerFeedback, true))
+    .map((qa) => ({
+      label: qa.title?.trim() || "Answer",
+      subtext: "",
+      employeeAnswer: qa.employeeAnswer ?? null,
+      managerFeedback: qa.managerFeedback ?? null,
+    }));
+  return rows.length > 0 ? [{ title: sideFeedbackTitle(side), type: "text", layout: "flat", rows }] : null;
 }
