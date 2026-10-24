@@ -31,6 +31,7 @@ const state = vi.hoisted(() => ({
   isProductLead: false,
   additionalFileOperations: [] as unknown[],
   stagingResults: [] as unknown[],
+  ignoredFiles: [] as string[],
 }));
 
 vi.mock("../../api/useUmtUpdateViewData", () => ({
@@ -38,7 +39,10 @@ vi.mock("../../api/useUmtUpdateViewData", () => ({
     isSuccess: true,
     data: { additionalFileOperations: state.additionalFileOperations },
   }),
-  useUmtProductAnalysis: () => ({ isSuccess: true, data: {} }),
+  useUmtProductAnalysis: () => ({
+    isSuccess: true,
+    data: { ignoredFilePathsDuringPartialProductAnalysis: state.ignoredFiles },
+  }),
 }));
 
 vi.mock("../../api/useUmtTesting", () => ({
@@ -85,11 +89,22 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showSuccess: vi.fn(), showError: vi.fn(), showWarning: vi.fn() }),
 }));
 
+// A step that can hold unsaved edits reports them through onDirtyChange; the
+// stubs do so from a button.
+type DirtyReporter = { onDirtyChange?: (dirty: boolean) => void };
+const unsavedButton = ({ onDirtyChange }: DirtyReporter, label: string) => (
+  <button onClick={() => onDirtyChange?.(true)}>{label}</button>
+);
+
 vi.mock("./files-analysis/UmtFilesAnalysisStep", () => ({
-  default: () => <div data-testid="step-files-analysis" />,
+  default: (props: DirtyReporter) => (
+    <div data-testid="step-files-analysis">{unsavedButton(props, "Leave changes unanalysed")}</div>
+  ),
 }));
 vi.mock("./description-instruction/UmtDescriptionInstructionStep", () => ({
-  default: () => <div data-testid="step-description-instruction" />,
+  default: (props: DirtyReporter) => (
+    <div data-testid="step-description-instruction">{unsavedButton(props, "Leave rows unsaved")}</div>
+  ),
 }));
 vi.mock("./security-advisory/UmtSecurityAdvisoryStep", () => ({
   default: () => <div data-testid="step-security-advisory" />,
@@ -101,7 +116,9 @@ vi.mock("./testing/UmtTestingStep", () => ({
   default: () => <div data-testid="step-testing" />,
 }));
 vi.mock("./validate/UmtValidateStep", () => ({
-  default: () => <div data-testid="step-validate" />,
+  default: (props: DirtyReporter) => (
+    <div data-testid="step-validate">{unsavedButton(props, "Leave rows unsaved")}</div>
+  ),
 }));
 vi.mock("./file-approval/UmtFileApprovalStep", () => ({
   default: () => <div data-testid="step-file-approval" />,
@@ -171,6 +188,7 @@ beforeEach(() => {
   state.isProductLead = false;
   state.additionalFileOperations = [];
   state.stagingResults = [];
+  state.ignoredFiles = [];
 });
 
 describe("a step pointer saved under another lifecycle state", () => {
@@ -236,6 +254,84 @@ describe("a step pointer within the current state's run", () => {
     renderTab(makeUpdate({ lifecycleState: "Staging", promoteStages: ["UATStaging"] }));
 
     expect(screen.getByTestId("step-validate")).toBeInTheDocument();
+  });
+});
+
+describe("Proceed from Files Analysis, once the product analysis has run", () => {
+  const filesAnalysis = () => makeUpdate({ lifecycleState: "PRAnalyzed", promoteStages: ["ProductAnalyzed"] });
+  const IGNORED = ["repository/conf/carbon.xml", "repository/conf/deployment.toml"];
+
+  it("goes straight on when the product analysis ignored no files", async () => {
+    renderTab(filesAnalysis());
+
+    await userEvent.click(forwardButton());
+
+    await vi.waitFor(() => expect(state.transition).toHaveBeenCalledWith("ProductAnalyzed"));
+  });
+
+  it("lists the files the product analysis ignored, and asks before going on", async () => {
+    state.ignoredFiles = IGNORED;
+    renderTab(filesAnalysis());
+
+    await userEvent.click(forwardButton());
+
+    expect(await screen.findByText("Ignored Files")).toBeInTheDocument();
+    for (const file of IGNORED) expect(screen.getByText(file)).toBeInTheDocument();
+    expect(state.transition).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Acknowledge and Proceed" }));
+
+    await vi.waitFor(() => expect(state.transition).toHaveBeenCalledWith("ProductAnalyzed"));
+  });
+
+  it("does not go on when the ignored files are not acknowledged", async () => {
+    state.ignoredFiles = IGNORED;
+    renderTab(filesAnalysis());
+    await userEvent.click(forwardButton());
+    await screen.findByText("Ignored Files");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await vi.waitFor(() => expect(screen.queryByText("Ignored Files")).not.toBeInTheDocument());
+    expect(state.transition).not.toHaveBeenCalled();
+  });
+
+  it("asks about unanalysed changes first, and the ignored files second", async () => {
+    state.ignoredFiles = IGNORED;
+    renderTab(filesAnalysis());
+    await userEvent.click(screen.getByRole("button", { name: "Leave changes unanalysed" }));
+
+    await userEvent.click(forwardButton());
+    await userEvent.click(await screen.findByRole("button", { name: "Proceed Anyway" }));
+
+    expect(await screen.findByText("Ignored Files")).toBeInTheDocument();
+    expect(state.transition).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Acknowledge and Proceed" }));
+    await vi.waitFor(() => expect(state.transition).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("unsaved description rows", () => {
+  const SAVE_FIRST = "Save your description and instruction changes before proceeding.";
+
+  it("hold Description and Instruction's Next until they are saved", async () => {
+    renderTab(makeUpdate());
+    expect(forwardButton()).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Leave rows unsaved" }));
+
+    expect(forwardButton()).toBeDisabled();
+    expect(screen.getByText(SAVE_FIRST)).toBeInTheDocument();
+  });
+
+  it("hold Validate's Proceed until they are saved", async () => {
+    persistStep("validate", "Staging");
+    renderTab(makeUpdate({ lifecycleState: "Staging", promoteStages: ["UATStaging"] }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Leave rows unsaved" }));
+
+    expect(forwardButton()).toBeDisabled();
+    expect(screen.getByText(SAVE_FIRST)).toBeInTheDocument();
   });
 });
 

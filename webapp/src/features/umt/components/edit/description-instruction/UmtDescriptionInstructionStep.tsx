@@ -17,6 +17,14 @@
 import type { UmtUpdateSummary } from "../../../api/umtUpdates";
 import UmtDescriptionInstructionForm from "../UmtDescriptionInstructionForm";
 
-export default function UmtDescriptionInstructionStep({ id, update }: { id: string; update: UmtUpdateSummary }) {
-  return <UmtDescriptionInstructionForm id={id} update={update} />;
+export default function UmtDescriptionInstructionStep({
+  id,
+  update,
+  onDirtyChange,
+}: {
+  id: string;
+  update: UmtUpdateSummary;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
+  return <UmtDescriptionInstructionForm id={id} update={update} onDirtyChange={onDirtyChange} />;
 }

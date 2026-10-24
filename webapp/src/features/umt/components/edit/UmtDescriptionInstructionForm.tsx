@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Autocomplete,
   Box,
@@ -84,7 +84,16 @@ function toRow(product: ProductWithId): DescriptionInstructionRow {
 // behavior-change data and the exact same two backend calls
 // (PUT /products/details, PUT /update/{id}), so both step wrappers mount
 // this one component instead of duplicating it.
-export default function UmtDescriptionInstructionForm({ id, update }: { id: string; update: UmtUpdateSummary }) {
+export default function UmtDescriptionInstructionForm({
+  id,
+  update,
+  onDirtyChange,
+}: {
+  id: string;
+  update: UmtUpdateSummary;
+  // Reports unsaved changes, so the wizard can hold Next until they're saved.
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const { showSuccess, showError } = useNotifications();
   const saveMutation = useUmtSaveDescriptionInstruction(id);
   const products = useMemo(
@@ -226,6 +235,19 @@ export default function UmtDescriptionInstructionForm({ id, update }: { id: stri
     !isImplementationDetailsChecked ||
     !isImpactChecked ||
     (isBehaviorChanged === "Yes" && !isBehaviorChangeApproved);
+
+  // What would be lost by leaving the step: rows added or removed, a hotfix's
+  // description or instruction that differs from the saved one, or a
+  // behaviour-change answer that differs from the saved one.
+  const isHotfixDirty =
+    Boolean(update.isHotfix) &&
+    (hotfixDescription !== (firstProduct?.description ?? "") || hotfixInstruction !== (firstProduct?.instruction ?? ""));
+  const isBehaviorDirty = !update.isHotfix && (isBehaviorChanged === "Yes") !== backendBehaviorChanged;
+  const isDirty = isRowsDirty || isHotfixDirty || isBehaviorDirty;
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   async function handleSave() {
     const productsPayload: UmtProductDetailsRequest[] = rows.map((row) => ({

@@ -48,6 +48,7 @@ import { useUmtLifecycleHistory } from "../../api/useUmtLifecycleHistory";
 import UmtEditStepActions from "./UmtEditStepActions";
 import UmtEditStepPlaceholder from "./UmtEditStepPlaceholder";
 import UmtEditStepper from "./UmtEditStepper";
+import UmtIgnoredFilesDialog from "./UmtIgnoredFilesDialog";
 import UmtUnanalyzedChangesDialog from "./UmtUnanalyzedChangesDialog";
 import UmtDescriptionInstructionStep from "./description-instruction/UmtDescriptionInstructionStep";
 import UmtFileApprovalStep from "./file-approval/UmtFileApprovalStep";
@@ -142,6 +143,8 @@ export default function UmtUpdateEditTab({
   const [securityAdvisoryDirty, setSecurityAdvisoryDirty] = useState(false);
   const [isFilesAnalysisDirty, setIsFilesAnalysisDirty] = useState(false);
   const [isUnanalyzedConfirmOpen, setIsUnanalyzedConfirmOpen] = useState(false);
+  const [isIgnoredFilesConfirmOpen, setIsIgnoredFilesConfirmOpen] = useState(false);
+  const [descriptionDirty, setDescriptionDirty] = useState(false);
   const [isHotfixReasonOpen, setIsHotfixReasonOpen] = useState(false);
 
   const isFileApproval = currentStep.id === "file-approval";
@@ -178,12 +181,21 @@ export default function UmtUpdateEditTab({
   // until the product-analysis results this step promises have actually
   // loaded.
   const productAnalysisReady = !isProductAnalysis || productAnalysis.isSuccess;
+  // The files the product analysis left out when it searched for partially
+  // applicable products. They are listed again before Files Analysis is left.
+  const ignoredFilePaths = productAnalysis.data?.ignoredFilePathsDuringPartialProductAnalysis ?? [];
   // Proceed is disabled until every product already has a non-blank
   // description and instruction — here and on each later step that moves the
   // update out of its state (see umtStepRequiresDescriptions).
   const descriptionInstructionReady =
     !umtStepRequiresDescriptions(currentStep.id, update.lifecycleState) ||
     isDescriptionInstructionComplete(update.products);
+  // The step that edits descriptions (Description and Instruction, and
+  // Validate, which hosts the same form) holds Proceed until its unsaved
+  // changes are saved: leaving would discard them, and the check above only
+  // reads what was saved.
+  const descriptionsSaved =
+    !(currentStep.id === "description-instruction" || currentStep.id === "validate") || !descriptionDirty;
   // Proceed is disabled here until every product already has a Test PR or
   // an ignore reason (or, for a containerized update, a non-blank Helm
   // Chart Tag). Checks only persisted state, not a sibling component's
@@ -224,6 +236,7 @@ export default function UmtUpdateEditTab({
   const verifyingReady = !isVerifying || lifecycleState === "Released";
   const stepReady =
     productAnalysisReady &&
+    descriptionsSaved &&
     descriptionInstructionReady &&
     securityAdvisoryReady &&
     integrationTestsReady &&
@@ -265,13 +278,23 @@ export default function UmtUpdateEditTab({
     }
   };
 
-  const handleProceed = async (confirmedUnanalyzed = false) => {
+  // Leaving Files Analysis is confirmed twice at most: for changes the last
+  // analysis doesn't cover, then for the files the product analysis ignored.
+  // Each question is asked only once the earlier one has been answered, and
+  // `confirmed` carries the answers already given.
+  const handleProceed = async (confirmed: { unanalyzed?: boolean; ignoredFiles?: boolean } = {}) => {
     if (isLocked || !currentStep.proceedWired || !roleAllowed || !stepReady) return;
-    if (isProductAnalysis && isFilesAnalysisDirty && !confirmedUnanalyzed) {
+    if (isProductAnalysis && isFilesAnalysisDirty && !confirmed.unanalyzed) {
       setIsUnanalyzedConfirmOpen(true);
       return;
     }
+    if (isProductAnalysis && ignoredFilePaths.length > 0 && !confirmed.ignoredFiles) {
+      setIsUnanalyzedConfirmOpen(false);
+      setIsIgnoredFilesConfirmOpen(true);
+      return;
+    }
     setIsUnanalyzedConfirmOpen(false);
+    setIsIgnoredFilesConfirmOpen(false);
     if (isHotfixRelease) {
       // A release without passing tests needs a reason; the dialog asks.
       if (hotfixTestsPassed) void handleReleaseHotfix(null);
@@ -325,7 +348,7 @@ export default function UmtUpdateEditTab({
         ) : isFilesAnalysis ? (
           <UmtFilesAnalysisStep id={id} update={update} onDirtyChange={setIsFilesAnalysisDirty} />
         ) : currentStep.id === "description-instruction" ? (
-          <UmtDescriptionInstructionStep id={id} update={update} />
+          <UmtDescriptionInstructionStep id={id} update={update} onDirtyChange={setDescriptionDirty} />
         ) : currentStep.id === "security-advisory" ? (
           <UmtSecurityAdvisoryStep id={id} update={update} onDirtyChange={setSecurityAdvisoryDirty} />
         ) : currentStep.id === "integration-tests" ? (
@@ -333,7 +356,7 @@ export default function UmtUpdateEditTab({
         ) : currentStep.id === "testing" ? (
           update.isHotfix ? <UmtHotfixReleaseStep id={id} update={update} /> : <UmtTestingStep id={id} update={update} />
         ) : currentStep.id === "validate" ? (
-          <UmtValidateStep id={id} update={update} />
+          <UmtValidateStep id={id} update={update} onDirtyChange={setDescriptionDirty} />
         ) : currentStep.id === "file-approval" ? (
           <UmtFileApprovalStep id={id} update={update} />
         ) : currentStep.id === "verifying" ? (
@@ -376,6 +399,8 @@ export default function UmtUpdateEditTab({
                 ? "Only UMT Admins or Product Leads can approve this step."
                 : !productAnalysisReady
                   ? "Waiting for product analysis results."
+                  : !descriptionsSaved
+                    ? "Save your description and instruction changes before proceeding."
                   : !descriptionInstructionReady
                     ? "Every product needs a description and instruction before proceeding."
                     : !securityAdvisoryReady
@@ -428,7 +453,13 @@ export default function UmtUpdateEditTab({
         open={isUnanalyzedConfirmOpen}
         message="Pull requests, manual files, products or files were changed here but haven't been analysed yet."
         onCancel={() => setIsUnanalyzedConfirmOpen(false)}
-        onConfirm={() => void handleProceed(true)}
+        onConfirm={() => void handleProceed({ unanalyzed: true })}
+      />
+      <UmtIgnoredFilesDialog
+        open={isIgnoredFilesConfirmOpen}
+        files={ignoredFilePaths}
+        onCancel={() => setIsIgnoredFilesConfirmOpen(false)}
+        onConfirm={() => void handleProceed({ unanalyzed: true, ignoredFiles: true })}
       />
       {isVerifying && (
         <UmtCompleteUpdateDialog

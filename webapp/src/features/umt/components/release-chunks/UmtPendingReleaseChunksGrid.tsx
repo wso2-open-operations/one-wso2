@@ -66,6 +66,7 @@ import {
   umtReleaseChunkRowAction,
   umtReleaseReadiness,
   type UmtReleaseChunkRowAction,
+  type UmtReleaseReadiness,
 } from "../../lib/umtReleaseChunks";
 import UmtReleaseChunkBuildInfoDialog from "./UmtReleaseChunkBuildInfoDialog";
 import UmtReleaseChunkConfirmDialog from "./UmtReleaseChunkConfirmDialog";
@@ -127,6 +128,19 @@ const ACTION_COPY: Record<
     confirmLabel: "Proceed and Release",
   },
 };
+
+// True when a release check passed. When it did not, the user is told why: a
+// level that has not built successfully, or a build status that could not be
+// read, which is not consent to release.
+function releaseReadinessAnswered(readiness: UmtReleaseReadiness, showWarning: (message: string) => void): boolean {
+  if (readiness === "ready") return true;
+  showWarning(
+    readiness === "blocked"
+      ? "Cannot release the release chunk with integration test failures, please escalate to the relevant product teams to get them successful."
+      : "Build status for this release chunk is unavailable, so it cannot be released yet. Refresh the table and try again.",
+  );
+  return false;
+}
 
 // One update level's TG build status, which comes from a different request
 // than the update level itself. The two are matched on the product and
@@ -204,6 +218,7 @@ export default function UmtPendingReleaseChunksGrid() {
 
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
   const [buildInfoChunkId, setBuildInfoChunkId] = useState<number | null>(null);
+  const [isCheckingRelease, setIsCheckingRelease] = useState(false);
 
   const targetChunkId = actionTarget?.chunkId ?? 0;
   const emailMutation = useUmtSendReleaseChunkEmail(targetChunkId);
@@ -213,6 +228,7 @@ export default function UmtPendingReleaseChunksGrid() {
   const releaseMutation = useUmtReleaseChunk(targetChunkId);
 
   const confirmBusy =
+    isCheckingRelease ||
     emailMutation.isPending ||
     triggerBuildsMutation.isPending ||
     cstMutation.isPending ||
@@ -237,23 +253,22 @@ export default function UmtPendingReleaseChunksGrid() {
       const request = ++latestActionRequest.current;
       const buildStatus = await fetchFreshBuildStatus(chunkId);
       if (request !== latestActionRequest.current) return;
-      switch (umtReleaseReadiness(buildStatus)) {
-        case "ready":
-          requestAction("release", chunkId);
-          return;
-        case "blocked":
-          showWarning(
-            "Cannot release the release chunk with integration test failures, please escalate to the relevant product teams to get them successful.",
-          );
-          return;
-        default:
-          showWarning(
-            "Build status for this release chunk is unavailable, so it cannot be released yet. Refresh the table and try again.",
-          );
-      }
+      if (releaseReadinessAnswered(umtReleaseReadiness(buildStatus), showWarning)) requestAction("release", chunkId);
     },
     [fetchFreshBuildStatus, requestAction, showWarning],
   );
+
+  // The release dialog can stay open a while after the check that opened it,
+  // so confirming it checks again. Resolves to whether the release may go on;
+  // when it may not, the user has been told why.
+  async function releaseStillAllowed(chunkId: number): Promise<boolean> {
+    setIsCheckingRelease(true);
+    try {
+      return releaseReadinessAnswered(umtReleaseReadiness(await fetchFreshBuildStatus(chunkId)), showWarning);
+    } finally {
+      setIsCheckingRelease(false);
+    }
+  }
 
   async function handleConfirm() {
     if (!actionTarget) return;
@@ -287,6 +302,10 @@ export default function UmtPendingReleaseChunksGrid() {
           break;
         }
         case "release":
+          if (!(await releaseStillAllowed(actionTarget.chunkId))) {
+            setActionTarget(null);
+            return;
+          }
           // The service only accepts the request here; the release itself
           // runs afterwards and can still fail, which the chunk's row shows.
           await releaseMutation.mutateAsync();

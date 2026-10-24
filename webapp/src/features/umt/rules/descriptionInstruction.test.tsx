@@ -65,11 +65,11 @@ function makeUpdate(overrides: Partial<UmtUpdateSummary> = {}): UmtUpdateSummary
   return { id: 42, lifecycleState: "ProductAnalyzed", products: [DESCRIBED], ...overrides };
 }
 
-function renderForm(update: UmtUpdateSummary) {
+function renderForm(update: UmtUpdateSummary, onDirtyChange?: (dirty: boolean) => void) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <UmtDescriptionInstructionForm id="42" update={update} />
+      <UmtDescriptionInstructionForm id="42" update={update} onDirtyChange={onDirtyChange} />
     </QueryClientProvider>,
   );
 }
@@ -200,6 +200,62 @@ describe("Description and Instruction save", () => {
       expect.objectContaining({ productId: 1 }),
       expect.objectContaining({ productId: 2, description: "Fixes SSO login.", instruction: "Restart the server." }),
     ]);
+  });
+});
+
+// What the step reports to the wizard, which holds Next while anything is
+// unsaved: leaving would discard it.
+describe("unsaved changes", () => {
+  const lastReport = (onDirtyChange: ReturnType<typeof vi.fn>) => onDirtyChange.mock.calls.at(-1)?.[0];
+
+  it("are not reported while nothing has been edited", () => {
+    const onDirtyChange = vi.fn();
+    renderForm(makeUpdate(), onDirtyChange);
+
+    expect(lastReport(onDirtyChange)).toBe(false);
+  });
+
+  it("are reported once a row is deleted", async () => {
+    const onDirtyChange = vi.fn();
+    renderForm(makeUpdate({ products: [DESCRIBED, { ...UNDESCRIBED, description: "Fixes login.", instruction: "None." }] }), onDirtyChange);
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Delete row" })[0]);
+
+    expect(lastReport(onDirtyChange)).toBe(true);
+  });
+
+  it("are reported when the behaviour change differs from the saved one, and stop when it matches again", async () => {
+    const onDirtyChange = vi.fn();
+    renderForm(makeUpdate(), onDirtyChange);
+
+    await userEvent.click(screen.getByRole("radio", { name: "Yes" }));
+    expect(lastReport(onDirtyChange)).toBe(true);
+
+    await userEvent.click(screen.getByRole("radio", { name: "No" }));
+    expect(lastReport(onDirtyChange)).toBe(false);
+  });
+
+  it("are reported when a hotfix's description or instruction differs from the saved one", () => {
+    const onDirtyChange = vi.fn();
+    renderForm(makeUpdate({ isHotfix: true }), onDirtyChange);
+    expect(lastReport(onDirtyChange)).toBe(false);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /Hotfix Description/ }), { target: { value: "Fixes it." } });
+    expect(lastReport(onDirtyChange)).toBe(true);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /Hotfix Description/ }), {
+      target: { value: DESCRIBED.description },
+    });
+    expect(lastReport(onDirtyChange)).toBe(false);
+  });
+
+  it("are no longer reported once the step is left", () => {
+    const onDirtyChange = vi.fn();
+    const { unmount } = renderForm(makeUpdate(), onDirtyChange);
+
+    unmount();
+
+    expect(lastReport(onDirtyChange)).toBe(false);
   });
 });
 
