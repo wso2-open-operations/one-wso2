@@ -49,6 +49,9 @@ export function computeUmtDemoteActions(
       return isAdmin ? [{ label: "Demote to Staging", targetLifecycleState: "Staging" }] : [];
     case "testing":
     case "validate":
+      // While staging or a test environment is being requested the update is
+      // on its way and there is nothing to demote yet.
+      if (lifecycleState === "StagingRequested" || lifecycleState === "TestingEnvironmentRequested") return [];
       // From Staging, the demotion is requested through DemoteStagingRequested,
       // which tears staging down before the update lands in Development; it
       // can't go straight to Development.

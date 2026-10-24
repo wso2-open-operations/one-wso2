@@ -304,3 +304,26 @@ describe("a step with no usable next lifecycle state", () => {
     expect(screen.getByText(/didn't provide a usable next lifecycle state/)).toBeInTheDocument();
   });
 });
+
+describe("the Testing step's demote while it waits", () => {
+  const demoteButton = () => screen.queryByRole("button", { name: "Demote to Development" });
+
+  it("offers none while staging is being requested", () => {
+    renderTab(makeUpdate({ lifecycleState: "StagingRequested", promoteStages: [] }));
+
+    expect(screen.getByTestId("step-testing")).toBeInTheDocument();
+    expect(demoteButton()).not.toBeInTheDocument();
+  });
+
+  it("offers none to a hotfix while its test environment is being requested", () => {
+    renderTab(makeUpdate({ lifecycleState: "TestingEnvironmentRequested", isHotfix: true, promoteStages: [] }));
+
+    expect(demoteButton()).not.toBeInTheDocument();
+  });
+
+  it("is there once the update is at Staging", () => {
+    renderTab(makeUpdate({ lifecycleState: "Staging", promoteStages: ["UATStaging"] }));
+
+    expect(demoteButton()).toBeInTheDocument();
+  });
+});

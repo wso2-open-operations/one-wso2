@@ -25,6 +25,16 @@ describe("PR URL", () => {
     expect(GITHUB_PR_REGEX.test("https://github.com/wso2/carbon-kernel/issues/12")).toBe(false);
     expect(GITHUB_PR_REGEX.test("https://gitlab.com/wso2/carbon-kernel/pull/12")).toBe(false);
   });
+
+  it("rejects a pull request URL with an empty owner or repo", () => {
+    for (const url of [
+      "https://github.com///pull/1",
+      "https://github.com//carbon-kernel/pull/1",
+      "https://github.com/wso2//pull/1",
+    ]) {
+      expect(GITHUB_PR_REGEX.test(url)).toBe(false);
+    }
+  });
 });
 
 describe("Analyze button", () => {
@@ -40,6 +50,46 @@ describe("Analyze button", () => {
         }),
       ).toBe(true);
     }
+  });
+
+  // A failed analysis can be run again as it is: keeping Analyze disabled until
+  // some input changes would leave a transient failure stuck.
+  it("is enabled after a failed analysis, without any new input", () => {
+    for (const status of ["FAILED_PR_MERGE_CONFLICT", "FAILED", "failure"]) {
+      expect(
+        isPrAnalyzeDisabled({
+          status,
+          hasNewInputsSinceLastAnalysis: false,
+          updateType: "generalUpdate",
+          pullRequestCount: 1,
+          manualFileCount: 0,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it("still needs something to analyze after a failed analysis", () => {
+    expect(
+      isPrAnalyzeDisabled({
+        status: "FAILED_PR_MERGE_CONFLICT",
+        hasNewInputsSinceLastAnalysis: false,
+        updateType: "generalUpdate",
+        pullRequestCount: 0,
+        manualFileCount: 0,
+      }),
+    ).toBe(true);
+  });
+
+  it("stays disabled with no new input after a completed analysis", () => {
+    expect(
+      isPrAnalyzeDisabled({
+        status: "COMPLETED",
+        hasNewInputsSinceLastAnalysis: false,
+        updateType: "generalUpdate",
+        pullRequestCount: 1,
+        manualFileCount: 0,
+      }),
+    ).toBe(true);
   });
 });
 

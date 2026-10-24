@@ -23,7 +23,9 @@ import type { UmtFileOperation } from "../api/umtUpdates";
 // This is the only client-side gate before the link is sent for analysis, and
 // the backend only checks that it parses as a URL, so a malformed link would
 // otherwise fail deep inside the analyser as an opaque praStatus.
-export const GITHUB_PR_REGEX = /^https:\/\/github\.com\/([^/]*\/){2}pull\/[0-9]+\/?$/;
+// Owner and repo must each be non-empty: `[^/]+`, so `github.com///pull/1` is
+// not a PR link either.
+export const GITHUB_PR_REGEX = /^https:\/\/github\.com\/([^/]+\/){2}pull\/[0-9]+\/?$/;
 export const PREFERRED_VERSION_REGEX = /(^$)|(^\d+\.\d+\.(\d+|\d+-wso2v\d+)(\.\d+|\.\d+-.*-hotfix-\d+)$)/;
 
 export function umtSvnLocationRegex(updateId: string): RegExp {
@@ -223,7 +225,9 @@ export function isPrAnalyzeDisabled(params: {
   const { status, hasNewInputsSinceLastAnalysis, updateType, pullRequestCount, manualFileCount } = params;
 
   if (status === UMT_PR_ANALYSIS_STATUS.QUEUED || status === UMT_PR_ANALYSIS_STATUS.PROCESSING) return true;
-  if (!hasNewInputsSinceLastAnalysis) return true;
+  // A failed analysis can be run again as it is, whatever has changed since:
+  // waiting for an input to change would leave a transient failure stuck.
+  if (!hasNewInputsSinceLastAnalysis && !isUmtPrAnalysisFailed(status)) return true;
   if (updateType !== "instructionsOnlyUpdate" && pullRequestCount === 0 && manualFileCount === 0) return true;
   return false;
 }
