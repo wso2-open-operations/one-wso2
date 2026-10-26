@@ -58,7 +58,18 @@ const PRINT_STYLES = (
           color: "#000",
         },
         "#expense-claim-printout .printout-item": { breakInside: "avoid" },
-        "#expense-claim-printout .printout-receipt": { breakBefore: "page" },
+        "#expense-claim-printout .printout-receipt": {
+          breakBefore: "page",
+          // Keeps a receipt's heading on the same sheet as the bill it names.
+          breakInside: "avoid",
+        },
+        // A scanned bill is often far taller than it is wide, and width alone
+        // does not stop it running past the foot of the sheet. Bound the height
+        // to the page less its heading, and letterbox rather than crop.
+        "#expense-claim-printout .printout-receipt img": {
+          maxHeight: "24cm",
+          objectFit: "contain",
+        },
       },
     }}
   />

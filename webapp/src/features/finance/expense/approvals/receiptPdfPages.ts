@@ -49,12 +49,17 @@ function loadPdfjs() {
  * @param scale - Render scale. 1.5 keeps text on a scanned bill readable
  *   without making the page heavy enough to stall the print dialog.
  * @returns One PNG data URL per page, or an empty array if the file could not
- *   be read — the caller says so on the page rather than dropping it.
+ *   be read — the caller says so on the page rather than dropping it. Never a
+ *   partial document: half a bill read as a whole one would be worse than
+ *   saying the receipt could not be read at all.
  */
 export async function pdfPagesToImages(url: string, scale = 1.5): Promise<string[]> {
+  let loadingTask: { destroy: () => Promise<void> } | null = null;
   try {
     const pdfjs = await loadPdfjs();
-    const pdf = await pdfjs.getDocument({ url }).promise;
+    const task = pdfjs.getDocument({ url });
+    loadingTask = task;
+    const pdf = await task.promise;
     const pages: string[] = [];
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
@@ -62,7 +67,9 @@ export async function pdfPagesToImages(url: string, scale = 1.5): Promise<string
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
-      if (!context) break;
+      // Giving back the pages read so far would present a truncated bill as a
+      // complete one, with nothing to say the rest is missing.
+      if (!context) return [];
 
       canvas.width = viewport.width;
       canvas.height = viewport.height;
@@ -73,5 +80,12 @@ export async function pdfPagesToImages(url: string, scale = 1.5): Promise<string
     return pages;
   } catch {
     return [];
+  } finally {
+    // Releases the document and the worker behind it. The pages are already
+    // data URLs by now, so nothing here is still needed — and a claim with
+    // several PDF bills would otherwise hold a worker open for each one.
+    // A failure to tear down must not throw away a bill that did render, so
+    // this swallows it: the worst case is a worker that outlives the print.
+    await loadingTask?.destroy().catch(() => undefined);
   }
 }
