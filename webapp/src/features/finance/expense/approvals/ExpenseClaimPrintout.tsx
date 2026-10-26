@@ -19,7 +19,7 @@
 import { createPortal } from "react-dom";
 import { Box, GlobalStyles } from "@wso2/oxygen-ui";
 import { money } from "../../util/financeFormat";
-import type { ReceiptSource } from "../../util/financeReceipts";
+import type { ReceiptPages } from "./useClaimReceipts";
 import { approvalDateTime } from "./expenseApprovalFormat";
 import type { ApprovalClaim } from "./expenseApprovalTypes";
 
@@ -70,7 +70,7 @@ export function ExpenseClaimPrintout({
 }: {
   claim: ApprovalClaim;
   /** One entry per line item, `null` where the receipt could not be fetched. */
-  receipts: (ReceiptSource | null)[] | null;
+  receipts: (ReceiptPages | null)[] | null;
 }) {
   const currency = claim.currencyCode ?? "LKR";
   // Portalled to `document.body`, and it has to be: the stylesheet hides every
@@ -119,35 +119,40 @@ export function ExpenseClaimPrintout({
           </Box>
         ))}
 
-        {/* One receipt per page. Every line that carries a receipt gets a
-            page, including the ones whose file cannot be drawn into one, so a
-            reader checking bills against claim items is never left guessing
-            whether a receipt is missing or was never attached. */}
-        {(receipts ?? []).map((src, i) => {
+        {/* One printed page per page of a receipt: an image receipt is one,
+            a PDF is one per page of the document. Every line that carries a
+            receipt gets at least one page, including the ones that could not
+            be rendered, so a reader checking bills against claim items is
+            never left guessing whether a receipt is missing or was never
+            attached. */}
+        {(receipts ?? []).map((receipt, i) => {
           // Nothing was attached to this line, so there is no bill to account
           // for and no page to print.
           if (!claim.transactions[i]?.receiptUrl) return null;
 
           const heading = `Claim Item ${i + 1} Receipt`;
 
-          if (src && src.type.startsWith("image/")) {
-            return (
-              <Box key={i} className="printout-receipt" sx={{ pt: 2 }}>
-                <Box sx={{ textAlign: "center", fontSize: 15, pb: 1 }}>{heading}</Box>
+          if (receipt && receipt.pages.length > 0) {
+            return receipt.pages.map((page, pageIndex) => (
+              <Box key={`${i}-${pageIndex}`} className="printout-receipt" sx={{ pt: 2 }}>
+                <Box sx={{ textAlign: "center", fontSize: 15, pb: 1 }}>
+                  {receipt.pages.length > 1
+                    ? `${heading} (page ${pageIndex + 1} of ${receipt.pages.length})`
+                    : heading}
+                </Box>
                 <Box
                   component="img"
-                  src={src.url}
+                  src={page}
                   alt={`Receipt for claim item ${i + 1}`}
                   sx={{ display: "block", maxWidth: "100%", mx: "auto" }}
                 />
               </Box>
-            );
+            ));
           }
 
-          // A PDF cannot be drawn into a printed page: a browser shows one only
-          // in its own viewer, and an iframe of one prints blank. Name the bill
-          // and say where to read it, rather than dropping the page and leaving
-          // the printout looking complete.
+          // Either the receipt never arrived, or it arrived in a form that
+          // could not be rendered. Say which, on its own page, rather than
+          // dropping it and leaving the report looking complete.
           return (
             <Box key={i} className="printout-receipt" sx={{ pt: 2 }}>
               <Box sx={{ textAlign: "center", fontSize: 15, pb: 1 }}>{heading}</Box>
@@ -159,8 +164,8 @@ export function ExpenseClaimPrintout({
                   lineHeight: 1.6,
                 }}
               >
-                {src
-                  ? "This receipt is a PDF and cannot be printed with the claim. Open the claim in One WSO2 to view it."
+                {receipt
+                  ? "This receipt could not be read. Open the claim in One WSO2 to view it."
                   : "This receipt could not be loaded."}
               </Box>
             </Box>

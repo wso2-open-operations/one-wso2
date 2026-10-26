@@ -19,8 +19,20 @@
 import { useEffect, useState } from "react";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { expenseServiceUrls } from "@config/apiConfig";
-import { fetchReceiptObjectUrl, type ReceiptSource } from "../../util/financeReceipts";
+import { fetchReceiptObjectUrl } from "../../util/financeReceipts";
+import { pdfPagesToImages } from "./receiptPdfPages";
 import type { ExpenseTransaction } from "../expenseTypes";
+
+/**
+ * A receipt as the printed report needs it: one image URL per printed page.
+ * An image receipt is a single page; a PDF is one per page of the document.
+ * `pages` is empty when the file arrived but could not be rendered, which the
+ * report says on the page rather than leaving a gap.
+ */
+export interface ReceiptPages {
+  pages: string[];
+  type: string;
+}
 
 /**
  * Every receipt on a claim, fetched once so the printed report can embed them.
@@ -39,7 +51,7 @@ import type { ExpenseTransaction } from "../expenseTypes";
  */
 export function useClaimReceipts(transactions: ExpenseTransaction[], enabled: boolean) {
   const getAccessToken = useAccessToken();
-  const [sources, setSources] = useState<(ReceiptSource | null)[] | null>(null);
+  const [sources, setSources] = useState<(ReceiptPages | null)[] | null>(null);
 
   // Keyed on the file names so a different claim refetches, and a re-render
   // with the same claim does not.
@@ -65,7 +77,12 @@ export function useClaimReceipts(transactions: ExpenseTransaction[], enabled: bo
               accessToken,
             );
             created.push(src.url);
-            return src;
+            // A PDF becomes one picture per page here rather than in the
+            // report, so the print button stays disabled until every bill is
+            // ready to draw — the same guarantee it already gave for images.
+            const pages =
+              src.type === "application/pdf" ? await pdfPagesToImages(src.url) : [src.url];
+            return { pages, type: src.type };
           } catch {
             return null;
           }
