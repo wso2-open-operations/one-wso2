@@ -119,22 +119,53 @@ export function ExpenseClaimPrintout({
           </Box>
         ))}
 
-        {/* One receipt per page, as the source's report lays them out. A line
-            whose receipt failed to load simply has no page — the numbering
-            gap is the source's behaviour too. */}
-        {(receipts ?? []).map((src, i) =>
-          src && src.type.startsWith("image/") ? (
+        {/* One receipt per page. Every line that carries a receipt gets a
+            page, including the ones whose file cannot be drawn into one, so a
+            reader checking bills against claim items is never left guessing
+            whether a receipt is missing or was never attached. */}
+        {(receipts ?? []).map((src, i) => {
+          // Nothing was attached to this line, so there is no bill to account
+          // for and no page to print.
+          if (!claim.transactions[i]?.receiptUrl) return null;
+
+          const heading = `Claim Item ${i + 1} Receipt`;
+
+          if (src && src.type.startsWith("image/")) {
+            return (
+              <Box key={i} className="printout-receipt" sx={{ pt: 2 }}>
+                <Box sx={{ textAlign: "center", fontSize: 15, pb: 1 }}>{heading}</Box>
+                <Box
+                  component="img"
+                  src={src.url}
+                  alt={`Receipt for claim item ${i + 1}`}
+                  sx={{ display: "block", maxWidth: "100%", mx: "auto" }}
+                />
+              </Box>
+            );
+          }
+
+          // A PDF cannot be drawn into a printed page: a browser shows one only
+          // in its own viewer, and an iframe of one prints blank. Name the bill
+          // and say where to read it, rather than dropping the page and leaving
+          // the printout looking complete.
+          return (
             <Box key={i} className="printout-receipt" sx={{ pt: 2 }}>
-              <Box sx={{ textAlign: "center", fontSize: 15, pb: 1 }}>Claim Item {i + 1} Receipt</Box>
+              <Box sx={{ textAlign: "center", fontSize: 15, pb: 1 }}>{heading}</Box>
               <Box
-                component="img"
-                src={src.url}
-                alt={`Receipt for claim item ${i + 1}`}
-                sx={{ display: "block", maxWidth: "100%", mx: "auto" }}
-              />
+                sx={{
+                  border: "1px solid #999",
+                  p: 2,
+                  textAlign: "center",
+                  lineHeight: 1.6,
+                }}
+              >
+                {src
+                  ? "This receipt is a PDF and cannot be printed with the claim. Open the claim in One WSO2 to view it."
+                  : "This receipt could not be loaded."}
+              </Box>
             </Box>
-          ) : null,
-        )}
+          );
+        })}
         </Box>,
         document.body,
       )}
