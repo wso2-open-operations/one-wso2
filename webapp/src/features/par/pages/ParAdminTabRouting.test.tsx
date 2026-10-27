@@ -125,6 +125,27 @@ describe("a PAR admin", () => {
   });
 });
 
+describe("the Leadership 360° tab", () => {
+  beforeEach(() => isAdmin(true));
+
+  it("is hidden while its preview flag is off", async () => {
+    show();
+    expect(await screen.findByRole("tab", { name: "Ongoing" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Leadership 360°" })).not.toBeInTheDocument();
+  });
+
+  it("shows once the preview flag is on", async () => {
+    const saved = window.config;
+    window.config = { ...(saved ?? {}), ONE_WSO2_PREVIEW_FEATURES: { leadership360: true } } as Window["config"];
+    try {
+      show();
+      expect(await screen.findByRole("tab", { name: "Leadership 360°" })).toBeInTheDocument();
+    } finally {
+      window.config = saved;
+    }
+  });
+});
+
 describe("someone who isn't a PAR admin", () => {
   beforeEach(() => isAdmin(false));
 

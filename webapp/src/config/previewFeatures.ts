@@ -86,7 +86,14 @@ export type PreviewFeature =
    * With the flag on and `ONE_WSO2_SMART_SEARCH_BACKEND_URL` unset, the page
    * says "not connected" and makes no requests.
    */
-  | "smartSearch";
+  | "smartSearch"
+  /**
+   * Me → Performance → Leadership 360° (giving feedback on members of the
+   * leadership group) and the matching tab in the PAR Admin View (running the
+   * surveys and reading results). Held back until the PAR backend's
+   * `/leadership-360` endpoints are deployed.
+   */
+  | "leadership360";
 
 /**
  * Whether a preview feature should be shown.

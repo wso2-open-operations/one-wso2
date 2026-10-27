@@ -35,10 +35,16 @@ const directReports: { isSuccess: boolean; isLoading: boolean; isError: boolean;
   isError: false,
 };
 
+// Leadership 360°: the surveys list and the leaders reporting to the lead
+// (GET /results?view=REPORTS), which decide whether its tab shows.
+const leadership360: { surveys?: unknown[]; reports?: unknown[] } = {};
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
     if (queryKey[0] === "par-employee-info") return employeeInfo;
     if (queryKey[0] === "par-lead-employees") return directReports;
+    if (queryKey[0] === "leadership360-surveys") return { data: leadership360.surveys };
+    if (queryKey[0] === "leadership360-results" && queryKey[2] === "REPORTS") return { data: leadership360.reports };
     return { data: undefined };
   },
 }));
@@ -75,6 +81,8 @@ beforeEach(() => {
   directReports.isError = false;
   directReports.data = undefined;
   profile.isLoading = false;
+  leadership360.surveys = undefined;
+  leadership360.reports = undefined;
 });
 
 function isTeamLead(value: boolean) {
@@ -105,6 +113,7 @@ function show(initial = "/people-ops/performance/lead") {
           <Route index element={<ParLeadGroupIndex />} />
           <Route path="direct-reports" element={<Tab name="Direct Reports" />} />
           <Route path="employee-history" element={<Tab name="Employee History" />} />
+          <Route path="leadership-360" element={<Tab name="Leadership 360" />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -197,4 +206,64 @@ describe("before the lookup has answered", () => {
     expect(await screen.findByTestId("url")).toHaveTextContent("/people-ops/performance/lead");
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
+});
+
+describe("the Leadership 360° tab", () => {
+  const closedSurvey = { surveyId: 1, surveyName: "Leadership 360", status: "CLOSED" };
+  const leader = { leader: { workEmail: "leader@wso2.com", employeeName: "Lee" }, available: true };
+
+  function withFlag(run: () => Promise<void>) {
+    return async () => {
+      const saved = window.config;
+      window.config = { ...(saved ?? {}), ONE_WSO2_PREVIEW_FEATURES: { leadership360: true } } as Window["config"];
+      try {
+        await run();
+      } finally {
+        window.config = saved;
+      }
+    };
+  }
+
+  beforeEach(() => {
+    isTeamLead(true);
+    leadership360.surveys = [closedSurvey];
+  });
+
+  it("is hidden while its preview flag is off, even for a lead of a leader", async () => {
+    leadership360.reports = [leader];
+    show();
+    expect(await screen.findByRole("tab", { name: "Direct Reports" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Leadership 360°" })).not.toBeInTheDocument();
+  });
+
+  it(
+    "shows for a lead with a member of the leadership group among their reports",
+    withFlag(async () => {
+      leadership360.reports = [leader];
+      show();
+      expect(await screen.findByRole("tab", { name: "Leadership 360°" })).toBeInTheDocument();
+    }),
+  );
+
+  it(
+    "stays hidden for a lead with no leader among their reports",
+    withFlag(async () => {
+      leadership360.reports = [];
+      show();
+      expect(await screen.findByRole("tab", { name: "Direct Reports" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "Leadership 360°" })).not.toBeInTheDocument();
+    }),
+  );
+
+  it(
+    "opens without an active cycle, since surveys run on their own dates",
+    withFlag(async () => {
+      isTeamLead(false);
+      hasDirectReports(true);
+      leadership360.reports = [leader];
+      show("/people-ops/performance/lead/leadership-360");
+      expect(await screen.findByTestId("tab-body")).toHaveTextContent("Leadership 360");
+      expect(screen.getByTestId("url")).toHaveTextContent("/people-ops/performance/lead/leadership-360");
+    }),
+  );
 });

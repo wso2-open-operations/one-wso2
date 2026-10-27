@@ -19,6 +19,7 @@ import { Navigate, Outlet } from "react-router";
 import { Box } from "@wso2/oxygen-ui";
 import RoutedTabs, { type RoutedTabDef } from "@components/routed-tabs/RoutedTabs";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
+import { isPreviewEnabled } from "@config/previewFeatures";
 import ParShell from "../components/ParShell";
 import { useParIsAdmin } from "../api/useParIsAdmin";
 
@@ -28,13 +29,16 @@ const TABS: RoutedTabDef[] = [
   { segment: "configurations", label: "Configurations" },
 ];
 
+const LEADERSHIP_360_TAB: RoutedTabDef = { segment: "leadership-360", label: "Leadership 360°" };
+
 export default function ParAdminGroupPage() {
+  const tabs = isPreviewEnabled("leadership360") ? [...TABS, LEADERSHIP_360_TAB] : TABS;
   return (
     <ParShell
       title="Admin View"
       subtitle="Create and manage PAR cycles, assign special-rating quotas, and monitor completion across the organization."
     >
-      <RoutedTabs basePath="/people-ops/performance/admin" tabs={TABS} ariaLabel="Admin View sections" />
+      <RoutedTabs basePath="/people-ops/performance/admin" tabs={tabs} ariaLabel="Admin View sections" />
       <Outlet />
     </ParShell>
   );

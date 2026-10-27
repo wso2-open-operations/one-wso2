@@ -412,6 +412,27 @@ export const parServiceUrls = {
   // separately, in full, via parLegacyHistory below.
   legacyParHistoryCyclesParticipants: (cycleName: string, summary = false) =>
     `${parBackendUrl}/legacy-par-history-cycles/${encodeURIComponent(cycleName)}/participants${summary ? "?summary=true" : ""}`,
+
+  // ---- Leadership 360° ------------------------------------------------------
+  //
+  // The leader a respondent writes about goes in the request body of the
+  // drafts/submissions calls, never the URL, so gateway access logs don't
+  // record who gave feedback on whom.
+  leadership360CurrentSurvey: () => `${parBackendUrl}/leadership-360/current-survey`,
+  leadership360Leaders: () => `${parBackendUrl}/leadership-360/leaders`,
+  // GET (list) and POST (create), PAR admins only.
+  leadership360Surveys: () => `${parBackendUrl}/leadership-360/surveys`,
+  leadership360Survey: (surveyId: number) => `${parBackendUrl}/leadership-360/surveys/${surveyId}`,
+  leadership360MyFeedback: (surveyId: number) => `${parBackendUrl}/leadership-360/surveys/${surveyId}/my-feedback`,
+  leadership360Drafts: (surveyId: number) => `${parBackendUrl}/leadership-360/surveys/${surveyId}/drafts`,
+  leadership360Submissions: (surveyId: number) => `${parBackendUrl}/leadership-360/surveys/${surveyId}/submissions`,
+  // The leaders whose results the caller may see from one view: SELF (the
+  // caller themself), REPORTS (leaders reporting to the caller) or ALL
+  // (every leader, PAR admins only).
+  leadership360Results: (surveyId: number, view: "SELF" | "REPORTS" | "ALL") =>
+    `${parBackendUrl}/leadership-360/surveys/${surveyId}/results?view=${view}`,
+  leadership360Summary: (surveyId: number, view: "SELF" | "REPORTS" | "ALL", leaderEmail: string) =>
+    `${parBackendUrl}/leadership-360/surveys/${surveyId}/summary?view=${view}&leaderEmail=${encodeURIComponent(leaderEmail)}`,
 };
 
 // Leave app backend (people-ops-suite/apps/leave-app). Its own service

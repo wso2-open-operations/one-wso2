@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import { Navigate, Outlet } from "react-router";
 import { Chip, Skeleton } from "@wso2/oxygen-ui";
 import RoutedTabs, { type RoutedTabDef } from "@components/routed-tabs/RoutedTabs";
+import { isPreviewEnabled } from "@config/previewFeatures";
 import { useMeProfile } from "@features/my/api/useMeProfile";
 import ParShell from "../components/ParShell";
 import {
@@ -52,6 +53,10 @@ const LEADLESS_TABS: RoutedTabDef[] = [
 // the only one left, regardless of lead presence.
 const HISTORY_ONLY_TABS: RoutedTabDef[] = [{ segment: "history", label: "PAR History" }];
 
+// Leadership 360° runs on its own survey dates, not a PAR cycle, so it joins
+// every tab set above — lead or no lead, active cycle or not.
+const LEADERSHIP_360_TAB: RoutedTabDef = { segment: "leadership-360", label: "Leadership 360°" };
+
 // One page frame for everything an employee does with their own PAR — the
 // shell, the tab bar, and an <Outlet /> for whichever tab the URL names.
 export default function ParGroupPage() {
@@ -63,7 +68,8 @@ export default function ParGroupPage() {
   const { hasLead, isLoading } = useParHasLead(workEmail, profile.isLoading);
   const { isActive, isLoading: isActiveLoading } = useParHasActiveCycle(workEmail, profile.isLoading);
 
-  const tabs = !isActive ? HISTORY_ONLY_TABS : hasLead ? FULL_TABS : LEADLESS_TABS;
+  const cycleTabs = !isActive ? HISTORY_ONLY_TABS : hasLead ? FULL_TABS : LEADLESS_TABS;
+  const tabs = isPreviewEnabled("leadership360") ? [...cycleTabs, LEADERSHIP_360_TAB] : cycleTabs;
 
   return (
     <ParShell

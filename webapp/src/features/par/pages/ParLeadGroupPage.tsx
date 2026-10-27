@@ -20,8 +20,10 @@ import { Box } from "@wso2/oxygen-ui";
 import RoutedTabs, { type RoutedTabDef } from "@components/routed-tabs/RoutedTabs";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useMeProfile } from "@features/my/api/useMeProfile";
+import { isPreviewEnabled } from "@config/previewFeatures";
 import ParShell from "../components/ParShell";
 import { useParCanSeeLeadPortal, useParIsTeamLead } from "../api/useParData";
+import { useLeadsALeader } from "../api/useLeadership360";
 
 const BASE_PATH = "/people-ops/performance/lead";
 
@@ -49,6 +51,11 @@ const TABS: RoutedTabDef[] = [
 // cycle — see ParEmployeeInfo).
 const HISTORY_ONLY_TABS: RoutedTabDef[] = [{ segment: "employee-history", label: "Employee History" }];
 
+// Leadership 360° runs on its own survey dates, not a PAR cycle, so it joins
+// either tab set above — but only for a lead with a member of the leadership
+// group among their reports, the only people it has anything to show.
+const LEADERSHIP_360_TAB: RoutedTabDef = { segment: "leadership-360", label: "Leadership 360°" };
+
 // One page frame for everything a lead does for their reports — the
 // employee-facing counterpart, ParGroupPage.tsx, now lives under the Me
 // perspective (/me/performance); this page stays at
@@ -68,12 +75,15 @@ const HISTORY_ONLY_TABS: RoutedTabDef[] = [{ segment: "employee-history", label:
 export default function ParLeadGroupPage() {
   const profile = useMeProfile();
   const employeeInfo = useParIsTeamLead(profile.data?.userInfo.workEmail);
+  const leadsALeader = useLeadsALeader(isPreviewEnabled("leadership360"));
   const { pathname } = useLocation();
 
   const currentSegment = pathname.startsWith(BASE_PATH)
     ? pathname.slice(BASE_PATH.length).replace(/^\//, "").split("/")[0]
     : "";
-  const needsActiveCycle = currentSegment !== "" && currentSegment !== "employee-history";
+  const needsActiveCycle =
+    currentSegment !== "" && currentSegment !== "employee-history" && currentSegment !== "leadership-360";
+  const cycleTabs = employeeInfo.isTeamLead ? TABS : HISTORY_ONLY_TABS;
 
   return (
     <ParShell
@@ -82,7 +92,7 @@ export default function ParLeadGroupPage() {
     >
       <RoutedTabs
         basePath={BASE_PATH}
-        tabs={employeeInfo.isTeamLead ? TABS : HISTORY_ONLY_TABS}
+        tabs={leadsALeader ? [...cycleTabs, LEADERSHIP_360_TAB] : cycleTabs}
         ariaLabel="Lead View sections"
       />
       {needsActiveCycle && !employeeInfo.isTeamLead ? (

@@ -103,6 +103,9 @@ const ParLeadAllocationTab = lazy(() => import("@features/par/pages/ParLeadAlloc
 const ParAdminOngoingTab = lazy(() => import("@features/par/pages/ParAdminOngoingTab"));
 const ParAdminHistoryTab = lazy(() => import("@features/par/pages/ParAdminHistoryTab"));
 const ParAdminGlobalConfigTab = lazy(() => import("@features/par/pages/ParAdminGlobalConfigTab"));
+const ParLeadership360Tab = lazy(() => import("@features/par/pages/ParLeadership360Tab"));
+const ParAdminLeadership360Tab = lazy(() => import("@features/par/pages/ParAdminLeadership360Tab"));
+const ParLeadLeadership360Tab = lazy(() => import("@features/par/pages/ParLeadLeadership360Tab"));
 import EmailGroupsPage from "@features/my/email-groups/pages/EmailGroupsPage";
 import EmailSignaturePage from "@features/my/email-signature/pages/EmailSignaturePage";
 import BankingRoute from "@features/my/banking/components/BankingRoute";
@@ -630,6 +633,18 @@ export default function App() {
                 </Suspense>
               }
             />
+            {/* Leadership 360° runs on its own survey dates, so unlike the
+                cycle tabs it needs neither an active cycle nor a lead. */}
+            {isPreviewEnabled("leadership360") && (
+              <Route
+                path="leadership-360"
+                element={
+                  <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>
+                    <ParLeadership360Tab />
+                  </Suspense>
+                }
+              />
+            )}
           </Route>
           {/* People Ops → PAR → Lead Portal: par-app's LeadPortal.tsx, ported
               one tab at a time — all five tabs are now live. Reviewing and
@@ -686,6 +701,16 @@ export default function App() {
                 </Suspense>
               }
             />
+            {isPreviewEnabled("leadership360") && (
+              <Route
+                path="leadership-360"
+                element={
+                  <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>
+                    <ParLeadLeadership360Tab />
+                  </Suspense>
+                }
+              />
+            )}
           </Route>
           {/* People Ops → PAR → Admin Portal. ParRequiresAdminRoute reads
               isAdmin off the backend's own GET /employees/{workEmail}
@@ -724,6 +749,16 @@ export default function App() {
                 </Suspense>
               }
             />
+            {isPreviewEnabled("leadership360") && (
+              <Route
+                path="leadership-360"
+                element={
+                  <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>
+                    <ParAdminLeadership360Tab />
+                  </Suspense>
+                }
+              />
+            )}
           </Route>
           {/* People Ops → Promotion (Lead/Team History/Functional Lead/
               Board/Admin/Cycle History portals). Each portal's own role guard
