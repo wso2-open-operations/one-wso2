@@ -199,6 +199,7 @@ import CcPendingPage from "@features/finance/cc/pages/CcPendingPage";
 import CcApprovePage from "@features/finance/cc/pages/CcApprovePage";
 import CcHistoryPage from "@features/finance/cc/pages/CcHistoryPage";
 import CcAdminPage from "@features/finance/cc/pages/CcAdminPage";
+import CcAutofillRulesPage from "@features/finance/cc/pages/CcAutofillRulesPage";
 import { ccPaths } from "@features/finance/cc/ccPaths";
 import SubsidiariesPage from "@features/finance/masterdata/pages/SubsidiariesPage";
 import DepartmentsPage from "@features/finance/masterdata/pages/DepartmentsPage";
@@ -440,6 +441,9 @@ export default function App() {
           <Route path="finance/cc/approve" element={<CcApprovePage />} />
           <Route path="finance/cc/history" element={<CcHistoryPage />} />
           <Route path="finance/cc/admin" element={<CcAdminPage />} />
+          {isPreviewEnabled("ccTaggingRules") && (
+            <Route path="finance/cc/autofill-rules" element={<CcAutofillRulesPage />} />
+          )}
           {/* Old Settings bookmarks */}
           <Route path="finance/cc/settings" element={<Navigate to={ccPaths.admin} replace />} />
           <Route path="finance/opd/dashboard" element={<OpdDashboardScreen />} />

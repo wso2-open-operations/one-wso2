@@ -137,6 +137,8 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
       { id: "cc-pending", label: "Pending Approvals", desc: "Submissions awaiting approval.", requires: ["employee"], path: `${CC_PATH}/pending` },
       { id: "cc-approve", label: "Approve Submissions", desc: "Review and approve your team's submitted card transactions.", requires: ["lead", "admin"], path: `${CC_PATH}/approve` },
       { id: "cc-history", label: "History", desc: "Your submitted past card transactions.", requires: ["employee"], path: `${CC_PATH}/history` },
+      // `requires` only marks this item restricted (fail-closed); useFinanceGate's case decides who sees it.
+      { id: "cc-autofill-rules", label: "Autofill Rules", desc: "Rules that fill in your card transactions' expense details when a bill matches.", requires: ["employee"], path: `${CC_PATH}/autofill-rules` },
       { id: "cc-admin", label: "Admin", desc: "Upload bank statements and save their transactions as pending submissions.", requires: ["admin"], path: `${CC_PATH}/admin` },
     ],
   },

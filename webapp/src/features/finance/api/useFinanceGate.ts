@@ -21,17 +21,18 @@ import {
   isFinanceMasterDataBackendConfigured,
   isOpdBackendConfigured,
 } from "@config/apiConfig";
+import { isPreviewEnabled } from "@config/previewFeatures";
 import { FINANCE_APPS } from "@constants/financeApps";
+import { ccHasAccess } from "../cc/ccTypes";
+import { useCcUserInfo } from "../cc/useCc";
+import { useExpenseAppData } from "../expense/useExpense";
 import {
+  type MasterDataUserInfo,
   masterDataHasAccess,
   useMasterDataUserInfo,
-  type MasterDataUserInfo,
 } from "../masterdata/useMasterDataAccess";
-import { useCcUserInfo } from "../cc/useCc";
-import { ccHasAccess } from "../cc/ccTypes";
-import { useOpdUserInfo } from "../opd/useOpd";
 import { OPD_ROLE, opdHasRole } from "../opd/opdTypes";
-import { useExpenseAppData } from "../expense/useExpense";
+import { useOpdUserInfo } from "../opd/useOpd";
 
 // Items that declare `requires` in the registry but aren't explicitly mapped
 // below must fail CLOSED — otherwise a renamed or newly-added restricted item
@@ -93,6 +94,7 @@ const ITEM_BACKENDS: Readonly<Record<string, readonly FinanceGateApp[]>> = {
   "cc-history": ["cc"],
   "cc-approve": ["cc"],
   "cc-admin": ["cc"],
+  "cc-autofill-rules": ["cc"],
   "finance-overview": ["cc", "opd", "expense"],
   "master-data-subsidiaries": ["masterData"],
   "master-data-departments": ["masterData"],
@@ -240,6 +242,9 @@ export function useFinanceGate(
         return ccLeadOrFinance;
       case "cc-admin":
         return ccFinance;
+      // Rules belong to a card, so only a card holder keeps them; a lead or Finance role alone has none.
+      case "cc-autofill-rules":
+        return ccHasAccess(cc.data, "cc_owner") && isPreviewEnabled("ccTaggingRules");
       // Finance → Overview. One rail entry for all three dashboards now —
       // see FinanceOverviewPage. Hidden entirely when NONE of the three would
       // have anything to show: no card of the reader's own (or team/company

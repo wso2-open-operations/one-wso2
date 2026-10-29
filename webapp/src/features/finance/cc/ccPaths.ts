@@ -33,5 +33,6 @@ export const ccPaths = {
   pending: `${CC_PATH}/pending`,
   approve: `${CC_PATH}/approve`,
   history: `${CC_PATH}/history`,
+  autofillRules: `${CC_PATH}/autofill-rules`,
   admin: `${CC_PATH}/admin`,
 } as const;
