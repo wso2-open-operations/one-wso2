@@ -430,7 +430,7 @@ function SectionNode({
         icon={section.icon}
         to={section.path}
         fromPerspective={fromPerspective}
-        // The row's own badge only. Its screens are tabs, and their badges stay on the tab bar.
+        // The row's own badge only, not its tabs'.
         badge={resolveBadge(section.id)}
       />
     );

@@ -29,8 +29,7 @@ export interface RailBadges {
  * two features report one for the same id, the later wins.
  */
 export function useRailBadges(): RailBadges {
-  // Each feature's badge hook, enabled only while its perspective is active, as
-  // usePerspectiveVisibility enables its gates.
+  // Each feature's badge hook, enabled only while its perspective is active.
   const sources: RailBadgeMap[] = [];
   const badges: RailBadgeMap = Object.assign({}, ...sources);
   return { resolveBadge: (id) => badges[id] };
