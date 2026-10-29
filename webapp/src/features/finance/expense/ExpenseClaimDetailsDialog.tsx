@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Box,
   Button,
@@ -79,7 +79,9 @@ export function ExpenseClaimDetailsDialog({
   // mounted, so a typed reason / open reject panel would otherwise carry
   // over into the next claim.
   const claimId = claim?.id;
-  useEffect(() => {
+  const [prevClaimId, setPrevClaimId] = useState(claimId);
+  if (prevClaimId !== claimId) {
+    setPrevClaimId(claimId);
     setRejecting(false);
     setReason("");
     setReceiptLoad(null);
@@ -87,7 +89,7 @@ export function ExpenseClaimDetailsDialog({
     setEditingIndex(null);
     setConfirmingResubmit(false);
     setConfirmingDiscard(false);
-  }, [claimId]);
+  }
 
   // ClaimDetails.tsx:120-124 — the employee's own view of a claim rejected at
   // either stage. Not offered to an approver looking at the same claim.

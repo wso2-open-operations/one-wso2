@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -83,9 +83,14 @@ export default function EmergencyContacts({
   const mutation = useUpdatePersonalInfo(employeeId);
   const { showSuccess, showError } = useNotifications();
 
-  useEffect(() => {
+  // Outside an edit, the form follows the latest saved details.
+  const [prevInitial, setPrevInitial] = useState(initial);
+  const [prevEditing, setPrevEditing] = useState(editing);
+  if (prevInitial !== initial || prevEditing !== editing) {
+    setPrevInitial(initial);
+    setPrevEditing(editing);
     if (!editing) setForm(initial);
-  }, [initial, editing]);
+  }
 
   if (!contacts && isLoading) {
     return (

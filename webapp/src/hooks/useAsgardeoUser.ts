@@ -64,15 +64,20 @@ function initialsFrom(claims: IdTokenClaims): string {
   return "";
 }
 
+/** The user before an ID token has been read, and after sign-out. */
+const SIGNED_OUT: AsgardeoUser = { ready: false, initials: "" };
+
 export function useAsgardeoUser(): AsgardeoUser {
   const { isSignedIn, getDecodedIdToken } = useAsgardeo();
-  const [user, setUser] = useState<AsgardeoUser>({ ready: false, initials: "" });
+  const [user, setUser] = useState<AsgardeoUser>(SIGNED_OUT);
+  const [prevSignedIn, setPrevSignedIn] = useState(isSignedIn);
+  if (prevSignedIn !== isSignedIn) {
+    setPrevSignedIn(isSignedIn);
+    if (!isSignedIn) setUser(SIGNED_OUT);
+  }
 
   useEffect(() => {
-    if (!isSignedIn) {
-      setUser({ ready: false, initials: "" });
-      return;
-    }
+    if (!isSignedIn) return;
     let cancelled = false;
     getDecodedIdToken()
       .then((token) => {

@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -545,13 +545,15 @@ function OrganizationDialog({
   const [confirming, setConfirming] = useState(false);
   const freePlan = organization?.organizationPlan === "Free";
 
-  useEffect(() => {
-    if (!organization) return;
+  // The form takes each organization as it arrives, including one that loads after the dialog opens.
+  const [prevOrganization, setPrevOrganization] = useState<InfraOrganization | undefined>(undefined);
+  if (organization && organization !== prevOrganization) {
+    setPrevOrganization(organization);
     setName(organization.organizationName);
     setVisibility(organization.organizationVisibility || "Public");
     setIssues(organization.enableIssues === true || organization.enableIssues === 1);
     setTeamIds(teamIdsFrom(organization));
-  }, [organization]);
+  }
 
   const submit = async () => {
     if (!name.trim() || !visibility) {

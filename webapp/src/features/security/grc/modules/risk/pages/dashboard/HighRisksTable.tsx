@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Chip,
   Table,
@@ -43,10 +43,13 @@ const ROWS_PER_PAGE = 5;
 export default function HighRisksTable({ data }: HighRisksTableProps): JSX.Element {
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<HighRiskItem | null>(null);
+  const [prevData, setPrevData] = useState(data);
 
-  useEffect(() => {
+  // New risks start from the first page.
+  if (prevData !== data) {
+    setPrevData(data);
     setPage(0);
-  }, [data]);
+  }
 
   if (data.length === 0) {
     return (
