@@ -1,0 +1,51 @@
+name: Webapp Checks
+
+on:
+  pull_request:
+    paths:
+      - "webapp/**"
+      - ".github/workflows/webapp-checks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "webapp/**"
+      - ".github/workflows/webapp-checks.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webapp-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: webapp/.nvmrc
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc -b
+
+      # Lint and tests report without failing the check until main passes them. Drop
+      # continue-on-error from each once it does.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Test
+        run: npm test
+        continue-on-error: true
