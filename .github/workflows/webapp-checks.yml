@@ -81,12 +81,16 @@ jobs:
           DISABLE_VITEST_CSS: "true"
         continue-on-error: true
 
+      # A shard that crashes before writing its report would otherwise drop
+      # out of the merged report silently; this flags it without failing.
       - name: Upload blob report
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: blob-report-${{ matrix.shardIndex }}
           path: webapp/.vitest-reports/*
           include-hidden-files: true
+          if-no-files-found: error
           retention-days: 1
 
   # Combines the shard results into one report and one set of failure
