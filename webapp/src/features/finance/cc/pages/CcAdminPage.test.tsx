@@ -56,13 +56,23 @@ const state = {
    * failure tests passed without a failure ever happening.
    */
   failWith: null as string | null,
+  /** Whether `/user-info` fails, as a gateway timeout would. */
+  userInfoFails: false,
+  /** Whether a `/user-info` request is in flight, as during a Retry. */
+  userInfoFetching: false,
+  refetches: 0,
 };
 
 vi.mock("../useCc", () => ({
   useCcUserInfo: () => ({
-    data: { workEmail: "me@wso2.com", accessLevels: state.access },
+    data: state.userInfoFails ? undefined : { workEmail: "me@wso2.com", accessLevels: state.access },
     isLoading: false,
-    isError: false,
+    isError: state.userInfoFails,
+    isFetching: state.userInfoFetching,
+    error: state.userInfoFails ? new Error("Gateway timeout") : null,
+    refetch: () => {
+      state.refetches += 1;
+    },
   }),
 }));
 
@@ -120,13 +130,16 @@ vi.mock("../../components/FinanceShell", () => ({
   ),
 }));
 
-const { default: CcSettingsPage } = await import("./CcSettingsPage");
+const { default: CcAdminPage } = await import("./CcAdminPage");
 const { NotificationsProvider } = await import("@context/notifications/NotificationsContext");
 
 beforeEach(() => {
   state.access = ["finance"];
   state.group = { newItems: [row], duplicateItems: [], invalidItems: [] };
   state.failWith = null;
+  state.userInfoFails = false;
+  state.userInfoFetching = false;
+  state.refetches = 0;
   processed.length = 0;
   saved.length = 0;
 });
@@ -135,7 +148,7 @@ function show() {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <NotificationsProvider>
-        <CcSettingsPage />
+        <CcAdminPage />
       </NotificationsProvider>
     </QueryClientProvider>,
   );
@@ -161,6 +174,29 @@ const uploadCsv = (name = "statement.csv") => {
   pick(name);
   clickUpload();
 };
+
+describe("access", () => {
+  it("shows Retry, not a denial, when /user-info fails", async () => {
+    state.userInfoFails = true;
+    show();
+    await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+    expect(state.refetches).toBe(1);
+    expect(screen.queryByText(/limited to finance approvers/)).not.toBeInTheDocument();
+  });
+
+  it("disables Retry while the access check is re-running", async () => {
+    state.userInfoFails = true;
+    state.userInfoFetching = true;
+    show();
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeDisabled();
+  });
+
+  it("explains the page to someone without the finance role", async () => {
+    state.access = ["cc_owner"];
+    show();
+    expect(await screen.findByText(/limited to finance approvers/)).toBeInTheDocument();
+  });
+});
 
 // index.tsx:232-236 — before anything is uploaded the screen says what to do.
 describe("before a statement is uploaded", () => {

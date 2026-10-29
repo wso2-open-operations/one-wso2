@@ -92,7 +92,7 @@ const ITEM_BACKENDS: Readonly<Record<string, readonly FinanceGateApp[]>> = {
   "cc-pending": ["cc"],
   "cc-history": ["cc"],
   "cc-approve": ["cc"],
-  "cc-settings": ["cc"],
+  "cc-admin": ["cc"],
   "finance-overview": ["cc", "opd", "expense"],
   "master-data-subsidiaries": ["masterData"],
   "master-data-departments": ["masterData"],
@@ -238,7 +238,7 @@ export function useFinanceGate(
         return ccHasOwnCard;
       case "cc-approve":
         return ccLeadOrFinance;
-      case "cc-settings":
+      case "cc-admin":
         return ccFinance;
       // Finance → Overview. One rail entry for all three dashboards now —
       // see FinanceOverviewPage. Hidden entirely when NONE of the three would

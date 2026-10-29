@@ -137,7 +137,7 @@ export const FINANCE_PERSPECTIVE_APPS: readonly MenuApp[] = [
       { id: "cc-pending", label: "Pending Approvals", desc: "Submissions awaiting approval.", requires: ["employee"], path: `${CC_PATH}/pending` },
       { id: "cc-approve", label: "Approve Submissions", desc: "Review and approve your team's submitted card transactions.", requires: ["lead", "admin"], path: `${CC_PATH}/approve` },
       { id: "cc-history", label: "History", desc: "Your submitted past card transactions.", requires: ["employee"], path: `${CC_PATH}/history` },
-      { id: "cc-settings", label: "Settings", desc: "Upload and reconcile bank statements (finance).", requires: ["admin"], path: `${CC_PATH}/settings` },
+      { id: "cc-admin", label: "Admin", desc: "Upload bank statements and save their transactions as pending submissions.", requires: ["admin"], path: `${CC_PATH}/admin` },
     ],
   },
 ];

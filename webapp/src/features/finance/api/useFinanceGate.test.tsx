@@ -231,6 +231,22 @@ describe("the cc-approve item", () => {
   });
 });
 
+describe("the cc-admin item", () => {
+  it("opens for finance only", () => {
+    roles.cc = ["finance"];
+    expect(gate().canSee("cc-admin")).toBe(true);
+    roles.cc = ["cc_owner"];
+    expect(gate().canSee("cc-admin")).toBe(false);
+    roles.cc = ["lead"];
+    expect(gate().canSee("cc-admin")).toBe(false);
+  });
+
+  it("replaces the cc-settings rail item", () => {
+    expect(FINANCE_ITEM_IDS.has("cc-admin")).toBe(true);
+    expect(FINANCE_ITEM_IDS.has("cc-settings")).toBe(false);
+  });
+});
+
 // The Overview group shipped out of preview, and is one rail entry now
 // rather than two — a single `finance-overview` id fronting both dashboards,
 // tab-switched inside FinanceOverviewPage. Hidden entirely when neither tab

@@ -34,6 +34,7 @@ import {
   TriangleAlertIcon,
   type LucideIcon,
 } from "@wso2/oxygen-ui-icons-react";
+import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { isCcBackendConfigured } from "@config/apiConfig";
 import FinanceShell from "../../components/FinanceShell";
@@ -70,7 +71,7 @@ function rowsFor(group: CcTransactionUploadGroup, key: TabKey) {
   return group.invalidItems;
 }
 
-export default function CcSettingsPage() {
+export default function CcAdminPage() {
   const userInfo = useCcUserInfo();
   const process = useCcProcessStatement();
   const upload = useCcUploadTransactions();
@@ -216,6 +217,14 @@ export default function CcSettingsPage() {
 
       {userInfo.isLoading ? (
         <Skeleton variant="rectangular" height={160} sx={{ borderRadius: 1.5 }} />
+      ) : userInfo.isError ? (
+        <ErrorNotice
+          error={userInfo.error}
+          onRetry={() => void userInfo.refetch()}
+          retrying={userInfo.isFetching}
+        >
+          Couldn&apos;t check your access to this page.
+        </ErrorNotice>
       ) : !isFinance ? (
         <Alert severity="info">Statement ingestion is limited to finance approvers.</Alert>
       ) : group ? (

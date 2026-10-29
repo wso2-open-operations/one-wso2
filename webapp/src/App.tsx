@@ -187,7 +187,8 @@ import CcNewTransactionsPage from "@features/finance/cc/pages/CcNewTransactionsP
 import CcPendingPage from "@features/finance/cc/pages/CcPendingPage";
 import CcApprovePage from "@features/finance/cc/pages/CcApprovePage";
 import CcHistoryPage from "@features/finance/cc/pages/CcHistoryPage";
-import CcSettingsPage from "@features/finance/cc/pages/CcSettingsPage";
+import CcAdminPage from "@features/finance/cc/pages/CcAdminPage";
+import { ccPaths } from "@features/finance/cc/ccPaths";
 import SubsidiariesPage from "@features/finance/masterdata/pages/SubsidiariesPage";
 import DepartmentsPage from "@features/finance/masterdata/pages/DepartmentsPage";
 import ExpenseTypesPage from "@features/finance/masterdata/pages/ExpenseTypesPage";
@@ -431,7 +432,9 @@ export default function App() {
           <Route path="finance/cc/pending" element={<CcPendingPage />} />
           <Route path="finance/cc/approve" element={<CcApprovePage />} />
           <Route path="finance/cc/history" element={<CcHistoryPage />} />
-          <Route path="finance/cc/settings" element={<CcSettingsPage />} />
+          <Route path="finance/cc/admin" element={<CcAdminPage />} />
+          {/* Old Settings bookmarks */}
+          <Route path="finance/cc/settings" element={<Navigate to={ccPaths.admin} replace />} />
           <Route path="finance/opd/dashboard" element={<OpdDashboardScreen />} />
           <Route path="finance/expense/dashboard" element={<ExpenseDashboardScreen />} />
           {/* Finance → Master Data: the four reference tables the other
