@@ -165,6 +165,9 @@ export type CcTaggingRuleInput = Pick<
   | "active"
 >;
 
+/** The body that changes a rule: only the fields that changed, with `null` clearing one. */
+export type CcTaggingRulePatch = Partial<CcTaggingRuleInput>;
+
 // ---- menu / configuration data --------------------------------------------
 
 export interface CcExpenseTypeList {
