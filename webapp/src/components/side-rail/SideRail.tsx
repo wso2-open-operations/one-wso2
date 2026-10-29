@@ -16,9 +16,11 @@
 
 import { useMemo, useState, type JSX, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { alpha, Box, Link, List, Sidebar, Typography, useSidebar } from "@wso2/oxygen-ui";
+import { alpha, Badge, Box, Link, List, Sidebar, Typography, useSidebar } from "@wso2/oxygen-ui";
 import { ArrowUpRightIcon, BookOpenIcon, ExternalLinkIcon, SettingsIcon } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink, matchPath, useLocation, useNavigate } from "react-router";
+import ScreenBadgeLabel from "@components/screen-badge/ScreenBadgeLabel";
+import { screenBadgePillSx, VISUALLY_HIDDEN_SX } from "@components/screen-badge/screenBadgeSx";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
 import type { PerspectiveSection } from "@constants/perspectives";
 import { useUserGuideUrl } from "@features/security/api/useUserGuideUrl";
@@ -26,7 +28,14 @@ import {
   activeGroupIds as activeGroupIdsFor,
   activeItemId as activeItemIdFor,
 } from "./railActive";
+import {
+  groupNeedsAttention,
+  labelWithReason,
+  type RailBadge,
+  type ResolveBadge,
+} from "./railBadge";
 import { usePerspectiveVisibility } from "./usePerspectiveVisibility";
+import { useRailBadges } from "./useRailBadges";
 
 // Context-sensitive left rail, built on Oxygen's compound `Sidebar`.
 //
@@ -89,14 +98,17 @@ const ELLIPSIS_SX = {
   },
 } as const;
 
-// Read by screen readers, not shown on screen.
-const VISUALLY_HIDDEN_SX = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  overflow: "hidden",
-  clip: "rect(0 0 0 0)",
-} as const;
+/** Size, in px, Oxygen's Sidebar.ItemIcon gives a row icon. */
+const RAIL_ICON_SIZE = 20;
+
+/** Diameter, in px, of the dot on a group's header. */
+const GROUP_DOT_SIZE = 8;
+
+/** What a screen reader hears for the dot on a group's header. */
+const GROUP_ATTENTION_TEXT = "Needs attention.";
+
+/** A row label with a badge after it, kept clear of the badge when it truncates. */
+const BADGED_LABEL_SX = { ...ELLIPSIS_SX, mr: 1 } as const;
 
 export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
   const active = useActivePerspective();
@@ -110,6 +122,7 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
   // usePerspectiveVisibility for why the perspective landing routes need the
   // same answer and why a second copy of it would drift.
   const { resolveVisible } = usePerspectiveVisibility();
+  const { resolveBadge } = useRailBadges();
 
   // Memoised because `?? []` would otherwise hand a fresh array to the
   // dependency lists below on every render, defeating both useMemos.
@@ -300,6 +313,7 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
               key={s.id}
               section={s}
               resolveVisible={resolveVisible}
+              resolveBadge={resolveBadge}
               containsActiveRoute={activeGroupIds.has(s.id)}
               fromPerspective={active.key}
             />
@@ -381,11 +395,13 @@ function routeLink(to: string, fromPerspective?: string) {
 function SectionNode({
   section,
   resolveVisible,
+  resolveBadge,
   containsActiveRoute,
   fromPerspective,
 }: {
   section: PerspectiveSection;
   resolveVisible: (section: PerspectiveSection) => boolean;
+  resolveBadge: ResolveBadge;
   /**
    * True while this group holds the current route, which tints its icon so an
    * expanded group signals that you are inside it, and outlines it while open
@@ -400,6 +416,8 @@ function SectionNode({
   /** The perspective this section is rendered under — see routeLink. */
   fromPerspective: string;
 }): JSX.Element | null {
+  const { collapsed, expandedMenus } = useSidebar();
+
   // Screens offered as tabs stay children of the section (pins name them from
   // there) and are not rows. The row is the app, and it opens its first screen.
   if (section.inTabs) {
@@ -411,6 +429,8 @@ function SectionNode({
         icon={section.icon}
         to={section.path}
         fromPerspective={fromPerspective}
+        // The row's own badge only. Its screens are tabs, and their badges stay on the tab bar.
+        badge={resolveBadge(section.id)}
       />
     );
   }
@@ -434,10 +454,17 @@ function SectionNode({
           icon={section.icon}
           to={only.path}
           fromPerspective={fromPerspective}
+          // The row stands for the child, so the child's badge comes before the group's own.
+          badge={resolveBadge(only.id) ?? resolveBadge(section.id)}
         />
       );
     }
 
+    // An open group shows each child's badge on the child's own row instead.
+    const showsChildBadges = !collapsed && Boolean(expandedMenus?.[section.id]);
+    const needsAttention = showsChildBadges
+      ? Boolean(resolveBadge(section.id))
+      : groupNeedsAttention(section, resolveBadge, resolveVisible);
 
     return (
       <GroupFrame id={section.id} current={containsActiveRoute}>
@@ -445,9 +472,12 @@ function SectionNode({
           <Sidebar.ItemIcon
             sx={containsActiveRoute ? { color: "primary.main" } : undefined}
           >
-            {section.icon ? <section.icon /> : null}
+            {railIcon(section.icon, collapsed && needsAttention)}
           </Sidebar.ItemIcon>
-          <Sidebar.ItemLabel sx={ELLIPSIS_SX}>{section.label}</Sidebar.ItemLabel>
+          <Sidebar.ItemLabel sx={needsAttention ? BADGED_LABEL_SX : ELLIPSIS_SX}>
+            {collapsed && needsAttention ? labelWithReason(section.label, GROUP_ATTENTION_TEXT) : section.label}
+          </Sidebar.ItemLabel>
+          {needsAttention ? railGroupDot() : null}
           {/* Literal Sidebar.Item elements, NOT a wrapper component. Oxygen
               renders a group's children with
               `cloneElement(child, { depth: depth + 1 })` and separately reads
@@ -462,14 +492,16 @@ function SectionNode({
             // it with String(children), and an element there becomes
             // "[object Object]".
             const Icon = c.icon;
+            const badge = resolveBadge(c.id);
+            // On a collapsed rail, the popup shows only the child's icon and label, so the dot marks the icon.
+            const dot = collapsed ? badge : undefined;
             return (
               <Sidebar.Item key={c.id} id={c.id} sx={{ pl: NESTED_LABEL_PL }}>
-                {Icon ? (
-                  <Sidebar.ItemIcon>
-                    <Icon />
-                  </Sidebar.ItemIcon>
+                {Icon || dot ? (
+                  <Sidebar.ItemIcon>{railIcon(Icon, Boolean(dot), dot && (dot.reason ?? dot.label))}</Sidebar.ItemIcon>
                 ) : null}
-                <Sidebar.ItemLabel sx={ELLIPSIS_SX}>{c.label}</Sidebar.ItemLabel>
+                <Sidebar.ItemLabel sx={badge ? BADGED_LABEL_SX : ELLIPSIS_SX}>{c.label}</Sidebar.ItemLabel>
+                {badge ? railBadgePill(badge, !c.opensInNewTab) : null}
                 {/* The launcher's mark for a tile that leaves One WSO2 (see
                     WaffleOverlay). Inside a badge only because Oxygen takes any
                     other child of a row for a nested item; the badge is drawn
@@ -510,7 +542,77 @@ function SectionNode({
       to={section.path}
       href={section.externalUrl}
       fromPerspective={fromPerspective}
+      badge={resolveBadge(section.id)}
     />
+  );
+}
+
+/**
+ * A row's badge as a pill at the end of the row. Returns a literal `Sidebar.ItemBadge`, not a
+ * component: Oxygen treats any other child of a row as a nested row.
+ *
+ * @param atRowEnd - whether nothing follows the pill, so it takes the empty chevron slot and lines
+ *   up with the chevrons.
+ */
+function railBadgePill(badge: RailBadge, atRowEnd: boolean): JSX.Element {
+  return (
+    <Sidebar.ItemBadge color="primary" sx={{ ...screenBadgePillSx(badge), ml: "auto", mr: atRowEnd ? -2 : 0.5 }}>
+      <ScreenBadgeLabel badge={badge} />
+    </Sidebar.ItemBadge>
+  );
+}
+
+/**
+ * The dot on a group's header, read as "Needs attention." by screen readers, with no hover text.
+ * Returns a literal `Sidebar.ItemBadge`; see {@link railBadgePill}.
+ */
+function railGroupDot(): JSX.Element {
+  return (
+    <Sidebar.ItemBadge
+      color="primary"
+      sx={{
+        ml: "auto",
+        mr: 0.5,
+        flexShrink: 0,
+        width: GROUP_DOT_SIZE,
+        height: GROUP_DOT_SIZE,
+        "& .MuiChip-label": { px: 0 },
+      }}
+    >
+      <Box component="span" sx={VISUALLY_HIDDEN_SX}>
+        {GROUP_ATTENTION_TEXT}
+      </Box>
+    </Sidebar.ItemBadge>
+  );
+}
+
+/**
+ * A row's icon, marked with a dot when the row has a badge to show on a collapsed rail. A row with
+ * no icon gets the dot alone, so a group's collapsed-rail popup still marks it.
+ *
+ * The icon is sized here: Sidebar.ItemIcon sizes only its direct child, which would be the Badge.
+ *
+ * @param spoken - what a screen reader hears for the dot, for a row in a group's collapsed-rail
+ *   popup. Oxygen names a popup entry by its icon and label alone, so this travels with the icon.
+ */
+function railIcon(Icon: PerspectiveSection["icon"], marked: boolean, spoken?: string): JSX.Element | null {
+  const icon = Icon ? <Icon size={RAIL_ICON_SIZE} /> : null;
+  if (!marked) return icon;
+  return (
+    <Badge
+      variant="dot"
+      color="primary"
+      overlap="circular"
+      // With no icon to sit on, the dot takes the icon's place instead of its corner.
+      sx={icon ? undefined : { "& .MuiBadge-badge": { position: "static", transform: "none" } }}
+    >
+      {icon}
+      {spoken ? (
+        <Box component="span" sx={VISUALLY_HIDDEN_SX}>
+          {spoken}
+        </Box>
+      ) : null}
+    </Badge>
   );
 }
 
@@ -587,6 +689,7 @@ function LeafItem({
   to,
   href,
   fromPerspective,
+  badge,
 }: {
   id: string;
   label: string;
@@ -598,7 +701,11 @@ function LeafItem({
   href?: string;
   /** The perspective this leaf is rendered under — see routeLink. */
   fromPerspective?: string;
+  /** The pill saying this row's screen has something for the person. */
+  badge?: RailBadge;
 }): JSX.Element {
+  const { collapsed } = useSidebar();
+  const dot = collapsed ? badge : undefined;
   const link = href ? (
     <Link href={href} target="_blank" rel="noopener noreferrer" color="inherit" underline="none" />
   ) : to ? (
@@ -606,14 +713,13 @@ function LeafItem({
   ) : undefined;
   return (
     <Sidebar.Item id={id} link={link}>
-      {Icon ? (
-        <Sidebar.ItemIcon>
-          <Icon />
-        </Sidebar.ItemIcon>
-      ) : null}
+      {Icon || dot ? <Sidebar.ItemIcon>{railIcon(Icon, Boolean(dot))}</Sidebar.ItemIcon> : null}
       {/* Plain string: Oxygen derives the collapsed-rail tooltip from
           String(ItemLabel.children). */}
-      <Sidebar.ItemLabel sx={ELLIPSIS_SX}>{label}</Sidebar.ItemLabel>
+      <Sidebar.ItemLabel sx={badge ? BADGED_LABEL_SX : ELLIPSIS_SX}>
+        {dot?.reason ? labelWithReason(label, dot.reason) : label}
+      </Sidebar.ItemLabel>
+      {badge ? railBadgePill(badge, !href) : null}
       {/* The one affordance that says this leaves the app. Without it an
           outbound item is indistinguishable from a route until it has already
           opened a tab. */}
