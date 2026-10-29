@@ -125,7 +125,7 @@ function CcEditForm({
   const [typeLabel, setTypeLabel] = useState(txn.expenseTypeLabel ?? "");
   const [comment, setComment] = useState(txn.txnComment ?? "");
   // The person's own product unit pick, as an index into the aligned unit arrays. Undefined until
-  // they pick one; until then the stored pair is shown (see `unitIndex`).
+  // they pick one.
   const [pickedUnitIndex, setPickedUnitIndex] = useState<number | "">();
   const [subRegion, setSubRegion] = useState(txn.subRegion ?? "");
   const [jobNumber, setJobNumber] = useState(txn.travelJobNumber ?? "");

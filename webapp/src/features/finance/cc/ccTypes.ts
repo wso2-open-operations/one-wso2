@@ -41,7 +41,7 @@ export function isTravelCategory(category: string | null | undefined): boolean {
 
 /**
  * Whether an expense category is Marketing or one of its sub-categories, such as
- * "Marketing - Digital", matched by prefix as the source app's EditPane.tsx:364 does.
+ * "Marketing - Digital", matched by prefix.
  */
 export function isMarketingCategory(category: string | null | undefined): boolean {
   return Boolean(category?.startsWith(CC_MARKETING_CATEGORY));

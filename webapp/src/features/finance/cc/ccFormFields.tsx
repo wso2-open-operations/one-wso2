@@ -157,8 +157,7 @@ export function ProductUnitSelect({
           // its text with the item still scrolling out underneath.
           disableSticky
           sx={{
-            // The warm tint every other surface in these forms uses, which follows the colour
-            // scheme through MUI's CSS variables.
+            // A theme token, so the tint follows the colour scheme.
             bgcolor: "action.hover",
             // Full contrast and normal weight, rather than ListSubheader's dim, bold default.
             color: "text.primary",
