@@ -16,14 +16,14 @@
  * under the License.
  */
 
-import { useState } from "react";
+import { ccServiceUrls } from "@config/apiConfig";
+import { useAccessToken } from "@hooks/useAccessToken";
 import { Box, Button, Collapse, IconButton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { ChevronDownIcon, CirclePlusIcon, FileIcon } from "@wso2/oxygen-ui-icons-react";
-import { useAccessToken } from "@hooks/useAccessToken";
-import { ccServiceUrls } from "@config/apiConfig";
+import { useState } from "react";
 import { ReceiptViewer } from "../components/ReceiptViewer";
-import { fetchBase64Attachment, type ReceiptSource } from "../util/financeReceipts";
 import { bareAmount, formatNice } from "../util/financeFormat";
+import { fetchBase64Attachment, type ReceiptSource } from "../util/financeReceipts";
 import { type CcAttachmentType, type CcTransaction, isMarketingCategory, isTravelCategory } from "./ccTypes";
 
 /**

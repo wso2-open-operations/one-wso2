@@ -16,9 +16,9 @@
  * under the License.
  */
 
-import { useCallback, useState } from "react";
 import { Box, TableCell, TableRow, Typography } from "@wso2/oxygen-ui";
 import { ChevronRightIcon } from "@wso2/oxygen-ui-icons-react";
+import { useCallback, useState } from "react";
 
 /**
  * The two groups every claim list on this screen is split into. Both Needs you

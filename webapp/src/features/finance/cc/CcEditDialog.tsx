@@ -14,7 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import React, { useMemo, useRef, useState } from "react";
+import { ccServiceUrls } from "@config/apiConfig";
+import { useNotifications } from "@context/notifications/NotificationsContext";
+import { useAccessToken } from "@hooks/useAccessToken";
 import {
   Alert,
   Box,
@@ -28,24 +30,21 @@ import {
   IconButton,
   MenuItem,
   Select,
+  Stack,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
-  Stack,
   TextField,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { CirclePlusIcon, FileIcon, InfoIcon } from "@wso2/oxygen-ui-icons-react";
-import { useNotifications } from "@context/notifications/NotificationsContext";
-import { useAccessToken } from "@hooks/useAccessToken";
-import { ccServiceUrls } from "@config/apiConfig";
+import React, { useMemo, useRef, useState } from "react";
 import { ReceiptViewer } from "../components/ReceiptViewer";
 import { describeError } from "../util/financeError";
-import { CC_SNACK } from "./ccCopy";
-import { money, formatNice } from "../util/financeFormat";
+import { formatNice, money } from "../util/financeFormat";
 import {
   CC_ATTACHMENT_ACCEPT,
   CC_ATTACHMENT_MAX_BYTES,
@@ -53,11 +52,10 @@ import {
   maxSizeLabel,
   type ReceiptSource,
 } from "../util/financeReceipts";
-import { findExactProductUnitIndex } from "./ccPendingSubmissions";
-import { useCcJobNumberDetails, useCcMenus } from "./useCc";
-import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
-import { useCcAttachment } from "./useCcMutations";
+import { CC_SNACK } from "./ccCopy";
 import { JobNumberAutocomplete, JobNumberDetails, ProductUnitSelect, SearchableSelect } from "./ccFormFields";
+import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
+import { findExactProductUnitIndex } from "./ccPendingSubmissions";
 import {
   CC_COMMENT_MAX,
   type CcFundingSource,
@@ -66,6 +64,8 @@ import {
   isMarketingCategory,
   isTravelCategory,
 } from "./ccTypes";
+import { useCcJobNumberDetails, useCcMenus } from "./useCc";
+import { useCcAttachment } from "./useCcMutations";
 
 // Categorise one credit-card transaction: expense category → type, comment,
 // and the unit/region/job-number fields the chosen category requires.

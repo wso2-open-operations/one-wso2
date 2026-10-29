@@ -16,7 +16,9 @@
  * under the License.
  */
 
-import React, { useImperativeHandle, useMemo, useRef, useState } from "react";
+import { ccServiceUrls } from "@config/apiConfig";
+import { useNotifications } from "@context/notifications/NotificationsContext";
+import { useAccessToken } from "@hooks/useAccessToken";
 import {
   Alert,
   Box,
@@ -32,14 +34,13 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { useAccessToken } from "@hooks/useAccessToken";
-import { useNotifications } from "@context/notifications/NotificationsContext";
-import { ccServiceUrls } from "@config/apiConfig";
-import { ReceiptViewer } from "../components/ReceiptViewer";
+import React, { useImperativeHandle, useMemo, useRef, useState } from "react";
 import { DraftStatusChip } from "../components/DraftStatusChip";
-import { useDraftAutosave } from "../util/useDraftAutosave";
-import { fetchBase64Attachment, type ReceiptSource } from "../util/financeReceipts";
+import { ReceiptViewer } from "../components/ReceiptViewer";
 import { bareAmount, formatNice } from "../util/financeFormat";
+import { fetchBase64Attachment, type ReceiptSource } from "../util/financeReceipts";
+import { useDraftAutosave } from "../util/useDraftAutosave";
+import { CC_SNACK } from "./ccCopy";
 import {
   AttachmentField,
   CcSubmissionDetails,
@@ -47,19 +48,16 @@ import {
   FieldLabel,
   FieldRow,
   FundingSources,
-  JobNumberAutocomplete,
   INFO_SIDEBAR_WIDTH,
+  JobNumberAutocomplete,
   JobNumberSideBar,
   Placeholder,
   ProductUnitSelect,
   ReadOnlyField,
   SearchableSelect,
 } from "./ccFormFields";
-import { clearDependentFields, resolveProductUnitIndex } from "./ccPendingSubmissions";
-import { useCcJobNumberDetails, useCcMenus } from "./useCc";
 import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
-import { useCcAttachment } from "./useCcMutations";
-import { CC_SNACK } from "./ccCopy";
+import { clearDependentFields, resolveProductUnitIndex } from "./ccPendingSubmissions";
 import {
   CC_COMMENT_MAX,
   type CcAttachmentType,
@@ -68,6 +66,8 @@ import {
   isMarketingCategory,
   isTravelCategory,
 } from "./ccTypes";
+import { useCcJobNumberDetails, useCcMenus } from "./useCc";
+import { useCcAttachment } from "./useCcMutations";
 
 /**
  * What the list needs from the panel before it lets the reader move on —

@@ -26,7 +26,7 @@
  * something to slip into a migration.
  */
 
-import React, { useMemo, useRef, useState } from "react";
+import { useNotifications } from "@context/notifications/NotificationsContext";
 import {
   Autocomplete,
   Box,
@@ -48,14 +48,14 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ChevronDownIcon, CirclePlusIcon, ExternalLinkIcon, FileIcon, InfoIcon } from "@wso2/oxygen-ui-icons-react";
-import { useNotifications } from "@context/notifications/NotificationsContext";
+import React, { useMemo, useRef, useState } from "react";
 import { describeError } from "../util/financeError";
 import { formatNice, money } from "../util/financeFormat";
-import { CC_SNACK } from "./ccCopy";
 import { CC_ATTACHMENT_ACCEPT, CC_ATTACHMENT_MAX_BYTES, maxSizeLabel } from "../util/financeReceipts";
-import type { CcFundingSource, CcJobNumberDetails, CcTransaction } from "./ccTypes";
+import { CC_SNACK } from "./ccCopy";
 import { formatJobDate, normalizeJobNumber } from "./ccJobNumber";
 import { groupProductUnits } from "./ccPendingSubmissions";
+import type { CcFundingSource, CcJobNumberDetails, CcTransaction } from "./ccTypes";
 
 export function FieldLabel({ children, id }: { children: React.ReactNode; id?: string }) {
   return (

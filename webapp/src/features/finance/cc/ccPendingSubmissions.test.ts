@@ -19,15 +19,15 @@
 import { describe, expect, it } from "vitest";
 import {
   applyBulkEdit,
+  CC_BULK_EDIT_EMPTY,
   clearBulkDependents,
   clearDependentFields,
   findExactProductUnitIndex,
   groupProductUnits,
   resolveProductUnitIndex,
   sortByCompleteness,
-  CC_BULK_EDIT_EMPTY,
 } from "./ccPendingSubmissions";
-import { ccTxnComplete, type CcTransaction } from "./ccTypes";
+import { type CcTransaction, ccTxnComplete } from "./ccTypes";
 
 const base: CcTransaction = {
   id: 1,

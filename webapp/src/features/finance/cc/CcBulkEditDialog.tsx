@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -31,6 +30,7 @@ import {
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
+import { useMemo, useState } from "react";
 import { describeError } from "../util/financeError";
 import {
   Field,
@@ -47,12 +47,12 @@ import {
 import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
 import {
   applyBulkEdit,
-  clearBulkDependents,
   CC_BULK_EDIT_EMPTY,
   type CcBulkEditForm,
+  clearBulkDependents,
 } from "./ccPendingSubmissions";
-import { useCcJobNumberDetails, useCcMenus } from "./useCc";
 import { CC_COMMENT_MAX, type CcTransaction, isMarketingCategory, isTravelCategory } from "./ccTypes";
+import { useCcJobNumberDetails, useCcMenus } from "./useCc";
 
 /**
  * Categorise several transactions at once — the source's EditPaneModal.
