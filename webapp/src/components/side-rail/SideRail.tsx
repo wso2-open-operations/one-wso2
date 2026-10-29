@@ -717,7 +717,7 @@ function LeafItem({
       {/* Plain string: Oxygen derives the collapsed-rail tooltip from
           String(ItemLabel.children). */}
       <Sidebar.ItemLabel sx={badge ? BADGED_LABEL_SX : ELLIPSIS_SX}>
-        {dot?.reason ? labelWithReason(label, dot.reason) : label}
+        {dot ? labelWithReason(label, dot.reason ?? dot.label) : label}
       </Sidebar.ItemLabel>
       {badge ? railBadgePill(badge, !href) : null}
       {/* The one affordance that says this leaves the app. Without it an

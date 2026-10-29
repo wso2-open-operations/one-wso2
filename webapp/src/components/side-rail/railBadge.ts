@@ -50,7 +50,11 @@ export function groupNeedsAttention(
   return (section.children ?? []).filter(resolveVisible).some((c) => resolveBadge(c.id)?.showOnGroup);
 }
 
-/** A row label followed by its badge's reason, for a collapsed rail, where Oxygen names the row by its label alone. */
+/**
+ * A row label followed by its badge's reason, for a collapsed rail, where Oxygen names the row by its label alone.
+ *
+ * @param reason - the badge's reason, or its label when it has none
+ */
 export function labelWithReason(label: string, reason: string): string {
   return `${label} (${reason})`;
 }

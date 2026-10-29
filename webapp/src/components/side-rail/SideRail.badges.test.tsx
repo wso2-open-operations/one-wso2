@@ -217,10 +217,10 @@ describe("SideRail badges, with the rail collapsed", () => {
     expect(screen.getByRole("button", { name: "Statements (A rule is outdated.)" })).toBeTruthy();
   });
 
-  it("names a row whose badge has no reason by its label alone, and still marks its icon", () => {
+  it("names a row with its badge's label when the badge has no reason, and marks its icon", () => {
     badges = { statements: { label: "12" } };
     renderSideRail(true);
-    const button = screen.getByRole("button", { name: "Statements" });
+    const button = screen.getByRole("button", { name: "Statements (12)" });
     expect(button.querySelector(".MuiBadge-dot")).not.toBeNull();
   });
 
