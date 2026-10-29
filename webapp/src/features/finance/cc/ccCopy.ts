@@ -45,3 +45,10 @@ export const CC_SNACK = {
     uploadNewTransactions: "Successfully saved the new transactions",
   },
 } as const;
+
+/** What the Autofill Rules screen says when a rule change succeeds. */
+export const CC_RULE_SNACK = {
+  created: "Rule added",
+  updated: "Rule updated",
+  deleted: "Rule deleted",
+} as const;

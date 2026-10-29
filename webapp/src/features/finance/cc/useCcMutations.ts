@@ -14,12 +14,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { authedDelete, authedPatchText, authedPostText, fetchWithReauth, HttpError } from "@api/http";
-import { useAccessToken } from "@hooks/useAccessToken";
+import {
+  authedDelete,
+  authedPatch,
+  authedPatchText,
+  authedPost,
+  authedPostText,
+  fetchWithReauth,
+  HttpError,
+} from "@api/http";
 import { ccServiceUrls } from "@config/apiConfig";
+import { useAccessToken } from "@hooks/useAccessToken";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fileExtension, putBinaryFile } from "../util/financeReceipts";
-import type { CcAttachmentType, CcTransaction, CcTransactionUploadGroup } from "./ccTypes";
+import type {
+  CcAttachmentType,
+  CcTaggingRule,
+  CcTaggingRuleInput,
+  CcTaggingRulePatch,
+  CcTransaction,
+  CcTransactionUploadGroup,
+} from "./ccTypes";
 
 function invalidate(qc: ReturnType<typeof useQueryClient>) {
   return Promise.all([
@@ -28,7 +43,7 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
   ]);
 }
 
-// Every write below reads its response as TEXT, not JSON.
+// Every write above the autofill rules section reads its response as TEXT, not JSON.
 //
 // The backend declares these successes as `record {| *http:Ok; string body; |}`
 // (types.bal:91-93, :129-131), where `body` is the HTTP payload — so a 200
@@ -201,5 +216,53 @@ export function useCcUploadTransactions() {
       await authedPostText(ccServiceUrls.uploadTransactions(bankCode, fileName), accessToken, group);
     },
     onSuccess: () => invalidate(qc),
+  });
+}
+
+// ---- autofill rules --------------------------------------------------------
+//
+// These return JSON: the rule on an add or change, and nothing on a delete.
+
+/** Refreshes what a rule change can alter: the rules, each single rule, and the badge flags on /user-info. */
+function invalidateRules(qc: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ["cc-tagging-rules"] }),
+    qc.invalidateQueries({ queryKey: ["cc-tagging-rule"] }),
+    qc.invalidateQueries({ queryKey: ["cc-user-info"] }),
+  ]);
+}
+
+/** POST /tagging-rules — adds an autofill rule, and resolves to it. */
+export function useCcCreateTaggingRule() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  return useMutation<CcTaggingRule | null, Error, CcTaggingRuleInput>({
+    mutationFn: async (input) => authedPost<CcTaggingRule>(ccServiceUrls.taggingRules, await getAccessToken(), input),
+    onSuccess: () => invalidateRules(qc),
+  });
+}
+
+/** PATCH /tagging-rules/{id} — changes the fields in `patch`, and resolves to the rule. */
+export function useCcUpdateTaggingRule() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  return useMutation<CcTaggingRule | null, Error, { id: number; patch: CcTaggingRulePatch }>({
+    mutationFn: async ({ id, patch }) =>
+      authedPatch<CcTaggingRule>(ccServiceUrls.taggingRule(id), await getAccessToken(), patch),
+    onSuccess: () => invalidateRules(qc),
+  });
+}
+
+/**
+ * DELETE /tagging-rules/{id} — deletes a rule the card holder added. Also refreshes the
+ * transactions, which lose their link to the rule.
+ */
+export function useCcDeleteTaggingRule() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  return useMutation<void, Error, number>({
+    mutationFn: async (id) => authedDelete(ccServiceUrls.taggingRule(id), await getAccessToken()),
+    onSuccess: () =>
+      Promise.all([invalidateRules(qc), qc.invalidateQueries({ queryKey: ["cc-transactions"] })]),
   });
 }
