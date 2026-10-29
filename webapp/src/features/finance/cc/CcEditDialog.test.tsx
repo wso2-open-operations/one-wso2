@@ -262,6 +262,13 @@ describe("a job that cannot fund the spend", () => {
   });
 });
 
+describe("an already categorised transaction", () => {
+  it("shows its stored product unit once the unit lists load", async () => {
+    show({ ...txn, productUnit: "Other", businessUnit: "Corp" });
+    expect(await screen.findByRole("combobox", { name: "Product unit" })).toHaveTextContent("Other");
+  });
+});
+
 // EditPane.tsx:364 matches with startsWith, so a sub-category still needs a
 // sub-region. The port matched the exact string and skipped the rule.
 describe("marketing sub-categories still need a sub-region", () => {

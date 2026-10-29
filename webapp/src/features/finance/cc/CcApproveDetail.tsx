@@ -24,7 +24,7 @@ import { ccServiceUrls } from "@config/apiConfig";
 import { ReceiptViewer } from "../components/ReceiptViewer";
 import { fetchBase64Attachment, type ReceiptSource } from "../util/financeReceipts";
 import { bareAmount, formatNice } from "../util/financeFormat";
-import { CC_TRAVEL_CATEGORY, CC_MARKETING_CATEGORY, type CcAttachmentType, type CcTransaction } from "./ccTypes";
+import { type CcAttachmentType, type CcTransaction, isMarketingCategory, isTravelCategory } from "./ccTypes";
 
 /**
  * The transaction an approver is looking at, beside the queue rather than over
@@ -49,9 +49,8 @@ export function CcApproveDetail({
   const getAccessToken = useAccessToken();
   const [load, setLoad] = useState<(() => Promise<ReceiptSource>) | null>(null);
 
-  const isTravel = txn.expenseCategoryLabel === CC_TRAVEL_CATEGORY;
-  // EditPane.tsx:1397 matches with startsWith, so "Marketing - Digital" counts.
-  const isMarketing = (txn.expenseCategoryLabel ?? "").startsWith(CC_MARKETING_CATEGORY);
+  const isTravel = isTravelCategory(txn.expenseCategoryLabel);
+  const isMarketing = isMarketingCategory(txn.expenseCategoryLabel);
 
   const view = (attachmentType: CcAttachmentType) =>
     // fetchBase64Attachment, not fetchReceiptObjectUrl — this endpoint returns

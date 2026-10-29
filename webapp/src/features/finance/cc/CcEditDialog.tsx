@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -26,7 +26,6 @@ import {
   DialogTitle,
   FormControl,
   IconButton,
-  ListSubheader,
   MenuItem,
   Select,
   Table,
@@ -54,18 +53,19 @@ import {
   maxSizeLabel,
   type ReceiptSource,
 } from "../util/financeReceipts";
+import { findExactProductUnitIndex } from "./ccPendingSubmissions";
 import { useCcJobNumberDetails, useCcMenus } from "./useCc";
 import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
 import { useCcAttachment } from "./useCcMutations";
-import { JobNumberAutocomplete, JobNumberDetails, SearchableSelect } from "./ccFormFields";
-import { CcFundingSource,
-  CC_MARKETING_CATEGORY,
-  CC_TRAVEL_CATEGORY,
-  ccTxnComplete,
+import { JobNumberAutocomplete, JobNumberDetails, ProductUnitSelect, SearchableSelect } from "./ccFormFields";
+import {
+  CC_COMMENT_MAX,
+  type CcFundingSource,
   type CcTransaction,
+  ccTxnComplete,
+  isMarketingCategory,
+  isTravelCategory,
 } from "./ccTypes";
-
-const COMMENT_MAX = 30;
 
 // Categorise one credit-card transaction: expense category → type, comment,
 // and the unit/region/job-number fields the chosen category requires.
@@ -118,9 +118,9 @@ function CcEditForm({
   const [category, setCategory] = useState(txn.expenseCategoryLabel ?? "");
   const [typeLabel, setTypeLabel] = useState(txn.expenseTypeLabel ?? "");
   const [comment, setComment] = useState(txn.txnComment ?? "");
-  // Product/business unit is picked as an index into the aligned arrays;
-  // starts blank (the arrays load async, so a prior value is re-selected).
-  const [unitIndex, setUnitIndex] = useState<number | "">("");
+  // The person's own product unit pick, as an index into the aligned unit arrays. Undefined until
+  // they pick one; until then the stored pair is shown (see `unitIndex`).
+  const [pickedUnitIndex, setPickedUnitIndex] = useState<number | "">();
   const [subRegion, setSubRegion] = useState(txn.subRegion ?? "");
   const [jobNumber, setJobNumber] = useState(txn.travelJobNumber ?? "");
   // Turns an empty required job number from "not filled in yet" into an
@@ -178,36 +178,16 @@ function CcEditForm({
   const productUnits = menus.units.data?.productUnits ?? [];
   const businessUnits = menus.units.data?.businessUnits ?? [];
 
-  // Product Unit options are grouped under a Business Unit subheader rather
-  // than spelling the business unit out in each option's own label, in
-  // whichever order the menu arrays list the business units — first
-  // appearance wins a group's position.
-  const unitGroups = useMemo(() => {
-    const groups = new Map<string, { i: number; label: string }[]>();
-    productUnits.forEach((pu, i) => {
-      const bu = businessUnits[i] || "Other";
-      if (!groups.has(bu)) groups.set(bu, []);
-      groups.get(bu)!.push({ i, label: pu });
-    });
-    return Array.from(groups.entries());
-  }, [productUnits, businessUnits]);
+  // Until the person picks, the transaction's stored pair, once the unit arrays have loaded.
+  // Without it, editing an already-categorised transaction would blank the unit, and Save would
+  // stay disabled until they picked it again.
+  const unitIndex: number | "" =
+    pickedUnitIndex ??
+    findExactProductUnitIndex(txn.productUnit, txn.businessUnit, productUnits, businessUnits) ??
+    "";
 
-  // Re-select the transaction's stored product/business unit once the
-  // aligned unit arrays load. Without this, editing an already-categorised
-  // non-travel transaction would blank the unit (Save stays disabled) until
-  // the user re-picks it.
-  useEffect(() => {
-    if (unitIndex !== "" || !txn.productUnit) return;
-    const i = productUnits.findIndex(
-      (pu, idx) => pu === txn.productUnit && businessUnits[idx] === txn.businessUnit,
-    );
-    if (i >= 0) setUnitIndex(i);
-  }, [productUnits, businessUnits, txn.productUnit, txn.businessUnit, unitIndex]);
-
-  const isTravel = category === CC_TRAVEL_CATEGORY;
-  // EditPane.tsx:364 matches with startsWith, so a sub-category such as
-  // "Marketing - Digital" still needs a sub-region.
-  const isMarketing = category?.startsWith(CC_MARKETING_CATEGORY) ?? false;
+  const isTravel = isTravelCategory(category);
+  const isMarketing = isMarketingCategory(category);
 
   // EditPane.tsx:560-600 — the job number decides a travel transaction's units.
   // Fetched only while Travel is selected; the row keeps its stored units until
@@ -387,54 +367,13 @@ function CcEditForm({
             </Field>
           ) : (
             <Field label="Product unit">
-              <Select<number | "">
-                value={unitIndex}
+              <ProductUnitSelect
+                value={unitIndex === "" ? null : unitIndex}
                 disabled={leadOnly}
-                onChange={(e) => setUnitIndex(e.target.value === "" ? "" : Number(e.target.value))}
-                displayEmpty
-                renderValue={(v) => (v === "" ? <Placeholder /> : productUnits[Number(v)] ?? String(v))}
-              >
-                {unitGroups.flatMap(([bu, items]) => [
-                  // Full-opacity heading colour instead of MUI's dim default
-                  // text.secondary, which read as low-contrast grey-on-dark.
-                  <ListSubheader
-                    key={`h-${bu}`}
-                    // A group with few items lets the next sticky header
-                    // overtake it mid-scroll, overlapping its text with the
-                    // item still scrolling out underneath. Disabling sticky
-                    // entirely removes the only thing that can collide.
-                    disableSticky
-                    // The flat #8a8a8a this used to carry read as a plain
-                    // grey, out of step with every other surface in the
-                    // dialog — those come from the warm `action.hover`
-                    // tint (CcApproveDetail.tsx:67's description/amount
-                    // card uses the same token), which resolves through
-                    // MUI's CSS-variables colour-scheme system automatically,
-                    // unlike theme.palette.mode (confirmed dead here: it
-                    // never reflects the live DOM colour-scheme attribute).
-                    sx={{
-                      bgcolor: "action.hover",
-                      // text.primary, not ListSubheader's default
-                      // text.secondary — a dim label reads poorly as a
-                      // group heading.
-                      color: "text.primary",
-                      // MUI's ListSubheader bolds itself by default (its own
-                      // built-in CSS, not something added here) — forced
-                      // back to normal weight to match plain body text.
-                      fontWeight: 400,
-                    }}
-                  >
-                    {bu}
-                  </ListSubheader>,
-                  ...items.map((o) => (
-                    // Indented under its group header so each option reads
-                    // clearly as belonging to the business unit above it.
-                    <MenuItem key={o.i} value={o.i} sx={{ pl: 4 }}>
-                      {o.label}
-                    </MenuItem>
-                  )),
-                ])}
-              </Select>
+                onChange={(i) => setPickedUnitIndex(i ?? "")}
+                productUnits={productUnits}
+                businessUnits={businessUnits}
+              />
             </Field>
           )}
 
@@ -483,9 +422,9 @@ function CcEditForm({
               fullWidth
               value={comment}
               disabled={leadOnly}
-              onChange={(e) => setComment(e.target.value.slice(0, COMMENT_MAX))}
+              onChange={(e) => setComment(e.target.value.slice(0, CC_COMMENT_MAX))}
               placeholder="Short note for this transaction"
-              helperText={`${comment.length}/${COMMENT_MAX}`}
+              helperText={`${comment.length}/${CC_COMMENT_MAX}`}
               // The caption above is a plain Typography, so name the input.
               inputProps={{ "aria-label": "Comment" }}
             />

@@ -21,6 +21,8 @@ import {
   applyBulkEdit,
   clearBulkDependents,
   clearDependentFields,
+  findExactProductUnitIndex,
+  groupProductUnits,
   resolveProductUnitIndex,
   sortByCompleteness,
   CC_BULK_EDIT_EMPTY,
@@ -252,5 +254,37 @@ describe("the bulk form clears its own dependent choices", () => {
   it("leaves the comment alone whatever else changes", () => {
     const form = { ...CC_BULK_EDIT_EMPTY, comment: "keep me" };
     expect(clearBulkDependents("expenseCategory", form)).not.toHaveProperty("comment");
+  });
+});
+
+describe("groupProductUnits", () => {
+  it("groups each product unit under its business unit, in the order the business units first appear", () => {
+    const groups = groupProductUnits(["Cloud", "Identity", "Docs", "IAM"], ["Products", "Products", "Ops", "Products"]);
+    expect(groups).toEqual([
+      ["Products", [{ index: 0, label: "Cloud" }, { index: 1, label: "Identity" }, { index: 3, label: "IAM" }]],
+      ["Ops", [{ index: 2, label: "Docs" }]],
+    ]);
+  });
+
+  it("puts a product unit with no business unit under Other", () => {
+    expect(groupProductUnits(["Misc"], [""])).toEqual([["Other", [{ index: 0, label: "Misc" }]]]);
+  });
+});
+
+describe("findExactProductUnitIndex", () => {
+  const productUnits = ["Integration", "Integration", "Identity"];
+  const businessUnits = ["Products", "Services", "Products"];
+
+  it("finds the product unit under the given business unit, where the name repeats across business units", () => {
+    expect(findExactProductUnitIndex("Integration", "Services", productUnits, businessUnits)).toBe(1);
+  });
+
+  it("is null when the pair isn't listed, even if the product unit is under another business unit", () => {
+    expect(findExactProductUnitIndex("Identity", "Services", productUnits, businessUnits)).toBeNull();
+  });
+
+  it("is null without a product unit or a business unit", () => {
+    expect(findExactProductUnitIndex(null, "Products", productUnits, businessUnits)).toBeNull();
+    expect(findExactProductUnitIndex("Identity", null, productUnits, businessUnits)).toBeNull();
   });
 });

@@ -31,6 +31,22 @@ export type CcAttachmentType = "receipt" | "contract";
 export const CC_TRAVEL_CATEGORY = "Travel";
 export const CC_MARKETING_CATEGORY = "Marketing";
 
+/** The most characters a transaction comment can have. */
+export const CC_COMMENT_MAX = 30;
+
+/** Whether an expense category is Travel, matched exactly. */
+export function isTravelCategory(category: string | null | undefined): boolean {
+  return category === CC_TRAVEL_CATEGORY;
+}
+
+/**
+ * Whether an expense category is Marketing or one of its sub-categories, such as
+ * "Marketing - Digital", matched by prefix as the source app's EditPane.tsx:364 does.
+ */
+export function isMarketingCategory(category: string | null | undefined): boolean {
+  return Boolean(category?.startsWith(CC_MARKETING_CATEGORY));
+}
+
 export interface CcEmployee {
   employeeId: string;
   workEmail: string;
@@ -175,12 +191,8 @@ export function ccCardName(label: string | null | undefined, index: number): str
 // are set (mirrors the backend's validateRequiredFields).
 export function ccTxnComplete(t: CcTransaction): boolean {
   if (!t.expenseTypeLabel || !t.txnComment) return false;
-  if (t.expenseCategoryLabel === CC_TRAVEL_CATEGORY) return Boolean(t.travelJobNumber);
-  // EditPane.tsx:364 matches with startsWith, so a sub-category such as
-  // "Marketing - Digital" still needs a sub-region. Matching the exact string
-  // let every sub-category skip the rule.
-  if (t.expenseCategoryLabel?.startsWith(CC_MARKETING_CATEGORY))
-    return Boolean(t.subRegion && t.productUnit);
+  if (isTravelCategory(t.expenseCategoryLabel)) return Boolean(t.travelJobNumber);
+  if (isMarketingCategory(t.expenseCategoryLabel)) return Boolean(t.subRegion && t.productUnit);
   return Boolean(t.productUnit);
 }
 

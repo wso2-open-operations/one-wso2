@@ -27,17 +27,18 @@ import { ChevronRightIcon } from "@wso2/oxygen-ui-icons-react";
 export type ClaimGroup = "opd" | "expense";
 
 /**
- * Remembers which groups the reader has folded away.
+ * Remembers which groups the reader has folded away. The groups are the claim groups unless the
+ * caller names its own.
  *
  * Per mount rather than persisted: this is a "get the long group out of my way
  * for a moment" choice, not a setting worth storing and later having to explain
  * when a group is missing on a fresh visit. Everything opens expanded, so a
  * reader who never touches a heading sees exactly what they saw before.
  */
-export function useCollapsedGroups() {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<ClaimGroup>>(new Set());
+export function useCollapsedGroups<G extends string = ClaimGroup>() {
+  const [collapsed, setCollapsed] = useState<ReadonlySet<G>>(new Set());
 
-  const toggleGroup = useCallback((group: ClaimGroup) => {
+  const toggleGroup = useCallback((group: G) => {
     setCollapsed((previous) => {
       const next = new Set(previous);
       if (next.has(group)) next.delete(group);
@@ -46,7 +47,7 @@ export function useCollapsedGroups() {
     });
   }, []);
 
-  const isCollapsed = useCallback((group: ClaimGroup) => collapsed.has(group), [collapsed]);
+  const isCollapsed = useCallback((group: G) => collapsed.has(group), [collapsed]);
 
   return { isCollapsed, toggleGroup };
 }

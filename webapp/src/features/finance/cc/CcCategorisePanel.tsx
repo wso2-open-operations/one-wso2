@@ -25,7 +25,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  ListSubheader,
   MenuItem,
   Select,
   Stack,
@@ -52,6 +51,7 @@ import {
   INFO_SIDEBAR_WIDTH,
   JobNumberSideBar,
   Placeholder,
+  ProductUnitSelect,
   ReadOnlyField,
   SearchableSelect,
 } from "./ccFormFields";
@@ -61,15 +61,13 @@ import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
 import { useCcAttachment } from "./useCcMutations";
 import { CC_SNACK } from "./ccCopy";
 import {
-  CC_MARKETING_CATEGORY,
-  CC_TRAVEL_CATEGORY,
-  ccTxnComplete,
+  CC_COMMENT_MAX,
   type CcAttachmentType,
   type CcTransaction,
+  ccTxnComplete,
+  isMarketingCategory,
+  isTravelCategory,
 } from "./ccTypes";
-
-const COMMENT_MAX = 30;
-
 
 /**
  * What the list needs from the panel before it lets the reader move on —
@@ -185,10 +183,8 @@ export function CcCategorisePanel({
     () => (category ? [...(menus.expenseTypes.data?.types[category] ?? [])].sort((a, b) => a.localeCompare(b)) : []),
     [category, menus.expenseTypes.data],
   );
-  const isTravel = category === CC_TRAVEL_CATEGORY;
-  // EditPane.tsx:1397 matches with startsWith, so a sub-category such as
-  // "Marketing - Digital" still needs a sub-region.
-  const isMarketing = category.startsWith(CC_MARKETING_CATEGORY);
+  const isTravel = isTravelCategory(category);
+  const isMarketing = isMarketingCategory(category);
 
   // EditPane.tsx:560-600 — the job number decides a travel transaction's units.
   // Only a typed number is shape-checked; one off the list is real by
@@ -411,19 +407,6 @@ export function CcCategorisePanel({
     productUnits,
     businessUnits,
   );
-  // CcEditDialog.tsx — Product Unit options grouped under a Business Unit
-  // subheader rather than spelling the business unit out in each option's
-  // own label, in whichever order the menu arrays list the business units
-  // (first appearance wins a group's position).
-  const unitGroups = useMemo(() => {
-    const groups = new Map<string, { i: number; label: string }[]>();
-    productUnits.forEach((pu, i) => {
-      const bu = businessUnits[i] || "Other";
-      if (!groups.has(bu)) groups.set(bu, []);
-      groups.get(bu)!.push({ i, label: pu });
-    });
-    return Array.from(groups.entries());
-  }, [productUnits, businessUnits]);
 
   const viewAttachment = (attachmentType: CcAttachmentType) => {
     setViewingType(attachmentType);
@@ -576,7 +559,7 @@ export function CcCategorisePanel({
               <Box component="span" sx={{ color: "error.main", ml: 0.25 }}>*</Box>
             </FieldLabel>
             <FieldLabel>
-              {(draft.txnComment ?? "").length}/{COMMENT_MAX}
+              {(draft.txnComment ?? "").length}/{CC_COMMENT_MAX}
             </FieldLabel>
           </Stack>
           <TextField
@@ -584,10 +567,10 @@ export function CcCategorisePanel({
             fullWidth
             disabled={!editable}
             value={draft.txnComment ?? ""}
-            onChange={(e) => change({ txnComment: e.target.value.slice(0, COMMENT_MAX) || null })}
+            onChange={(e) => change({ txnComment: e.target.value.slice(0, CC_COMMENT_MAX) || null })}
             placeholder="Short note for this transaction"
             // The caption above is a plain Typography, so name the input.
-            inputProps={{ "aria-label": "Comment", maxLength: COMMENT_MAX }}
+            inputProps={{ "aria-label": "Comment", maxLength: CC_COMMENT_MAX }}
           />
         </Box>
 
@@ -637,60 +620,18 @@ export function CcCategorisePanel({
           // it is either Travel or Marketing, never both.
           <FieldRow>
             <Field label="Product Unit" required>
-              <Select<number | "">
-                value={unitIndex ?? ""}
+              <ProductUnitSelect
+                value={unitIndex}
                 disabled={!editable}
-                onChange={(e) => {
-                  const i = e.target.value === "" ? null : Number(e.target.value);
+                onChange={(i) =>
                   change({
                     productUnit: i === null ? null : productUnits[i] ?? null,
                     businessUnit: i === null ? null : businessUnits[i] ?? null,
-                  });
-                }}
-                displayEmpty
-                renderValue={(v) => (v === "" ? <Placeholder /> : productUnits[Number(v)] ?? String(v))}
-              >
-                {unitGroups.flatMap(([bu, items]) => [
-                  // Full-opacity heading colour instead of MUI's dim default
-                  // text.secondary, which read as low-contrast grey-on-dark.
-                  <ListSubheader
-                    key={`h-${bu}`}
-                    // A group with few items lets the next sticky header
-                    // overtake it mid-scroll, overlapping its text with the
-                    // item still scrolling out underneath. Disabling sticky
-                    // entirely removes the only thing that can collide.
-                    disableSticky
-                    // The flat #8a8a8a this used to carry read as a plain
-                    // grey, out of step with every other surface in the
-                    // panel — those all come from the warm `action.hover`
-                    // tint (CcApproveDetail.tsx:67's description/amount
-                    // card uses the same token), which resolves through
-                    // MUI's CSS-variables colour-scheme system automatically,
-                    // unlike theme.palette.mode (confirmed dead here: it
-                    // never reflects the live DOM colour-scheme attribute).
-                    sx={{
-                      bgcolor: "action.hover",
-                      // text.primary, not ListSubheader's default
-                      // text.secondary — a dim label reads poorly as a
-                      // group heading.
-                      color: "text.primary",
-                      // MUI's ListSubheader bolds itself by default (its own
-                      // built-in CSS, not something added here) — forced
-                      // back to normal weight to match plain body text.
-                      fontWeight: 400,
-                    }}
-                  >
-                    {bu}
-                  </ListSubheader>,
-                  ...items.map((o) => (
-                    // Indented under its group header so each option reads
-                    // clearly as belonging to the business unit above it.
-                    <MenuItem key={o.i} value={o.i} sx={{ pl: 4 }}>
-                      {o.label}
-                    </MenuItem>
-                  )),
-                ])}
-              </Select>
+                  })
+                }
+                productUnits={productUnits}
+                businessUnits={businessUnits}
+              />
             </Field>
             {/* :1366-1393 — read-only. The business unit follows the product
                 unit; it is shown so the reader can see what they picked implies. */}

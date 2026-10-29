@@ -28,7 +28,7 @@
  * exactly the disparity this migration exists to avoid.
  */
 
-import { CC_TRAVEL_CATEGORY, type CcTransaction } from "./ccTypes";
+import { type CcTransaction, isTravelCategory } from "./ccTypes";
 
 /**
  * Complete rows first — NewTransactionsDataGrid.tsx:156-164.
@@ -51,6 +51,21 @@ export function sortByCompleteness(
 }
 
 /**
+ * The index of the exact (product, business) unit pair, or null when that pair isn't listed. A
+ * product unit's name can repeat across business units, so the pair is what identifies one.
+ */
+export function findExactProductUnitIndex(
+  productUnit: string | null,
+  businessUnit: string | null,
+  productUnits: string[],
+  businessUnits: string[],
+): number | null {
+  if (!productUnit || businessUnit === null) return null;
+  const index = productUnits.findIndex((unit, i) => unit === productUnit && businessUnits[i] === businessUnit);
+  return index !== -1 ? index : null;
+}
+
+/**
  * Which entry of the aligned product/business unit arrays a row is on —
  * EditPane.tsx:214-241.
  *
@@ -68,16 +83,38 @@ export function resolveProductUnitIndex(
 ): number | null {
   if (!productUnit) return null;
 
-  const exactPair =
-    businessUnit !== null
-      ? productUnits.findIndex(
-          (unit, i) => unit === productUnit && businessUnits[i] === businessUnit,
-        )
-      : -1;
-  if (exactPair !== -1) return exactPair;
+  const exactPair = findExactProductUnitIndex(productUnit, businessUnit, productUnits, businessUnits);
+  if (exactPair !== null) return exactPair;
 
   const byProduct = productUnits.findIndex((unit) => unit === productUnit);
   return byProduct !== -1 ? byProduct : null;
+}
+
+/** The group a product unit with no business unit is listed under. */
+const NO_BUSINESS_UNIT_GROUP = "Other";
+
+/** A product unit as a menu option: its index in the units list, and its name. */
+export interface ProductUnitOption {
+  index: number;
+  label: string;
+}
+
+/** A business unit and the product units under it. */
+export type ProductUnitGroup = [businessUnit: string, units: ProductUnitOption[]];
+
+/**
+ * The product units grouped by business unit, for a menu that heads each group with its business
+ * unit. Groups are in the order their business units first appear.
+ */
+export function groupProductUnits(productUnits: string[], businessUnits: string[]): ProductUnitGroup[] {
+  const groups = new Map<string, ProductUnitOption[]>();
+  productUnits.forEach((label, index) => {
+    const businessUnit = businessUnits[index] || NO_BUSINESS_UNIT_GROUP;
+    const group = groups.get(businessUnit);
+    if (group) group.push({ index, label });
+    else groups.set(businessUnit, [{ index, label }]);
+  });
+  return Array.from(groups.entries());
 }
 
 /** The three fields whose value invalidates others below them. */
@@ -204,7 +241,7 @@ export function applyBulkEdit(
           // row's units are supposed to come from its job number. Checking the
           // row instead closes it and still does what the source does whenever
           // the form names a category.
-          if (next.expenseCategoryLabel !== CC_TRAVEL_CATEGORY) {
+          if (!isTravelCategory(next.expenseCategoryLabel)) {
             next.productUnit = units.productUnits[Number(value)] ?? null;
             next.businessUnit = units.businessUnits[Number(value)] ?? null;
           }
@@ -233,7 +270,7 @@ export function clearBulkDependents(
     case "expenseCategory":
       return { expenseType: "", travelJobNumber: "", productUnit: "", subRegion: "" };
     case "expenseType":
-      return form.expenseCategory === CC_TRAVEL_CATEGORY
+      return isTravelCategory(form.expenseCategory)
         ? { travelJobNumber: "", productUnit: "" }
         : {};
     default:
