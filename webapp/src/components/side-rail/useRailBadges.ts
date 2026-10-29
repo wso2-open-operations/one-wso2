@@ -18,15 +18,15 @@
 
 import type { RailBadgeMap, ResolveBadge } from "./railBadge";
 
-/** The badges features report for rail rows. */
+/** The badges features report for rail rows and tabs. */
 export interface RailBadges {
-  /** The badge on a rail row id, if a feature reports one. */
+  /** The badge on a rail row or tab id, if a feature reports one. */
   resolveBadge: ResolveBadge;
 }
 
 /**
- * Collects the badges every feature reports for its rail rows. A row shows one badge; if two
- * features report one for the same row, the later wins.
+ * Collects the badges every feature reports for its rail rows and tabs. An id shows one badge; if
+ * two features report one for the same id, the later wins.
  */
 export function useRailBadges(): RailBadges {
   // Each feature's badge hook, enabled only while its perspective is active, as

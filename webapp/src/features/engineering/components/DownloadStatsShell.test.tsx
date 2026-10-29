@@ -22,9 +22,11 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import {
   DOWNLOAD_STATS_DESCRIPTION,
   DOWNLOAD_STATS_HEADING,
+  DOWNLOAD_STATS_SCREENS,
   downloadStatsPaths,
   type DownloadStatsScreen,
 } from "@constants/downloadStatsApps";
+import type { RailBadge } from "@components/side-rail/railBadge";
 import DownloadStatsShell from "./DownloadStatsShell";
 
 // The ladder every Download Stats screen stands behind, rendered on its route
@@ -41,9 +43,16 @@ vi.mock("@asgardeo/react", () => ({
   }),
 }));
 
+// The badges features report for rail rows and tabs, mocked so no feature's source runs here.
+let badges: Record<string, RailBadge> = {};
+vi.mock("@components/side-rail/useRailBadges", () => ({
+  useRailBadges: () => ({ resolveBadge: (id: string) => badges[id] }),
+}));
+
 const originalConfig = window.config;
 
 afterEach(() => {
+  badges = {};
   window.config = originalConfig;
   vi.unstubAllGlobals();
 });
@@ -121,6 +130,16 @@ describe("the screen tabs", () => {
       description.compareDocumentPosition(screen.getByRole("tablist")) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Downloads" })).not.toBeInTheDocument();
+  });
+
+  it("puts a screen's badge on its tab", async () => {
+    configure();
+    vi.stubGlobal("fetch", userInfo(async () => json({ email: "a@wso2.com", isAdmin: false })));
+    badges = { [DOWNLOAD_STATS_SCREENS.versions.id]: { label: "3", reason: "3 new releases." } };
+    show("downloads");
+
+    expect(await screen.findByRole("tab", { name: "Versions 3 3 new releases." })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Packages" })).toBeInTheDocument();
   });
 
   it("adds Admin, last and selected, when the API says the reader is an Admin", async () => {

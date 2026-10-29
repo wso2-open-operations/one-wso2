@@ -17,7 +17,10 @@
  */
 
 import { Link, useLocation } from "react-router";
-import { Tab, Tabs } from "@wso2/oxygen-ui";
+import { Box, Chip, Tab, Tabs } from "@wso2/oxygen-ui";
+import type { ScreenBadge } from "@components/screen-badge/screenBadge";
+import ScreenBadgeLabel from "@components/screen-badge/ScreenBadgeLabel";
+import { screenBadgePillSx } from "@components/screen-badge/screenBadgeSx";
 
 // A tab bar whose tabs are links, so which tab is open lives in the URL rather
 // than in component state. That makes a tab linkable, survivable across a
@@ -32,6 +35,8 @@ export interface RoutedTabDef {
   /** URL segment under `basePath`, and the tab's identity. */
   segment: string;
   label: string;
+  /** A badge drawn beside the label. */
+  badge?: ScreenBadge;
 }
 
 export default function RoutedTabs({
@@ -82,11 +87,26 @@ export default function RoutedTabs({
         <Tab
           key={t.segment}
           value={t.segment}
-          label={t.label}
+          label={t.badge ? badgedLabel(t.label, t.badge) : t.label}
           component={Link}
           to={`${basePath}/${t.segment}`}
         />
       ))}
     </Tabs>
+  );
+}
+
+/** A tab label with its badge beside it. */
+function badgedLabel(label: string, badge: ScreenBadge) {
+  return (
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+      {label}
+      <Chip
+        size="small"
+        color="primary"
+        sx={screenBadgePillSx(badge)}
+        label={<ScreenBadgeLabel badge={badge} placement="top" />}
+      />
+    </Box>
   );
 }

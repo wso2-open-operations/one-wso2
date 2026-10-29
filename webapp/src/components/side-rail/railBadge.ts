@@ -20,8 +20,8 @@ import type { ScreenBadge } from "@components/screen-badge/screenBadge";
 import type { PerspectiveSection } from "@constants/perspectives";
 
 /**
- * A badge on a rail row. A row has one at most. On a group's header it's drawn as a dot; its label
- * and reason aren't shown.
+ * A badge on a rail row or tab. A row or tab has one at most. On a group's header it's drawn as a
+ * dot; its label and reason aren't shown.
  */
 export interface RailBadge extends ScreenBadge {
   /**
@@ -31,10 +31,10 @@ export interface RailBadge extends ScreenBadge {
   showOnGroup?: boolean;
 }
 
-/** Looks up the badge for a rail row id, if it has one. */
+/** Looks up the badge for a rail row or tab id, if it has one. */
 export type ResolveBadge = (id: string) => RailBadge | undefined;
 
-/** Rail row ids mapped to their badges, as one feature reports them. */
+/** Rail row and tab ids mapped to their badges, as one feature reports them. */
 export type RailBadgeMap = Readonly<Record<string, RailBadge>>;
 
 /**
