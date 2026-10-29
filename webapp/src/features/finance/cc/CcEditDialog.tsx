@@ -53,7 +53,13 @@ import {
   type ReceiptSource,
 } from "../util/financeReceipts";
 import { CC_SNACK } from "./ccCopy";
-import { JobNumberAutocomplete, JobNumberDetails, ProductUnitSelect, SearchableSelect } from "./ccFormFields";
+import {
+  JobNumberAutocomplete,
+  JobNumberDetails,
+  Placeholder,
+  ProductUnitSelect,
+  SearchableSelect,
+} from "./ccFormFields";
 import { isValidJobNumberFormat, normalizeJobNumber } from "./ccJobNumber";
 import { findExactProductUnitIndex } from "./ccPendingSubmissions";
 import {
@@ -655,10 +661,6 @@ function AttachmentField({
       </Tooltip>
     </Box>
   );
-}
-
-function Placeholder() {
-  return <span style={{ opacity: 0.6 }}>Select…</span>;
 }
 
 /**
