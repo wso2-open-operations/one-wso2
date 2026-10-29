@@ -40,12 +40,86 @@ jobs:
       - name: Type-check
         run: npx tsc -b
 
-      # Lint and tests report without failing the check until main passes them. Drop
-      # continue-on-error from each once it does.
+      # Lint reports without failing the check until main passes it. Drop
+      # continue-on-error once it does.
       - name: Lint
         run: npm run lint
         continue-on-error: true
 
+  # Tests are split across parallel runners: almost all of their time is
+  # per-file import and jsdom setup, which one 4-core runner works through
+  # serially. Vitest balances the files across shards on its own. To add
+  # shards, extend shardIndex and bump shardTotal to match.
+  test:
+    name: test (${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2, 3, 4]
+        shardTotal: [4]
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: webapp/.nvmrc
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Failures surface in the merged report below, so a shard never fails.
       - name: Test
-        run: npm test
+        run: npx vitest run --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }} --reporter=blob
+        env:
+          DISABLE_VITEST_CSS: "true"
+        continue-on-error: true
+
+      - name: Upload blob report
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shardIndex }}
+          path: webapp/.vitest-reports/*
+          include-hidden-files: true
+          retention-days: 1
+
+  # Combines the shard results into one report and one set of failure
+  # annotations, however many shards there are.
+  test-report:
+    needs: test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: webapp/.nvmrc
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: blob-report-*
+          path: webapp/.vitest-reports
+          merge-multiple: true
+
+      # Tests report without failing the check until main passes them. Drop
+      # continue-on-error once it does.
+      - name: Merge reports
+        run: npx vitest --merge-reports --reporter=default --reporter=github-actions
         continue-on-error: true

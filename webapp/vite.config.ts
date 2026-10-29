@@ -128,7 +128,7 @@ const vitestConfig = defineVitestConfig({
   test: {
     globals: true,
     environment: "jsdom",
-    css: true,
+    css: !["true", "1"].includes(process.env.DISABLE_VITEST_CSS ?? ""),
     setupFiles: ["./src/test/setup.ts"],
     exclude: [...configDefaults.exclude],
     server: {
