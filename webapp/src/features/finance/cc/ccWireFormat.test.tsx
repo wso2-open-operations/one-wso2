@@ -27,11 +27,22 @@ import { localIsoDateOffset } from "@utils/localDate";
 // fired, returned 200 and was discarded passed 42 of them.
 
 const requests: { method: string; url: string }[] = [];
-const responses = { cards: [] as unknown[] };
+const responses = { cards: [] as unknown[], userInfo: {} as unknown, cardsFail: false };
+
+// A 4xx, which `financeRetry` doesn't retry, so a failure shows at once.
+const { MockHttpError } = vi.hoisted(() => ({
+  MockHttpError: class extends Error {
+    constructor(public status: number) {
+      super(`HTTP ${status}`);
+    }
+  },
+}));
 
 vi.mock("@api/http", () => ({
   authedGet: (url: string) => {
     requests.push({ method: "GET", url });
+    if (url.endsWith("/user-info")) return Promise.resolve(responses.userInfo);
+    if (responses.cardsFail) return Promise.reject(new MockHttpError(403));
     return Promise.resolve(responses.cards);
   },
   authedPost: (url: string) => {
@@ -47,7 +58,7 @@ vi.mock("@api/http", () => ({
     return Promise.resolve(undefined);
   },
   fetchWithReauth: vi.fn(),
-  HttpError: class extends Error {},
+  HttpError: MockHttpError,
 }));
 vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
 vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "token" }));
@@ -64,6 +75,8 @@ vi.mock("@config/apiConfig", () => ({
       `https://cc.test/credit-cards/${id}?label=${encodeURIComponent(label)}`,
     transactions: (q: string) => `https://cc.test/transactions${q}`,
     jobNumberDetails: (j: string) => `https://cc.test/travels/${encodeURIComponent(j)}`,
+    taggingRules: "https://cc.test/tagging-rules",
+    taggingRule: (id: number) => `https://cc.test/tagging-rules/${id}`,
     transactionSummary: "https://cc.test/transactions/new-transaction-summary",
     submittedByCategory: "https://cc.test/transactions/submitted-transaction-summary",
     cardHolderCompliance: "https://cc.test/transactions/card-holder-compliance-summary",
@@ -76,6 +89,9 @@ const {
   useCcCardHolderCompliance,
   useCcSubmittedByCategory,
   useCcTransactionSummary,
+  useCcOwnCards,
+  useCcTaggingRules,
+  useCcTaggingRule,
 } = await import("./useCc");
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -89,6 +105,8 @@ const closed = { id: 2, ccNumber: "2222", label: "Old", status: "Inactive" };
 beforeEach(() => {
   requests.length = 0;
   responses.cards = [active, closed];
+  responses.userInfo = {};
+  responses.cardsFail = false;
 });
 
 // creditCard.ts:57-62 keeps only active cards unless asked otherwise. The flag
@@ -197,5 +215,77 @@ describe("what the dashboard asks for", () => {
     renderHook(() => useCcCardHolderCompliance(undefined, false, true), { wrapper });
     await waitFor(() => expect(requests.length).toBeGreaterThan(0));
     expect(requests[0].url).toContain("card-holder-compliance-summary");
+  });
+});
+
+describe("the autofill rule data", () => {
+  it("asks for the caller's tagging rules", async () => {
+    renderHook(() => useCcTaggingRules(), { wrapper });
+    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+    expect(requests).toEqual([{ method: "GET", url: "https://cc.test/tagging-rules" }]);
+  });
+
+  it("asks for one rule by its ID", async () => {
+    renderHook(() => useCcTaggingRule(7), { wrapper });
+    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+    expect(requests).toEqual([{ method: "GET", url: "https://cc.test/tagging-rules/7" }]);
+  });
+
+  it("does not ask for rules while disabled", async () => {
+    renderHook(() => useCcTaggingRules(false), { wrapper });
+    renderHook(() => useCcTaggingRule(7, false), { wrapper });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(requests).toHaveLength(0);
+  });
+
+  // /credit-cards returns every card a lead or Finance user can see, but a rule
+  // can only be added for the caller's own.
+  it("keeps only the caller's own cards for rules", async () => {
+    responses.userInfo = { workEmail: "jane@wso2.com" };
+    const own = { ...active, employeeEmail: "jane@wso2.com" };
+    const ownClosed = { ...closed, employeeEmail: "jane@wso2.com" };
+    const others = { id: 3, ccNumber: "3333", label: null, status: "Active", employeeEmail: "ravi@wso2.com" };
+    responses.cards = [own, others, ownClosed];
+
+    const { result } = renderHook(() => useCcOwnCards(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.cards).toEqual([own, ownClosed]);
+  });
+
+  it("matches the caller's email whatever its case", async () => {
+    responses.userInfo = { workEmail: "Jane@WSO2.com" };
+    const own = { ...active, employeeEmail: "jane@wso2.com" };
+    responses.cards = [own];
+
+    const { result } = renderHook(() => useCcOwnCards(), { wrapper });
+
+    await waitFor(() => expect(result.current.cards).toEqual([own]));
+  });
+
+  it("reports a failed card request rather than an empty list", async () => {
+    responses.userInfo = { workEmail: "jane@wso2.com" };
+    responses.cardsFail = true;
+
+    const { result } = renderHook(() => useCcOwnCards(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toEqual(new MockHttpError(403));
+    expect(result.current.cards).toEqual([]);
+  });
+
+  it("asks again for what failed on retry", async () => {
+    responses.userInfo = { workEmail: "jane@wso2.com" };
+    responses.cardsFail = true;
+    const { result } = renderHook(() => useCcOwnCards(), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    const own = { ...active, employeeEmail: "jane@wso2.com" };
+    responses.cards = [own];
+    responses.cardsFail = false;
+
+    result.current.retry();
+
+    await waitFor(() => expect(result.current.cards).toEqual([own]));
+    expect(result.current.isError).toBe(false);
   });
 });

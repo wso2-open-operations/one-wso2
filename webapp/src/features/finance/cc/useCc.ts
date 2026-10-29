@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
 import { authedGet } from "@api/http";
@@ -37,6 +38,7 @@ import type {
   CcTransactionSummary,
   CcProductAndBusinessUnitList,
   CcSubRegionList,
+  CcTaggingRule,
   CcTransaction,
 } from "./ccTypes";
 
@@ -80,6 +82,88 @@ export function useCreditCards(includeInactive = false) {
       return (cards ?? []).filter((c) => (c.status ?? "").toUpperCase() === "ACTIVE");
     },
     staleTime: 5 * 60 * 1000,
+    retry: financeRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** The caller's own cards, with the state of the two requests they come from. */
+export interface CcOwnCards {
+  /** The cards, inactive ones included. Empty until both requests succeed. */
+  cards: CcCreditCard[];
+  /** Whether `/user-info` or `/credit-cards` is loading. */
+  isLoading: boolean;
+  /** Whether `/user-info` or `/credit-cards` failed. */
+  isError: boolean;
+  /** The first of the two failures, or `null`. */
+  error: Error | null;
+  /** Asks again for whichever request failed. */
+  retry: () => void;
+}
+
+/**
+ * The caller's own cards: the cards a rule can be added for. A lead or Finance
+ * user's `/credit-cards` also lists other card holders' cards, so those are
+ * left out.
+ */
+export function useCcOwnCards(): CcOwnCards {
+  const userInfo = useCcUserInfo();
+  const allCards = useCreditCards(true);
+  const email = userInfo.data?.workEmail?.toLowerCase();
+  const cards = useMemo(
+    () => (email ? (allCards.data ?? []).filter((c) => c.employeeEmail?.toLowerCase() === email) : []),
+    [allCards.data, email],
+  );
+  return {
+    cards,
+    isLoading: userInfo.isLoading || allCards.isLoading,
+    isError: userInfo.isError || allCards.isError,
+    error: userInfo.error ?? allCards.error ?? null,
+    retry: () => {
+      if (userInfo.isError) void userInfo.refetch();
+      if (allCards.isError) void allCards.refetch();
+    },
+  };
+}
+
+/**
+ * GET /tagging-rules — the caller's autofill rules, in ID order.
+ *
+ * @param enabled - Whether to fetch. Off makes no request.
+ */
+export function useCcTaggingRules(enabled = true) {
+  const { isSignedIn } = useAsgardeo();
+  const getAccessToken = useAccessToken();
+  const { state: subState, retry: retryIdentity } = useAsgardeoSub();
+  const userSub = subState.status === "ready" ? subState.sub : undefined;
+  const configured = isCcBackendConfigured();
+  const query = useQuery<CcTaggingRule[]>({
+    queryKey: ["cc-tagging-rules", userSub],
+    enabled: enabled && isSignedIn && configured && Boolean(userSub),
+    queryFn: async () => authedGet<CcTaggingRule[]>(ccServiceUrls.taggingRules, await getAccessToken()),
+    staleTime: 30 * 1000,
+    retry: financeRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/**
+ * GET /tagging-rules/{id} — one of the caller's autofill rules.
+ *
+ * @param id - The rule's ID.
+ * @param enabled - Whether to fetch. Off makes no request.
+ */
+export function useCcTaggingRule(id: number, enabled = true) {
+  const { isSignedIn } = useAsgardeo();
+  const getAccessToken = useAccessToken();
+  const { state: subState, retry: retryIdentity } = useAsgardeoSub();
+  const userSub = subState.status === "ready" ? subState.sub : undefined;
+  const configured = isCcBackendConfigured();
+  const query = useQuery<CcTaggingRule>({
+    queryKey: ["cc-tagging-rule", userSub, id],
+    enabled: enabled && isSignedIn && configured && Boolean(userSub),
+    queryFn: async () => authedGet<CcTaggingRule>(ccServiceUrls.taggingRule(id), await getAccessToken()),
+    staleTime: 30 * 1000,
     retry: financeRetry,
   });
   return foldIdentityError(query, subState, retryIdentity);

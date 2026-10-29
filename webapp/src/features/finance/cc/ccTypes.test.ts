@@ -17,7 +17,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { isMarketingCategory, isTravelCategory } from "./ccTypes";
+import { ccRuleUnconfigured, isMarketingCategory, isTravelCategory, type CcTaggingRule } from "./ccTypes";
 
 describe("isTravelCategory", () => {
   it("is Travel only, matched exactly", () => {
@@ -41,5 +41,41 @@ describe("isMarketingCategory", () => {
   it("is false for no category", () => {
     expect(isMarketingCategory(null)).toBe(false);
     expect(isMarketingCategory("")).toBe(false);
+  });
+});
+
+describe("ccRuleUnconfigured", () => {
+  const rule: CcTaggingRule = {
+    id: 1,
+    creditCardId: 1,
+    ccNumber: "1111",
+    employeeEmail: "jane@wso2.com",
+    supplier: "Uber",
+    account: null,
+    amountMin: null,
+    amountMax: null,
+    expenseCategoryLabel: null,
+    expenseTypeLabel: null,
+    comment: null,
+    subRegion: null,
+    productUnit: null,
+    businessUnit: null,
+    source: "auto",
+    active: true,
+    outdated: false,
+  };
+
+  it("is true while the rule fills in no expense details", () => {
+    expect(ccRuleUnconfigured(rule)).toBe(true);
+  });
+
+  it.each([
+    ["expenseTypeLabel", "Taxi"],
+    ["comment", "Client visit"],
+    ["subRegion", "APAC"],
+    ["productUnit", "IAM"],
+    ["businessUnit", "Products"],
+  ] as const)("is false once %s is set", (field, value) => {
+    expect(ccRuleUnconfigured({ ...rule, [field]: value })).toBe(false);
   });
 });

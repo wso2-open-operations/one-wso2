@@ -55,6 +55,10 @@ export interface CcEmployee {
   jobRole: string;
   employeeThumbnail?: string | null;
   privileges: CcAccessLevel[];
+  /** Whether an active autofill rule of the card holder fills in no expense details. */
+  taggingRulesUnconfigured?: boolean;
+  /** Whether an active autofill rule of the card holder has values no longer offered. */
+  taggingRulesOutdated?: boolean;
 }
 
 export interface CcTransaction {
@@ -81,6 +85,8 @@ export interface CcTransaction {
   leadApprovedDate: string | null;
   financeApprovedDate: string | null;
   reportSequenceNumber: string | null;
+  /** The autofill rule that filled in this transaction, if any. */
+  taggingRuleId?: number | null;
 }
 
 export interface CcCreditCard {
@@ -95,6 +101,69 @@ export interface CcCreditCard {
   countPendingLead: number;
   countPendingFinance: number;
 }
+
+// ---- autofill (tagging) rules ---------------------------------------------
+
+/** How a rule was added: by the card holder, or by the bill processor for a new supplier. */
+export type CcTaggingRuleSource = "manual" | "auto";
+
+/**
+ * A rule that fills in a card transaction's expense details when a bill
+ * matches its card, supplier, account and amount range.
+ */
+export interface CcTaggingRule {
+  /** The rule's ID. */
+  id: number;
+  /** The ID of the card the rule applies to. */
+  creditCardId: number;
+  /** The card's last digits. */
+  ccNumber: string;
+  /** The card holder's email. */
+  employeeEmail: string;
+  /** Matches any bill supplier that contains it. */
+  supplier: string;
+  /** The account on the bill. `null` matches bills that show no account. */
+  account: string | null;
+  /** The lowest bill amount the rule matches, inclusive. `null` sets no lower bound. */
+  amountMin: number | null;
+  /** The bill amount the rule matches up to, exclusive. `null` sets no upper bound. */
+  amountMax: number | null;
+  /** The expense category filled in. */
+  expenseCategoryLabel: string | null;
+  /** The expense type filled in, one of its category's types. */
+  expenseTypeLabel: string | null;
+  /** The transaction comment filled in. */
+  comment: string | null;
+  /** The sub region filled in. */
+  subRegion: string | null;
+  /** The product unit filled in, paired with `businessUnit`. */
+  productUnit: string | null;
+  /** The business unit filled in, paired with `productUnit`. */
+  businessUnit: string | null;
+  /** How the rule was added. */
+  source: CcTaggingRuleSource;
+  /** Whether the rule is applied. */
+  active: boolean;
+  /** Whether the rule has values that are no longer offered. */
+  outdated: boolean;
+}
+
+/** The body that adds a rule. The backend sets its source and card holder. */
+export type CcTaggingRuleInput = Pick<
+  CcTaggingRule,
+  | "ccNumber"
+  | "supplier"
+  | "account"
+  | "amountMin"
+  | "amountMax"
+  | "expenseCategoryLabel"
+  | "expenseTypeLabel"
+  | "comment"
+  | "subRegion"
+  | "productUnit"
+  | "businessUnit"
+  | "active"
+>;
 
 // ---- menu / configuration data --------------------------------------------
 
@@ -185,6 +254,11 @@ export function ccHasAccess(user: CcEmployee | undefined, level: CcAccessLevel):
  */
 export function ccCardName(label: string | null | undefined, index: number): string {
   return label || `Card ${index + 1}`;
+}
+
+/** Whether a rule fills in no expense details, as the backend counts it for `taggingRulesUnconfigured`. */
+export function ccRuleUnconfigured(r: CcTaggingRule): boolean {
+  return !r.expenseTypeLabel && !r.comment && !r.subRegion && !r.productUnit && !r.businessUnit;
 }
 
 // A transaction is ready to submit once its required categorisation fields

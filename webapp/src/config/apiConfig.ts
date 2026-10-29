@@ -557,6 +557,9 @@ export const ccServiceUrls = {
   // funding sources it is charged against — userMenus.ts:244-252.
   jobNumberDetails: (jobNumber: string) =>
     `${ccBackendUrl}/travels/${encodeURIComponent(jobNumber)}`,
+  // Autofill rules: GET the caller's / POST one, and GET / PATCH / DELETE one.
+  taggingRules: `${ccBackendUrl}/tagging-rules`,
+  taggingRule: (id: number) => `${ccBackendUrl}/tagging-rules/${id}`,
   // GET base64 attachment / DELETE it.
   attachment: (id: number, attachmentType: string) =>
     `${ccBackendUrl}/transactions/${id}/attachments?attachmentType=${encodeURIComponent(attachmentType)}`,

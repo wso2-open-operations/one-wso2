@@ -215,6 +215,6 @@ window.config = {
   // Each entry is deleted when its feature ships — a list that only grows
   // stops describing anything.
   //
-  // ONE_WSO2_PREVIEW_FEATURES: { infra: false, cado2: false, nda: false, amplify: false },
+  // ONE_WSO2_PREVIEW_FEATURES: { infra: false, cado2: false, nda: false, amplify: false, ccTaggingRules: false },
 
 };
