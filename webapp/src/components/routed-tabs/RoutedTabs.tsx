@@ -39,6 +39,7 @@ export interface RoutedTabDef {
   badge?: ScreenBadge;
 }
 
+/** A tab bar whose tabs link to routes under `basePath`, with the current route's tab selected. */
 export default function RoutedTabs({
   basePath,
   tabs,

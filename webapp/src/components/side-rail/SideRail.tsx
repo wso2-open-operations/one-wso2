@@ -110,6 +110,7 @@ const GROUP_ATTENTION_TEXT = "Needs attention.";
 /** A row label with a badge after it, kept clear of the badge when it truncates. */
 const BADGED_LABEL_SX = { ...ELLIPSIS_SX, mr: 1 } as const;
 
+/** The left rail of the active perspective: its overview, its sections with their badges, and Settings. */
 export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
   const active = useActivePerspective();
   const navigate = useNavigate();

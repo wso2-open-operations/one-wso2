@@ -73,9 +73,10 @@ import {
 // belongs to the screen, so it appears on the last rung only: a refused reader
 // is not offered an action on a screen they cannot open.
 
-// Tab order is the registry order. Admin is last, and only present once the
-// API has said the caller is an Admin — the same rule the rail used when
-// these screens were rows. Each tab wears its screen's rail badge.
+/**
+ * The Download Stats tabs, in registry order, each with its screen's badge. Admin comes last, and
+ * only when `showAdmin` is set.
+ */
 function screenTabs(showAdmin: boolean, resolveBadge: ResolveBadge): RoutedTabDef[] {
   return DOWNLOAD_STATS_APPS.flatMap((app) => app.items)
     .filter((item) => showAdmin || item.id !== ENGINEERING_ADMIN_ITEM_ID)
@@ -85,6 +86,10 @@ function screenTabs(showAdmin: boolean, resolveBadge: ResolveBadge): RoutedTabDe
     });
 }
 
+/**
+ * The frame every Download Stats screen renders in: the heading, the screen tabs, and the access
+ * ladder in front of the screen, which is rendered only on the last rung.
+ */
 export default function DownloadStatsShell({
   screen,
   actions,
