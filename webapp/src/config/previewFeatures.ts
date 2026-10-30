@@ -71,7 +71,15 @@ export type PreviewFeature =
    * route. Held back until it is ready for production. Due Diligence, the
    * rest of the Legal perspective, is unaffected.
    */
-  | "nda";
+  | "nda"
+  /**
+   * Amplify, the whole app: its launcher tile, its rail group (Celebrate,
+   * New Post, Current Posts) and every route under `/amplify`. Held back until
+   * the Amplify API proxy is live for the phase 1 pilot. Who sees New Post and
+   * Current Posts is still decided by amplify-api's `CAN_CAMPAIGN` grant
+   * (GET /me) once this is on.
+   */
+  | "amplify";
 
 /**
  * Whether a preview feature should be shown.

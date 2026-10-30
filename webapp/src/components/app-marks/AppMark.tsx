@@ -333,3 +333,30 @@ export function KnowledgeMark({ size }: MarkProps) {
     </Svg>
   );
 }
+
+/**
+ * Amplify — a trophy, for the points and leaderboard the app runs on.
+ *
+ * Same build as the rest of the set: the cup in `field`, the rim, handles,
+ * star and stem in `lead`, the plinth in `detail`. The rounded rim and the
+ * white gloss stripe give it the friendlier, slightly cartoon finish asked for
+ * in the phase 1 review; the gloss is translucent so it reads on both tiles.
+ */
+export function AmplifyMark({ size }: MarkProps) {
+  const t = appMarkTones("amplify")!;
+  return (
+    <Svg size={size}>
+      <path d="M13 11H9a5 5 0 0 0 0 10h4" fill="none" stroke={t.lead} strokeWidth={3.5} strokeLinecap="round" />
+      <path d="M35 11h4a5 5 0 0 1 0 10h-4" fill="none" stroke={t.lead} strokeWidth={3.5} strokeLinecap="round" />
+      <path d="M12 7h24v11a12 12 0 0 1-24 0z" fill={t.field} />
+      <rect x="10.5" y="5" width="27" height="5" rx="2.5" fill={t.lead} />
+      <rect x="15.5" y="12" width="3" height="10" rx="1.5" fill="#FFFFFF" fillOpacity={0.55} />
+      <path
+        d="M24 12L25.41 15.56L29.23 15.8L26.28 18.24L27.23 21.95L24 19.9L20.77 21.95L21.72 18.24L18.77 15.8L22.59 15.56z"
+        fill={t.lead}
+      />
+      <path d="M21 29.5h6l1 6.5h-8z" fill={t.lead} />
+      <rect x="14" y="36" width="20" height="7" rx="2.5" fill={t.detail} />
+    </Svg>
+  );
+}

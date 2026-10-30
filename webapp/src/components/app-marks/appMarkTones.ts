@@ -89,6 +89,9 @@ export const APP_MARK_TONES: Record<string, AppMarkTones> = {
   // 3.46:1 and 5.04:1 for lead, 4.89:1 and 3.57:1 for detail, against the
   // light and dark tiles.
   infra: { field: "#87CDD3", lead: "#0E9AA7", detail: "#0B7E89" },
+  // Amplify. Same rule — field 50% toward white, detail at 82% — from its
+  // PERSPECTIVE_HUES entry. The test recomputes the ratios.
+  amplify: { field: "#9FD1A7", lead: "#3FA34F", detail: "#348641" },
 };
 
 /**

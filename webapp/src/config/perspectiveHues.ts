@@ -187,6 +187,17 @@ export const PERSPECTIVE_HUES: Record<string, PerspectiveHue> = {
     light: { bg: "#FAEADE", fg: "#984B0D" },
     dark: { bg: "#2D2420", fg: "#D96B12" },
   },
+
+  // Amplify. Past this file's cap, like Knowledge, and for the same reason:
+  // without an entry the launcher tile renders unreadably dark. Green at about
+  // 130 degrees, in the opening between umt and finance, taken from the Hello
+  // example where it was measured at 4.55:1 light and 4.78:1 dark. Still owes
+  // the "different encoding" conversation the cap asks for.
+  amplify: {
+    hue: "#3FA34F",
+    light: { bg: "#E1F2E4", fg: "#2E7A3B" },
+    dark: { bg: "#1C2820", fg: "#3FA34F" },
+  },
 };
 
 export function perspectiveHue(key: string): PerspectiveHue | undefined {
