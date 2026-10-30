@@ -1760,6 +1760,70 @@ export const menuServiceUrls = {
 };
 
 // ---------------------------------------------------------------------------
+// Amplify API (amplify-api, reached only through its API proxy at the cell
+// edge). Employees share official WSO2 LinkedIn posts and earn points; PO and
+// Marketing register those posts.
+//
+// Trailing slashes stripped for the same reason as tilBackendUrl.
+export const amplifyBackendUrl: string = (
+  window.config?.ONE_WSO2_AMPLIFY_BACKEND_URL ?? ""
+).replace(/\/+$/, "");
+
+export function isAmplifyBackendConfigured(): boolean {
+  return Boolean(amplifyBackendUrl);
+}
+
+/**
+ * Origins a post link (and the LinkedIn sign-in redirect) may use, lowercase. LinkedIn only unless
+ * `ONE_WSO2_AMPLIFY_POST_LINK_ORIGINS` adds more (the mock LinkedIn, for dev and demos). amplify-api applies
+ * the same rule (`campaignLinkOrigins`); this copy keeps the UI from sending or showing anything else.
+ */
+export const amplifyPostLinkOrigins: readonly string[] = (() => {
+  const configured = (window.config?.ONE_WSO2_AMPLIFY_POST_LINK_ORIGINS ?? [])
+    .map((o) => o.trim().toLowerCase())
+    .filter(Boolean);
+  return configured.length > 0 ? configured : ["https://www.linkedin.com", "https://linkedin.com"];
+})();
+
+/** Link target for "WSO2 Employee Privacy Notice" in the Link Me consent pop-up. Empty shows plain text. */
+export const amplifyPrivacyNoticeUrl: string = (window.config?.ONE_WSO2_AMPLIFY_PRIVACY_NOTICE_URL ?? "").trim();
+
+/** WSO2's LinkedIn organization URN, the owner New Post sends. Empty when unset. */
+export const amplifyLinkedInOrgUrn: string = (window.config?.ONE_WSO2_AMPLIFY_LINKEDIN_ORG_URN ?? "").trim();
+
+export const amplifyServiceUrls = {
+  // The caller, their amplify_* roles and LinkedIn connection status.
+  me: `${amplifyBackendUrl}/me`,
+  // GET a page (status, window, tag, page, size), priority first then newest.
+  // POST to register (PO/Marketing only, checked server-side); ?shareNow=true
+  // also starts a Run.
+  campaigns: `${amplifyBackendUrl}/campaigns`,
+  // PATCH with the version that was read (PO/Marketing only).
+  campaign: (id: string) => `${amplifyBackendUrl}/campaigns/${encodeURIComponent(id)}`,
+  // POST "share this for me" — one per campaign per employee.
+  shares: (id: string) => `${amplifyBackendUrl}/campaigns/${encodeURIComponent(id)}/shares`,
+  myShares: `${amplifyBackendUrl}/me/shares`,
+  categories: `${amplifyBackendUrl}/categories`,
+  // Company top N, the caller's standing and My Team.
+  leaderboard: `${amplifyBackendUrl}/leaderboard`,
+  // Teams or BUs ranked against each other (open to every employee, ADR-035).
+  leaderboardTop: `${amplifyBackendUrl}/leaderboard/top`,
+  leaderboardGroups: `${amplifyBackendUrl}/leaderboard/groups`,
+  // The boards under Dashboarding (CAN_DASHBOARD only, 403 for anyone else).
+  dashboardOperations: `${amplifyBackendUrl}/dashboards/operations`,
+  dashboardCampaigns: `${amplifyBackendUrl}/dashboards/campaigns`,
+  dashboardParticipation: `${amplifyBackendUrl}/dashboards/participation`,
+  dashboardExport: `${amplifyBackendUrl}/dashboards/export`,
+  dashboardPeople: `${amplifyBackendUrl}/dashboards/people`,
+  dashboardGlance: `${amplifyBackendUrl}/dashboards/glance`,
+  dashboardScorecard: `${amplifyBackendUrl}/dashboards/scorecard`,
+  connectStart: `${amplifyBackendUrl}/connections/linkedin/start`,
+  connectComplete: `${amplifyBackendUrl}/connections/linkedin/complete`,
+  connectRemove: `${amplifyBackendUrl}/connections/linkedin`,
+  connectDecline: `${amplifyBackendUrl}/connections/linkedin/decline`,
+};
+
+// ---------------------------------------------------------------------------
 // Today I Learned backend (til-backend) — a company-wide feed of learnings
 // from customers, partners, and internal sources.
 //

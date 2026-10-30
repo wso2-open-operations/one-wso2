@@ -39,6 +39,14 @@ import {
   LucideLayoutGrid,
   RefreshCw,
   MegaphoneIcon,
+  CirclePlusIcon,
+  TrophyIcon,
+  Volume2Icon,
+  LayoutDashboardIcon,
+  ChartColumnIcon,
+  ActivityIcon,
+  GaugeIcon,
+  EyeIcon,
   NetworkIcon,
   RadioIcon,
   SatelliteDishIcon,
@@ -491,6 +499,58 @@ const ME_SECTIONS: PerspectiveSection[] = [
   ...appsToSections(ME_PROMOTION_APPS),
 ];
 
+// Amplify — employees share official WSO2 LinkedIn posts and earn points;
+// PO and Marketing register those posts. Phase 1 screens only (see
+// docs/requirements "Phase 1 - WSO2 Amplify User Experience").
+//
+// New Post and Current Posts are for amplify-api's CAN_CAMPAIGN grant only
+// (GET /me) — see useAmplifyEditorAccess and AmplifyEditorRoute. Everyone
+// else neither sees the rows nor opens the routes.
+export const AMPLIFY_CELEBRATE_PATH = "/amplify/celebrate";
+export const AMPLIFY_NEW_POST_PATH = "/amplify/new-post";
+export const AMPLIFY_CURRENT_POSTS_PATH = "/amplify/current-posts";
+export const AMPLIFY_NEW_POST_ITEM_ID = "amplify-new-post";
+export const AMPLIFY_CURRENT_POSTS_ITEM_ID = "amplify-current-posts";
+export const AMPLIFY_EDITOR_ITEM_IDS: ReadonlySet<string> = new Set([
+  AMPLIFY_NEW_POST_ITEM_ID,
+  AMPLIFY_CURRENT_POSTS_ITEM_ID,
+]);
+
+// Dashboarding: boards for anyone amplify-api grants CAN_DASHBOARD (by default
+// PO, Marketing, SLT and Admin). A plain employee neither sees the group nor opens the routes — see
+// useAmplifyDashboardAccess and AmplifyDashboardRoute. At A Glance comes first.
+export const AMPLIFY_DASHBOARDS_PATH = "/amplify/dashboards";
+export const AMPLIFY_DASHBOARD_GLANCE_PATH = `${AMPLIFY_DASHBOARDS_PATH}/glance`;
+export const AMPLIFY_DASHBOARD_OPERATIONS_PATH = `${AMPLIFY_DASHBOARDS_PATH}/operations`;
+export const AMPLIFY_DASHBOARD_POSTS_PATH = `${AMPLIFY_DASHBOARDS_PATH}/posts`;
+export const AMPLIFY_DASHBOARD_PARTICIPATION_PATH = `${AMPLIFY_DASHBOARDS_PATH}/participation`;
+export const AMPLIFY_DASHBOARD_SCORECARD_PATH = `${AMPLIFY_DASHBOARDS_PATH}/scorecard`;
+export const AMPLIFY_DASHBOARDING_GROUP_ID = "amplify-dashboarding";
+
+const AMPLIFY_DASHBOARD_SECTIONS: PerspectiveSection[] = [
+  { id: "amplify-dashboard-glance", label: "At A Glance", icon: EyeIcon, path: AMPLIFY_DASHBOARD_GLANCE_PATH },
+  { id: "amplify-dashboard-operations", label: "Operations", icon: ActivityIcon, path: AMPLIFY_DASHBOARD_OPERATIONS_PATH },
+  { id: "amplify-dashboard-posts", label: "Post Performance", icon: ChartColumnIcon, path: AMPLIFY_DASHBOARD_POSTS_PATH },
+  { id: "amplify-dashboard-participation", label: "Participation", icon: UsersIcon, path: AMPLIFY_DASHBOARD_PARTICIPATION_PATH },
+  { id: "amplify-dashboard-scorecard", label: "Scorecard", icon: GaugeIcon, path: AMPLIFY_DASHBOARD_SCORECARD_PATH },
+];
+export const AMPLIFY_DASHBOARD_ITEM_IDS: ReadonlySet<string> = new Set(AMPLIFY_DASHBOARD_SECTIONS.map((s) => s.id));
+
+// Celebrate and the editor rows stay flat, like Knowledge: the rail is always
+// open on Amplify's screens. Dashboarding is the one collapsible group.
+const AMPLIFY_SECTIONS: PerspectiveSection[] = [
+  { id: "amplify-celebrate", label: "Celebrate", icon: TrophyIcon, path: AMPLIFY_CELEBRATE_PATH },
+  { id: AMPLIFY_NEW_POST_ITEM_ID, label: "New Post", icon: CirclePlusIcon, path: AMPLIFY_NEW_POST_PATH },
+  { id: AMPLIFY_CURRENT_POSTS_ITEM_ID, label: "Current Posts", icon: Volume2Icon, path: AMPLIFY_CURRENT_POSTS_PATH },
+  {
+    id: AMPLIFY_DASHBOARDING_GROUP_ID,
+    label: "Dashboarding",
+    icon: LayoutDashboardIcon,
+    alwaysGroup: true,
+    children: AMPLIFY_DASHBOARD_SECTIONS,
+  },
+];
+
 // Knowledge's one item so far. Its own perspective (not nested under Me)
 // since "a company-wide learnings feed" is a destination in its own right,
 // not a personal-portal item — see `knowledge` in PERSPECTIVES below.
@@ -793,6 +853,21 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     forwardsToFirstItem: true,
     sections: KNOWLEDGE_SECTIONS,
   },
+  // Amplify, held behind its preview flag until the phase 1 pilot. Its landing
+  // forwards to Celebrate, the first row everyone can see.
+  ...(isPreviewEnabled("amplify")
+    ? [
+        {
+          key: "amplify",
+          label: "Amplify",
+          icon: TrophyIcon,
+          access: true,
+          path: "/amplify",
+          forwardsToFirstItem: true,
+          sections: AMPLIFY_SECTIONS,
+        },
+      ]
+    : []),
   // Download Stats is the first engineering tool (ADR 0001). It is not under
   // Infra Portal: Infra is GitHub administration, and this is release
   // downloads, package downloads, and repository stats. It is an app inside
