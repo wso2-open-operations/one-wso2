@@ -47,6 +47,16 @@ declare global {
       // Today I Learned backend (til-backend) — company-wide learnings feed.
       // Optional — when absent the Today I Learned screen shows a not-connected state.
       ONE_WSO2_TIL_BACKEND_URL?: string;
+      // Amplify API proxy (amplify-api behind the cell edge). Optional — when
+      // absent the Amplify screens show a not-connected state.
+      ONE_WSO2_AMPLIFY_BACKEND_URL?: string;
+      // WSO2's LinkedIn organization URN (urn:li:organization:{id}). New Post
+      // sends it as the post's owner; amplify-api refuses any other owner.
+      ONE_WSO2_AMPLIFY_LINKEDIN_ORG_URN?: string;
+      ONE_WSO2_AMPLIFY_PRIVACY_NOTICE_URL?: string;
+      // Origins (`scheme://host[:port]`) a post link or the LinkedIn sign-in may use. Default: LinkedIn only.
+      // Dev and demos add the mock LinkedIn's origin, e.g. "http://localhost:19091".
+      ONE_WSO2_AMPLIFY_POST_LINK_ORIGINS?: string[];
       // Base URL for the digiops-hr subscription-app backend (PickMe Commute
       // and LaaS opt-in/opt-out). Optional — when absent the Subscriptions
       // screens show a not-connected state.
@@ -190,6 +200,11 @@ declare global {
       // ONE_WSO2_AUTH_BASE_URL by swapping the api. subdomain for
       // myaccount. (e.g. api.asgardeo.io/t/wso2 → myaccount.asgardeo.io/t/wso2).
       ONE_WSO2_ASGARDEO_MYACCOUNT_URL?: string;
+      // OIDC discovery document URL. Only needed for identity servers that
+      // don't follow Asgardeo's URL layout (e.g. ThunderID). When set, the SDK
+      // reads every endpoint and the issuer from it instead of guessing them
+      // from ONE_WSO2_AUTH_BASE_URL.
+      ONE_WSO2_AUTH_WELL_KNOWN_URL?: string;
       // Backend that serves the customer-search endpoint used by the NDA page.
       ONE_WSO2_LEGAL_BACKEND_URL?: string;
       // Features built but not yet released — see @config/previewFeatures.
@@ -227,6 +242,7 @@ export const authConfig = {
   afterSignOutUrl: readConfig("ONE_WSO2_AUTH_SIGN_OUT_REDIRECT_URL"),
   // Asgardeo's hosted My Account portal — opened from the top-bar profile menu.
   myAccountUrl: deriveMyAccountUrl(baseUrl),
+  wellKnownEndpoint: window.config?.ONE_WSO2_AUTH_WELL_KNOWN_URL || undefined,
   // Same scope set as Novera and the leave/menu backends — groups is
   // required for role-based checks in downstream experience APIs.
   scopes: ["openid", "email", "groups", "profile"] as const,

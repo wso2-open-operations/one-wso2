@@ -16,6 +16,7 @@
 
 import { lazy, Suspense, useEffect } from "react";
 import { AsgardeoProvider, useAsgardeo } from "@asgardeo/react";
+import ThunderProvider from "@context/auth/ThunderProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router";
 import { authConfig } from "@config/authConfig";
@@ -73,9 +74,14 @@ const queryClient = new QueryClient({
   },
 });
 
+// ThunderID (and other servers outside Asgardeo's URL layout) sign in through
+// ThunderProvider, picked when a discovery URL is configured. Asgardeo
+// deployments set no such URL and keep the stock provider.
+const AuthProvider = authConfig.wellKnownEndpoint ? ThunderProvider : AsgardeoProvider;
+
 export default function AppWithConfig() {
   return (
-    <AsgardeoProvider
+    <AuthProvider
       baseUrl={authConfig.baseUrl}
       clientId={authConfig.clientId}
       afterSignInUrl={authConfig.afterSignInUrl}
@@ -108,6 +114,6 @@ export default function AppWithConfig() {
           </QueryClientProvider>
         </>
       )}
-    </AsgardeoProvider>
+    </AuthProvider>
   );
 }
