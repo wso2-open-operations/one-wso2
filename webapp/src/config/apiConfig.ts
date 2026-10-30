@@ -1787,11 +1787,6 @@ export const tilServiceUrls = {
   // POST to send an entry whose Google Chat announcement failed. Moderators
   // only, and only while it's unsent (checked server-side).
   notify: (id: string) => `${tilBackendUrl}/submissions/${encodeURIComponent(id)}/notify`,
-  // Customer-name autocomplete (where == "Customer"). Always returns 200
-  // with an array -- [] both for "no matches" and for "this feature isn't
-  // configured on the backend", so the form can't tell those apart and
-  // doesn't need to; either way it just has no suggestions to show.
-  customersSearch: (q: string) => `${tilBackendUrl}/customers/search?q=${encodeURIComponent(q)}`,
 };
 
 // ---------------------------------------------------------------------------
