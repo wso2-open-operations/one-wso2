@@ -45,6 +45,22 @@ export interface ApprovalTrigger {
   /** 0 for a quote-level rule. */
   readonly lineNumber: number;
   readonly reason: string;
+  /** Already approved in that version, on a resubmission (D119); null = needs approval now. */
+  readonly carriedFromVersion?: number | null;
+  /**
+   * Why a resubmission asks again ("Asked again: the discounts changed since
+   * v1 (line 1: 15% → 12%)"); on Deal Desk's reason, what changed (D119).
+   */
+  readonly note?: string | null;
+}
+
+/** The earlier decision a step was carried over from (D119). */
+export interface CarriedFrom {
+  readonly versionNumber: number;
+  readonly actedAt: string | null;
+  readonly actedByEmail: string | null;
+  /** That decision was Deal Desk's, for the approver (D120). */
+  readonly onBehalf?: boolean;
 }
 
 /** How a pending step stands against its SLA deadline. */
@@ -77,6 +93,12 @@ export interface ApprovalStep {
   readonly canAct: boolean;
   /** Why an eligible caller can't (e.g. they submitted the quote). */
   readonly cantActReason: string | null;
+  /** Already approved in an earlier version: not asked again (D119). */
+  readonly carriedFrom?: CarriedFrom | null;
+  /** Deal Desk approved it for the role's approver; the comment is their reason (D120). */
+  readonly approvedOnBehalf?: boolean;
+  /** The caller, in Deal Desk, may approve this pending step for its approver now (D120). */
+  readonly canApproveOnBehalf?: boolean;
 }
 
 /** POST /approvals/preview and GET …/approval-preview. */
@@ -145,12 +167,38 @@ export interface ApprovalGroup {
   readonly reviewers: readonly string[];
 }
 
-export type MatchField = "PRODUCT_ID" | "CLASSIFICATION" | "PRODUCT_UNIT";
+/**
+ * How a mapping picks its products (D117), most specific first: a product
+ * list, a SKU pattern (* = any characters), or a rule on classification
+ * and/or product unit.
+ */
+export type MappingKind = "PRODUCTS" | "SKU" | "RULE";
 
+/** A product in a product list, with its name and code as they were when chosen. */
+export interface ListedProduct {
+  readonly id: string;
+  readonly name: string;
+  readonly code: string;
+}
+
+/** Puts products into a group; only the fields of its kind are set. */
 export interface ApprovalMapping {
-  readonly field: MatchField;
-  readonly value: string;
+  readonly kind: MappingKind;
+  readonly products: readonly ListedProduct[];
+  readonly skuPattern: string;
+  /** Rule fields; "" = any value (not both). */
+  readonly classification: string;
+  readonly productUnit: string;
   readonly groupCode: string;
+}
+
+/** An active Salesforce product, for counting and picking (D117). */
+export interface CatalogProduct {
+  readonly id: string;
+  readonly name: string;
+  readonly code: string;
+  readonly classification: string;
+  readonly productUnit: string;
 }
 
 export interface ApprovalSettings {
@@ -179,6 +227,7 @@ export interface ApprovalMatrix {
   readonly roles: readonly ApprovalRoleInfo[];
 }
 
+/** A quote a matrix change recalled, before D118. */
 export interface AffectedQuote {
   readonly quoteId: number;
   readonly quoteNumber: string;
@@ -187,7 +236,8 @@ export interface AffectedQuote {
 
 export interface MatrixSaveResult {
   readonly saved: boolean;
-  readonly affected: readonly AffectedQuote[];
+  /** Quotes in approval: they keep their approvals (D118). */
+  readonly inFlight: number;
 }
 
 export interface MatrixChange {
@@ -195,6 +245,7 @@ export interface MatrixChange {
   readonly changedByEmail: string;
   readonly changedAt: string;
   readonly changes: readonly string[];
+  /** Only changes saved before D118 recalled quotes. */
   readonly recalled: readonly AffectedQuote[];
 }
 

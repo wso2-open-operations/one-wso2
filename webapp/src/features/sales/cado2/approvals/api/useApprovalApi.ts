@@ -27,6 +27,7 @@ import type {
   ApprovalPreview,
   ApprovalPreviewInput,
   ApprovalWorkflow,
+  CatalogProduct,
   MatrixChange,
   MatrixSaveResult,
 } from "./approvalTypes";
@@ -115,6 +116,24 @@ export function useDecideStep() {
   });
 }
 
+/** Deal Desk approves a stuck step for its approver, with a reason (D120). */
+export function useApproveOnBehalf() {
+  const { getToken, key } = useCado2Basis();
+  const queryClient = useQueryClient();
+  return useMutation<ApprovalWorkflow, Error, { quoteId: number; version: number; stepId: number; reason: string }>({
+    mutationFn: async ({ quoteId, version, stepId, reason }) =>
+      cado2Send<ApprovalWorkflow>("POST", cado2ServiceUrls.approvalOnBehalf(quoteId, version, stepId), await getToken(), {
+        comment: reason.trim(),
+      }),
+    onSuccess: (wf, { quoteId, version }) => {
+      queryClient.setQueryData(key("quotes", "approval", quoteId, version), wf);
+      void queryClient.invalidateQueries({ queryKey: key("quotes") });
+      void queryClient.invalidateQueries({ queryKey: key("quote-version", quoteId) });
+      void queryClient.invalidateQueries({ queryKey: key("approvals") });
+    },
+  });
+}
+
 /** The steps waiting for the caller (My approvals). */
 export function useApprovalInbox(enabled = true) {
   const { getToken, ready, key } = useCado2Basis();
@@ -145,6 +164,22 @@ export function useMatrixChanges() {
     queryFn: async () => authedGet<MatrixChange[]>(cado2ServiceUrls.approvalMatrixChanges, await getToken()),
     enabled: ready,
     ...live,
+    retry: httpRetry,
+  });
+}
+
+/**
+ * Salesforce's active products, for the product mapping (D117): picking
+ * products for a list, and counting what a pattern or rule matches. The
+ * backend reuses its copy for 5 minutes; so does this.
+ */
+export function useMatrixProducts(enabled: boolean) {
+  const { getToken, ready, key } = useCado2Basis();
+  return useQuery<CatalogProduct[], Error>({
+    queryKey: key("approvals", "matrix-products"),
+    queryFn: async () => authedGet<CatalogProduct[]>(cado2ServiceUrls.approvalMatrixProducts, await getToken()),
+    enabled: ready && enabled,
+    staleTime: 5 * 60_000,
     retry: httpRetry,
   });
 }

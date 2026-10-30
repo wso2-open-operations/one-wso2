@@ -2048,9 +2048,13 @@ export const cado2ServiceUrls = {
     outcome: "approve" | "return",
   ): string =>
     `${cado2BackendUrl}/quotes/${encodeSegment(quoteId)}/versions/${encodeSegment(version)}/approval/steps/${encodeSegment(stepId)}/${outcome}`,
+  // D120: Deal Desk approves a stuck step for its approver.
+  approvalOnBehalf: (quoteId: number, version: number, stepId: number): string =>
+    `${cado2BackendUrl}/quotes/${encodeSegment(quoteId)}/versions/${encodeSegment(version)}/approval/steps/${encodeSegment(stepId)}/approve-on-behalf`,
   approvalInbox: `${cado2BackendUrl}/approvals/inbox`,
   approvalMatrix: `${cado2BackendUrl}/admin/approval-matrix`,
   approvalMatrixChanges: `${cado2BackendUrl}/admin/approval-matrix/changes`,
+  approvalMatrixProducts: `${cado2BackendUrl}/admin/approval-matrix/products`,
   adminCurrencies: `${cado2BackendUrl}/admin/currencies`,
   adminCurrency: (code: string): string => `${cado2BackendUrl}/admin/currencies/${encodeSegment(code)}`,
   adminApprovalSlas: `${cado2BackendUrl}/admin/approval-slas`,

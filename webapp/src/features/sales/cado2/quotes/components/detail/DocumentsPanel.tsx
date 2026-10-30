@@ -16,6 +16,7 @@
 
 import { useState, type JSX } from "react";
 import {
+  Alert,
   Box,
   Button,
   Dialog,
@@ -219,6 +220,7 @@ function ApprovedOrderForm({
         <Stack spacing={1.5}>
           <Typography variant="body2" color="text.secondary">
             Approved and ready to issue. Check the preview, then issue the order form to share it with the customer.
+            Until then the quote can still be recalled and changed.
           </Typography>
           <Button variant="outlined" startIcon={<EyeIcon size={16} />} onClick={() => void preview()} disabled={busy !== null}>
             {busy === "preview" ? "Preparing preview…" : "Preview PDF"}
@@ -243,15 +245,25 @@ function ApprovedOrderForm({
       <Dialog open={confirming} onClose={() => !issue.isPending && setConfirming(false)} aria-labelledby="issue-title">
         <DialogTitle id="issue-title">Issue the order form?</DialogTitle>
         <DialogContent>
-          <Stack spacing={1}>
+          <Stack spacing={1.5}>
             <Typography variant="body2">
-              This produces the final order form and starts the customer&apos;s acceptance period.
+              This produces the final order form for the customer and starts their acceptance period.
             </Typography>
             <Typography variant="body2">
               Issue date <strong>{formatDate(d.issueDate)}</strong> · expires <strong>{formatDate(d.expiryDate)}</strong>
             </Typography>
+            {/* D122: issuing ends the chance to recall and change the quote. */}
+            <Alert severity="warning">
+              <strong>There&apos;s no going back.</strong> Once issued, this version can&apos;t be recalled or changed.
+              Check the preview first: prices, terms, contacts and documents.
+            </Alert>
+            <Box>
+              <Button size="small" startIcon={<EyeIcon size={16} />} onClick={() => void preview()} disabled={busy !== null || issue.isPending}>
+                {busy === "preview" ? "Preparing preview…" : "Open the preview"}
+              </Button>
+            </Box>
             <Typography variant="body2" color="text.secondary">
-              It can&apos;t be changed or issued again afterwards.
+              If something is wrong after issuing, close this quote and clone it into a new one.
             </Typography>
           </Stack>
         </DialogContent>

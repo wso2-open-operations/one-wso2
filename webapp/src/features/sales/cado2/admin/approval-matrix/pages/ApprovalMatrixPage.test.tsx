@@ -15,7 +15,7 @@
 // under the License.
 
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import type { ApprovalMatrix, MatrixSaveResult } from "@features/sales/cado2/approvals/api/approvalTypes";
@@ -36,7 +36,7 @@ const matrix: ApprovalMatrix = {
       ],
     },
   ],
-  mappings: [{ field: "PRODUCT_UNIT", value: "APIM", groupCode: "PLATFORM" }],
+  mappings: [{ kind: "RULE", products: [], skuPattern: "", classification: "", productUnit: "APIM", groupCode: "PLATFORM" }],
   settings: {
     shortTermMonths: "12",
     longTermMonths: "36",
@@ -60,17 +60,19 @@ type SaveOpts = { onSuccess?: (r: MatrixSaveResult) => void };
 const mutate = vi.fn((body: { confirm: boolean }, opts?: SaveOpts) =>
   opts?.onSuccess?.({
     saved: body.confirm,
-    affected: [{ quoteId: 5, quoteNumber: "Q-26-00005", versionNumber: 1 }],
+    inFlight: 3,
   }),
 );
 vi.mock("@features/sales/cado2/approvals/api/useApprovalApi", () => ({
   useApprovalMatrix: () => ({ data: matrix, isPending: false, error: null, isFetching: false, refetch: vi.fn() }),
   useMatrixChanges: () => ({ data: [], isPending: false, error: null, refetch: vi.fn() }),
   useSaveApprovalMatrix: () => ({ mutate, isPending: false, error: null }),
+  useMatrixProducts: () => ({ data: [], isPending: false, error: null, refetch: vi.fn() }),
 }));
 
 describe("ApprovalMatrixPage", () => {
-  it("checks the impact first, then saves and recalls on confirmation", async () => {
+  // D118: the confirmation counts the quotes in approval; nothing is recalled.
+  it("checks first, then saves on confirmation without recalling", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -90,15 +92,13 @@ describe("ApprovalMatrixPage", () => {
     );
 
     const dialog = within(screen.getByRole("dialog"));
-    expect(dialog.getByText(/alters the approvals of 1 quote in approval/)).toBeInTheDocument();
-    // Plain text: the admin panel gives no access to the quotes themselves.
-    expect(dialog.getByText("Q-26-00005")).toBeInTheDocument();
-    expect(dialog.queryByRole("link", { name: "Q-26-00005" })).toBeNull();
-    // Red: it recalls other people's quotes (2026-10-13).
-    expect(dialog.getByRole("button", { name: "Save and recall" })).toHaveClass("MuiButton-colorError");
-    await user.click(dialog.getByRole("button", { name: "Save and recall" }));
+    expect(
+      dialog.getByText("3 quotes are in approval. They keep their current approvers. The new matrix applies to new submissions and resubmissions."),
+    ).toBeInTheDocument();
+    expect(dialog.queryByRole("button", { name: /recall/i })).toBeNull();
+    await user.click(dialog.getByRole("button", { name: "Save" }));
     expect(mutate).toHaveBeenLastCalledWith(expect.objectContaining({ confirm: true }), expect.anything());
-    expect(await screen.findByText("Saved. 1 quote was recalled for resubmission.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("shows the commercial rules with their fixed approvers", async () => {

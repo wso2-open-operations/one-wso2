@@ -74,6 +74,9 @@ export default function ApprovalReasons({ steps, selected = null, onSelect }: Ap
                 ) : null}
                 {s.canAct ? (
                   <StatusChip color="primary" label="Your turn" />
+                ) : s.carriedFrom ? (
+                  // Approved in an earlier version, not asked again (D119).
+                  <StatusChip color="success" label="Already approved" />
                 ) : status ? (
                   <StatusChip color={status.color} label={status.label} />
                 ) : null}
@@ -84,12 +87,31 @@ export default function ApprovalReasons({ steps, selected = null, onSelect }: Ap
                 {s.triggers.map((t, i) => (
                   <Typography key={i} component="li" variant="caption" color="text.secondary" display="list-item">
                     {t.reason}
+                    {/* D119: already approved, or why it's asked again. */}
+                    {t.carriedFromVersion != null && !s.carriedFrom ? (
+                      <Box component="span" sx={{ color: "success.main" }}>{` · already approved in v${t.carriedFromVersion}`}</Box>
+                    ) : null}
+                    {t.note ? (
+                      <Box component="span" display="block" sx={{ color: "primary.main", fontWeight: 600 }}>
+                        {t.note}
+                      </Box>
+                    ) : null}
                   </Typography>
                 ))}
               </Box>
-              {s.actedAt && s.status !== "CANCELLED" ? (
+              {s.carriedFrom ? (
                 <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                  {status?.label} by {s.actedByEmail} · {day(s.actedAt)}
+                  Carried over from v{s.carriedFrom.versionNumber}
+                  {s.carriedFrom.actedByEmail ? ` · approved by ${s.carriedFrom.actedByEmail}` : ""}
+                  {s.carriedFrom.onBehalf ? " (Deal Desk, on behalf)" : ""}
+                  {s.carriedFrom.actedAt ? ` · ${day(s.carriedFrom.actedAt)}` : ""}
+                </Typography>
+              ) : s.actedAt && s.status !== "CANCELLED" ? (
+                <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                  {/* D120: Deal Desk approved for the role's approver. */}
+                  {s.approvedOnBehalf
+                    ? `Approved by ${s.actedByEmail} (Deal Desk) on behalf of ${s.roleLabel} · ${day(s.actedAt)}`
+                    : `${status?.label} by ${s.actedByEmail} · ${day(s.actedAt)}`}
                 </Typography>
               ) : null}
               {s.comment ? (

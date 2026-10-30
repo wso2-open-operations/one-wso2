@@ -34,6 +34,21 @@ import { cado2Paths, type Cado2AdminSection } from "@features/sales/cado2/cado2P
 import { ADMIN_SECTION_GROUPS, ADMIN_SECTIONS } from "../adminSections";
 
 /**
+ * A group's header: bold, dark capitals, so the groups stand above the
+ * sections they hold (2026-10-30; the default subheader was greyer than its
+ * items).
+ */
+const groupHeader = {
+  lineHeight: 2.5,
+  bgcolor: "transparent",
+  color: "text.primary",
+  fontWeight: 700,
+  fontSize: "0.75rem",
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+} as const;
+
+/**
  * CadO2 Admin: a grouped section list beside the selected section. Each
  * section is its own route and renders its own heading. On a narrow screen the
  * list becomes a select above the content, so the content keeps the width.
@@ -49,10 +64,11 @@ export default function Cado2AdminLayout(): JSX.Element {
   const list = (
     <Paper variant="outlined" sx={{ width: 240, flexShrink: 0, alignSelf: "flex-start", py: 0.5 }}>
       <List component="nav" aria-label="QuickQuote Admin sections" dense disablePadding>
-        {ADMIN_SECTION_GROUPS.map((group) => (
-          <Box component="li" key={group.label} sx={{ listStyle: "none" }}>
+        {ADMIN_SECTION_GROUPS.map((group, i) => (
+          // A thin line between groups; the sections sit indented under their header.
+          <Box component="li" key={group.label} sx={{ listStyle: "none", ...(i > 0 ? { borderTop: 1, borderColor: "divider", mt: 0.5, pt: 0.5 } : {}) }}>
             <Box component="ul" sx={{ p: 0 }}>
-              <ListSubheader sx={{ lineHeight: 2.5, bgcolor: "transparent" }}>{group.label}</ListSubheader>
+              <ListSubheader sx={groupHeader}>{group.label}</ListSubheader>
               {group.sections.map((section) => (
                 <ListItemButton
                   key={section.id}
@@ -60,6 +76,7 @@ export default function Cado2AdminLayout(): JSX.Element {
                   to={cado2Paths.adminSection(section.id)}
                   selected={section.id === current?.id}
                   aria-current={section.id === current?.id ? "page" : undefined}
+                  sx={{ pl: 3.5 }}
                 >
                   <ListItemText primary={section.label} />
                 </ListItemButton>
@@ -81,7 +98,9 @@ export default function Cado2AdminLayout(): JSX.Element {
       sx={{ mb: 2, minWidth: 260 }}
     >
       {ADMIN_SECTION_GROUPS.flatMap((group) => [
-        <ListSubheader key={`group-${group.label}`}>{group.label}</ListSubheader>,
+        <ListSubheader key={`group-${group.label}`} sx={groupHeader}>
+          {group.label}
+        </ListSubheader>,
         ...group.sections.map((section) => (
           <MenuItem key={section.id} value={section.id}>
             {section.label}

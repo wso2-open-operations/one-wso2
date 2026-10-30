@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { ApprovalStep, ApprovalWorkflow } from "@features/sales/cado2/approvals/api/approvalTypes";
-import { decisionNote, deskSummary, reasonRows, renewalStartPoints } from "./myApprovals";
+import { decisionNote, deskSummary, reasonRows, renewalStartPoints, resubmissionNote } from "./myApprovals";
 
 const step = (role: ApprovalStep["role"], status: ApprovalStep["status"], over: Partial<ApprovalStep> = {}): ApprovalStep => ({
   stepId: 1, role, roleLabel: role === "DEAL_DESK" ? "Deal Desk" : role, branches: ["DISCOUNT"], dependsOn: [], triggers: [],
@@ -136,5 +136,39 @@ describe("renewalStartPoints", () => {
   it("says nothing when it starts as expected, or isn't known", () => {
     expect(renewalStartPoints({ startDate: "2027-02-01", renewalStart: { ...renewalStart, differs: false } })).toEqual([]);
     expect(renewalStartPoints({ startDate: "2027-02-01", renewalStart: null })).toEqual([]);
+  });
+});
+
+// D119: a resubmission keeps what is still approved and says why it asks again.
+describe("resubmission", () => {
+  const discount = {
+    rule: "DISCOUNT", branch: "DISCOUNT" as const, lineNumber: 1,
+    reason: "Line 1 · API Manager (Platform products): 12% discount is above the Regional Director's 10% limit",
+    note: "Asked again: the discounts changed since v1 (line 1: 15% → 12%)",
+  };
+  const term = {
+    rule: "SHORT_TERM_NEW_CUSTOMER", branch: "COMMERCIAL" as const, lineNumber: 0,
+    reason: "New-customer term of 9 months is under 12 months", carriedFromVersion: 1,
+  };
+  const agm = step("AREA_GM", "WAITING", { roleLabel: "Area GM", triggers: [discount, term] });
+
+  it("splits what needs approval now from what was already approved", () => {
+    expect(reasonRows(agm)).toEqual([
+      { kind: "discount", title: "Line 1 · API Manager", group: "Platform products", figure: "12%",
+        detail: "Above the Regional Director's 10% limit", note: discount.note },
+    ]);
+    expect(reasonRows(agm, true)).toEqual([
+      { kind: "term", title: "Subscription term", detail: term.reason, carriedFromVersion: 1 },
+    ]);
+  });
+
+  it("leaves already approved points out of Deal Desk's summary", () => {
+    const dd = step("DEAL_DESK", "PENDING", { triggers: [
+      { rule: "DEAL_DESK_REVIEW", branch: "ROOT" as const, lineNumber: 0, reason: "Deal Desk reviews every quote",
+        note: "Resubmitted after v1: the discounts changed" },
+    ] });
+    expect(deskSummary([dd, agm], dd).map((r) => r.title)).toEqual(["Line 1 · API Manager"]);
+    expect(resubmissionNote(dd)).toBe("Resubmitted after v1: the discounts changed");
+    expect(resubmissionNote(agm)).toBeNull();
   });
 });

@@ -53,6 +53,7 @@ vi.mock("@features/sales/cado2/approvals/api/useApprovalApi", () => ({
   useApprovalWorkflow: () => workflow,
   useStoredApprovalPreview: () => ({ data: undefined, isPending: false, isFetching: false, error: null }),
   useDecideStep: () => decide,
+  useApproveOnBehalf: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, error: null }),
 }));
 
 const me = { data: { sub: "s", email: "approver@wso2.com", roles: [] as string[], approverRoles: ["DEAL_DESK"] as string[] } };
@@ -677,8 +678,25 @@ describe("QuoteDetailPage — order form", () => {
     const dialog = within(screen.getByRole("dialog", { name: "Issue the order form?" }));
     expect(dialog.getByText("12 Oct 2026")).toBeInTheDocument();
     expect(dialog.getByText("11 Nov 2026")).toBeInTheDocument();
+    // D122: issuing ends the chance to recall; the way out is close and clone.
+    expect(dialog.getByText(/no going back/)).toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Open the preview" })).toBeInTheDocument();
+    expect(dialog.getByText(/close this quote and clone it/)).toBeInTheDocument();
     await user.click(dialog.getByRole("button", { name: "Issue order form" }));
     expect(issue.mutateAsync).toHaveBeenCalledWith({ quoteId: approved.quote.id, version: 1 });
+  });
+
+  // D122: an approved quote can be recalled until its order form is issued.
+  it("recalls an approved quote that isn't issued yet, saying only changed approvals are asked again", async () => {
+    Object.assign(documents, { data: { canPreview: true, canIssue: true, issueDate: "2026-10-12", expiryDate: "2026-11-11", documents: [] } });
+    const recallable = { ...approved, quote: { ...approved.quote, actions: ["RECALL", "CLOSE"] } } as DraftResponse;
+    show(quoteOf(recallable), recallable);
+    const user = userEvent.setup();
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Recall" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Recall version 1?" }));
+    expect(dialog.getByText(/is approved, but its order form isn.t issued yet/)).toBeInTheDocument();
+    expect(dialog.getByText(/Only the approvals your change affects are asked again/)).toBeInTheDocument();
   });
 
   it("offers the issued file for download", () => {

@@ -179,7 +179,7 @@ export default function QuoteDetailPage(): JSX.Element {
     ? [{ label: "Clone quote", icon: <CopyIcon size={16} />, onClick: () => openDialog("clone") }]
     : [];
 
-  const approvalProps = { isDraft, workflow, preview: approvalPreview };
+  const approvalProps = { isDraft, workflow, preview: approvalPreview, quoteId: q.id, versionNumber: v.versionNumber };
   // Opens the Quote tab if needed, then scrolls to "Your approval".
   const jumpToYourApproval = () => {
     if (tab === 0) {
@@ -416,8 +416,19 @@ export default function QuoteDetailPage(): JSX.Element {
             )
           }
         >
-          Version {v.versionNumber} will be taken back and can&apos;t be put back in flight. Afterwards you can revise it
-          (start version {v.versionNumber + 1} as a copy) or close the quote.
+          {v.status === "APPROVED" ? (
+            // D122: approved, order form not issued yet.
+            <>
+              Version {v.versionNumber} is approved, but its order form isn&apos;t issued yet. Recall it to fix something:
+              revise it (version {v.versionNumber + 1}), make the change and resubmit. Only the approvals your change
+              affects are asked again; Deal Desk always reviews.
+            </>
+          ) : (
+            <>
+              Version {v.versionNumber} will be taken back and can&apos;t be put back in flight. Afterwards you can revise
+              it (start version {v.versionNumber + 1} as a copy) or close the quote.
+            </>
+          )}
         </LifecycleDialog>
       ) : null}
       {dialog === "revise" ? (

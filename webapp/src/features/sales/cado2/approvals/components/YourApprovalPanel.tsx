@@ -25,6 +25,7 @@ import {
   EyeIcon,
   FileTextIcon,
   ReceiptIcon,
+  RefreshCwIcon,
   ShieldCheckIcon,
   TagIcon,
   TrendingDownIcon,
@@ -32,7 +33,13 @@ import {
 import SectionCard from "@features/sales/cado2/components/section-card/SectionCard";
 import StatusChip from "@features/sales/cado2/components/status-chip/StatusChip";
 import type { ApprovalOutcome, ApprovalStep } from "@features/sales/cado2/approvals/api/approvalTypes";
-import { deskSummary, reasonRows, type ReasonKind, type ReasonRow } from "@features/sales/cado2/approvals/model/myApprovals";
+import {
+  deskSummary,
+  reasonRows,
+  resubmissionNote,
+  type ReasonKind,
+  type ReasonRow,
+} from "@features/sales/cado2/approvals/model/myApprovals";
 
 interface YourApprovalPanelProps {
   /** The whole workflow's steps. */
@@ -100,8 +107,49 @@ function Reason({ row }: { readonly row: ReasonRow }): JSX.Element {
             {row.roles?.length ? ` · needs ${joinRoles(row.roles)}` : null}
           </Typography>
         </Stack>
+        {/* Why a resubmission asks again (D119). */}
+        {row.note ? <ResubmissionNote text={row.note} /> : null}
       </Box>
     </Stack>
+  );
+}
+
+/** "Asked again: …" or "Resubmitted after v1: …" (D119). */
+function ResubmissionNote({ text }: { readonly text: string }): JSX.Element {
+  return (
+    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5, color: "primary.main" }}>
+      <RefreshCwIcon size={14} aria-hidden />
+      <Typography variant="caption" sx={{ fontWeight: 600 }}>
+        {text}
+      </Typography>
+    </Stack>
+  );
+}
+
+/** What this role already approved in an earlier version, not asked again (D119). */
+function AlreadyApproved({ step }: { readonly step: ApprovalStep }): JSX.Element | null {
+  const rows = reasonRows(step, true);
+  if (!rows.length) return null;
+  const by = step.triggers.find((t) => t.carriedFromVersion != null)?.carriedFromVersion;
+  return (
+    <Box sx={{ mt: 2 }}>
+      <Typography variant="overline" color="text.secondary">
+        Already approved{by ? ` in v${by}` : ""}
+      </Typography>
+      <Stack component="ul" spacing={0.5} aria-label="Already approved" sx={{ m: 0, p: 0, listStyle: "none" }}>
+        {rows.map((r) => (
+          <Stack component="li" key={`${r.title}|${r.detail}`} direction="row" spacing={1} alignItems="flex-start">
+            <Box component="span" aria-hidden sx={{ color: "success.main", display: "flex", pt: 0.25 }}>
+              <CircleCheckIcon size={14} />
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              {r.title}
+              {r.figure ? ` · ${r.figure} discount` : ""} · {r.detail}
+            </Typography>
+          </Stack>
+        ))}
+      </Stack>
+    </Box>
   );
 }
 
@@ -156,34 +204,53 @@ function DeskReview({
 }): JSX.Element {
   // What Deal Desk verifies themselves first, then what later approvers will check.
   const points = [...repCategories, ...deskSummary(steps, step)];
+  // A resubmission says what changed since the earlier version (D119).
+  const resubmitted = resubmissionNote(step);
+  const note = resubmitted ? <ResubmissionNote text={resubmitted} /> : null;
   if (!points.length) {
     // No points to show doesn't mean nobody approves after Deal Desk.
     const more = steps.some((s) => s.role !== step.role && (s.status === "WAITING" || s.status === "PENDING"));
-    return more ? (
-      <Typography variant="body2" color="text.secondary">
-        Further approvals follow, with no specific points recorded. See the Approvals tab.
-      </Typography>
-    ) : (
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ color: "success.main" }}>
-        <CircleCheckIcon size={16} />
-        <Typography variant="body2">Standard quote: your approval is the only one needed.</Typography>
-      </Stack>
+    return (
+      <>
+        {note}
+        {more ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: note ? 1 : 0 }}>
+            Further approvals follow, with no specific points recorded. See the Approvals tab.
+          </Typography>
+        ) : (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ color: "success.main", mt: note ? 1 : 0 }}>
+            <CircleCheckIcon size={16} />
+            <Typography variant="body2">
+              {resubmitted ? "No other approval is needed again." : "Standard quote: your approval is the only one needed."}
+            </Typography>
+          </Stack>
+        )}
+      </>
     );
   }
-  return <ShortList rows={points} label="What's non-standard" />;
+  return (
+    <>
+      {note}
+      <ShortList rows={points} label="What's non-standard" />
+    </>
+  );
 }
 
-/** Any other approver: why their role is asked. */
+/** Any other approver: why their role is asked, then what they already approved (D119). */
 function OwnReasons({ step }: { readonly step: ApprovalStep }): JSX.Element {
   const rows = reasonRows(step);
-  if (!rows.length) {
-    return (
-      <Typography variant="body2" color="text.secondary">
-        No specific reason was recorded.
-      </Typography>
-    );
-  }
-  return <ShortList rows={rows} label={`Why ${step.roleLabel} approves`} />;
+  return (
+    <>
+      {rows.length ? (
+        <ShortList rows={rows} label={`Why ${step.roleLabel} approves`} />
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          No specific reason was recorded.
+        </Typography>
+      )}
+      <AlreadyApproved step={step} />
+    </>
+  );
 }
 
 /**

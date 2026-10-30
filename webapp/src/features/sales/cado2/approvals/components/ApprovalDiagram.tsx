@@ -256,14 +256,20 @@ const ApprovalNode = memo(function ApprovalNode({ data }: NodeProps<ApprovalFlow
   const s = node.step;
   const shared = s.branches.length === 2;
   const status = s.status ? STEP_STATUS[s.status] : null;
+  // Already approved in an earlier version (D119); approved by Deal Desk on
+  // the approver's behalf (D120).
   const line = s.canAct
     ? "Your turn"
-    : node.waitingOn.length
-      ? `Waiting on ${node.waitingOn.join(" and ")}`
-      : status
-        ? status.label
-        : `${s.triggers.length} reason${s.triggers.length === 1 ? "" : "s"}`;
-  const tone = s.canAct ? "primary" : status && status.color !== "default" ? status.color : null;
+    : s.carriedFrom
+      ? `Already approved in v${s.carriedFrom.versionNumber}`
+      : node.waitingOn.length
+        ? `Waiting on ${node.waitingOn.join(" and ")}`
+        : s.approvedOnBehalf
+          ? "Approved by Deal Desk"
+          : status
+            ? status.label
+            : `${s.triggers.length} reason${s.triggers.length === 1 ? "" : "s"}`;
+  const tone = s.canAct ? "primary" : s.carriedFrom ? "success" : status && status.color !== "default" ? status.color : null;
   return (
     <Box
       title={s.triggers.map((t) => t.reason).join("\n")}

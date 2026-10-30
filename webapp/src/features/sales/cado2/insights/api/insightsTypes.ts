@@ -211,5 +211,7 @@ export interface QuoteSummary extends MoneyMeta {
     readonly actedAt: string | null;
     readonly actedBy: string | null;
     readonly comment: string | null;
+    /** Approved in an earlier version, not asked again (D119). */
+    readonly carriedOver?: boolean;
   }[];
 }

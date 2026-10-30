@@ -40,6 +40,10 @@ export interface ReasonRow {
   readonly group?: string;
   /** In Deal Desk's summary: the approvals this point needs, e.g. ["CRO", "CFO"]. */
   readonly roles?: readonly string[];
+  /** Why a resubmission asks again (D119). */
+  readonly note?: string;
+  /** Already approved in this version (D119). */
+  readonly carriedFromVersion?: number;
 }
 
 const RULE: Record<string, { kind: ReasonKind; title: string }> = {
@@ -60,17 +64,22 @@ const RULE: Record<string, { kind: ReasonKind; title: string }> = {
 
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** A step's reasons as display rows, once each. Deal Desk's own "reviews every quote" is left out. */
-export function reasonRows(step: ApprovalStep): ReasonRow[] {
+/**
+ * A step's reasons as display rows, once each. Deal Desk's own "reviews every
+ * quote" is left out. By default only what needs approval now; with
+ * `carried`, only what was already approved in an earlier version (D119).
+ */
+export function reasonRows(step: ApprovalStep, carried = false): ReasonRow[] {
   const seen = new Set<string>();
   const rows: ReasonRow[] = [];
   for (const t of step.triggers) {
-    if (t.rule === "DEAL_DESK_REVIEW" || seen.has(t.reason)) continue;
+    if (t.rule === "DEAL_DESK_REVIEW" || seen.has(t.reason) || (t.carriedFromVersion != null) !== carried) continue;
     seen.add(t.reason);
     const rule = RULE[t.rule] ?? { kind: "other" as const, title: "Approval rule" };
+    const extra = { ...(t.note ? { note: t.note } : {}), ...(t.carriedFromVersion != null ? { carriedFromVersion: t.carriedFromVersion } : {}) };
     const split = t.lineNumber > 0 ? t.reason.indexOf(": ") : -1;
     if (split < 0) {
-      rows.push({ kind: rule.kind, title: rule.title, detail: t.reason });
+      rows.push({ kind: rule.kind, title: rule.title, detail: t.reason, ...extra });
       continue;
     }
     // "Line 2 · Product (Group)" and what about it.
@@ -82,8 +91,8 @@ export function reasonRows(step: ApprovalStep): ReasonRow[] {
     const discount = /^([\d.]+%) discount (.*)$/.exec(rest);
     rows.push(
       discount
-        ? { kind: rule.kind, title, group, figure: discount[1], detail: capital(discount[2].replace(/^is /, "")) }
-        : { kind: rule.kind, title, group, detail: capital(rest) },
+        ? { kind: rule.kind, title, group, figure: discount[1], detail: capital(discount[2].replace(/^is /, "")), ...extra }
+        : { kind: rule.kind, title, group, detail: capital(rest), ...extra },
     );
   }
   return rows;
@@ -147,6 +156,10 @@ export function deskSummary(steps: readonly ApprovalStep[], current: ApprovalSte
   }
   return [...points.values()].map(({ row, roles }) => ({ ...row, roles }));
 }
+
+/** Deal Desk's note on a resubmission: what changed since the earlier version (D119). */
+export const resubmissionNote = (step: ApprovalStep): string | null =>
+  step.triggers.find((t) => t.rule === "DEAL_DESK_REVIEW" && t.note)?.note ?? null;
 
 /**
  * The line shown after a decision is saved, e.g. "Approved as CRO." When

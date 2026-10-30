@@ -102,6 +102,20 @@ describe("history", () => {
     expect(describeEvent({ event: e, count: 1 })).toBe("Version 2 draft deleted");
   });
 
+  // D120: Deal Desk approving for an approver who was away.
+  it("says Deal Desk approved on someone's behalf", () => {
+    expect(describeEvent({ event: event({ eventType: "APPROVAL_APPROVED_ON_BEHALF", metadata: { role: "AREA_GM" } }), count: 1 })).toBe(
+      "Deal Desk approved version 1 on behalf of Area GM",
+    );
+  });
+
+  // D119: an approval kept from an earlier version on a resubmission.
+  it("says whose approval carried over, and from which version", () => {
+    expect(describeEvent({ event: event({ eventType: "APPROVAL_CARRIED_OVER", metadata: { role: "CFO", fromVersion: 1 } }), count: 1 })).toBe(
+      "CFO's approval carried over from version 1",
+    );
+  });
+
   // DGD-10: the documents added after the order form.
   it("names the supporting documents after a change", () => {
     expect(

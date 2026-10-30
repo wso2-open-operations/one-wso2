@@ -24,16 +24,20 @@ import type { ApprovalPreview, ApprovalWorkflow } from "@features/sales/cado2/ap
 import { WORKFLOW_STATUS } from "@features/sales/cado2/approvals/model/approvalText";
 import LazyApprovalDiagram from "./LazyApprovalDiagram";
 import ApprovalPreviewPanel from "./ApprovalPreviewPanel";
+import OnBehalfPanel from "./OnBehalfPanel";
 
 interface QuoteApprovalsProps {
   /** A draft shows what it would need; a submitted version its workflow. */
   readonly isDraft: boolean;
   readonly workflow: { data: ApprovalWorkflow | null | undefined; isPending: boolean; error: Error | null; refetch: () => void };
   readonly preview: { data: ApprovalPreview | undefined; isPending: boolean; isFetching: boolean; error: Error | null };
+  /** The version shown, for Deal Desk approving on someone's behalf (D120). */
+  readonly quoteId: number;
+  readonly versionNumber: number;
 }
 
 /** The quote page's Approvals tab. */
-export default function QuoteApprovals({ isDraft, workflow, preview }: QuoteApprovalsProps): JSX.Element {
+export default function QuoteApprovals({ isDraft, workflow, preview, quoteId, versionNumber }: QuoteApprovalsProps): JSX.Element {
   if (isDraft) {
     return <ApprovalPreviewPanel preview={preview.data} loading={preview.isFetching} error={preview.error} />;
   }
@@ -66,6 +70,7 @@ export default function QuoteApprovals({ isDraft, workflow, preview }: QuoteAppr
         Worked out from this exact version when it was submitted. Deal Desk goes first; the discount and commercial
         approvals then run in parallel. Click a role to see why it is needed.
       </Typography>
+      <OnBehalfPanel quoteId={quoteId} versionNumber={versionNumber} steps={wf.steps} />
       <LazyApprovalDiagram steps={wf.steps} />
     </SectionCard>
   );

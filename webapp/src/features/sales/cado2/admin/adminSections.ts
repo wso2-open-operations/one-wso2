@@ -29,37 +29,49 @@ export interface AdminSectionGroup {
   sections: readonly AdminSection[];
 }
 
+// Grouped by what the Admin changes, in the order a quote goes through
+// (2026-10-30): build it, approve it, send it; then how the tool behaves.
 export const ADMIN_SECTION_GROUPS: readonly AdminSectionGroup[] = [
   {
+    // What can be sold, and at what price.
+    label: "Products & Pricing",
+    sections: [
+      { id: "product-categories", label: "Product Categories" },
+      { id: "product-bundles", label: "Product Bundles" },
+      { id: "pricing-formulas", label: "Pricing Formulas" },
+      { id: "currencies", label: "Currencies" },
+    ],
+  },
+  {
+    // Who must approve, and how fast.
     label: "Approvals",
     sections: [
       { id: "approval-matrix", label: "Approval Matrix" },
       { id: "approval-slas", label: "Approval SLAs" },
-      { id: "email-notifications", label: "Email Notifications" },
     ],
   },
   {
-    label: "Quotes",
+    // What the customer receives.
+    label: "Order Form",
+    sections: [
+      { id: "legal-entities", label: "Legal Entities" },
+      { id: "legal-texts", label: "Legal Texts" },
+      { id: "supporting-documents", label: "Supporting Documents" },
+    ],
+  },
+  {
+    // How the tool behaves: who may change others' quotes, and whether it
+    // writes to Salesforce or sends emails.
+    label: "Settings",
     sections: [
       { id: "quote-access", label: "Quote Access" },
       { id: "salesforce-sync", label: "Salesforce Sync" },
-      { id: "pricing-formulas", label: "Pricing Formulas" },
-    ],
-  },
-  {
-    label: "Reference Data",
-    sections: [
-      { id: "legal-entities", label: "Legal Entities" },
-      { id: "currencies", label: "Currencies" },
-      { id: "product-categories", label: "Product Categories" },
-      { id: "product-bundles", label: "Product Bundles" },
-      { id: "legal-texts", label: "Legal Texts" },
-      { id: "supporting-documents", label: "Supporting Documents" },
+      { id: "email-notifications", label: "Email Notifications" },
     ],
   },
 ];
 
 export const ADMIN_SECTIONS: readonly AdminSection[] = ADMIN_SECTION_GROUPS.flatMap((g) => g.sections);
 
-/** The section Admin opens on. */
-export const FIRST_ADMIN_SECTION: Cado2AdminSection = ADMIN_SECTIONS[0].id;
+/** The section Admin opens on: the one used most, whatever its place in the list. */
+export const FIRST_ADMIN_SECTION: Cado2AdminSection = "approval-matrix";

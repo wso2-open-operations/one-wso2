@@ -45,32 +45,25 @@ import { problemOf } from "@features/sales/cado2/quotes/api/errors";
 import type { Issue } from "@features/sales/cado2/quotes/api/quoteTypes";
 import { useApprovalMatrix, useMatrixChanges, useSaveApprovalMatrix } from "@features/sales/cado2/approvals/api/useApprovalApi";
 import type {
-  AffectedQuote,
   ApprovalGroup,
-  ApprovalMapping,
   ApprovalMatrix,
   ApprovalRoleInfo,
   ApprovalSettings,
-  MatchField,
 } from "@features/sales/cado2/approvals/api/approvalTypes";
+import ProductMappingTab from "@features/sales/cado2/admin/approval-matrix/components/ProductMappingTab";
+import { mappingLabel } from "@features/sales/cado2/admin/approval-matrix/model/productMapping";
 import { roleLabel } from "@features/sales/cado2/approvals/model/approvalText";
 import { BILLING_LABEL, BILLING_OPTIONS, formatDate } from "@features/sales/cado2/quotes/form/draftForm";
 
 const TABS = ["Discount groups", "Product mapping", "Commercial rules", "Change log"] as const;
 
-const MATCH_LABEL: Record<MatchField, string> = {
-  PRODUCT_ID: "A single product (Salesforce Id)",
-  CLASSIFICATION: "product_Classification__c",
-  PRODUCT_UNIT: "Product_Unit__c",
-};
-
 /**
  * The approval matrix, as admin data:
  * each discount group's ladder and required reviewers, which products belong
  * to which group, and the numbers of the commercial rules. The rule types,
- * roles and their order are fixed in code. Saving first shows which quotes in
- * approval the change would recall; they are recalled only on confirmation
- *.
+ * roles and their order are fixed in code. Saving asks for confirmation and
+ * says how many quotes are in approval: they keep their approvals, and the
+ * new matrix applies to new submissions and resubmissions (D118).
  */
 export default function ApprovalMatrixPage(): JSX.Element {
   const loaded = useApprovalMatrix();
@@ -78,8 +71,8 @@ export default function ApprovalMatrixPage(): JSX.Element {
   const [tab, setTab] = useState(0);
   const [draft, setDraft] = useState<ApprovalMatrix | null>(null);
   const [base, setBase] = useState<ApprovalMatrix | undefined>(undefined);
-  const [impact, setImpact] = useState<readonly AffectedQuote[] | null>(null);
-  const [savedNote, setSavedNote] = useState<string | null>(null);
+  // Quotes in approval, while the confirmation is open.
+  const [inFlight, setInFlight] = useState<number | null>(null);
   const notify = useCado2Toast();
 
   // Start editing from the loaded matrix, and again after a save reloads it.
@@ -102,28 +95,16 @@ export default function ApprovalMatrixPage(): JSX.Element {
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(loaded.data);
   const problems = problemOf(save.error)?.issues ?? [];
-  const update = (m: Partial<ApprovalMatrix>) => {
-    setSavedNote(null);
-    setDraft({ ...draft, ...m });
-  };
+  const update = (m: Partial<ApprovalMatrix>) => setDraft({ ...draft, ...m });
 
-  const check = () => {
-    setSavedNote(null);
-    save.mutate({ matrix: draft, confirm: false }, { onSuccess: (res) => setImpact(res.affected) });
-  };
+  const check = () => save.mutate({ matrix: draft, confirm: false }, { onSuccess: (res) => setInFlight(res.inFlight) });
   const confirm = () =>
     save.mutate(
       { matrix: draft, confirm: true },
       {
-        onSuccess: (res) => {
-          setImpact(null);
-          // Quotes recalled: it stays until closed, as it concerns other
-          // people's quotes; nothing affected: a toast (2026-10-13).
-          if (res.affected.length) {
-            setSavedNote(`Saved. ${res.affected.length} quote${res.affected.length === 1 ? " was" : "s were"} recalled for resubmission.`);
-          } else {
-            notify("Saved. No quote in approval was affected.");
-          }
+        onSuccess: () => {
+          setInFlight(null);
+          notify("Saved. New submissions use the new matrix.");
         },
       },
     );
@@ -138,16 +119,11 @@ export default function ApprovalMatrixPage(): JSX.Element {
               Discard changes
             </Button>
             <Button variant="contained" size="large" disabled={!dirty || save.isPending} onClick={check}>
-              {save.isPending && !impact ? "Checking…" : "Save changes"}
+              {save.isPending && inFlight === null ? "Checking…" : "Save changes"}
             </Button>
           </>
         }
       />
-      {savedNote ? (
-        <Alert severity="success" onClose={() => setSavedNote(null)}>
-          {savedNote}
-        </Alert>
-      ) : null}
       {problems.length ? <ProblemList issues={problems} matrix={draft} /> : null}
       {save.error && !problems.length ? <ErrorNotice error={save.error}>Couldn&apos;t save the matrix.</ErrorNotice> : null}
 
@@ -160,44 +136,30 @@ export default function ApprovalMatrixPage(): JSX.Element {
       </Box>
       <Box role="tabpanel" aria-label={TABS[tab]}>
         {tab === 0 ? <GroupsEditor matrix={draft} onChange={(groups) => update({ groups })} /> : null}
-        {tab === 1 ? <MappingsEditor matrix={draft} onChange={(mappings) => update({ mappings })} /> : null}
+        {tab === 1 ? <ProductMappingTab matrix={draft} onChange={(mappings) => update({ mappings })} /> : null}
         {tab === 2 ? (
           <SettingsEditor settings={draft.settings} roles={draft.roles} onChange={(settings) => update({ settings })} />
         ) : null}
         {tab === 3 ? <ChangeLog /> : null}
       </Box>
 
-      <Dialog open={impact !== null} onClose={() => !save.isPending && setImpact(null)} fullWidth maxWidth="sm">
+      <Dialog open={inFlight !== null} onClose={() => !save.isPending && setInFlight(null)} fullWidth maxWidth="sm">
         <DialogTitle>Save the approval matrix?</DialogTitle>
         <DialogContent>
-          {impact?.length ? (
-            <Stack spacing={1.5}>
-              <Typography variant="body2">
-                This change alters the approvals of {impact.length} quote{impact.length === 1 ? "" : "s"} in approval.
-                {impact.length === 1 ? " It" : " They"} will be recalled, and the owner{impact.length === 1 ? "" : "s"} must
-                resubmit under the new matrix.
-              </Typography>
-              <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                {impact.map((q) => (
-                  // Plain text: the admin panel gives no access to quotes themselves.
-                  <li key={q.quoteId}>
-                    <strong>{q.quoteNumber}</strong> · version {q.versionNumber}
-                  </li>
-                ))}
-              </Box>
-            </Stack>
-          ) : (
-            <Typography variant="body2">No quote in approval is affected. New submissions use the new matrix.</Typography>
-          )}
+          <Typography variant="body2">
+            {inFlight
+              ? `${inFlight} quote${inFlight === 1 ? " is" : "s are"} in approval. ${inFlight === 1 ? "It keeps its" : "They keep their"} current approvers.`
+              : "No quote is in approval."}{" "}
+            The new matrix applies to new submissions and resubmissions.
+          </Typography>
           {save.error ? <ErrorNotice error={save.error}>That didn&apos;t work.</ErrorNotice> : null}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setImpact(null)} disabled={save.isPending}>
+          <Button onClick={() => setInFlight(null)} disabled={save.isPending}>
             Cancel
           </Button>
-          {/* Red when it recalls other people's quotes (2026-10-13). */}
-          <Button variant="contained" color={impact?.length ? "error" : "primary"} onClick={confirm} disabled={save.isPending}>
-            {save.isPending ? "Saving…" : impact?.length ? "Save and recall" : "Save"}
+          <Button variant="contained" onClick={confirm} disabled={save.isPending}>
+            {save.isPending ? "Saving…" : "Save"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -211,7 +173,10 @@ function ProblemList({ issues, matrix }: { issues: readonly Issue[]; matrix: App
     const g = /^groups\[(\d+)\]/.exec(field);
     if (g) return matrix.groups[Number(g[1])]?.name || `Group ${Number(g[1]) + 1}`;
     const m = /^mappings\[(\d+)\]/.exec(field);
-    if (m) return `Product mapping row ${Number(m[1]) + 1}`;
+    if (m) {
+      const mp = matrix.mappings[Number(m[1])];
+      return mp ? `Product mapping, ${mappingLabel(mp)}` : "Product mapping";
+    }
     if (field.startsWith("settings.")) return "Commercial rules";
     return "";
   };
@@ -391,76 +356,6 @@ function GroupsEditor({ matrix, onChange }: { matrix: ApprovalMatrix; onChange: 
           Add a discount group
         </Button>
       </Box>
-    </Stack>
-  );
-}
-
-// --- Product mapping ---------------------------------------------------------
-
-function MappingsEditor({ matrix, onChange }: { matrix: ApprovalMatrix; onChange: (m: ApprovalMapping[]) => void }): JSX.Element {
-  const set = (i: number, m: ApprovalMapping) => onChange(matrix.mappings.map((x, j) => (j === i ? m : x)));
-  return (
-    <Stack spacing={2}>
-      <Typography variant="body2" color="text.secondary">
-        Puts Salesforce products into a discount group. When a product matches more than one row, the most specific wins: a
-        single product, then product_Classification__c, then Product_Unit__c. A discounted product in no group can&apos;t be
-        submitted — add it here.
-      </Typography>
-      <Paper variant="outlined" sx={{ borderRadius: 2, p: 2 }}>
-        <Stack spacing={1.25}>
-          {matrix.mappings.map((m, i) => (
-            <Stack key={i} direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
-              <TextField
-                select
-                size="small"
-                label="Match on"
-                value={m.field}
-                onChange={(e) => set(i, { ...m, field: e.target.value as MatchField })}
-                sx={{ width: { md: 280 } }}
-              >
-                {(Object.keys(MATCH_LABEL) as MatchField[]).map((f) => (
-                  <MenuItem key={f} value={f}>
-                    {MATCH_LABEL[f]}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                size="small"
-                label="Value"
-                value={m.value}
-                onChange={(e) => set(i, { ...m, value: e.target.value })}
-                sx={{ flexGrow: 1 }}
-              />
-              <TextField
-                select
-                size="small"
-                label="Group"
-                value={m.groupCode}
-                onChange={(e) => set(i, { ...m, groupCode: e.target.value })}
-                sx={{ width: { md: 320 } }}
-              >
-                {matrix.groups.map((g) => (
-                  <MenuItem key={g.code || g.name} value={g.code}>
-                    {g.name || g.code}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <IconButton aria-label={`Remove mapping ${m.value}`} size="small" onClick={() => onChange(matrix.mappings.filter((_, j) => j !== i))}>
-                <Trash2Icon size={16} />
-              </IconButton>
-            </Stack>
-          ))}
-          <Box>
-            <Button
-              size="small"
-              startIcon={<PlusIcon size={14} />}
-              onClick={() => onChange([...matrix.mappings, { field: "PRODUCT_UNIT", value: "", groupCode: matrix.groups[0]?.code ?? "" }])}
-            >
-              Add a mapping
-            </Button>
-          </Box>
-        </Stack>
-      </Paper>
     </Stack>
   );
 }
