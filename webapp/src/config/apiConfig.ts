@@ -437,9 +437,14 @@ export const leaveServiceUrls = {
   appConfigs: `${leaveBackendUrl}/app-configs`,
   leaves: `${leaveBackendUrl}/leaves`,
   leave: (id: number) => `${leaveBackendUrl}/leaves/${id}`,
-  // action = "approve" | "reject" (sabbatical only)
+  // action = "approve" | "reject" (sabbatical and Other Authorized)
   leaveAction: (id: number, action: "approve" | "reject") =>
     `${leaveBackendUrl}/leaves/${id}/${action}`,
+  // France sick leave: multipart POST that carries the sick note.
+  sickLeave: `${leaveBackendUrl}/leaves/sick-leave`,
+  sickNote: (id: number) => `${leaveBackendUrl}/leaves/${id}/sick-note`,
+  sickNotes: (startDate: string, endDate: string) =>
+    `${leaveBackendUrl}/sick-notes?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
   employees: `${leaveBackendUrl}/employees`,
   // `years` maps to the repeated ?years= query the leave app sends. Omitting
   // it lets the backend pick its own period, which is what the congés-payés

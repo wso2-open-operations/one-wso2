@@ -15,6 +15,7 @@
 // under the License.
 
 import type { LeaveType } from "../api/leaveTypes";
+import { CANCEL_WINDOW_DAYS } from "./franceLeave";
 
 // User-visible copy, transcribed from the leave-app.
 //
@@ -50,6 +51,14 @@ export const CANCEL_CONFIRMATION = {
   dismiss: "No, Keep It",
 } as const;
 
+/** What My history shows on a card for rejection reasons and sick notes. */
+export const HISTORY_CARD_COPY = {
+  rejectionReason: (reason: string) => `Reason: ${reason}`,
+  downloadSickNote: "Download sick note",
+  sickNoteDeleted: (date: string) => `Sick note deleted on ${date}`,
+  cancelPastWindow: `Past the ${CANCEL_WINDOW_DAYS}-day cancellation window`,
+} as const;
+
 /** `LeaveHistory.tsx:151`. */
 export const noLeaveHistoryFor = (year: number) => `No leave history available for ${year}.`;
 
@@ -65,7 +74,64 @@ export const noLeaveHistoryFor = (year: number) => `No leave history available f
  * the same event is worded two ways, and LeaveSabbaticalPage uses that one.
  */
 export const SUBMIT_SUCCESS = "Leave request submitted successfully!";
+/** Other Authorized is approved by the employee's lead, not auto-approved. */
+export const OTHER_AUTHORIZED_SUBMIT_SUCCESS = "Your request has been sent to your lead for approval.";
+export const OTHER_AUTHORIZED_CONFIRMATION_NOTE = "This request goes to your lead for approval.";
+/** The comment box while Other Authorized is picked: a required, private reason. */
+export const OTHER_AUTHORIZED_REASON = {
+  label: "Reason",
+  placeholder: "Tell your lead why you need this leave (required)…",
+  note: "Your reason goes to your lead for approval and is never made public.",
+} as const;
+
+/** The sick-note field on Apply (France sick leave only). */
+export const SICK_NOTE_COPY = {
+  title: "Sick note",
+  loadingLimits: "Loading upload limits…",
+  chooseFile: "Choose sick note file",
+  changeFile: "Change sick note file",
+  remove: "Remove sick note",
+  /** `maxMb` is already formatted, e.g. "5.0". */
+  help: (maxMb: string): string =>
+    `A sick note is required for sick leave. Upload a PDF, JPG or PNG file of up to ${maxMb} MB.`,
+} as const;
 export const SUBMIT_FAILED_FALLBACK = "Failed to submit leave request. Please try again.";
+
+/** Other Authorized approvals, for leads. */
+export const OTHER_AUTHORIZED_APPROVE = {
+  empty: "No pending Other Authorized requests.",
+  historyEmpty: "No Other Authorized decisions yet.",
+  columns: {
+    employee: "Employee",
+    startDate: "Start",
+    endDate: "End",
+    dayCount: "Days",
+    comment: "Comment",
+    waiting: "Waiting",
+    status: "Status",
+    reason: "Reason",
+    decision: "Decision",
+  },
+  approve: "Approve",
+  reject: "Reject",
+  working: "Working…",
+  approveDialog: {
+    title: "Approve this request?",
+    body: (email: string, dateRange: string) =>
+      `This will approve the Other Authorized leave for ${email} (${dateRange}). ` +
+      "The team is emailed and a calendar invite is sent.",
+    cancel: "Cancel",
+    confirm: "Yes, Approve",
+  },
+  rejectDialog: {
+    title: "Reject this request?",
+    body: "The reason is emailed to the employee.",
+    label: "Reason for rejecting",
+    cancel: "Cancel",
+    confirm: "Reject",
+    counter: (used: number, max: number) => `${used} / ${max}`,
+  },
+} as const;
 
 /** `config/constant.ts:17-43`. */
 export const SnackMessage = {
@@ -233,6 +299,8 @@ export const GENERIC_LABEL: Record<LeaveType, string> = {
   sabbatical: LEAVE_LABEL.SABBATICAL,
   conges_payes: LEAVE_LABEL.CONGES_PAYES,
   rtt: LEAVE_LABEL.RTT,
+  compassionate: "Compassionate",
+  other_authorized: "Other Authorized",
 };
 
 // ---------------------------------------------------------------------------
@@ -371,4 +439,23 @@ export const SABBATICAL = {
 
   history: { title: "Sabbatical Leave History" }, // SabbaticalLeaveHistory.tsx:25
   report: { title: "Sabbatical Leave Report" }, // AdminSabbaticalTab.tsx:83
+} as const;
+
+/** The Sick notes report (People Ops, privilege 321). */
+export const SICK_NOTES_REPORT = {
+  employeeFilter: "Employee email",
+  employeeFilterPlaceholder: "Filter by email",
+  empty: "No sick notes in this period.",
+  download: "Download",
+  downloadFor: (email: string, start: string, end: string): string =>
+    `Download sick note for ${email}, ${start}\u2013${end}`,
+  deletedOn: (date: string): string => `Deleted on ${date}`,
+  columns: {
+    employee: "Employee",
+    dates: "Dates",
+    days: "Days",
+    status: "Status",
+    uploaded: "Uploaded",
+    note: "Note",
+  },
 } as const;

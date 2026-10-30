@@ -31,8 +31,8 @@ import {
 /**
  * `unknownWhenMissing` reproduces ApprovalHistoryTable.tsx:74, where a row with
  * no status reads "Unknown" rather than being assumed pending. The history
- * screens keep the older default: they filter to APPROVED/PENDING, so a missing
- * status there is pending in practice.
+ * screens keep the older default of treating a missing status as pending, as
+ * the backend creates a leave pending or approved and never without one.
  */
 export function StatusChip({
   status,

@@ -44,6 +44,8 @@ export type LeaveGateId =
   | "leave-history"
   | "leave-reports-general"
   | "leave-reports-sabbatical"
+  /** People Ops holding the sick-note role (privilege 321). Nobody else. */
+  | "leave-sick-notes"
   | "leave-approve"
   /** May take a sabbatical at all: employee or lead, never an intern. */
   | "leave-sabbatical-own";
@@ -51,7 +53,7 @@ export type LeaveGateId =
 /** The rail entry's id. One now, where there were two. */
 export type LeaveItemId = "leave-home";
 
-export type LeaveKind = "general" | "sabbatical";
+export type LeaveKind = "general" | "sabbatical" | "other-authorized" | "sick-notes";
 
 export interface LeaveKindDef {
   kind: LeaveKind;
@@ -124,10 +126,6 @@ export const LEAVE_TABS: readonly LeaveTabDef[] = [
   {
     segment: "approvals",
     label: "Approvals",
-    // One kind, so no toggle: general leave has no approval step at all. The
-    // backend creates it already approved (service.bal:539), which is a fact
-    // about the product rather than about this person's role — so the subtitle
-    // says it rather than a disabled half-toggle implying it might unlock.
     kinds: [
       {
         kind: "sabbatical",
@@ -136,7 +134,14 @@ export const LEAVE_TABS: readonly LeaveTabDef[] = [
         // but cannot decide one.
         gateId: "leave-approve",
         subtitle:
-          "Only sabbaticals need approving. General leave is approved the moment you submit it.",
+          "Sabbatical requests from your team wait for your decision. Other Authorized requests have their own tab.",
+      },
+      {
+        kind: "other-authorized",
+        label: "Other Authorized",
+        gateId: "leave-approve",
+        subtitle:
+          "Other Authorized requests from your team wait for your decision. Rejecting one needs a reason, which is emailed to the employee.",
       },
     ],
   },
@@ -149,6 +154,12 @@ export const LEAVE_TABS: readonly LeaveTabDef[] = [
         label: "Sabbatical",
         gateId: "leave-approve",
         subtitle: "Sabbaticals you have already decided on.",
+      },
+      {
+        kind: "other-authorized",
+        label: "Other Authorized",
+        gateId: "leave-approve",
+        subtitle: "Other Authorized requests you have already decided on, with the reason for each rejection.",
       },
     ],
   },
@@ -171,6 +182,14 @@ export const LEAVE_TABS: readonly LeaveTabDef[] = [
         gateId: "leave-reports-sabbatical",
         subtitle: "Sabbaticals across your team.",
       },
+      {
+        kind: "sick-notes",
+        label: "Sick notes",
+        // Privilege 321 alone: sick notes are confidential, so neither leads
+        // nor the other report roles imply it.
+        gateId: "leave-sick-notes",
+        subtitle: "France sick leave notes. Every download is recorded.",
+      },
     ],
   },
 ] as const;
@@ -178,10 +197,11 @@ export const LEAVE_TABS: readonly LeaveTabDef[] = [
 /**
  * The URL for one tab, optionally at one kind.
  *
- * A single-kind tab carries no kind segment — `/me/leave/approvals` rather
- * than `/me/leave/approvals/sabbatical`, which would name a choice that does
- * not exist. The shape follows the tab's DEFINITION, not the caller's
- * permissions, so two people never see different URLs for the same screen.
+ * A tab defined with a single kind carries no kind segment, which would name a
+ * choice that does not exist. The shape follows the tab's DEFINITION, not the
+ * caller's permissions, so two people never see different URLs for the same
+ * screen. No tab is single-kind today; the bare URL of a multi-kind tab is
+ * redirected by LeaveTabIndex.
  */
 export function leavePath(tab: LeaveTabDef, kind?: LeaveKind): string {
   const base = `${LEAVE_PATH}/${tab.segment}`;

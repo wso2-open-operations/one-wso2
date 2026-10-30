@@ -19,6 +19,8 @@ import {
   CalendarDaysIcon,
   CloudSunIcon,
   CompassIcon,
+  FileCheckIcon,
+  HeartIcon,
   HeartHandshakeIcon,
   RepeatIcon,
   ThermometerIcon,
@@ -42,7 +44,9 @@ export type LeaveType =
   | "paternity"
   | "sabbatical"
   | "conges_payes"
-  | "rtt";
+  | "rtt"
+  | "compassionate"
+  | "other_authorized";
 
 export type LeavePeriodType = "multiple" | "one" | "half";
 
@@ -64,6 +68,8 @@ export const LEAVE_PRIVILEGE = {
   GENERAL_REPORT: 456,
   /** Sabbatical report across all employees. Sent to People Ops too. */
   SABBATICAL_REPORT: 654,
+  /** Reads the France sick notes uploaded with sick leave. */
+  SICK_NOTE_READER: 321,
 } as const;
 
 // ---- user / config ---------------------------------------------------------
@@ -96,6 +102,9 @@ export interface AppConfig {
   sabbaticalLeaveEligibilityDuration: number;
   sabbaticalLeaveMaxApplicationDuration: number;
   sabbaticalLeaveMinJobBand: number;
+  // Absent from an older backend.
+  sickNoteMaxBytes?: number;
+  sickNoteContentTypes?: string[];
   cachedEmails: {
     mandatoryMails: DefaultMail[];
     optionalMails: DefaultMail[];
@@ -129,6 +138,24 @@ export interface DatabaseLeave {
   location: string | null;
   status: LeaveStatus | null;
   approverEmail: string | null;
+  // Optional: an older backend omits them.
+  rejectionReason?: string | null;
+  hasSickNote?: boolean;
+  sickNoteDeletedOn?: string | null;
+}
+
+// One uploaded sick note, as listed by the sick-notes report.
+export interface SickNoteSummary {
+  leaveId: number;
+  email: string;
+  startDate: string;
+  endDate: string;
+  numberOfDays: number;
+  status: LeaveStatus;
+  uploadedAt: string;
+  deletedAt: string | null;
+  sizeBytes: number;
+  contentType: string;
 }
 
 export interface FetchedLeavesRecord {
@@ -223,6 +250,8 @@ export const GENERAL_LEAVE_TYPES: LeaveType[] = [
   "paternity",
   "conges_payes",
   "rtt",
+  "compassionate",
+  "other_authorized",
 ];
 
 export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
@@ -235,6 +264,8 @@ export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
   sabbatical: "Sabbatical",
   conges_payes: "Congés Payés",
   rtt: "RTT",
+  compassionate: "Compassionate",
+  other_authorized: "Other Authorized",
 };
 
 // Leave that does not count toward a leave total. Time off in lieu is earned
@@ -275,6 +306,8 @@ export const LEAVE_TYPE_ICON: Record<LeaveType, LucideIcon> = {
   sabbatical: CompassIcon,
   conges_payes: UmbrellaIcon,
   rtt: TimerIcon,
+  compassionate: HeartIcon,
+  other_authorized: FileCheckIcon,
 };
 
 /** Icon for a leave type that isn't in the known set. */
@@ -297,6 +330,8 @@ export const LEAVE_TYPE_COLOR: Record<LeaveType, string> = {
   lieu: "#00bcd4",
   conges_payes: "#607d8b",
   rtt: "#795548",
+  compassionate: "#e91e63",
+  other_authorized: "#ff5722",
 };
 
 /** LeadReportTable.tsx:76 — the tint for a type the registry does not know. */
@@ -329,7 +364,13 @@ const LOCATION_LEAVE_TYPES: Record<string, { type: LeaveType; info?: string }[]>
     { type: "casual", info: "Maharashtra only" },
     { type: "sick", info: "Karnataka only" },
   ],
-  France: [{ type: "conges_payes" }, { type: "rtt" }, { type: "sick" }],
+  France: [
+    { type: "conges_payes" },
+    { type: "rtt" },
+    { type: "sick" },
+    { type: "compassionate" },
+    { type: "other_authorized" },
+  ],
   Spain: [{ type: "annual" }, { type: "casual" }, { type: "sick" }],
 };
 
@@ -337,8 +378,12 @@ const LOCATION_LEAVE_TYPES: Record<string, { type: LeaveType; info?: string }[]>
 // location-specific about them.
 const COMMON_LEAVE_TYPES: LeaveType[] = ["maternity", "paternity", "lieu"];
 
-function locationEntries(location: string | null | undefined): { type: LeaveType; info?: string }[] {
-  return (location ? LOCATION_LEAVE_TYPES[location] : undefined) ?? LOCATION_LEAVE_TYPES["Sri Lanka"];
+function locationEntries(
+  location: string | null | undefined,
+): { type: LeaveType; info?: string }[] {
+  return (
+    (location ? LOCATION_LEAVE_TYPES[location] : undefined) ?? LOCATION_LEAVE_TYPES["Sri Lanka"]
+  );
 }
 
 // The eligibility caveat for a (location, type) pair, if one exists — e.g.
@@ -364,7 +409,11 @@ const BALANCE_TRACKED_LOCATIONS = new Set(["France", "Spain"]);
 // leave-app's LeaveBalanceSummary, which only ever renders for France/Spain.
 export function quotaTrackedTypesForLocation(location: string | null | undefined): LeaveType[] {
   if (!location || !BALANCE_TRACKED_LOCATIONS.has(location)) return [];
-  return (LOCATION_LEAVE_TYPES[location] ?? []).map((e) => e.type);
+  // Only types with a policy field have a balance to show. France's
+  // Compassionate and Other Authorized are selectable on Apply but untracked.
+  return (LOCATION_LEAVE_TYPES[location] ?? [])
+    .map((e) => e.type)
+    .filter((t) => t in LEAVE_TYPE_POLICY_KEY);
 }
 
 // The Apply form's selectable leave types for a given location — matches
@@ -379,6 +428,8 @@ export function leaveTypesForLocation(location: string | null | undefined): Leav
 export const LEAVE_TYPE_TOOLTIP: Partial<Record<LeaveType, string>> = {
   conges_payes: "Paid Annual Leave",
   rtt: "Réduction du Temps de Travail",
+  compassionate: "Leave for a bereavement or serious family event",
+  other_authorized: "Other authorised absence, approved by your lead",
 };
 
 // Maps a leave type to its LeavePolicy/LeaveEntitlement field — undefined

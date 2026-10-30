@@ -54,6 +54,8 @@ export interface LeaveGate {
   canReportAllGeneral: boolean;
   /** May see the sabbatical report across all employees, not just their team. */
   canReportAllSabbatical: boolean;
+  /** Holds the sick-note role (321): may list and download France sick notes. */
+  canReadSickNotes: boolean;
 }
 
 export function useLeaveGate(enabled = true): LeaveGate {
@@ -74,6 +76,8 @@ export function useLeaveGate(enabled = true): LeaveGate {
   const canReportAllSabbatical =
     isPeopleOps || privileges.includes(LEAVE_PRIVILEGE.SABBATICAL_REPORT);
 
+  const canReadSickNotes = privileges.includes(LEAVE_PRIVILEGE.SICK_NOTE_READER);
+
   const canSee = (itemId: string): boolean => {
     switch (itemId) {
       // A lead sees their own team; a report role (or People Ops) sees
@@ -82,6 +86,10 @@ export function useLeaveGate(enabled = true): LeaveGate {
         return isLead || canReportAllGeneral;
       case "leave-reports-sabbatical":
         return isLead || canReportAllSabbatical;
+      // The role alone: a lead or People Ops without 321 is refused, since
+      // the backend answers 403 and a hidden-but-reachable route is no gate.
+      case "leave-sick-notes":
+        return canReadSickNotes;
       // route.ts:94,101 — LEAD only. People Ops cannot approve.
       case "leave-approve":
         return isLead;
@@ -142,6 +150,7 @@ export function useLeaveGate(enabled = true): LeaveGate {
     isLead,
     canReportAllGeneral,
     canReportAllSabbatical,
+    canReadSickNotes,
   };
 }
 

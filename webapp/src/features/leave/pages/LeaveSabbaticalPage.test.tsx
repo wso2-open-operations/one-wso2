@@ -465,11 +465,11 @@ describe("the my-history tab", () => {
     expect(historyFilter.leaveCategory).toEqual(["sabbatical"]);
   });
 
-  it("keeps the source's statuses and ordering", async () => {
+  it("asks for every status, newest first", async () => {
     show(<SabbaticalHistoryTab />);
     await waitFor(() => expect(leaveFilters.length).toBeGreaterThan(0));
     const historyFilter = leaveFilters.at(-1)!;
-    expect(historyFilter.statuses).toEqual(["APPROVED", "PENDING"]);
+    expect(historyFilter.statuses).toEqual(["APPROVED", "PENDING", "REJECTED", "CANCELLED"]);
     expect(historyFilter.orderBy).toBe("DESC");
   });
 

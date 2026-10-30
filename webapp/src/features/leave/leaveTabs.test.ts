@@ -74,14 +74,17 @@ describe("the shape of the Leave app", () => {
     }
   });
 
-  // THE asymmetry this refactor had to decide. General leave is created
-  // already approved, so there is no general approve step for anyone — the
-  // tab offers one kind and says why in its subtitle, rather than showing a
-  // disabled half-toggle that implies it might unlock.
-  it("offers Approvals for sabbaticals only, and says why", () => {
-    const approvals = leaveTab("approvals")!;
-    expect(approvals.kinds.map((k) => k.kind)).toEqual(["sabbatical"]);
-    expect(approvals.kinds[0].subtitle).toContain("approved the moment you submit it");
+  // Ordinary general leave is created already approved, so there is no general
+  // approve step for anyone. Approvals offers the two kinds that DO need a
+  // decision: sabbatical and Other Authorized.
+  it("offers Approvals and Approval history for sabbatical and Other Authorized", () => {
+    for (const segment of ["approvals", "approval-history"]) {
+      const tab = leaveTab(segment)!;
+      expect(tab.kinds.map((k) => k.kind)).toEqual(["sabbatical", "other-authorized"]);
+      expect(tab.kinds.map((k) => k.label)).toEqual(["Sabbatical", "Other Authorized"]);
+      expect(tab.kinds.every((k) => k.gateId === "leave-approve")).toBe(true);
+      for (const k of tab.kinds) expect(k.subtitle).not.toMatch(/only sabbaticals/i);
+    }
   });
 });
 
@@ -90,10 +93,11 @@ describe("paths", () => {
     expect(leavePath(leaveTab("apply")!, "sabbatical")).toBe("/me/leave/apply/sabbatical");
   });
 
-  // A single-kind tab has no choice to name, so naming one would invent a
-  // second option in the URL that the page does not have.
-  it("leaves the kind out of a tab that offers one", () => {
-    expect(leavePath(leaveTab("approvals")!, "sabbatical")).toBe("/me/leave/approvals");
+  it("names the kind only when one is given", () => {
+    expect(leavePath(leaveTab("reports")!)).toBe("/me/leave/reports");
+    expect(leavePath(leaveTab("approvals")!, "other-authorized")).toBe(
+      "/me/leave/approvals/other-authorized",
+    );
   });
 
   it("round-trips through parseLeavePath", () => {
@@ -106,8 +110,11 @@ describe("paths", () => {
     }
   });
 
-  it("implies the only kind of a single-kind tab", () => {
-    expect(parseLeavePath("/me/leave/approvals").kind?.kind).toBe("sabbatical");
+  it("leaves the kind undefined for an approvals URL without one", () => {
+    expect(parseLeavePath("/me/leave/approvals").kind).toBeUndefined();
+    expect(parseLeavePath("/me/leave/approval-history/other-authorized").kind?.kind).toBe(
+      "other-authorized",
+    );
   });
 
   it("returns nothing for a segment it does not know", () => {

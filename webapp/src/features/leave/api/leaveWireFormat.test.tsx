@@ -18,6 +18,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import type { LeavePayload } from "./leaveTypes";
+
+// jsdom's Blob has no .text().
+const readBlobText = (b: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsText(b);
+  });
 
 // Four of the five defects the audit found are payload defects: a query param
 // that is not sent, a filter that is not applied, a recipient list that goes out
@@ -33,6 +43,10 @@ vi.mock("@api/http", () => ({
   authedPost: (url: string, _token: string, body: unknown) => {
     requests.push({ method: "POST", url, body });
     return Promise.resolve({});
+  },
+  authedUpload: (url: string, _token: string, formData: FormData) => {
+    requests.push({ method: "UPLOAD", url, body: formData });
+    return Promise.resolve({ message: "ok" });
   },
   authedDelete: (url: string) => {
     requests.push({ method: "DELETE", url });
@@ -51,6 +65,8 @@ vi.mock("@config/apiConfig", () => ({
     employees: "https://leave.test/employees",
     leaves: "https://leave.test/leaves",
     leave: (id: number) => `https://leave.test/leaves/${id}`,
+    sickLeave: "https://leave.test/leaves/sick-leave",
+    sickNotes: (s: string, e: string) => `https://leave.test/sick-notes?startDate=${s}&endDate=${e}`,
     leaveAction: (id: number, a: string) => `https://leave.test/leaves/${id}/${a}`,
     userInfo: "https://leave.test/user-info",
     appConfigs: "https://leave.test/app-configs",
@@ -62,8 +78,8 @@ vi.mock("@config/apiConfig", () => ({
   },
 }));
 
-const { useLeaveEmployees, useLeaveEntitlement, useLeaves } = await import("./useLeaveData");
-const { useSubmitLeave, useCancelLeave } = await import("./useLeaveMutations");
+const { useLeaveEmployees, useLeaveEntitlement, useLeaves, useSickNotes } = await import("./useLeaveData");
+const { useSubmitLeave, useCancelLeave, useSubmitSickLeave, useApproveLeave } = await import("./useLeaveMutations");
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -288,5 +304,108 @@ describe("the leave entitlement request", () => {
     await waitFor(() => expect(requests).toHaveLength(2));
     expect(requests.filter((r) => r.url.includes("years=2026"))).toHaveLength(1);
     expect(requests.filter((r) => !r.url.includes("years="))).toHaveLength(1);
+  });
+});
+
+describe("a sick-leave submit", () => {
+  it("sends exactly a `leave` JSON part and a `sickNote` file part", async () => {
+    const payload: LeavePayload = {
+      startDate: "2026-03-02",
+      endDate: "2026-03-03",
+      periodType: "multiple",
+      isMorningLeave: null,
+      leaveType: "sick",
+      comment: "",
+      emailRecipients: [],
+      isPublicComment: false,
+    };
+    const file = new File(["%PDF-1.4"], "note.pdf", { type: "application/pdf" });
+    const { result } = renderHook(() => useSubmitSickLeave(), { wrapper });
+    result.current.mutate({ payload, sickNote: file });
+    await waitFor(() => expect(requests).toHaveLength(1));
+
+    expect(requests[0].method).toBe("UPLOAD");
+    expect(requests[0].url).toBe("https://leave.test/leaves/sick-leave");
+    const form = requests[0].body as FormData;
+    expect([...form.keys()].sort()).toEqual(["leave", "sickNote"]);
+    const leave = form.get("leave") as Blob;
+    expect(leave.type).toBe("application/json");
+    expect(JSON.parse(await readBlobText(leave))).toEqual(payload);
+    expect((form.get("sickNote") as File).name).toBe("note.pdf");
+  });
+
+  it("invalidates the same three caches as a plain submit", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidated: unknown[] = [];
+    vi.spyOn(client, "invalidateQueries").mockImplementation((arg) => {
+      invalidated.push((arg as { queryKey?: unknown })?.queryKey);
+      return Promise.resolve();
+    });
+    const { result } = renderHook(() => useSubmitSickLeave(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    result.current.mutate({
+      payload: {
+        startDate: "2026-03-02",
+        endDate: "2026-03-02",
+        periodType: "one",
+        isMorningLeave: null,
+        leaveType: "sick",
+        comment: "",
+        emailRecipients: [],
+        isPublicComment: false,
+      },
+      sickNote: new File(["x"], "n.png", { type: "image/png" }),
+    });
+    await waitFor(() => expect(invalidated.length).toBeGreaterThanOrEqual(3));
+    expect(invalidated).toContainEqual(["leaves"]);
+    expect(invalidated).toContainEqual(["leave-entitlement"]);
+    expect(invalidated).toContainEqual(["leave-app-config"]);
+  });
+});
+
+describe("a lead's decision", () => {
+  it("sends a reason only when one is given", async () => {
+    const { result } = renderHook(() => useApproveLeave(), { wrapper });
+
+    result.current.mutate({ id: 7, action: "approve" });
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].url).toBe("https://leave.test/leaves/7/approve");
+    expect(requests[0].body).toEqual({});
+
+    result.current.mutate({ id: 7, action: "reject", reason: "Busy week" });
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests[1].url).toBe("https://leave.test/leaves/7/reject");
+    expect(requests[1].body).toEqual({ reason: "Busy week" });
+
+    result.current.mutate({ id: 7, action: "reject" });
+    await waitFor(() => expect(requests).toHaveLength(3));
+    expect(requests[2].body).toEqual({});
+  });
+});
+
+describe("the sick-note list", () => {
+  it("asks for the range and is keyed per user", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    renderHook(() => useSickNotes("2026-01-01", "2026-12-31"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].url).toBe("https://leave.test/sick-notes?startDate=2026-01-01&endDate=2026-12-31");
+    expect(client.getQueryCache().find({ queryKey: ["leave-sick-notes", "sub-1", "2026-01-01", "2026-12-31"] })).toBeDefined();
+  });
+
+  it("does not fire when disabled", async () => {
+    renderHook(() => useSickNotes("2026-01-01", "2026-12-31", false), { wrapper });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(requests).toHaveLength(0);
   });
 });

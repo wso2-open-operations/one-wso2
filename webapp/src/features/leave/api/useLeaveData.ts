@@ -28,6 +28,7 @@ import type {
   LeaveFilter,
   LeaveUserInfo,
   MinimalEmployeeInfo,
+  SickNoteSummary,
 } from "./leaveTypes";
 
 export { isLeaveBackendConfigured };
@@ -173,4 +174,29 @@ export function useLeaveEmployees(enabled = true) {
     staleTime: 10 * 60 * 1000,
     retry: leaveRetry,
   });
+}
+
+// GET /sick-notes?startDate&endDate — sick-note summaries for the range. The
+// backend answers 403 to anyone without the sick-note role, so callers gate
+// `enabled` on that. Keyed per user: the result depends on the caller's role.
+export function useSickNotes(startDate: string, endDate: string, enabled = true) {
+  const { isSignedIn } = useAsgardeo();
+  const getAccessToken = useAccessToken();
+  const { state: subState, retry: retryIdentity } = useAsgardeoSub();
+  const userSub = subState.status === "ready" ? subState.sub : undefined;
+  const configured = isLeaveBackendConfigured();
+  const query = useQuery<SickNoteSummary[]>({
+    queryKey: ["leave-sick-notes", userSub, startDate, endDate],
+    enabled: enabled && isSignedIn && configured && Boolean(userSub),
+    queryFn: async () => {
+      const accessToken = await getAccessToken();
+      return authedGet<SickNoteSummary[]>(
+        leaveServiceUrls.sickNotes(startDate, endDate),
+        accessToken,
+      );
+    },
+    staleTime: 60 * 1000,
+    retry: leaveRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
 }

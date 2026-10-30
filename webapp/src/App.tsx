@@ -160,6 +160,8 @@ import GeneralHistoryTab, {
 } from "@features/leave/pages/LeaveHistoryPage";
 import SabbaticalApproveTab from "@features/leave/components/SabbaticalApproveTab";
 import SabbaticalApprovalHistoryTab from "@features/leave/components/SabbaticalApprovalHistoryTab";
+import OtherAuthorizedApproveTab from "@features/leave/components/OtherAuthorizedApproveTab";
+import OtherAuthorizedApprovalHistoryTab from "@features/leave/components/OtherAuthorizedApprovalHistoryTab";
 // Lazy on purpose. This is the only screen that pulls in the DataGrid, which
 // costs ~115 kB gzipped — and only leads and People Ops can open it, so loading
 // it for everyone taxes the many for the few. The sabbatical approve and report
@@ -167,6 +169,9 @@ import SabbaticalApprovalHistoryTab from "@features/leave/components/SabbaticalA
 const GeneralReportTab = lazy(() => import("@features/leave/pages/LeaveReportsPage"));
 const SabbaticalReportTab = lazy(
   () => import("@features/leave/components/SabbaticalReportTab"),
+);
+const SickNotesReportTab = lazy(
+  () => import("@features/leave/components/SickNotesReportTab"),
 );
 // Sales Library: loaded when its page is opened.
 const LibraryPage = lazy(() => import("@features/sales/smartSearch/pages/LibraryPage"));
@@ -336,24 +341,46 @@ export default function App() {
               />
             </Route>
 
-            {/* Single-kind tabs carry no kind segment: general leave has no
-                approval step, so there is no choice to name in the URL. */}
-            <Route
-              path="approvals"
-              element={
-                <LeaveKindRoute gateId="leave-approve">
-                  <SabbaticalApproveTab />
-                </LeaveKindRoute>
-              }
-            />
-            <Route
-              path="approval-history"
-              element={
-                <LeaveKindRoute gateId="leave-approve">
-                  <SabbaticalApprovalHistoryTab />
-                </LeaveKindRoute>
-              }
-            />
+            {/* Both approval tabs name their kind. The bare URLs (the old,
+                sabbatical-only ones) redirect to the first kind. */}
+            <Route path="approvals">
+              <Route index element={<LeaveTabIndex segment="approvals" />} />
+              <Route
+                path="sabbatical"
+                element={
+                  <LeaveKindRoute gateId="leave-approve">
+                    <SabbaticalApproveTab />
+                  </LeaveKindRoute>
+                }
+              />
+              <Route
+                path="other-authorized"
+                element={
+                  <LeaveKindRoute gateId="leave-approve">
+                    <OtherAuthorizedApproveTab />
+                  </LeaveKindRoute>
+                }
+              />
+            </Route>
+            <Route path="approval-history">
+              <Route index element={<LeaveTabIndex segment="approval-history" />} />
+              <Route
+                path="sabbatical"
+                element={
+                  <LeaveKindRoute gateId="leave-approve">
+                    <SabbaticalApprovalHistoryTab />
+                  </LeaveKindRoute>
+                }
+              />
+              <Route
+                path="other-authorized"
+                element={
+                  <LeaveKindRoute gateId="leave-approve">
+                    <OtherAuthorizedApprovalHistoryTab />
+                  </LeaveKindRoute>
+                }
+              />
+            </Route>
 
             <Route path="reports">
               <Route index element={<LeaveTabIndex segment="reports" />} />
@@ -375,6 +402,16 @@ export default function App() {
                   <LeaveKindRoute gateId="leave-reports-sabbatical">
                     <Suspense fallback={<Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1.5 }} />}>
                       <SabbaticalReportTab />
+                    </Suspense>
+                  </LeaveKindRoute>
+                }
+              />
+              <Route
+                path="sick-notes"
+                element={
+                  <LeaveKindRoute gateId="leave-sick-notes">
+                    <Suspense fallback={<Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1.5 }} />}>
+                      <SickNotesReportTab />
                     </Suspense>
                   </LeaveKindRoute>
                 }

@@ -89,11 +89,12 @@ export function dayNumber(input: string | null | undefined): string {
   return String(d.getDate());
 }
 
-// Whole days between `iso` and today, positive when `iso` is in the past.
-export function daysAgo(iso: string | null | undefined): number {
+// Whole days between `iso` and today (or `today`, for tests), positive when
+// `iso` is in the past.
+export function daysAgo(iso: string | null | undefined, today: Date = new Date()): number {
   const d = parseIso(iso);
   if (!d) return 0;
-  const t0 = new Date();
+  const t0 = new Date(today);
   t0.setHours(0, 0, 0, 0);
   return Math.round((t0.getTime() - d.getTime()) / MS_PER_DAY);
 }

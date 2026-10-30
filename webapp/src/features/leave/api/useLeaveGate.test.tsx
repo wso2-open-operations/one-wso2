@@ -299,3 +299,24 @@ describe("after /user-info has failed", () => {
     expect(gate.isResolving).toBe(false);
   });
 });
+
+// Privilege 321 alone. Not People Ops, not a lead: sick notes are confidential.
+describe("who can read sick notes", () => {
+  it("only the sick-note role", () => {
+    const gate = gateFor({ privileges: [P.SICK_NOTE_READER] });
+    expect(gate.canSee("leave-sick-notes")).toBe(true);
+    expect(gate.canReadSickNotes).toBe(true);
+  });
+
+  it("not a lead, and not People Ops", () => {
+    for (const privileges of [[P.EMPLOYEE, P.LEAD], [P.PEOPLE_OPS_TEAM]]) {
+      const gate = gateFor({ privileges });
+      expect(gate.canSee("leave-sick-notes")).toBe(false);
+      expect(gate.canReadSickNotes).toBe(false);
+    }
+  });
+
+  it("a sick-note reader gets the Leave rail entry", () => {
+    expect(gateFor({ privileges: [P.SICK_NOTE_READER] }).canSee("leave-home")).toBe(true);
+  });
+});

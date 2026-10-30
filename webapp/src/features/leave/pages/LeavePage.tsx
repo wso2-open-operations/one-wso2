@@ -70,7 +70,9 @@ export default function LeavePage() {
 }
 
 /**
- * General | Sabbatical, for the tabs that offer both.
+ * The kind toggle (General | Sabbatical, Sabbatical | Other Authorized, or
+ * General | Sabbatical | Sick notes under Reports), for tabs that offer more
+ * than one kind.
  *
  * Links rather than buttons, for the same reason RoutedTabs uses them: the
  * choice lives in the URL, so it survives a refresh, is shareable, and comes
@@ -78,8 +80,7 @@ export default function LeavePage() {
  *
  * Drawn only when the person may open more than one kind — a tab with a single
  * live option is not a choice, and an intern should not see a Sabbatical half
- * they can never select. `approvals` never draws one at all: general leave has
- * no approval step for anybody, and the tab's subtitle says so.
+ * they can never select.
  */
 function LeaveKindToggle({ segment, selected }: { segment: string; selected?: LeaveKind }) {
   const gate = useLeaveGate();
@@ -137,8 +138,11 @@ export function LeaveIndex() {
 export function LeaveTabIndex({ segment }: { segment: string }) {
   const gate = useLeaveGate();
   const tab = leaveTab(segment);
-  const first = tab ? visibleKinds(tab, gate.canSee)[0] : undefined;
-  if (!tab || !first) return null;
+  if (!tab) return null;
+  const first = visibleKinds(tab, gate.canSee)[0];
+  // Nothing in this tab is open to them: let the guard refuse it the way it
+  // refuses a typed kind URL, rather than leaving a blank page.
+  if (!first) return <LeaveKindRoute gateId={tab.kinds[0].gateId}>{null}</LeaveKindRoute>;
   return <Navigate to={leavePath(tab, first.kind)} replace />;
 }
 
