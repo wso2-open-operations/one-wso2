@@ -57,6 +57,19 @@ export function groupRules(rules: CcTaggingRule[]): Record<CcRuleGroup, CcTaggin
   return groups;
 }
 
+const byText = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
+
+/**
+ * The rules sorted by card number, then supplier, then account, ignoring case. A rule without an
+ * account comes before those with one, and rules that tie keep their order. Returns a new list.
+ */
+export function sortRules(rules: CcTaggingRule[]): CcTaggingRule[] {
+  return [...rules].sort(
+    (a, b) =>
+      byText(a.ccNumber, b.ccNumber) || byText(a.supplier, b.supplier) || byText(a.account ?? "", b.account ?? ""),
+  );
+}
+
 /** A rule as the form holds it: every value as typed, with blank for none. */
 export interface CcRuleForm {
   /** The card's last digits. */

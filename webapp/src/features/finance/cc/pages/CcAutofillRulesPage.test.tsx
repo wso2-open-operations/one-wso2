@@ -52,6 +52,8 @@ vi.mock("../../components/FinanceShell", () => ({
   ),
 }));
 
+vi.mock("../CcTaggingRules", () => ({ CcTaggingRules: () => <p>The rules list</p> }));
+
 const { default: CcAutofillRulesPage } = await import("./CcAutofillRulesPage");
 
 beforeEach(() => {
@@ -71,6 +73,7 @@ describe("CcAutofillRulesPage", () => {
   it("decides nothing while access is being checked", () => {
     state.loading = true;
     render(<CcAutofillRulesPage />);
+    expect(screen.queryByText("The rules list")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByText("Autofill rules are for card holders.")).not.toBeInTheDocument();
   });
@@ -80,6 +83,7 @@ describe("CcAutofillRulesPage", () => {
     render(<CcAutofillRulesPage />);
 
     expect(screen.queryByText("Autofill rules are for card holders.")).not.toBeInTheDocument();
+    expect(screen.queryByText("The rules list")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /retry/i }));
     expect(state.refetches).toBe(1);
   });
@@ -88,10 +92,12 @@ describe("CcAutofillRulesPage", () => {
     state.privileges = ["employee", "finance"];
     render(<CcAutofillRulesPage />);
     expect(screen.getByText("Autofill rules are for card holders.")).toBeInTheDocument();
+    expect(screen.queryByText("The rules list")).not.toBeInTheDocument();
   });
 
-  it("lets a card holder in", () => {
+  it("shows a card holder their rules", () => {
     render(<CcAutofillRulesPage />);
+    expect(screen.getByText("The rules list")).toBeInTheDocument();
     expect(screen.queryByText("Autofill rules are for card holders.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
   });

@@ -28,6 +28,7 @@ import {
   ruleFormErrors,
   rulePatch,
   ruleToForm,
+  sortRules,
   toRuleInput,
 } from "./ccTaggingRuleForm";
 import type { CcTaggingRule } from "./ccTypes";
@@ -87,6 +88,29 @@ describe("groupRules", () => {
     const groups = groupRules(rules);
     expect(groups.rules.map((r) => r.id)).toEqual([1, 3]);
     expect(groups.unconfigured.map((r) => r.id)).toEqual([2, 4]);
+  });
+});
+
+describe("sortRules", () => {
+  it("orders rules by card number, then supplier, then account, ignoring case", () => {
+    const rules = [
+      rule({ id: 1, supplier: "uber", account: "b" }),
+      rule({ id: 2, supplier: "AWS" }),
+      rule({ id: 3, supplier: "Uber", account: "A" }),
+      rule({ id: 4, supplier: "Zoom", ccNumber: "045678" }),
+    ];
+    expect(sortRules(rules).map((r) => r.id)).toEqual([4, 2, 3, 1]);
+  });
+
+  it("puts a rule without an account before those with one", () => {
+    const rules = [rule({ id: 1, account: "acc-1" }), rule({ id: 2, account: null })];
+    expect(sortRules(rules).map((r) => r.id)).toEqual([2, 1]);
+  });
+
+  it("keeps the given order of rules that tie, and leaves the list given as it was", () => {
+    const rules = [rule({ id: 2 }), rule({ id: 1 }), rule({ id: 3, supplier: "AWS" })];
+    expect(sortRules(rules).map((r) => r.id)).toEqual([3, 2, 1]);
+    expect(rules.map((r) => r.id)).toEqual([2, 1, 3]);
   });
 });
 

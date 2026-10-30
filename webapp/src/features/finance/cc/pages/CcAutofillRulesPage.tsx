@@ -21,8 +21,12 @@ import { isCcBackendConfigured } from "@config/apiConfig";
 import { FINANCE_EYEBROW } from "@constants/financeApps";
 import { Alert, Skeleton } from "@wso2/oxygen-ui";
 import FinanceShell from "../../components/FinanceShell";
+import { CcTaggingRules } from "../CcTaggingRules";
 import { ccHasAccess } from "../ccTypes";
 import { useCcUserInfo } from "../useCc";
+
+/** Stands in for the rule dialogs, which aren't built yet. */
+const noDialogYet = () => undefined;
 
 /** Finance → Credit Card Expenses → Autofill Rules: the card holder's own rules. */
 export default function CcAutofillRulesPage() {
@@ -48,7 +52,9 @@ export default function CcAutofillRulesPage() {
         </ErrorNotice>
       ) : !ccHasAccess(userInfo.data, "cc_owner") ? (
         <Alert severity="info">Autofill rules are for card holders.</Alert>
-      ) : null}
+      ) : (
+        <CcTaggingRules onAdd={noDialogYet} onEdit={noDialogYet} onDelete={noDialogYet} />
+      )}
     </FinanceShell>
   );
 }
