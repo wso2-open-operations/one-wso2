@@ -43,6 +43,11 @@ import {
   engineeringAdminVisibility,
   useEngineeringAdminGate,
 } from "@features/engineering/api/engineeringAdminVisibility";
+import {
+  amplifyVisibility,
+  useAmplifyDashboardAccess,
+  useAmplifyEditorAccess,
+} from "@features/amplify/api/useAmplifyEditorAccess";
 import { isSriLankaWorkLocation } from "@utils/locationGate";
 import { firstVisibleLeaf as firstVisibleLeafOf, visibleLeavesOf } from "./railActive";
 import {
@@ -265,6 +270,12 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   const umtGate = useUmtGate(isEngineering);
   const engineeringAdminGate = useEngineeringAdminGate(isEngineering);
 
+  // Amplify → New Post and Current Posts need amplify-api's CAN_CAMPAIGN grant
+  // (GET /me), same shape as the Marketing Ops gate.
+  const amplifyEditorGate = useAmplifyEditorAccess(active.key === "amplify");
+  // Dashboarding → the five boards need the CAN_DASHBOARD grant.
+  const amplifyDashboardGate = useAmplifyDashboardAccess(active.key === "amplify");
+
   // Both services are a Colombo-office perk, so both screens are Sri-Lanka-only
   // — see isSriLankaWorkLocation. They now sit in different perspectives (self
   // service under Me, manage-on-behalf under People Ops), which is why the ids
@@ -333,6 +344,8 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
           isAdmin: engineeringAdminGate.isAdmin,
           resolving: engineeringAdminGate.isResolving,
         });
+      case "amplify":
+        return amplifyVisibility(amplifyEditorGate, amplifyDashboardGate);
       default: {
         const neverName: never = name;
         return neverName;

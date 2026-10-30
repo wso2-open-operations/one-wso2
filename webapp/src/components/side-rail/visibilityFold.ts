@@ -25,6 +25,8 @@ import { BANKING_ITEM_IDS, LEAVE_ITEM_IDS } from "@constants/meApps";
 import { PAR_EMPLOYEE_ITEM_ID } from "@constants/parApps";
 import { PROMOTION_EMPLOYEE_ITEM_ID } from "@constants/promotionApps";
 import {
+  AMPLIFY_DASHBOARD_ITEM_IDS,
+  AMPLIFY_EDITOR_ITEM_IDS,
   BANKING_ADMIN_ITEM_ID,
   PAR_ADMIN_PORTAL_ITEM_ID,
   PAR_LEAD_PORTAL_ITEM_ID,
@@ -94,7 +96,8 @@ export type AdapterName =
   | "security"
   | "umt"
   | "subscriptions"
-  | "engineering";
+  | "engineering"
+  | "amplify";
 
 const ADAPTER_NAMES: readonly AdapterName[] = [
   "par",
@@ -113,6 +116,7 @@ const ADAPTER_NAMES: readonly AdapterName[] = [
   "umt",
   "subscriptions",
   "engineering",
+  "amplify",
 ];
 
 /** Which sections this adapter answers. A perspective claim answers every section of that perspective. */
@@ -209,6 +213,8 @@ export function claimOf(name: AdapterName): SectionClaim {
       return { kind: "sections", ids: SUBSCRIPTION_ITEM_IDS };
     case "engineering":
       return ids([ENGINEERING_ADMIN_ITEM_ID]);
+    case "amplify":
+      return { kind: "sections", ids: new Set([...AMPLIFY_EDITOR_ITEM_IDS, ...AMPLIFY_DASHBOARD_ITEM_IDS]) };
     default: {
       const neverName: never = name;
       return neverName;
@@ -243,6 +249,7 @@ export function claimsForPerspective(perspectiveKey: string): AdapterName[] {
   if (perspectiveKey === "people" || perspectiveKey === "me") names.push("promotion");
   if (perspectiveKey === "security") names.push("security");
   if (perspectiveKey === "engineering") names.push("engineering", "umt");
+  if (perspectiveKey === "amplify") names.push("amplify");
   names.push("subscriptions");
   return names;
 }

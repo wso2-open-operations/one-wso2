@@ -16,6 +16,10 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  AMPLIFY_CURRENT_POSTS_ITEM_ID,
+  AMPLIFY_DASHBOARD_ITEM_IDS,
+  AMPLIFY_EDITOR_ITEM_IDS,
+  AMPLIFY_NEW_POST_ITEM_ID,
   PERSPECTIVES,
   PROMOTION_LEAD_PORTAL_ITEM_ID,
   SRI_LANKA_ONLY_ITEM_IDS,
@@ -155,6 +159,46 @@ describe("foldVisibility", () => {
     );
 
     expect(folded.canSee({ id: "mops-email-create", requires: ["admin"] })).toBe(false);
+  });
+
+  it("claims the Amplify editor and dashboard rows, only on the Amplify perspective", () => {
+    const claim = claimOf("amplify");
+    expect(claim.kind).toBe("sections");
+    for (const id of [...AMPLIFY_EDITOR_ITEM_IDS, ...AMPLIFY_DASHBOARD_ITEM_IDS]) {
+      expect(claim.kind === "sections" && claim.ids.has(id)).toBe(true);
+    }
+    expect(claimsForPerspective("amplify")).toContain("amplify");
+    expect(claimsForPerspective("people")).not.toContain("amplify");
+  });
+
+  it("lets the Amplify adapter decide New Post and Dashboarding, and nothing else", () => {
+    const allowed = new Set<string>([AMPLIFY_NEW_POST_ITEM_ID]);
+    const folded = foldVisibility(
+      [adapter({ name: "amplify", canSee: (id) => allowed.has(id) })],
+      shell({
+        perspectiveKey: "amplify",
+        sectionIds: new Set([AMPLIFY_NEW_POST_ITEM_ID, AMPLIFY_CURRENT_POSTS_ITEM_ID, ...AMPLIFY_DASHBOARD_ITEM_IDS]),
+        capabilities: new Set(["admin"]),
+      }),
+    );
+
+    expect(folded.canSee({ id: AMPLIFY_NEW_POST_ITEM_ID })).toBe(true);
+    // Held back by the adapter even though people-app says this caller is an admin.
+    expect(folded.canSee({ id: AMPLIFY_CURRENT_POSTS_ITEM_ID })).toBe(false);
+    for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(folded.canSee({ id })).toBe(false);
+  });
+
+  it("holds the Amplify rows back while the adapter is resolving", () => {
+    const folded = foldVisibility(
+      [adapter({ name: "amplify", canSee: () => false, resolving: true })],
+      shell({
+        perspectiveKey: "amplify",
+        sectionIds: new Set([AMPLIFY_NEW_POST_ITEM_ID]),
+      }),
+    );
+
+    expect(folded.resolving).toBe(true);
+    expect(folded.canSee({ id: AMPLIFY_NEW_POST_ITEM_ID })).toBe(false);
   });
 
   it("hides a claimed section when its adapter is not in play", () => {
