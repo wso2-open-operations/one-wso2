@@ -51,7 +51,7 @@ function asOptions(perspectives: PerspectiveDef[]): LandingOption[] {
  * and that is the same screen the launcher would have given them.
  */
 export function landingOptions(): LandingOption[] {
-  return asOptions(reachablePerspectives());
+  return asOptions(reachablePerspectives()).sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export function isLandingKey(value: unknown): value is string {

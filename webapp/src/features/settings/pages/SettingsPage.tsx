@@ -22,6 +22,7 @@ import {
   landingPreference,
   setLandingPreference,
 } from "@config/landingConfig";
+import { availableSettingsSections } from "../settingsSections";
 
 /** Where everyone opens until they choose otherwise. */
 const DEFAULT_KEY = "me";
@@ -65,6 +66,15 @@ export default function SettingsPage(): JSX.Element {
           the address bar.
         </Typography>
       </Box>
+
+      {availableSettingsSections().map((s) => (
+        <Box key={s.id} component="section" id={s.id} aria-labelledby={`${s.id}-title`}>
+          <Typography id={`${s.id}-title`} component="h2" variant="h6" sx={{ mb: 1.5 }}>
+            {s.title}
+          </Typography>
+          {s.render()}
+        </Box>
+      ))}
     </Box>
   );
 }
