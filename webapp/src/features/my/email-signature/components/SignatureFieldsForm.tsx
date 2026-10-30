@@ -19,13 +19,13 @@ import { Box, InputAdornment, TextField } from "@wso2/oxygen-ui";
 import {
   BriefcaseIcon,
   Link2Icon,
-  LinkedinIcon,
   PhoneIcon,
   SmartphoneIcon,
   TagIcon,
   UserRoundIcon,
   type LucideProps,
 } from "@wso2/oxygen-ui-icons-react";
+import { LinkedinIcon } from "@components/icons/LinkedinIcon";
 import { isSafeUrl, type SignatureData } from "../util/signatureGenerator";
 
 interface FieldDef {

@@ -111,12 +111,12 @@ describe("theme registry", () => {
     // #FF7300 — the same colour in different case, so comparing raw strings
     // would "pass" by accident. They are genuinely different themes (different
     // secondary, surfaces, and dark mode), so the signature includes the dark
-    // background, which is where WSO2's blue (#0f172a) distinguishes itself.
+    // background, which is where WSO2's blue (#0b142b) distinguishes itself.
     const sigs = THEME_OPTIONS.map((o) => `${primaryOf(o.key).toLowerCase()}|${darkBgOf(o.key).toLowerCase()}`);
     expect(new Set(sigs).size).toBe(THEME_OPTIONS.length);
     expect(primaryOf("acrylicOrange")).toBe("#fa7b3f");
     // The reason WSO2 is the default: it is the only dark mode that is not neutral.
-    expect(darkBgOf("wso2").toLowerCase()).toBe("#0f172a");
+    expect(darkBgOf("wso2").toLowerCase()).toBe("#0b142b");
   });
 
   it("registers more themes than it offers, and every offer is registered", () => {

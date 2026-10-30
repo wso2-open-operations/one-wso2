@@ -30,10 +30,10 @@ import {
 import {
   EyeIcon,
   EyeOffIcon,
-  LinkedinIcon,
   PencilIcon,
   Trash2Icon,
 } from "@wso2/oxygen-ui-icons-react";
+import { LinkedinIcon } from "@components/icons/LinkedinIcon";
 import ConfirmationDialog, {
   type ConfirmationContent,
 } from "@components/confirmation-dialog/ConfirmationDialog";

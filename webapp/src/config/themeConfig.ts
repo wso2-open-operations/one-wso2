@@ -54,7 +54,7 @@ export const THEMES = {
 export type ThemeKey = keyof typeof THEMES;
 
 // WSO2 is the default: it is Oxygen's own WSO2-branded preset, and the only one
-// whose dark mode is the WSO2 blue (background.default #0f172a) rather than a
+// whose dark mode is the WSO2 blue (background.default #0b142b) rather than a
 // neutral black. THEME_OPTIONS lists it first — a test pins option[0] to this.
 export const DEFAULT_THEME_KEY: ThemeKey = "wso2";
 

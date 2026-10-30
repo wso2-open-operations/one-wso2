@@ -21,7 +21,7 @@
 // The source hardcoded `#ffffff` / `#1a1a24` to opt a dialog out of
 // AcrylicOrangeTheme's translucent, blurred Paper — correct there, wrong here.
 // This app now defaults to Oxygen's WSO2Theme, whose paper is also translucent
-// (`#ffffffc5` light, `#00000026` dark) over a navy dark canvas (`#0f172a`),
+// (`#ffffffc5` light, `#00000026` dark) over a navy dark canvas (`#0b142b`),
 // so a literal `#1a1a24` would sit as a visibly different shade against it,
 // and a theme switch would strand both values entirely.
 //
