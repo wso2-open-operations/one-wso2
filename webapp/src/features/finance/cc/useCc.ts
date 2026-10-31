@@ -25,6 +25,7 @@ import { financeRetry } from "../util/financeError";
 import { daysAgoIso, tomorrowIso } from "../util/financeFormat";
 import type {
   CcCardHolderCompliance,
+  CcCardLeadCompliance,
   CcCategoryMonthAmount,
   CcCreditCard,
   CcEmployee,
@@ -34,7 +35,6 @@ import type {
   CcLeadApprovalSummary,
   CcLeadTeamCardHolder,
   CcLeadTeamUnsubmittedSummary,
-  CcManagerCompliance,
   CcProductAndBusinessUnitList,
   CcSubRegionList,
   CcTaggingRule,
@@ -394,17 +394,17 @@ export function useCcCardHolderCompliance(
   );
 }
 
-/** Admin view's "Group by: Reporting Manager" — Finance only, same window as
+/** Admin view's "Group by: Card Lead" — Finance only, same window as
  *  `useCcCardHolderCompliance`, unscoped by card ownership (it is already
  *  company-wide by nature). */
-export function useCcManagerCompliance(dateFrom: string | undefined, enabled: boolean) {
+export function useCcCardLeadCompliance(dateFrom: string | undefined, enabled: boolean) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const configured = isCcBackendConfigured();
-  return useQuery<CcManagerCompliance[]>(
-    dashboardQuery<CcManagerCompliance[]>(
-      ["cc-manager-compliance", dateFrom ?? null],
-      scoped(ccServiceUrls.managerCompliance, { dateFrom }),
+  return useQuery<CcCardLeadCompliance[]>(
+    dashboardQuery<CcCardLeadCompliance[]>(
+      ["cc-card-lead-compliance", dateFrom ?? null],
+      scoped(ccServiceUrls.cardLeadCompliance, { dateFrom }),
       enabled && isSignedIn && configured,
       getAccessToken,
     ),
