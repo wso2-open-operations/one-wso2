@@ -68,6 +68,13 @@ export function useDraftAutosave(
   // Holds a queued (debounced-but-not-yet-run) save so it can be flushed on
   // unmount instead of silently dropped.
   const pendingRef = useRef<null | (() => Promise<void>)>(null);
+  // Counts started saves, so a save can tell whether it is still the newest.
+  // One can still be in flight when the next starts — a quick second edit, or
+  // a slow request — and only the newest describes what the server now holds.
+  // An older one settling afterwards is therefore dropped rather than allowed
+  // to report itself, which would hide the newer save's failure behind a stale
+  // "saved", or its success behind a stale "error".
+  const saveSeqRef = useRef(0);
 
   // Everything the caller sees follows from these two, so no effect has to
   // push a state change to keep the chip in step.
@@ -87,12 +94,26 @@ export function useDraftAutosave(
     pendingRef.current = fn;
     const timer = window.setTimeout(() => {
       pendingRef.current = null;
+      const seq = ++saveSeqRef.current;
+      // A superseded save leaves the baseline alone as well. It names content
+      // the newer save has already written over, so adopting it would call the
+      // list persisted when it is not, and a later revert to that same
+      // signature would then cancel a write the server still needs.
+      const superseded = () => seq !== saveSeqRef.current;
       fn()
         .then(() => {
+          if (superseded()) {
+            return;
+          }
           setBaseline(target);
           setOutcome({ signature: target, state: "saved" });
         })
-        .catch(() => setOutcome({ signature: target, state: "error" }));
+        .catch(() => {
+          if (superseded()) {
+            return;
+          }
+          setOutcome({ signature: target, state: "error" });
+        });
     }, delay);
     return () => window.clearTimeout(timer);
   }, [dirty, signature, delay]);

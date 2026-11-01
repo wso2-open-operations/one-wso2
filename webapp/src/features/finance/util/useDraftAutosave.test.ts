@@ -177,3 +177,56 @@ describe("the flush on unmount", () => {
     expect(run).not.toHaveBeenCalled();
   });
 });
+
+// A save can still be in flight when the next one starts — a quick second edit,
+// or a slow request. Whichever settles first, only the newest save describes
+// what the server now holds, so an older one landing afterwards must not report
+// itself. These pin that, because the failure mode is a silently lost error.
+describe("overlapping saves that settle out of order", () => {
+  /** A promise the test settles by hand, to interleave two saves. */
+  const deferred = () => {
+    let settle!: { resolve: () => void; reject: () => void };
+    const promise = new Promise<void>((resolve, reject) => {
+      settle = { resolve: () => resolve(), reject: () => reject(new Error("save failed")) };
+    });
+    return { promise, ...settle };
+  };
+
+  /** Arms and fires two saves, returning both still unsettled. */
+  const twoInFlight = async () => {
+    const first = deferred();
+    const second = deferred();
+    const queued = [first.promise, second.promise];
+    const run = vi.fn(() => queued.shift() ?? Promise.resolve());
+    const { result, rerender } = renderHook(({ sig }) => useDraftAutosave(sig, true, run), {
+      initialProps: { sig: "seeded" },
+    });
+
+    rerender({ sig: "first" });
+    await elapse();
+    rerender({ sig: "second" });
+    await elapse();
+    expect(run).toHaveBeenCalledTimes(2);
+
+    return { first, second, result };
+  };
+
+  it("reports the newer save's failure when the older one then succeeds", async () => {
+    const { first, second, result } = await twoInFlight();
+
+    await act(async () => second.reject());
+    await act(async () => first.resolve());
+
+    // The older success says nothing about the edit the user is looking at.
+    expect(result.current).toBe("error");
+  });
+
+  it("keeps the newer save's success when the older one then fails", async () => {
+    const { first, second, result } = await twoInFlight();
+
+    await act(async () => second.resolve());
+    await act(async () => first.reject());
+
+    expect(result.current).toBe("saved");
+  });
+});
