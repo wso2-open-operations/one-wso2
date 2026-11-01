@@ -41,6 +41,36 @@ const asked = {
   leadTeam: [] as { leadEmail: string | undefined }[],
 };
 
+const cardLeadFixture = {
+  leadEmail: "lead@wso2.com",
+  leadName: "Lead Person",
+  cardHolderCount: 1,
+  outstandingAmount: 700,
+  transactionCount: 2,
+  avgPendingDays: 20,
+  bucket0To7: 0,
+  bucket8To14: 0,
+  bucket15To30: 1,
+  bucket30Plus: 1,
+  cardHolders: [
+    {
+      employeeEmail: "late@wso2.com",
+      cardHolderName: "Late Filer",
+      outstandingAmount: 700,
+      transactionCount: 2,
+      avgDaysToSubmit: 41.5,
+      bucket0To7: 0,
+      bucket8To14: 0,
+      bucket15To30: 1,
+      bucket30Plus: 1,
+    },
+  ],
+};
+
+// Extra card-lead rows, added only by the test that needs two sends to overlap.
+// Left empty by default so the row-count assertions keep reading one lead.
+const extraCardLeads: typeof cardLeadFixture[] = [];
+
 const leadFixtures = {
   leads: [
     {
@@ -158,33 +188,7 @@ vi.mock("../useCc", () => ({
   useCcCardLeadCompliance: (_dateFrom: string | undefined, enabled: boolean) => {
     asked.cardLeadCompliance.push({ enabled });
     return {
-      data: [
-        {
-          leadEmail: "lead@wso2.com",
-          leadName: "Lead Person",
-          cardHolderCount: 1,
-          outstandingAmount: 700,
-          transactionCount: 2,
-          avgPendingDays: 20,
-          bucket0To7: 0,
-          bucket8To14: 0,
-          bucket15To30: 1,
-          bucket30Plus: 1,
-          cardHolders: [
-            {
-              employeeEmail: "late@wso2.com",
-              cardHolderName: "Late Filer",
-              outstandingAmount: 700,
-              transactionCount: 2,
-              avgDaysToSubmit: 41.5,
-              bucket0To7: 0,
-              bucket8To14: 0,
-              bucket15To30: 1,
-              bucket30Plus: 1,
-            },
-          ],
-        },
-      ],
+      data: [cardLeadFixture, ...extraCardLeads],
       isLoading: false,
       isError: false,
     };
@@ -216,6 +220,7 @@ beforeEach(() => {
   notify.showError.mockClear();
   sendReminder.mockClear();
   reminderCalls.length = 0;
+  extraCardLeads.length = 0;
 });
 
 // index.tsx:63-65 — only a lead or finance gets the company-wide view and the
@@ -476,6 +481,43 @@ describe("the card-lead grouping", () => {
 
     await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(2));
     expect(reminderCalls.map((call) => call.leadEmail)).toEqual(["lead@wso2.com", "lead@wso2.com"]);
+  });
+
+  // Finance works down this list, so two sends overlap as soon as one request is
+  // slow. Holding "which send is in flight" in a single slot let whichever came
+  // back first clear the lock for the other — re-enabling a row whose request
+  // had not returned, so that lead could be mailed twice in one pass.
+  it("holds each lead's button on its own send, not on whichever finished last", async () => {
+    extraCardLeads.push({
+      ...cardLeadFixture,
+      leadEmail: "other@wso2.com",
+      leadName: "Other Lead",
+    });
+    // The first row's send hangs; the second's returns straight away.
+    let releaseFirst = () => {};
+    sendReminder.mockImplementationOnce(
+      (args: { leadEmail: string; dateFrom?: string }) =>
+        new Promise<string>((resolve) => {
+          reminderCalls.push(args);
+          releaseFirst = () => resolve("sent");
+        }),
+    );
+    await groupByCardLead();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Email reminder" })[0]);
+    await userEvent.click(screen.getAllByRole("button", { name: "Email reminder" })[1]);
+    await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(2));
+
+    // The second row's send has come back, so it offers a follow-up...
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Email another reminder" })).toBeEnabled(),
+    );
+    // ...while the first row's request is still open, so it stays held.
+    const stillSending = screen.getAllByRole("button", { name: "Email reminder" });
+    expect(stillSending).toHaveLength(1);
+    expect(stillSending[0]).toBeDisabled();
+
+    releaseFirst();
   });
 
   it("reports a failed send rather than leaving the reader thinking it went", async () => {

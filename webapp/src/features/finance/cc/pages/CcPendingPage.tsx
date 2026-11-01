@@ -186,7 +186,7 @@ function PendingBody() {
       },
       {
         field: "txnAmount",
-        headerName: "Amount($)",
+        headerName: "Amount (USD)",
         type: "number",
         width: 100,
         renderCell: (p) => bareAmount(p.value as number),

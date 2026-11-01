@@ -74,7 +74,7 @@ export function CcApproveDetail({
             </Typography>
           </Tooltip>
           <Typography sx={{ fontSize: 16, fontWeight: 700, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-            ${bareAmount(txn.txnAmount)}
+            USD {bareAmount(txn.txnAmount)}
           </Typography>
         </Stack>
         <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mt: 0.5 }}>

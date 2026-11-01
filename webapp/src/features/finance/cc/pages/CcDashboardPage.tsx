@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import {
   Alert,
@@ -803,9 +803,19 @@ function CardLeadComplianceTable({
   const toggle = (key: string) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   const { showSuccess, showError } = useNotifications();
   const reminder = useCcCardLeadReminder();
-  // Which lead's reminder is in flight, so that row's button can hold while it
-  // sends and a double-click cannot put the same reminder out twice.
-  const [sendingTo, setSendingTo] = useState<string | null>(null);
+  // Which leads' reminders are in flight, so each row's button can hold while
+  // its own send runs. A set rather than one slot: Finance works down this list
+  // and two sends can overlap, and with a single slot the first to finish
+  // cleared the lock for the second — re-enabling a row whose request had not
+  // come back, so the same lead could be mailed twice.
+  const [sendingTo, setSendingTo] = useState<ReadonlySet<string>>(() => new Set());
+  // The same set, written and read synchronously, so the handler can turn
+  // itself away. The disabled button covers this for anything a render has
+  // already caught up with; the ref closes the window a real double-click can
+  // still slip through, where both events land before React re-renders. Not
+  // asserted on its own — the test renderer commits between clicks, so the
+  // button is already disabled by the second one.
+  const inFlightRef = useRef<Set<string>>(new Set());
   // How many reminders each lead has had from this screen, so a follow-up can say
   // which one it is. Finance asked to be able to chase a lead a second and third
   // time, so the button stays live after a send rather than locking the row.
@@ -830,7 +840,11 @@ function CardLeadComplianceTable({
   // Only the lead and the range go up — never the body, and never the card
   // holders to copy: the backend takes those from the backlog it just read.
   const emailReminder = async (lead: CcCardLeadCompliance) => {
-    setSendingTo(lead.leadEmail);
+    if (inFlightRef.current.has(lead.leadEmail)) {
+      return;
+    }
+    inFlightRef.current.add(lead.leadEmail);
+    setSendingTo(new Set(inFlightRef.current));
     try {
       const sent = await reminder.mutateAsync({ leadEmail: lead.leadEmail, dateFrom });
       setSentCounts((prev) => ({ ...prev, [lead.leadEmail]: (prev[lead.leadEmail] ?? 0) + 1 }));
@@ -838,7 +852,10 @@ function CardLeadComplianceTable({
     } catch (error) {
       showError(describeError(error));
     } finally {
-      setSendingTo(null);
+      // Only ever this handler's own lead, so a send that finishes first does
+      // not release a row that is still waiting.
+      inFlightRef.current.delete(lead.leadEmail);
+      setSendingTo(new Set(inFlightRef.current));
     }
   };
 
@@ -877,7 +894,7 @@ function CardLeadComplianceTable({
             const key = lead.leadEmail || "unassigned";
             const isOpen = !!expanded[key];
             const isUnassigned = lead.leadEmail === "";
-            const sending = sendingTo === lead.leadEmail;
+            const sending = sendingTo.has(lead.leadEmail);
             const sentCount = sentCounts[lead.leadEmail] ?? 0;
             return (
               <Fragment key={key}>

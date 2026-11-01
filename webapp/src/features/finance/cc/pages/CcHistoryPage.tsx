@@ -204,10 +204,10 @@ function HistoryBody() {
       dateCol("txnDate", "Date"),
       {
         field: "txnAmount",
-        headerName: "Amount($)",
+        headerName: "Amount (USD)",
         type: "number",
         flex: 0.05,
-        // Bare, because the header says ($) — as the source does.
+        // Bare, because the header carries the currency code.
         renderCell: (p) => bareAmount(p.value as number),
       },
       {

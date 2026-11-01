@@ -36,9 +36,9 @@ export function wholeAmount(amount: number | null | undefined): string {
  * An amount with no currency marker, two decimals.
  *
  * The card screens need this because their column header carries the currency
- * instead: the source's grids are headed "Amount($)" and render a bare number
- * through `formatCurrency` (utils.ts:44-49). Passing them through `money`
- * puts a second "$" in every cell, under a header that already has one.
+ * instead — they are headed "Amount (USD)" and render a bare number. Passing
+ * them through `money` would repeat that code in every cell, under a header
+ * that already states it.
  */
 export function bareAmount(amount: number | null | undefined): string {
   const n = typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
