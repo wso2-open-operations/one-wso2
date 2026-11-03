@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { bareAmount } from "../util/financeFormat";
 import { CC_FILTER_ALL, type CcTaggingRule, ccRuleUnconfigured } from "./ccTypes";
 
 /** The groups the rules list is split into, in the order they are shown. */
@@ -108,4 +109,13 @@ export function ruleFilterOptions(rules: CcTaggingRule[], f: CcRuleFilters): { c
     cards: distinct(rules.map((r) => r.ccNumber), f.card),
     categories: distinct(rules.map((r) => r.expenseCategoryLabel), f.category),
   };
+}
+
+/** A rule's amount range, from its minimum (inclusive) up to its maximum (exclusive), or `null` when it has neither. */
+export function ruleAmountRange(rule: Pick<CcTaggingRule, "amountMin" | "amountMax">): string | null {
+  const { amountMin: min, amountMax: max } = rule;
+  if (min != null && max != null) return `${bareAmount(min)} – ${bareAmount(max)}`;
+  if (min != null) return `≥ ${bareAmount(min)}`;
+  if (max != null) return `< ${bareAmount(max)}`;
+  return null;
 }

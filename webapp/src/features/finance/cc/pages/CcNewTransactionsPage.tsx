@@ -39,6 +39,7 @@ import FinanceShell from "../../components/FinanceShell";
 import { describeError } from "../../util/financeError";
 import { bareAmount, formatNice } from "../../util/financeFormat";
 import { CardMenu } from "../components/CardMenu";
+import { CcAutoTaggedIcon } from "../components/CcAutoTaggedIcon";
 import { CcCategorisePanel, type CcCategorisePanelHandle } from "../CcCategorisePanel";
 import { CcBulkEditDialog } from "../CcBulkEditDialog";
 import { sortByCompleteness } from "../ccPendingSubmissions";
@@ -57,6 +58,11 @@ import { FINANCE_EYEBROW } from "@constants/financeApps";
  * panel — neither of which may scroll on this screen.
  */
 const SUBTITLE = "Categorise your unsubmitted card transactions and submit them for lead approval.";
+
+/** The status column: room for the autofill mark and the ready tick, side by side. */
+const STATUS_COLUMN_WIDTH = 64;
+/** One icon's slot in the status column, kept when it's empty. */
+const STATUS_SLOT_SX = { width: 16, display: "flex", alignItems: "center" } as const;
 
 export default function CcNewTransactionsPage() {
   return (
@@ -246,26 +252,36 @@ function NewTxnBody() {
         renderCell: (p) => bareAmount(p.value as number),
       },
       {
-        // :127-139 — a bare tick, nothing else. Whether a row is ready is the
-        // only thing the list has to say about categorisation; what was chosen
-        // is the panel's job.
+        // Only a ready tick, and a mark on rows an autofill rule filled in,
+        // ready or not. What was chosen is the panel's job. Each has its own
+        // slot, so neither shifts the other.
         field: "complete",
         headerName: "",
-        width: 46,
+        width: STATUS_COLUMN_WIDTH,
         sortable: false,
         filterable: false,
-        renderCell: (p) =>
-          ccTxnComplete(p.row) ? (
-            <Tooltip title="Ready to submit">
-              <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
-                <CheckCircleIcon
-                  size={16}
-                  aria-label={`Transaction ${p.row.id} is ready to submit`}
-                  style={{ color: "var(--oxygen-palette-success-main)" }}
-                />
-              </Box>
-            </Tooltip>
-          ) : null,
+        renderCell: (p) => (
+          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ height: "100%" }}>
+            <Box sx={STATUS_SLOT_SX}>
+              {p.row.taggingRuleId != null && (
+                <CcAutoTaggedIcon txnId={p.row.id} ruleId={p.row.taggingRuleId} tabIndex={p.tabIndex} />
+              )}
+            </Box>
+            <Box sx={STATUS_SLOT_SX}>
+              {ccTxnComplete(p.row) && (
+                <Tooltip title="Ready to submit">
+                  <Box component="span" sx={{ display: "inline-flex", alignItems: "center" }}>
+                    <CheckCircleIcon
+                      size={16}
+                      aria-label={`Transaction ${p.row.id} is ready to submit`}
+                      style={{ color: "var(--oxygen-palette-success-main)" }}
+                    />
+                  </Box>
+                </Tooltip>
+              )}
+            </Box>
+          </Stack>
+        ),
       },
     ],
     [],

@@ -22,6 +22,7 @@ import {
   filterRules,
   groupRules,
   NO_RULE_FILTERS,
+  ruleAmountRange,
   ruleFilterCount,
   ruleFilterOptions,
   sortRules,
@@ -185,5 +186,17 @@ describe("ruleFilterOptions", () => {
       cards: ["123456", "999999"],
       categories: ["Office", "Travel"],
     });
+  });
+});
+
+describe("ruleAmountRange", () => {
+  it("shows the range from the minimum up to the maximum, or a bound alone", () => {
+    expect(ruleAmountRange(rule({ amountMin: 10, amountMax: 1500.5 }))).toBe("10.00 – 1,500.50");
+    expect(ruleAmountRange(rule({ amountMin: 10 }))).toBe("≥ 10.00");
+    expect(ruleAmountRange(rule({ amountMax: 100 }))).toBe("< 100.00");
+  });
+
+  it("is null when the rule matches any amount", () => {
+    expect(ruleAmountRange(rule())).toBeNull();
   });
 });

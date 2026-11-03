@@ -60,7 +60,8 @@ const base: CcTransaction = {
 };
 
 // Deliberately listed incomplete-first, so the sort has something to do.
-const incomplete: CcTransaction = { ...base, id: 1, txnDescription: "Hotel" };
+// Filled in by a rule that set only some of the fields, so it's marked but not yet ready.
+const incomplete: CcTransaction = { ...base, id: 1, txnDescription: "Hotel", taggingRuleId: 7 };
 const complete: CcTransaction = {
   ...base,
   id: 2,
@@ -92,7 +93,7 @@ vi.mock("../useCc", () => ({
     isError: false,
   }),
   useCcTransactions: () => ({
-    data: [incomplete, complete, onSecondCard],
+    data: transactions,
     isLoading: false,
     isError: false,
     isSuccess: true,
@@ -112,10 +113,14 @@ vi.mock("../useCc", () => ({
     },
     jobNumbers: { data: { jobNumbers: ["JOB-1"] }, isError: false },
   }),
+  useCcTaggingRule: () => ({ isPending: true, isError: false, error: null }),
   // Reassigned per test — a travel job that resolves with no funding sources
   // cannot be charged against, and must never be written.
   useCcJobNumberDetails: () => jobDetails,
 }));
+
+// Reassigned per test, for a row the defaults don't have.
+let transactions: CcTransaction[] = [];
 
 let jobDetails: { data: unknown; isError: boolean; isFetching: boolean } = {
   data: undefined,
@@ -156,6 +161,7 @@ const { default: CcNewTransactionsPage } = await import("./CcNewTransactionsPage
 const { NotificationsProvider } = await import("@context/notifications/NotificationsContext");
 
 beforeEach(() => {
+  transactions = [incomplete, complete, onSecondCard];
   drafts.length = 0;
   submitted.length = 0;
   saveFails = false;
@@ -200,6 +206,25 @@ describe("the list", () => {
     show();
     expect(await screen.findByLabelText("Transaction 2 is ready to submit")).toBeInTheDocument();
     expect(screen.queryByLabelText("Transaction 1 is ready to submit")).toBeNull();
+  });
+
+  it("marks the rows a rule filled in, ready to submit or not", async () => {
+    show();
+    expect(await screen.findByLabelText("Transaction 1 was filled by a rule")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Transaction 2 was filled by a rule")).toBeNull();
+  });
+
+  it("shows the mark beside the tick on a row that's also ready", async () => {
+    transactions = [incomplete, { ...complete, taggingRuleId: 9 }, onSecondCard];
+    show();
+    expect(await screen.findByLabelText("Transaction 2 was filled by a rule")).toBeInTheDocument();
+    expect(screen.getByLabelText("Transaction 2 is ready to submit")).toBeInTheDocument();
+  });
+
+  // The grid moves focus between cells itself, so a mark that's always a Tab stop would trap Tab in the list.
+  it("keeps the mark out of the tab order until its cell has focus", async () => {
+    show();
+    expect(await screen.findByLabelText("Transaction 1 was filled by a rule")).toHaveAttribute("tabindex", "-1");
   });
 
   it("offers search, columns and filters", async () => {

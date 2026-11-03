@@ -52,7 +52,6 @@ import {
 import { Fragment, useRef, useState } from "react";
 import { ClaimGroupHeading, useCollapsedGroups } from "../approvals/ClaimGroupHeading";
 import { StatusChip } from "../components/FinanceChips";
-import { bareAmount } from "../util/financeFormat";
 import { CcPickOne } from "./CcPickOne";
 import { describeRuleError } from "./ccCopy";
 import {
@@ -61,6 +60,7 @@ import {
   filterRules,
   groupRules,
   NO_RULE_FILTERS,
+  ruleAmountRange,
   ruleFilterCount,
   ruleFilterOptions,
   sortRules,
@@ -109,14 +109,6 @@ function accentSx(accent: "warning" | "error" | undefined) {
 /** A cell holding a value, or a dimmed dash when there is none. */
 function ValueCell({ value }: { value: string | null }) {
   return <TableCell sx={value ? CELL : { ...CELL, color: "text.disabled" }}>{value || OPEN}</TableCell>;
-}
-
-/** A rule's amount range: from its minimum (inclusive) up to its maximum (exclusive), or `null` when open. */
-function amountRange(min: number | null, max: number | null): string | null {
-  if (min != null && max != null) return `${bareAmount(min)} – ${bareAmount(max)}`;
-  if (min != null) return `≥ ${bareAmount(min)}`;
-  if (max != null) return `< ${bareAmount(max)}`;
-  return null;
 }
 
 /** The Added By filter's options: a rule's source, named as the Added By column names it. */
@@ -398,7 +390,7 @@ function RuleRow({
       <TableCell sx={{ ...CELL, whiteSpace: "nowrap" }}>{rule.ccNumber}</TableCell>
       <TableCell sx={{ ...CELL, fontWeight: 600 }}>{rule.supplier}</TableCell>
       <ValueCell value={rule.account} />
-      <ValueCell value={amountRange(rule.amountMin, rule.amountMax)} />
+      <ValueCell value={ruleAmountRange(rule)} />
       <TableCell sx={CELL}>{isAuto ? "System" : "You"}</TableCell>
       <TableCell sx={CELL}>
         <StatusChip label={rule.active ? "Active" : "Inactive"} color={rule.active ? "success" : "default"} />
