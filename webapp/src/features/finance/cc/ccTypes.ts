@@ -263,7 +263,7 @@ export function ccCardName(label: string | null | undefined, index: number): str
 }
 
 /** Whether a card is active, whatever the case of its status. */
-export function ccCardIsActive(card: CcCreditCard): boolean {
+export function ccCardIsActive(card: Pick<CcCreditCard, "status">): boolean {
   return (card.status ?? "").toUpperCase() === "ACTIVE";
 }
 

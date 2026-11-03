@@ -22,7 +22,7 @@
  * clearing one puts it back to. `HistoryFilterPopover.tsx:67-111` is the source.
  */
 
-import { CC_FILTER_ALL, type CcTxnStatus } from "./ccTypes";
+import { CC_FILTER_ALL, type CcTxnStatus, ccCardIsActive } from "./ccTypes";
 
 /** Where every filter sits when nothing has been narrowed (`:88-94`). */
 export const CC_HISTORY_DEFAULTS = {
@@ -202,8 +202,7 @@ export function ccHistoryCardOptions(
     if (selectedUser !== CC_FILTER_ALL && c.employeeEmail !== selectedUser) continue;
     if (seen.has(c.ccNumber)) continue;
     seen.add(c.ccNumber);
-    const active = (c.status ?? "").toLowerCase() === "active";
-    out.push({ value: c.ccNumber, label: active ? c.ccNumber : `${c.ccNumber} (Inactive)` });
+    out.push({ value: c.ccNumber, label: ccCardIsActive(c) ? c.ccNumber : `${c.ccNumber} (Inactive)` });
   }
   return out.sort((a, b) => a.value.localeCompare(b.value));
 }

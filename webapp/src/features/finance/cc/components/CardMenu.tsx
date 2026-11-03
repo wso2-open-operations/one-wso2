@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { useState } from "react";
 import {
   Box,
   Button,
@@ -34,8 +33,9 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { CreditCardIcon, PencilIcon } from "@wso2/oxygen-ui-icons-react";
+import { useState } from "react";
+import { type CcCreditCard, ccCardIsActive, ccCardName } from "../ccTypes";
 import { CcBankIcon } from "./CcBankIcon";
-import { ccCardName, type CcCreditCard } from "../ccTypes";
 
 /** Counts past this are shown as `99+`, so the pill stays beside the name. */
 const MAX_COUNT = 99;
@@ -146,10 +146,7 @@ export function CardMenu({
                           }}
                         />
                       )}
-                      {/* Case-insensitively, the way `useCreditCards` decides
-                          which cards to keep — a backend "ACTIVE" reached the
-                          picker and was then labelled Inactive in its own row. */}
-                      {(card.status ?? "").toUpperCase() !== "ACTIVE" && (
+                      {!ccCardIsActive(card) && (
                         <Typography component="span" sx={{ fontSize: 11, color: "text.disabled" }}>
                           Inactive
                         </Typography>

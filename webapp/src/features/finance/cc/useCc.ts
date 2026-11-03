@@ -14,33 +14,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useAsgardeo } from "@asgardeo/react";
 import { authedGet } from "@api/http";
-import { useAccessToken } from "@hooks/useAccessToken";
+import { useAsgardeo } from "@asgardeo/react";
 import { ccServiceUrls, isCcBackendConfigured } from "@config/apiConfig";
+import { useAccessToken } from "@hooks/useAccessToken";
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { financeRetry } from "../util/financeError";
 import { daysAgoIso, tomorrowIso } from "../util/financeFormat";
 import type {
+  CcCardHolderCompliance,
+  CcCategoryMonthAmount,
   CcCreditCard,
   CcEmployee,
   CcExpenseTypeList,
-  CcCardHolderCompliance,
-  CcManagerCompliance,
-  CcCategoryMonthAmount,
   CcJobNumberDetails,
+  CcJobNumberList,
   CcLeadApprovalSummary,
   CcLeadTeamCardHolder,
   CcLeadTeamUnsubmittedSummary,
-  CcJobNumberList,
-  CcTransactionSummary,
+  CcManagerCompliance,
   CcProductAndBusinessUnitList,
   CcSubRegionList,
   CcTaggingRule,
   CcTransaction,
+  CcTransactionSummary,
 } from "./ccTypes";
+import { ccCardIsActive } from "./ccTypes";
 
 export { isCcBackendConfigured };
 
@@ -79,7 +80,7 @@ export function useCreditCards(includeInactive = false) {
       // The flag was already in the cache key here but never applied, so a
       // closed card still appeared in the picker.
       if (includeInactive) return cards;
-      return (cards ?? []).filter((c) => (c.status ?? "").toUpperCase() === "ACTIVE");
+      return (cards ?? []).filter(ccCardIsActive);
     },
     staleTime: 5 * 60 * 1000,
     retry: financeRetry,

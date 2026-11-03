@@ -48,7 +48,7 @@ import {
   ccHistoryFieldsShown,
   ccHistoryResetAll,
 } from "../ccHistoryFilters";
-import { CC_FILTER_ALL, type CcAttachmentType, type CcTransaction, ccHasAccess } from "../ccTypes";
+import { CC_FILTER_ALL, type CcAttachmentType, type CcTransaction, ccCardIsActive, ccHasAccess } from "../ccTypes";
 import { useCcTransactions, useCcUserInfo, useCreditCards } from "../useCc";
 
 // submission-history/index.tsx uses three distinct placeholders and they are
@@ -220,10 +220,7 @@ function HistoryBody() {
         // port only marked it in the card picker, so history gave no sign.
         renderCell: (p) => {
           const status = cardStatus.get(p.value as string);
-          // Normalised, because useCc.ts:76 decides "active" case-insensitively
-          // and an exact compare here would mark an "ACTIVE" card inactive.
-          const active = (status ?? "").toUpperCase() === "ACTIVE";
-          return `${p.value}${status && !active ? " (Inactive)" : ""}`;
+          return `${p.value}${status && !ccCardIsActive({ status }) ? " (Inactive)" : ""}`;
         },
       },
       { field: "employeeEmail", headerName: "Submitted User", flex: 0.05 },
