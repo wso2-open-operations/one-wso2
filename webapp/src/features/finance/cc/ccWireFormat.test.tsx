@@ -27,7 +27,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // fired, returned 200 and was discarded passed 42 of them.
 
 const requests: { method: string; url: string; body?: unknown }[] = [];
-const responses = { cards: [] as unknown[], userInfo: {} as unknown, cardsFail: false, rule: {} as unknown };
+const responses = {
+  cards: [] as unknown[],
+  userInfo: {} as unknown,
+  cardsFail: false,
+  rules: [] as unknown[],
+  rule: {} as unknown,
+};
 
 // A 4xx, which `financeRetry` doesn't retry, so a failure shows at once.
 const { MockHttpError } = vi.hoisted(() => ({
@@ -42,6 +48,8 @@ vi.mock("@api/http", () => ({
   authedGet: (url: string) => {
     requests.push({ method: "GET", url });
     if (url.endsWith("/user-info")) return Promise.resolve(responses.userInfo);
+    if (url.endsWith("/tagging-rules")) return Promise.resolve(responses.rules);
+    if (url.includes("/tagging-rules/")) return Promise.resolve(responses.rule);
     if (responses.cardsFail) return Promise.reject(new MockHttpError(403));
     return Promise.resolve(responses.cards);
   },
@@ -110,6 +118,8 @@ beforeEach(() => {
   responses.cards = [active, closed];
   responses.userInfo = {};
   responses.cardsFail = false;
+  responses.rules = [];
+  responses.rule = {};
 });
 
 // creditCard.ts:57-62 keeps only active cards unless asked otherwise. The flag
@@ -222,15 +232,17 @@ describe("what the dashboard asks for", () => {
 });
 
 describe("the autofill rule data", () => {
-  it("asks for the caller's tagging rules", async () => {
-    renderHook(() => useCcTaggingRules(), { wrapper });
-    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+  it("asks for the caller's tagging rules, and returns them", async () => {
+    responses.rules = [{ id: 7, supplier: "Uber" }, { id: 8, supplier: "AWS" }];
+    const { result } = renderHook(() => useCcTaggingRules(), { wrapper });
+    await waitFor(() => expect(result.current.data).toEqual(responses.rules));
     expect(requests).toEqual([{ method: "GET", url: "https://cc.test/tagging-rules" }]);
   });
 
-  it("asks for one rule by its ID", async () => {
-    renderHook(() => useCcTaggingRule(7), { wrapper });
-    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+  it("asks for one rule by its ID, and returns it", async () => {
+    responses.rule = { id: 7, supplier: "Uber" };
+    const { result } = renderHook(() => useCcTaggingRule(7), { wrapper });
+    await waitFor(() => expect(result.current.data).toEqual(responses.rule));
     expect(requests).toEqual([{ method: "GET", url: "https://cc.test/tagging-rules/7" }]);
   });
 

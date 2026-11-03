@@ -49,6 +49,7 @@ export function CcAutofillGuideCard({
 }: {
   /** The user's Asgardeo `sub`, which the dismissal is kept under. Until it's known, Got it hides the card for now. */
   sub: string | undefined;
+  /** Whether the user has any rules. Without them, the card stays and offers no Got it. */
   hasRules: boolean;
 }) {
   const [dismissed, setDismissed] = useState(() => isAutofillGuideDismissed(sub));
@@ -94,10 +95,13 @@ export function CcAutofillGuideDialog({
   inbox,
   workEmail,
 }: {
+  /** Whether the dialog is shown. */
   open: boolean;
+  /** Called to close the dialog. */
   onClose: () => void;
   /** The bills inbox from the runtime config. Without one, the step about sending bills is left out. */
   inbox: string;
+  /** The user's work email, whose name before the `@` makes their billing address. */
   workEmail: string;
 }) {
   const address = ccBillsAddress(inbox, workEmail);
