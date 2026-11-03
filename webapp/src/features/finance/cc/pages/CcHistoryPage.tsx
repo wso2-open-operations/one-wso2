@@ -14,7 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState } from "react";
+import { ccServiceUrls, isCcBackendConfigured } from "@config/apiConfig";
+import { FINANCE_EYEBROW } from "@constants/financeApps";
+import { useAccessToken } from "@hooks/useAccessToken";
 import {
   Alert,
   Box,
@@ -25,35 +27,29 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { FINANCE_GRID_SX } from "../../util/financeGridSx";
-import { isCcBackendConfigured } from "@config/apiConfig";
+import { EyeIcon, FileTextIcon, ReceiptTextIcon } from "@wso2/oxygen-ui-icons-react";
+import { useMemo, useState } from "react";
+import { ccStatusMeta, StatusChip } from "../../components/FinanceChips";
 import FinanceShell from "../../components/FinanceShell";
+import { ReceiptViewer } from "../../components/ReceiptViewer";
 import { describeError } from "../../util/financeError";
 import { bareAmount, daysAgoIso, formatNice } from "../../util/financeFormat";
-import { CcTxnDetailsDialog } from "../CcTxnDetailsDialog";
-import { ReceiptViewer } from "../../components/ReceiptViewer";
-import { StatusChip, ccStatusMeta } from "../../components/FinanceChips";
+import { FINANCE_GRID_SX } from "../../util/financeGridSx";
 import { fetchBase64Attachment, type ReceiptSource } from "../../util/financeReceipts";
-import { ccServiceUrls } from "@config/apiConfig";
-import { useAccessToken } from "@hooks/useAccessToken";
-import { useCcTransactions, useCcUserInfo, useCreditCards } from "../useCc";
-import { type CcAttachmentType, type CcTransaction, ccHasAccess } from "../ccTypes";
-import { CcHistoryFilters, CcHistoryFilterChips } from "../CcHistoryFilterPopover";
+import { CcHistoryFilterChips, CcHistoryFilters } from "../CcHistoryFilterPopover";
+import { CcTxnDetailsDialog } from "../CcTxnDetailsDialog";
+import { ToolbarWithExport as HistoryToolbar } from "../ccGridToolbar";
 import {
   CC_HISTORY_ALL_TIME_DAYS,
   CC_HISTORY_PERIODS,
+  type CcHistoryFilterState,
   ccHistoryActiveFilters,
   ccHistoryCardOptions,
   ccHistoryFieldsShown,
   ccHistoryResetAll,
-  type CcHistoryFilterState,
 } from "../ccHistoryFilters";
-import { EyeIcon, FileTextIcon, ReceiptTextIcon } from "@wso2/oxygen-ui-icons-react";
-import { ToolbarWithExport as HistoryToolbar } from "../ccGridToolbar";
-import { FINANCE_EYEBROW } from "@constants/financeApps";
-
-// FILTER_ALL in submission-history/index.tsx.
-const ALL = "all";
+import { CC_FILTER_ALL, type CcAttachmentType, type CcTransaction, ccHasAccess } from "../ccTypes";
+import { useCcTransactions, useCcUserInfo, useCreditCards } from "../useCc";
 
 // submission-history/index.tsx uses three distinct placeholders and they are
 // not interchangeable: an approver who has not been assigned is a different
@@ -126,7 +122,7 @@ function HistoryBody() {
   // Gated rather than cleared on the way out, so switching back to Completed
   // returns the lead you had chosen instead of quietly dropping it — which is
   // how the period already behaves.
-  const effectiveLead = ccHistoryFieldsShown(filters, viewer).lead ? lead : ALL;
+  const effectiveLead = ccHistoryFieldsShown(filters, viewer).lead ? lead : CC_FILTER_ALL;
   const txns = useCcTransactions({
     dateFrom: daysAgoIso(effectiveDays),
     includeInactive: true,
@@ -345,10 +341,10 @@ function HistoryBody() {
     let list = all;
     if (!canSeeOthers) list = list.filter((t) => t.employeeEmail === email);
     if (status !== "all") list = list.filter((t) => t.status === status);
-    if (user !== ALL) list = list.filter((t) => t.employeeEmail === user);
-    if (card !== ALL) list = list.filter((t) => t.ccNumber === card);
+    if (user !== CC_FILTER_ALL) list = list.filter((t) => t.employeeEmail === user);
+    if (card !== CC_FILTER_ALL) list = list.filter((t) => t.ccNumber === card);
     // :152 — a card can carry several leads, so match within the list.
-    if (effectiveLead !== ALL)
+    if (effectiveLead !== CC_FILTER_ALL)
       list = list.filter((t) =>
         (t.leadEmail ?? "").split(",").map((l) => l.trim()).includes(effectiveLead),
       );

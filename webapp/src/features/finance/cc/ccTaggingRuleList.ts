@@ -16,8 +16,7 @@
  * under the License.
  */
 
-import { CC_PICK_ALL } from "./CcPickOne";
-import { type CcTaggingRule, ccRuleUnconfigured } from "./ccTypes";
+import { CC_FILTER_ALL, type CcTaggingRule, ccRuleUnconfigured } from "./ccTypes";
 
 /** The groups the rules list is split into, in the order they are shown. */
 export type CcRuleGroup = "unconfigured" | "outdated" | "rules";
@@ -51,7 +50,7 @@ export function sortRules(rules: CcTaggingRule[]): CcTaggingRule[] {
 }
 
 /**
- * What the rules list is narrowed to. Each select's filter is {@link CC_PICK_ALL} while it narrows nothing.
+ * What the rules list is narrowed to. Each select's filter is {@link CC_FILTER_ALL} while it narrows nothing.
  */
 export interface CcRuleFilters {
   /** Text to find in a rule's card number, supplier, account, expense category, type or comment. */
@@ -69,13 +68,13 @@ export interface CcRuleFilters {
 /** The filters the list starts with: every active rule, and no inactive one. */
 export const NO_RULE_FILTERS: CcRuleFilters = {
   search: "",
-  card: CC_PICK_ALL,
-  category: CC_PICK_ALL,
-  addedBy: CC_PICK_ALL,
+  card: CC_FILTER_ALL,
+  category: CC_FILTER_ALL,
+  addedBy: CC_FILTER_ALL,
   showInactive: false,
 };
 
-const narrows = (value: string) => value !== CC_PICK_ALL;
+const narrows = (value: string) => value !== CC_FILTER_ALL;
 
 /** The rules that match every filter, in the order given. The search ignores case and surrounding spaces. */
 export function filterRules(rules: CcTaggingRule[], f: CcRuleFilters): CcTaggingRule[] {

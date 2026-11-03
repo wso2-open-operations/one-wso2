@@ -16,6 +16,9 @@
 
 // DTOs + enums mirrored from digiops-finance/apps/cc-expenses/backend.
 
+/** The value a CC filter takes while it narrows nothing. */
+export const CC_FILTER_ALL = "all";
+
 // Access levels are string names (no numeric privileges) derived from the
 // JWT groups + DB owner/lead lists on the backend.
 export type CcAccessLevel = "employee" | "cc_owner" | "lead" | "finance";

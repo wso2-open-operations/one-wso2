@@ -18,17 +18,17 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  ALL,
   CC_HISTORY_DEFAULTS,
+  type CcHistoryFilterState,
+  ccHistoryCardOptions as cardOptions,
   ccHistoryActiveFilters,
   ccHistoryCardOptions,
-  ccHistoryCardOptions as cardOptions,
   ccHistoryChipLabel,
   ccHistoryClear,
   ccHistoryFieldsShown,
   ccHistoryResetAll,
-  type CcHistoryFilterState,
 } from "./ccHistoryFilters";
+import { CC_FILTER_ALL } from "./ccTypes";
 
 const FINANCE = { canSeeOthers: true, isFinance: true };
 const LEAD = { canSeeOthers: true, isFinance: false };
@@ -134,9 +134,9 @@ describe("clearing", () => {
   it("puts a filter back to its default and touches nothing else", () => {
     expect(ccHistoryClear("Period")).toEqual({ days: 7 });
     expect(ccHistoryClear("Status")).toEqual({ status: "submitted" });
-    expect(ccHistoryClear("User")).toEqual({ user: ALL });
-    expect(ccHistoryClear("Card")).toEqual({ card: ALL });
-    expect(ccHistoryClear("Lead")).toEqual({ lead: ALL });
+    expect(ccHistoryClear("User")).toEqual({ user: CC_FILTER_ALL });
+    expect(ccHistoryClear("Card")).toEqual({ card: CC_FILTER_ALL });
+    expect(ccHistoryClear("Lead")).toEqual({ lead: CC_FILTER_ALL });
   });
 
   it("clears exactly one key, so a caller cannot lose a filter it did not name", () => {
@@ -159,7 +159,7 @@ describe("the card options", () => {
   ];
 
   it("offers every card when nobody is selected", () => {
-    expect(cardOptions(cards, ALL).map((c) => c.value)).toEqual(["1111", "2222", "3333"]);
+    expect(cardOptions(cards, CC_FILTER_ALL).map((c) => c.value)).toEqual(["1111", "2222", "3333"]);
   });
 
   it("narrows to the selected person's cards", () => {
@@ -167,22 +167,22 @@ describe("the card options", () => {
   });
 
   it("marks a card that has been closed", () => {
-    const labels = cardOptions(cards, ALL).map((c) => c.label);
+    const labels = cardOptions(cards, CC_FILTER_ALL).map((c) => c.label);
     expect(labels).toContain("2222 (Inactive)");
     expect(labels).toContain("1111");
   });
 
   it("reads the status case-insensitively, as the backend sends it either way", () => {
     // "ACTIVE" must not be mistaken for a closed card.
-    expect(cardOptions(cards, ALL).find((c) => c.value === "3333")?.label).toBe("3333");
+    expect(cardOptions(cards, CC_FILTER_ALL).find((c) => c.value === "3333")?.label).toBe("3333");
   });
 
   it("keeps the value bare, so the filter never has to strip the suffix back off", () => {
-    expect(ccHistoryCardOptions(cards, ALL).find((c) => c.label.includes("Inactive"))?.value).toBe("2222");
+    expect(ccHistoryCardOptions(cards, CC_FILTER_ALL).find((c) => c.label.includes("Inactive"))?.value).toBe("2222");
   });
 
   it("offers a card once however many transactions are on it", () => {
     const dupes = [...cards, { ccNumber: "1111", employeeEmail: "a@wso2.com", status: "Active" }];
-    expect(cardOptions(dupes, ALL).filter((c) => c.value === "1111")).toHaveLength(1);
+    expect(cardOptions(dupes, CC_FILTER_ALL).filter((c) => c.value === "1111")).toHaveLength(1);
   });
 });

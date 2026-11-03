@@ -22,22 +22,19 @@
  * clearing one puts it back to. `HistoryFilterPopover.tsx:67-111` is the source.
  */
 
-import type { CcTxnStatus } from "./ccTypes";
-
-/** The "no narrowing" value, `FILTER_ALL` in the source. */
-export const ALL = "all";
+import { CC_FILTER_ALL, type CcTxnStatus } from "./ccTypes";
 
 /** Where every filter sits when nothing has been narrowed (`:88-94`). */
 export const CC_HISTORY_DEFAULTS = {
-  status: "submitted" as CcTxnStatus | typeof ALL,
-  lead: ALL,
-  user: ALL,
-  card: ALL,
+  status: "submitted" as CcTxnStatus | typeof CC_FILTER_ALL,
+  lead: CC_FILTER_ALL,
+  user: CC_FILTER_ALL,
+  card: CC_FILTER_ALL,
   days: 7,
 } as const;
 
 export interface CcHistoryFilterState {
-  status: CcTxnStatus | typeof ALL;
+  status: CcTxnStatus | typeof CC_FILTER_ALL;
   lead: string;
   user: string;
   card: string;
@@ -76,12 +73,12 @@ export const CC_HISTORY_PERIODS: { days: number; label: string }[] = [
  * keeps an **All statuses** option on the end, which is strictly more than the
  * source can do and costs nothing; it is recorded as a deviation in the spec.
  */
-export const CC_HISTORY_STATUSES: { value: CcTxnStatus | typeof ALL; label: string }[] = [
+export const CC_HISTORY_STATUSES: { value: CcTxnStatus | typeof CC_FILTER_ALL; label: string }[] = [
   { value: "submitted", label: "Completed" },
   { value: "pending_finance", label: "Pending Finance" },
   { value: "pending_lead", label: "Pending Lead" },
   { value: "new", label: "Pending Submission" },
-  { value: ALL, label: "All statuses" },
+  { value: CC_FILTER_ALL, label: "All statuses" },
 ];
 
 /**
@@ -127,9 +124,9 @@ export function ccHistoryActiveFilters(
   const shown = ccHistoryFieldsShown(state, viewer);
   const active: CcHistoryFilterName[] = [];
   if (state.status !== CC_HISTORY_DEFAULTS.status) active.push("Status");
-  if (shown.lead && state.lead !== ALL) active.push("Lead");
-  if (viewer.canSeeOthers && state.user !== ALL) active.push("User");
-  if (state.card !== ALL) active.push("Card");
+  if (shown.lead && state.lead !== CC_FILTER_ALL) active.push("Lead");
+  if (viewer.canSeeOthers && state.user !== CC_FILTER_ALL) active.push("User");
+  if (state.card !== CC_FILTER_ALL) active.push("Card");
   if (shown.period && state.days !== CC_HISTORY_DEFAULTS.days) active.push("Period");
   return active;
 }
@@ -169,11 +166,11 @@ export function ccHistoryClear(name: CcHistoryFilterName): Partial<CcHistoryFilt
     case "Status":
       return { status: CC_HISTORY_DEFAULTS.status };
     case "Lead":
-      return { lead: ALL };
+      return { lead: CC_FILTER_ALL };
     case "User":
-      return { user: ALL };
+      return { user: CC_FILTER_ALL };
     case "Card":
-      return { card: ALL };
+      return { card: CC_FILTER_ALL };
     case "Period":
       return { days: CC_HISTORY_DEFAULTS.days };
   }
@@ -202,7 +199,7 @@ export function ccHistoryCardOptions(
   const seen = new Set<string>();
   const out: { value: string; label: string }[] = [];
   for (const c of cards) {
-    if (selectedUser !== ALL && c.employeeEmail !== selectedUser) continue;
+    if (selectedUser !== CC_FILTER_ALL && c.employeeEmail !== selectedUser) continue;
     if (seen.has(c.ccNumber)) continue;
     seen.add(c.ccNumber);
     const active = (c.status ?? "").toLowerCase() === "active";

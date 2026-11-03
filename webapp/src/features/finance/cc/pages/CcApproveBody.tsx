@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useNotifications } from "@context/notifications/NotificationsContext";
 import {
   Alert,
   Box,
@@ -29,23 +29,20 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { FilterIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
-import { useNotifications } from "@context/notifications/NotificationsContext";
+import { type Dispatch, type SetStateAction, useMemo, useState } from "react";
+import { ccStatusMeta, StatusChip } from "../../components/FinanceChips";
 import { describeError } from "../../util/financeError";
-import { CcApproveDetail } from "../CcApproveDetail";
-import { StatusChip, ccStatusMeta } from "../../components/FinanceChips";
-import { FINANCE_GRID_SX } from "../../util/financeGridSx";
 import { bareAmount, formatNice } from "../../util/financeFormat";
-import { ToolbarNoExport as ApproveToolbar } from "../ccGridToolbar";
-import { selectedIds as gridSelectedIds } from "../ccSelection";
-import { useCcApprove, useCcSaveEdit } from "../useCcMutations";
+import { FINANCE_GRID_SX } from "../../util/financeGridSx";
+import { CcApproveDetail } from "../CcApproveDetail";
 import { CcEditDialog } from "../CcEditDialog";
 import { CcPickOne } from "../CcPickOne";
 import { CC_SNACK } from "../ccCopy";
+import { ToolbarNoExport as ApproveToolbar } from "../ccGridToolbar";
+import { selectedIds as gridSelectedIds } from "../ccSelection";
+import { CC_FILTER_ALL, type CcTransaction } from "../ccTypes";
 import { useCcTransactions, useCcUserInfo, useCreditCards } from "../useCc";
-import type { CcTransaction } from "../ccTypes";
-
-// FILTER_ALL in approve-submissions/index.tsx.
-const ALL = "all";
+import { useCcApprove, useCcSaveEdit } from "../useCcMutations";
 
 export type ApproveRole = "lead" | "finance";
 
@@ -102,9 +99,9 @@ export function ApproveBody({
   // and, for finance only, by stage. Without the stage filter finance reads a
   // list of both stages mixed together with no way to see just its own; the
   // port had none of the three.
-  const [user, setUser] = useState(ALL);
-  const [card, setCard] = useState(ALL);
-  const [stage, setStage] = useState(ALL);
+  const [user, setUser] = useState(CC_FILTER_ALL);
+  const [card, setCard] = useState(CC_FILTER_ALL);
+  const [stage, setStage] = useState(CC_FILTER_ALL);
   const [editing, setEditing] = useState<CcTransaction | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
   const [filterOpen, setFilterOpen] = useState<HTMLElement | null>(null);
@@ -167,11 +164,11 @@ export function ApproveBody({
 
   const rows = useMemo(() => {
     let list = inMode;
-    if (user !== ALL) list = list.filter((t) => t.employeeEmail === user);
-    if (card !== ALL) list = list.filter((t) => t.ccNumber === card);
+    if (user !== CC_FILTER_ALL) list = list.filter((t) => t.employeeEmail === user);
+    if (card !== CC_FILTER_ALL) list = list.filter((t) => t.ccNumber === card);
     // index.tsx:91-95 resets the stage filter whenever the mode is Lead — a
     // lead's queue is one stage by definition, so the control is finance-only.
-    if (role === "finance" && stage !== ALL) list = list.filter((t) => t.status === stage);
+    if (role === "finance" && stage !== CC_FILTER_ALL) list = list.filter((t) => t.status === stage);
     return list;
   }, [inMode, user, card, stage, role]);
 
@@ -272,7 +269,9 @@ export function ApproveBody({
   // falls back to the first rather than leaving the panel on something gone.
   const activeRowId = rows.some((r) => r.id === selectedRowId) ? selectedRowId : rows[0]?.id ?? null;
   const selectedRow = rows.find((r) => r.id === activeRowId) ?? null;
-  const activeFilters = [user, card, role === "finance" ? stage : ALL].filter((f) => f !== ALL).length;
+  const activeFilters = [user, card, role === "finance" ? stage : CC_FILTER_ALL].filter(
+    (f) => f !== CC_FILTER_ALL,
+  ).length;
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -351,9 +350,9 @@ export function ApproveBody({
               // Nothing to reset until something is narrowing the queue.
               disabled={activeFilters === 0}
               onClick={() => {
-                setUser(ALL);
-                setCard(ALL);
-                setStage(ALL);
+                setUser(CC_FILTER_ALL);
+                setCard(CC_FILTER_ALL);
+                setStage(CC_FILTER_ALL);
               }}
             >
               Reset

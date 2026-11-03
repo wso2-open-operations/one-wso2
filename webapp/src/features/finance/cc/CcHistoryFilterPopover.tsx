@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import { cloneElement, useState } from "react";
 import {
   Badge,
   Button,
@@ -32,19 +31,19 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { FilterIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
+import { cloneElement, useState } from "react";
 import {
-  ALL,
   CC_HISTORY_PERIODS,
   CC_HISTORY_STATUSES,
+  type CcHistoryFilterName,
+  type CcHistoryFilterState,
   ccHistoryActiveFilters,
   ccHistoryChipLabel,
   ccHistoryClear,
   ccHistoryFieldsShown,
   ccHistoryResetAll,
-  type CcHistoryFilterName,
-  type CcHistoryFilterState,
 } from "./ccHistoryFilters";
-import type { CcTxnStatus } from "./ccTypes";
+import { CC_FILTER_ALL, type CcTxnStatus } from "./ccTypes";
 
 /**
  * The source's **Advanced Filter** — `HistoryFilterPopover.tsx`.
@@ -117,7 +116,7 @@ export function CcHistoryFilters({
           <Field label="Filter by Status">
             <Select
               value={state.status}
-              onChange={(e) => onChange({ status: e.target.value as CcTxnStatus | typeof ALL })}
+              onChange={(e) => onChange({ status: e.target.value as CcTxnStatus | typeof CC_FILTER_ALL })}
             >
               {CC_HISTORY_STATUSES.map((s) => (
                 <MenuItem key={s.value} value={s.value}>
@@ -132,7 +131,7 @@ export function CcHistoryFilters({
           {shown.lead && (
             <Field label="Filter by Lead">
               <Select value={state.lead} onChange={(e) => onChange({ lead: String(e.target.value) })}>
-                <MenuItem value={ALL}>No Filter</MenuItem>
+                <MenuItem value={CC_FILTER_ALL}>No Filter</MenuItem>
                 {leads.map((l) => (
                   <MenuItem key={l} value={l}>
                     {l}
@@ -148,9 +147,9 @@ export function CcHistoryFilters({
                   options are that person's and the old one may not be theirs. */}
               <Select
                 value={state.user}
-                onChange={(e) => onChange({ user: String(e.target.value), card: ALL })}
+                onChange={(e) => onChange({ user: String(e.target.value), card: CC_FILTER_ALL })}
               >
-                <MenuItem value={ALL}>No Filter</MenuItem>
+                <MenuItem value={CC_FILTER_ALL}>No Filter</MenuItem>
                 {users.map((u) => (
                   <MenuItem key={u} value={u}>
                     {u}
@@ -162,7 +161,7 @@ export function CcHistoryFilters({
 
           <Field label="Filter by Card">
             <Select value={state.card} onChange={(e) => onChange({ card: String(e.target.value) })}>
-              <MenuItem value={ALL}>No Filter</MenuItem>
+              <MenuItem value={CC_FILTER_ALL}>No Filter</MenuItem>
               {cards.map((c) => (
                 <MenuItem key={c.value} value={c.value}>
                   {c.label}
