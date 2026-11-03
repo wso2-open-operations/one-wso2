@@ -64,12 +64,9 @@ export function CcAutofillGuideCard({
         <Typography variant="body2" sx={{ flex: 1 }}>
           Autofill attaches your bills to your card transactions and fills in their expense details. To see how,
           select{" "}
-          <Box component="span" sx={{ display: "inline-flex", verticalAlign: "middle", color: "text.secondary" }}>
+          <InlineIcon label="How it works" color="text.secondary">
             <CircleHelpIcon size={15} aria-hidden />
-            <Box component="span" sx={VISUALLY_HIDDEN_SX}>
-              How it works
-            </Box>
-          </Box>{" "}
+          </InlineIcon>{" "}
           beside <strong>Add Rule</strong>.
         </Typography>
         {hasRules && (
@@ -127,11 +124,19 @@ export function CcAutofillGuideDialog({
     },
     {
       title: "Your rules fill in the details",
-      body:
-        "A rule applies when the bill's supplier contains the rule's supplier, the account matches, and the amount " +
-        `is in range. If several apply, the one with the longest supplier is used (e.g. "Uber Eats" over "Uber" ` +
-        `when the bill's supplier is "Uber Eats"). Transactions you've already started filling in are left as ` +
-        "they are. Nothing is submitted automatically, so review and submit them from Pending Submissions.",
+      body: (
+        <>
+          A rule applies when the bill's supplier contains the rule's supplier, the account matches, and the amount
+          is in range. If several apply, the one with the longest supplier is used (e.g. "Uber Eats" over "Uber" when
+          the bill's supplier is "Uber Eats"). Transactions you've already started filling in are left as they are.
+          Nothing is submitted automatically, so review and submit them from Pending Submissions, where they're
+          marked with{" "}
+          <InlineIcon label="a sparkles icon, read out as filled by a rule" color="primary.main">
+            <SparklesIcon size={15} aria-hidden />
+          </InlineIcon>
+          .
+        </>
+      ),
     },
     {
       title: "New suppliers get a rule to set up",
@@ -171,6 +176,18 @@ export function CcAutofillGuideDialog({
         </Stack>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** An icon in running text, read out by its label. */
+function InlineIcon({ label, color, children }: { label: string; color: string; children: ReactNode }) {
+  return (
+    <Box component="span" sx={{ display: "inline-flex", verticalAlign: "middle", color }}>
+      {children}
+      <Box component="span" sx={VISUALLY_HIDDEN_SX}>
+        {label}
+      </Box>
+    </Box>
   );
 }
 

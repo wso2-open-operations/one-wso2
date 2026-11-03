@@ -83,6 +83,14 @@ describe("CcAutofillGuideDialog", () => {
     expect(screen.getByText("card-invoices+jane@wso2.com")).toBeInTheDocument();
   });
 
+  it("says where autofilled transactions are marked", () => {
+    showDialog();
+    const body = screen.getByText(/Nothing is submitted automatically/);
+    const ending = "from Pending Submissions, where they're marked with a sparkles icon, read out as filled by a rule.";
+    expect(body.textContent?.endsWith(ending)).toBe(true);
+    expect(body.querySelector("svg.lucide-sparkles")).toBeInTheDocument();
+  });
+
   it("copies the billing address", async () => {
     const user = userEvent.setup();
     showDialog();
