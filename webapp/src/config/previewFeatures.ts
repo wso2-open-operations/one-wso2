@@ -80,13 +80,7 @@ export type PreviewFeature =
    * Marketing Ops → Campaign Tracker → Pacing tab. The BudgetSyncPacingPanel
    * is still being built out; this flag hides the tab until it is ready.
    */
-  | "campaignTrackerPacing"
-  /**
-   * Finance → Credit Card Expenses → Autofill Rules, and the mark on
-   * transactions a rule filled in. Held back until the bill processor that
-   * applies the rules is live (digiops-finance#2286).
-   */
-  | "ccTaggingRules";
+  | "campaignTrackerPacing";
 
 /**
  * Whether a preview feature should be shown.

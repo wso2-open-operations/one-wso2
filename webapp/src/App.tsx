@@ -441,9 +441,7 @@ export default function App() {
           <Route path="finance/cc/approve" element={<CcApprovePage />} />
           <Route path="finance/cc/history" element={<CcHistoryPage />} />
           <Route path="finance/cc/admin" element={<CcAdminPage />} />
-          {isPreviewEnabled("ccTaggingRules") && (
-            <Route path="finance/cc/autofill-rules" element={<CcAutofillRulesPage />} />
-          )}
+          <Route path="finance/cc/autofill-rules" element={<CcAutofillRulesPage />} />
           {/* Old Settings bookmarks */}
           <Route path="finance/cc/settings" element={<Navigate to={ccPaths.admin} replace />} />
           <Route path="finance/opd/dashboard" element={<OpdDashboardScreen />} />

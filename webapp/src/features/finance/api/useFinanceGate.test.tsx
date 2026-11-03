@@ -248,26 +248,22 @@ describe("the cc-admin item", () => {
 });
 
 describe("the cc-autofill-rules item", () => {
-  const withPreview = (on: boolean, check: () => void) => {
+  // Out of preview: a leftover flag in an environment's config must not hide it.
+  it("offers Autofill Rules to card holders, whatever the old preview flag says", () => {
+    roles.cc = ["cc_owner"];
     const saved = window.config;
-    window.config = { ...(saved ?? {}), ONE_WSO2_PREVIEW_FEATURES: { ccTaggingRules: on } } as Window["config"];
+    window.config = { ...(saved ?? {}), ONE_WSO2_PREVIEW_FEATURES: { ccTaggingRules: false } } as Window["config"];
     try {
-      check();
+      expect(gate().canSee("cc-autofill-rules")).toBe(true);
     } finally {
       window.config = saved;
     }
-  };
-
-  it("offers Autofill Rules to card holders only while the preview is on", () => {
-    roles.cc = ["cc_owner"];
-    withPreview(true, () => expect(gate().canSee("cc-autofill-rules")).toBe(true));
-    withPreview(false, () => expect(gate().canSee("cc-autofill-rules")).toBe(false));
   });
 
   // A lead or Finance user without a card of their own has no rules to keep.
   it.each([["lead"], ["finance"]])("keeps it from a %s without a card", (role) => {
     roles.cc = [role];
-    withPreview(true, () => expect(gate().canSee("cc-autofill-rules")).toBe(false));
+    expect(gate().canSee("cc-autofill-rules")).toBe(false);
   });
 
   it("is a Finance rail item", () => {
