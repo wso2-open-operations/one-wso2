@@ -337,7 +337,7 @@ function HistoryBody() {
   const rows = useMemo(() => {
     let list = all;
     if (!canSeeOthers) list = list.filter((t) => t.employeeEmail === email);
-    if (status !== "all") list = list.filter((t) => t.status === status);
+    if (status !== CC_FILTER_ALL) list = list.filter((t) => t.status === status);
     if (user !== CC_FILTER_ALL) list = list.filter((t) => t.employeeEmail === user);
     if (card !== CC_FILTER_ALL) list = list.filter((t) => t.ccNumber === card);
     // :152 — a card can carry several leads, so match within the list.

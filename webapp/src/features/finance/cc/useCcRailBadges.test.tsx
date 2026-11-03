@@ -25,9 +25,10 @@ const userInfo = { data: undefined as Partial<CcEmployee> | undefined, enabled: 
 const cachedRules = { data: undefined as CcTaggingRule[] | undefined, enabled: [] as boolean[] };
 
 vi.mock("./useCc", () => ({
+  // Like React Query, a disabled query still returns what's cached.
   useCcUserInfo: (enabled: boolean) => {
     userInfo.enabled.push(enabled);
-    return { data: enabled ? userInfo.data : undefined };
+    return { data: userInfo.data };
   },
   useCcTaggingRules: (enabled: boolean) => {
     cachedRules.enabled.push(enabled);

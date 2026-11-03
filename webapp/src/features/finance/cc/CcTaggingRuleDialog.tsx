@@ -159,9 +159,9 @@ export function CcTaggingRuleDialog({
   const blocked = !menusReady || Object.keys(stale).length > 0 || Object.keys(errors).length > 0;
   const outcome = ruleSave(rule, current, blocked);
 
-  const change = (patch: Partial<CcRuleForm>) => {
+  const change = (patch: Partial<CcRuleForm>, touched = Object.keys(patch)) => {
     setForm((f) => ({ ...f, ...patch }));
-    setEdited((e) => new Set([...e, ...Object.keys(patch)]));
+    setEdited((e) => new Set([...e, ...touched]));
   };
   const done = (message: string) => () => {
     showSuccess(message);
@@ -375,7 +375,8 @@ function RuleDetails({
   expenseTypes: CcExpenseTypeList | undefined;
   subRegions: string[] | undefined;
   units: CcProductAndBusinessUnitList | undefined;
-  onChange: (patch: Partial<CcRuleForm>) => void;
+  /** Applies a patch. Only the `touched` fields, all of the patch's by default, show their errors on a new rule. */
+  onChange: (patch: Partial<CcRuleForm>, touched?: (keyof CcRuleForm)[]) => void;
 }) {
   const details = ruleDetailFields(form.expenseCategoryLabel);
   const productUnits = units?.productUnits ?? [];
@@ -392,7 +393,7 @@ function RuleDetails({
             value={form.expenseCategoryLabel}
             options={expenseTypes?.categories ?? []}
             unavailable={stale.expenseCategoryLabel ? form.expenseCategoryLabel : undefined}
-            onChange={(v) => onChange({ expenseCategoryLabel: v, ...CLEARED_BY_CATEGORY })}
+            onChange={(v) => onChange({ expenseCategoryLabel: v, ...CLEARED_BY_CATEGORY }, ["expenseCategoryLabel"])}
           />
           <Help error={errors.expenseCategoryLabel} stale={stale.expenseCategoryLabel} />
         </Field>

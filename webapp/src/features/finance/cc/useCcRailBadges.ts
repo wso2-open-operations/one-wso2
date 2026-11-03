@@ -31,7 +31,9 @@ import { useCcTaggingRules, useCcUserInfo } from "./useCc";
  * @param enabled - Whether to ask `/user-info`. Off makes no request and shows no badge.
  */
 export function useCcRailBadges(enabled: boolean): RailBadgeMap {
-  const user = useCcUserInfo(enabled).data;
+  // A disabled query still returns what's cached, which would badge a row outside Finance.
+  const cached = useCcUserInfo(enabled).data;
+  const user = enabled ? cached : undefined;
   const rules = useCcTaggingRules(false).data;
   const groups = enabled && rules ? groupRules(rules) : null;
   const outdated = groups ? groups.outdated.length > 0 : user?.taggingRulesOutdated;

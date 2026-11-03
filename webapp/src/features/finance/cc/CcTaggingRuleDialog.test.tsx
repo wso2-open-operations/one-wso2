@@ -340,6 +340,15 @@ describe("editing a rule", () => {
     expect(select("Sub Region")).toHaveTextContent("Select…");
   });
 
+  // Picking a category clears the fields that hang off it, which the user hasn't touched yet.
+  it("waits for Expense Type to be touched before asking for it on a new rule", async () => {
+    open(null);
+    await userEvent.type(select("Expense Category"), "Offi");
+    await userEvent.click(screen.getByRole("option", { name: "Office" }));
+
+    expect(screen.queryByText("Pick the expense type.")).not.toBeInTheDocument();
+  });
+
   it("shows the Travel Job Number note instead of the unit fields", () => {
     open(rule({ expenseCategoryLabel: "Travel", expenseTypeLabel: "Air", productUnit: null, businessUnit: null }));
 
