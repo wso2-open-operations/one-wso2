@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { useCcRailBadges } from "@features/finance/cc/useCcRailBadges";
 import type { RailBadgeMap, ResolveBadge } from "./railBadge";
 
 /** The badges features report for rail rows and tabs. */
@@ -27,10 +28,12 @@ export interface RailBadges {
 /**
  * Collects the badges every feature reports for its rail rows and tabs. An id shows one badge; if
  * two features report one for the same id, the later wins.
+ *
+ * @param perspective - The key of the perspective the rows or tabs are in.
  */
-export function useRailBadges(): RailBadges {
-  // Each feature's badge hook, enabled only while its perspective is active.
-  const sources: RailBadgeMap[] = [];
+export function useRailBadges(perspective: string): RailBadges {
+  // Each feature's badge hook, enabled only in its own perspective.
+  const sources: RailBadgeMap[] = [useCcRailBadges(perspective === "finance")];
   const badges: RailBadgeMap = Object.assign({}, ...sources);
   return { resolveBadge: (id) => badges[id] };
 }

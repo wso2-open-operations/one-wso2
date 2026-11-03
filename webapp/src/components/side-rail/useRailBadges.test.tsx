@@ -1,0 +1,50 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const asked: boolean[] = [];
+
+vi.mock("@features/finance/cc/useCcRailBadges", () => ({
+  useCcRailBadges: (enabled: boolean) => {
+    asked.push(enabled);
+    return enabled ? { "cc-autofill-rules": { label: "New", showOnGroup: true } } : {};
+  },
+}));
+
+const { useRailBadges } = await import("./useRailBadges");
+
+beforeEach(() => {
+  asked.length = 0;
+});
+
+describe("useRailBadges", () => {
+  it("shows the Autofill Rules badge in Finance", () => {
+    const { result } = renderHook(() => useRailBadges("finance"));
+
+    expect(result.current.resolveBadge("cc-autofill-rules")).toEqual({ label: "New", showOnGroup: true });
+  });
+
+  it("asks for card badges only in Finance", () => {
+    const { result } = renderHook(() => useRailBadges("me"));
+
+    expect(asked).toEqual([false]);
+    expect(result.current.resolveBadge("cc-autofill-rules")).toBeUndefined();
+  });
+});

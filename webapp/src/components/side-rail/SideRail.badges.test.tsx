@@ -246,8 +246,22 @@ describe("SideRail badges, with the rail collapsed", () => {
     await userEvent.hover(screen.getByRole("button", { name: /^Credit Card Expenses/ }));
 
     const settings = await screen.findByRole("menuitem", { name: /Card Settings$/ });
-    expect(settings.querySelector(".MuiBadge-dot")).not.toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Pending Submissions" }).querySelector(".MuiBadge-dot")).toBeNull();
+    expect(settings.querySelector("[data-rail-end-dot]")).not.toBeNull();
+    const unbadged = screen.getByRole("menuitem", { name: "Pending Submissions" });
+    expect(unbadged.querySelector("[data-rail-end-dot]")).toBeNull();
+  });
+
+  // A row without an icon would otherwise wear its dot where an icon goes, pushing its label out of line.
+  it("puts the dot of a row without an icon at the end of its popup entry", async () => {
+    badges = { "cc-settings": outdated };
+    renderSideRail(true);
+    await userEvent.hover(screen.getByRole("button", { name: /^Credit Card Expenses/ }));
+
+    const settings = await screen.findByRole("menuitem", { name: /Card Settings$/ });
+    const slot = settings.querySelector("[data-rail-end-dot]")?.closest(".MuiListItemIcon-root");
+    expect(slot).not.toBeNull();
+    expect(getComputedStyle(slot as Element).position).toBe("absolute");
+    expect(getComputedStyle(slot as Element).right).not.toBe("");
   });
 
   // Oxygen names a popup entry by its icon and label alone, so the dot's text goes with the icon.

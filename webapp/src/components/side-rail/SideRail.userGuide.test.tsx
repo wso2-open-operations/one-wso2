@@ -23,6 +23,8 @@ import { ShieldAlertIcon } from "@wso2/oxygen-ui-icons-react";
 // The shim is the only thing that talks to the network here, same seam
 // useSecurityGate.test.tsx mocks at.
 const authFetch = vi.fn();
+// Badges aren't what this test is about, and their sources need more of Asgardeo than this mock provides.
+vi.mock("./useRailBadges", () => ({ useRailBadges: () => ({ resolveBadge: () => undefined }) }));
 vi.mock("@features/security/grc/shim/useAuthApiClient", () => ({
   useAuthApiClient: () => authFetch,
 }));

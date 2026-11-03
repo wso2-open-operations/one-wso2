@@ -16,7 +16,7 @@
 
 import { useMemo, useState, type JSX, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { alpha, Badge, Box, Link, List, Sidebar, Typography, useSidebar } from "@wso2/oxygen-ui";
+import { alpha, Badge, Box, GlobalStyles, Link, List, Sidebar, Typography, useSidebar } from "@wso2/oxygen-ui";
 import { ArrowUpRightIcon, BookOpenIcon, ExternalLinkIcon, SettingsIcon } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink, matchPath, useLocation, useNavigate } from "react-router";
 import ScreenBadgeLabel from "@components/screen-badge/ScreenBadgeLabel";
@@ -101,8 +101,29 @@ const ELLIPSIS_SX = {
 /** Size, in px, Oxygen's Sidebar.ItemIcon gives a row icon. */
 const RAIL_ICON_SIZE = 20;
 
-/** Diameter, in px, of the dot on a group's header. */
+/**
+ * Diameter, in px, of the dot on a group's header, and of the dot at the end of a collapsed-rail popup entry for a row
+ * without an icon.
+ */
 const GROUP_DOT_SIZE = 8;
+
+/**
+ * Moves a row's dot to the end of its entry in a group's collapsed-rail popup, for a row without an icon. Oxygen
+ * builds each entry from the row's icon and label alone, so the dot can only travel in the icon's slot; left there,
+ * it would push the label out of line with the others.
+ */
+const POPUP_END_DOT_STYLES = (
+  <GlobalStyles
+    styles={(theme) => ({
+      ".MuiListItemIcon-root:has(> [data-rail-end-dot])": {
+        position: "absolute",
+        right: theme.spacing(2),
+        top: "50%",
+        transform: "translateY(-50%)",
+      },
+    })}
+  />
+);
 
 /** What a screen reader hears for the dot on a group's header. */
 const GROUP_ATTENTION_TEXT = "Needs attention.";
@@ -123,7 +144,7 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
   // usePerspectiveVisibility for why the perspective landing routes need the
   // same answer and why a second copy of it would drift.
   const { resolveVisible } = usePerspectiveVisibility();
-  const { resolveBadge } = useRailBadges();
+  const { resolveBadge } = useRailBadges(active.key);
 
   // Memoised because `?? []` would otherwise hand a fresh array to the
   // dependency lists below on every render, defeating both useMemos.
@@ -281,6 +302,7 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
       onSelect={onSelect}
       onToggleExpand={onToggleExpand}
     >
+      {POPUP_END_DOT_STYLES}
       {/* flex column: lets the pinned-to-bottom category below push itself to
           the foot of this scroll area with `mt: auto`, rather than flowing
           directly under the main one. showDividers off: Nav would otherwise
@@ -589,7 +611,7 @@ function railGroupDot(): JSX.Element {
 
 /**
  * A row's icon, marked with a dot when the row has a badge to show on a collapsed rail. A row with
- * no icon gets the dot alone, so a group's collapsed-rail popup still marks it.
+ * no icon gets the dot alone, drawn at the end of its entry in a group's collapsed-rail popup.
  *
  * The icon is sized here: Sidebar.ItemIcon sizes only its direct child, which would be the Badge.
  *
@@ -599,20 +621,33 @@ function railGroupDot(): JSX.Element {
 function railIcon(Icon: PerspectiveSection["icon"], marked: boolean, spoken?: string): JSX.Element | null {
   const icon = Icon ? <Icon size={RAIL_ICON_SIZE} /> : null;
   if (!marked) return icon;
+  const said = spoken ? (
+    <Box component="span" sx={VISUALLY_HIDDEN_SX}>
+      {spoken}
+    </Box>
+  ) : null;
+  // With no icon to sit on, the dot goes to the end of the row; see POPUP_END_DOT_STYLES.
+  if (!icon) {
+    return (
+      <Box
+        component="span"
+        data-rail-end-dot
+        sx={{
+          display: "block",
+          width: GROUP_DOT_SIZE,
+          height: GROUP_DOT_SIZE,
+          borderRadius: "50%",
+          bgcolor: "primary.main",
+        }}
+      >
+        {said}
+      </Box>
+    );
+  }
   return (
-    <Badge
-      variant="dot"
-      color="primary"
-      overlap="circular"
-      // With no icon to sit on, the dot takes the icon's place instead of its corner.
-      sx={icon ? undefined : { "& .MuiBadge-badge": { position: "static", transform: "none" } }}
-    >
+    <Badge variant="dot" color="primary" overlap="circular">
       {icon}
-      {spoken ? (
-        <Box component="span" sx={VISUALLY_HIDDEN_SX}>
-          {spoken}
-        </Box>
-      ) : null}
+      {said}
     </Badge>
   );
 }

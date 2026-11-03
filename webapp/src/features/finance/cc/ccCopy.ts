@@ -55,6 +55,12 @@ export const CC_RULE_SNACK = {
   deleted: "Rule deleted",
 } as const;
 
+/** Label and reason for the Autofill Rules rail badge, for outdated and for unconfigured rules. */
+export const CC_RULE_BADGE = {
+  fix: { label: "Fix", reason: "Some autofill rules have outdated values" },
+  new: { label: "New", reason: "Some autofill rules need setting up" },
+} as const;
+
 /** The text of `to`, capitalised as the text it replaces is. */
 const casedLike = (from: string, to: string) => (/^[A-Z]/.test(from) ? to[0].toUpperCase() + to.slice(1) : to);
 
