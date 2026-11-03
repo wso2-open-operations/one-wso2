@@ -26,10 +26,15 @@ const BADGE_FONT_SIZE = 10;
 /** Read by screen readers, not shown on screen. */
 export const VISUALLY_HIDDEN_SX = {
   position: "absolute",
-  width: 1,
-  height: 1,
+  // Strings, since the sx prop reads a bare 1 as 100%.
+  width: "1px",
+  height: "1px",
+  margin: "-1px",
+  padding: 0,
+  border: 0,
   overflow: "hidden",
   clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
 } as const;
 
 /** The size and shape of the Chip a badge is drawn in. A one-character badge is a circle. */

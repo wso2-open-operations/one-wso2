@@ -16,8 +16,11 @@
  * under the License.
  */
 
+import { render, screen } from "@testing-library/react";
+import { Box } from "@wso2/oxygen-ui";
+import { createElement } from "react";
 import { describe, expect, it } from "vitest";
-import { screenBadgePillSx } from "./screenBadgeSx";
+import { screenBadgePillSx, VISUALLY_HIDDEN_SX } from "./screenBadgeSx";
 
 describe("screenBadgePillSx", () => {
   it("draws a one-character badge, such as a single-digit count, as a circle", () => {
@@ -28,5 +31,16 @@ describe("screenBadgePillSx", () => {
   it("lets a longer badge grow into a pill", () => {
     expect(screenBadgePillSx({ label: "12" }).width).toBeUndefined();
     expect(screenBadgePillSx({ label: "Fix" }).width).toBeUndefined();
+  });
+});
+
+describe("VISUALLY_HIDDEN_SX", () => {
+  // The sx prop reads a size of 1 or less as a fraction, so `1` would be 100%, a box that overflows its container.
+  it("shrinks the text to a single pixel, on one line", () => {
+    render(createElement(Box, { sx: VISUALLY_HIDDEN_SX }, "Read out, not shown"));
+    const style = getComputedStyle(screen.getByText("Read out, not shown"));
+    expect(style.width).toBe("1px");
+    expect(style.height).toBe("1px");
+    expect(style.whiteSpace).toBe("nowrap");
   });
 });
