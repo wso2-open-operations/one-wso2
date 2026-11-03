@@ -277,6 +277,16 @@ describe("the autofill rule data", () => {
     expect(result.current.cards).toEqual([]);
   });
 
+  it("reports a request in flight, so a retry can show it's running", async () => {
+    responses.userInfo = { workEmail: "jane@wso2.com" };
+    responses.cards = [];
+
+    const { result } = renderHook(() => useCcOwnCards(), { wrapper });
+
+    expect(result.current.isFetching).toBe(true);
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+  });
+
   it("asks again for what failed on retry", async () => {
     responses.userInfo = { workEmail: "jane@wso2.com" };
     responses.cardsFail = true;

@@ -63,7 +63,7 @@ vi.mock("./useCc", () => ({
     isLoading: state.loading,
     isError: state.fails,
     isFetching: false,
-    error: state.fails ? new Error("Gateway timeout") : null,
+    error: state.fails ? new Error("Error retrieving the tagging rules.") : null,
     refetch: () => {
       state.refetches += 1;
     },
@@ -275,6 +275,7 @@ describe("CcTaggingRules", () => {
     renderList();
 
     expect(screen.queryByText("No rules yet.")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Error retrieving the rules.");
     await userEvent.click(screen.getByRole("button", { name: /retry/i }));
     expect(state.refetches).toBe(1);
   });

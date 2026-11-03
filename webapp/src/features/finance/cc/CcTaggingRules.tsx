@@ -38,6 +38,7 @@ import { Fragment } from "react";
 import { ClaimGroupHeading, useCollapsedGroups } from "../approvals/ClaimGroupHeading";
 import { StatusChip } from "../components/FinanceChips";
 import { bareAmount } from "../util/financeFormat";
+import { describeRuleError } from "./ccCopy";
 import { type CcRuleGroup, groupRules, sortRules } from "./ccTaggingRuleForm";
 import type { CcTaggingRule } from "./ccTypes";
 import { useCcTaggingRules } from "./useCc";
@@ -132,8 +133,8 @@ export function CcTaggingRules({
       {rules.isLoading ? (
         <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1.5 }} />
       ) : rules.isError ? (
-        <ErrorNotice error={rules.error} onRetry={() => void rules.refetch()} retrying={rules.isFetching}>
-          Couldn&apos;t load your autofill rules.
+        <ErrorNotice onRetry={() => void rules.refetch()} retrying={rules.isFetching}>
+          Couldn&apos;t load your autofill rules. {describeRuleError(rules.error)}
         </ErrorNotice>
       ) : (rules.data ?? []).length === 0 ? (
         <Typography sx={{ fontSize: 13, color: "text.secondary", py: 3 }}>No rules yet.</Typography>

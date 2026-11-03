@@ -17,7 +17,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { CC_SNACK } from "./ccCopy";
+import { CC_SNACK, ruleWording } from "./ccCopy";
 
 /**
  * The source's own words, character for character.
@@ -59,5 +59,29 @@ describe("card-expense success messages match the source", () => {
       "uploadAttachment",
       "uploadNewTransactions",
     ]);
+  });
+});
+
+// The backend says "tagging rule", and "auto tagging rule" for a system rule; the UI says neither.
+describe("ruleWording", () => {
+  it.each([
+    [
+      "A tagging rule with the same card, supplier and account has an overlapping amount range.",
+      "A rule with the same card, supplier and account has an overlapping amount range.",
+    ],
+    [
+      "An auto tagging rule can't be deleted. It can be deactivated instead.",
+      "A system rule can't be deleted. It can be deactivated instead.",
+    ],
+    [
+      "The card, supplier and account of an auto tagging rule can't be changed.",
+      "The card, supplier and account of a system rule can't be changed.",
+    ],
+    ["Insufficient privileges to create an auto-tagging rule.", "Insufficient privileges to create a system rule."],
+    ["Error retrieving the tagging rules.", "Error retrieving the rules."],
+    ["Tagging rule not found.", "Rule not found."],
+    ["Bad supplier.", "Bad supplier."],
+  ])("rewords %j", (server, shown) => {
+    expect(ruleWording(server)).toBe(shown);
   });
 });

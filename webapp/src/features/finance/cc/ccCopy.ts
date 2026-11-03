@@ -16,6 +16,8 @@
  * under the License.
  */
 
+import { describeError } from "../util/financeError";
+
 /**
  * What the card-expense screens say when something succeeds.
  *
@@ -52,3 +54,22 @@ export const CC_RULE_SNACK = {
   updated: "Rule updated",
   deleted: "Rule deleted",
 } as const;
+
+/** The text of `to`, capitalised as the text it replaces is. */
+const casedLike = (from: string, to: string) => (/^[A-Z]/.test(from) ? to[0].toUpperCase() + to.slice(1) : to);
+
+/**
+ * A server message in the UI's words. The backend says "tagging rule", and "auto tagging rule" for a rule the
+ * system added, which the UI calls a system rule.
+ */
+export function ruleWording(message: string): string {
+  return message
+    .replace(/\b(an?) auto[- ]tagging rule/gi, (_, article: string) => casedLike(article, "a system rule"))
+    .replace(/\bauto[- ]tagging rule/gi, (m) => casedLike(m, "system rule"))
+    .replace(/\btagging rule/gi, (m) => casedLike(m, "rule"));
+}
+
+/** Why a rule request failed: the server's own message where it sent one, in the UI's words. */
+export function describeRuleError(error: unknown): string {
+  return ruleWording(describeError(error));
+}

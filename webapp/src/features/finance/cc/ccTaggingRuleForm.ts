@@ -39,6 +39,20 @@ export const RULE_ACCOUNT_MAX = 100;
 /** A non-negative amount with up to 2 decimal places. */
 const AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/;
 
+/** An amount part-way through being typed: digits, then at most one point and 2 decimals. */
+const AMOUNT_DRAFT_PATTERN = /^\d*\.?\d{0,2}$/;
+
+/** Whether an amount field may take this text, so anything but digits and one point is kept out. */
+export function isAmountDraft(v: string): boolean {
+  return AMOUNT_DRAFT_PATTERN.test(v);
+}
+
+/** A typed amount as it reads once the field is left: to 2 decimal places, or blank if nothing was typed. */
+export function formatAmount(v: string): string {
+  if (!isAmountDraft(v)) return v;
+  return v === "" || v === "." ? "" : Number(v).toFixed(2);
+}
+
 /** The groups the rules list is split into, in the order they are shown. */
 export type CcRuleGroup = "unconfigured" | "outdated" | "rules";
 
@@ -126,8 +140,8 @@ export function ruleToForm(r: CcTaggingRule): CcRuleForm {
     ccNumber: r.ccNumber,
     supplier: r.supplier,
     account: r.account ?? "",
-    amountMin: r.amountMin == null ? "" : String(r.amountMin),
-    amountMax: r.amountMax == null ? "" : String(r.amountMax),
+    amountMin: r.amountMin == null ? "" : r.amountMin.toFixed(2),
+    amountMax: r.amountMax == null ? "" : r.amountMax.toFixed(2),
     expenseCategoryLabel: r.expenseCategoryLabel ?? "",
     expenseTypeLabel: r.expenseTypeLabel ?? "",
     comment: r.comment ?? "",
@@ -273,4 +287,41 @@ export interface CcRuleDetailFields {
 export function ruleDetailFields(category: string): CcRuleDetailFields {
   if (isTravelCategory(category)) return { subRegion: false, units: false, travelNote: true };
   return { subRegion: isMarketingCategory(category), units: true, travelNote: false };
+}
+
+/** The form with every field its category doesn't show cleared, so nothing hidden is checked or kept. */
+export function withoutHiddenFields(f: CcRuleForm): CcRuleForm {
+  const shown = ruleDetailFields(f.expenseCategoryLabel);
+  return {
+    ...f,
+    subRegion: shown.subRegion ? f.subRegion : "",
+    productUnit: shown.units ? f.productUnit : "",
+    businessUnit: shown.units ? f.businessUnit : "",
+  };
+}
+
+/** What saving the rule form does: close, stay blocked, add a rule, or change one. */
+export type CcRuleSave =
+  | { kind: "close" }
+  | { kind: "blocked" }
+  | { kind: "add"; input: CcTaggingRuleInput }
+  | { kind: "update"; patch: CcTaggingRulePatch };
+
+/**
+ * What saving the form does. Nothing changed closes it. A change to Active alone is sent even
+ * while blocked, since the backend checks nothing else for it. Otherwise a blocked form stays
+ * blocked, and a valid one is sent without its hidden fields, which clears values a category no
+ * longer shows.
+ *
+ * @param rule - The rule being edited, or `null` when adding.
+ * @param f - The form.
+ * @param blocked - Whether the form has errors or values no longer offered, or can't yet be checked.
+ */
+export function ruleSave(rule: CcTaggingRule | null, f: CcRuleForm, blocked: boolean): CcRuleSave {
+  if (!rule) return blocked ? { kind: "blocked" } : { kind: "add", input: toRuleInput(withoutHiddenFields(f)) };
+  const patch = rulePatch(rule, f);
+  if (Object.keys(patch).length === 0) return { kind: "close" };
+  if (isActiveOnly(patch)) return { kind: "update", patch };
+  if (blocked) return { kind: "blocked" };
+  return { kind: "update", patch: rulePatch(rule, withoutHiddenFields(f)) };
 }

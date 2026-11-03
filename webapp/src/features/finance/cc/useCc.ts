@@ -93,6 +93,8 @@ export interface CcOwnCards {
   cards: CcCreditCard[];
   /** Whether `/user-info` or `/credit-cards` is loading. */
   isLoading: boolean;
+  /** Whether either request is in flight, a retry included. */
+  isFetching: boolean;
   /** Whether `/user-info` or `/credit-cards` failed. */
   isError: boolean;
   /** The first of the two failures, or `null`. */
@@ -117,6 +119,7 @@ export function useCcOwnCards(): CcOwnCards {
   return {
     cards,
     isLoading: userInfo.isLoading || allCards.isLoading,
+    isFetching: userInfo.isFetching || allCards.isFetching,
     isError: userInfo.isError || allCards.isError,
     error: userInfo.error ?? allCards.error ?? null,
     retry: () => {

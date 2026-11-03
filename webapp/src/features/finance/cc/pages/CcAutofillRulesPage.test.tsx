@@ -52,7 +52,43 @@ vi.mock("../../components/FinanceShell", () => ({
   ),
 }));
 
-vi.mock("../CcTaggingRules", () => ({ CcTaggingRules: () => <p>The rules list</p> }));
+const listed = { id: 7, supplier: "Uber" };
+
+// The list and dialogs have their own tests; these stand-ins show which the page opens, and for what.
+vi.mock("../CcTaggingRules", () => ({
+  CcTaggingRules: (p: { onAdd: () => void; onEdit: (r: unknown) => void; onDelete: (r: unknown) => void }) => (
+    <>
+      <p>The rules list</p>
+      <button type="button" onClick={p.onAdd}>
+        Add
+      </button>
+      <button type="button" onClick={() => p.onEdit(listed)}>
+        Edit Uber
+      </button>
+      <button type="button" onClick={() => p.onDelete(listed)}>
+        Delete Uber
+      </button>
+    </>
+  ),
+}));
+vi.mock("../CcTaggingRuleDialog", () => ({
+  CcTaggingRuleDialog: (p: { rule: { supplier: string } | null; onClose: () => void }) => (
+    <div role="dialog" aria-label={p.rule ? `Edit ${p.rule.supplier}` : "Add"}>
+      <button type="button" onClick={p.onClose}>
+        Done
+      </button>
+    </div>
+  ),
+}));
+vi.mock("../CcTaggingRuleDeleteDialog", () => ({
+  CcTaggingRuleDeleteDialog: (p: { rule: { supplier: string }; onClose: () => void }) => (
+    <div role="dialog" aria-label={`Delete ${p.rule.supplier}`}>
+      <button type="button" onClick={p.onClose}>
+        Done
+      </button>
+    </div>
+  ),
+}));
 
 const { default: CcAutofillRulesPage } = await import("./CcAutofillRulesPage");
 
@@ -100,5 +136,30 @@ describe("CcAutofillRulesPage", () => {
     expect(screen.getByText("The rules list")).toBeInTheDocument();
     expect(screen.queryByText("Autofill rules are for card holders.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the add dialog from Add Rule", async () => {
+    render(<CcAutofillRulesPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(screen.getByRole("dialog", { name: "Add" })).toBeInTheDocument();
+  });
+
+  it("opens the rule dialog for the rule to edit", async () => {
+    render(<CcAutofillRulesPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Uber" }));
+    expect(screen.getByRole("dialog", { name: "Edit Uber" })).toBeInTheDocument();
+  });
+
+  it("asks before deleting a rule", async () => {
+    render(<CcAutofillRulesPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete Uber" }));
+    expect(screen.getByRole("dialog", { name: "Delete Uber" })).toBeInTheDocument();
+  });
+
+  it("closes a dialog once it's done", async () => {
+    render(<CcAutofillRulesPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Uber" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

@@ -20,17 +20,22 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { isCcBackendConfigured } from "@config/apiConfig";
 import { FINANCE_EYEBROW } from "@constants/financeApps";
 import { Alert, Skeleton } from "@wso2/oxygen-ui";
+import { useState } from "react";
 import FinanceShell from "../../components/FinanceShell";
+import { CcTaggingRuleDeleteDialog } from "../CcTaggingRuleDeleteDialog";
+import { CcTaggingRuleDialog } from "../CcTaggingRuleDialog";
 import { CcTaggingRules } from "../CcTaggingRules";
-import { ccHasAccess } from "../ccTypes";
+import { type CcTaggingRule, ccHasAccess } from "../ccTypes";
 import { useCcUserInfo } from "../useCc";
 
-/** Stands in for the rule dialogs, which aren't built yet. */
-const noDialogYet = () => undefined;
+/** The dialog open over the list: adding a rule, editing one, or deleting one. */
+type OpenDialog = { kind: "add" } | { kind: "edit"; rule: CcTaggingRule } | { kind: "delete"; rule: CcTaggingRule };
 
 /** Finance → Credit Card Expenses → Autofill Rules: the card holder's own rules. */
 export default function CcAutofillRulesPage() {
   const userInfo = useCcUserInfo();
+  const [dialog, setDialog] = useState<OpenDialog | null>(null);
+  const close = () => setDialog(null);
 
   return (
     <FinanceShell
@@ -53,8 +58,16 @@ export default function CcAutofillRulesPage() {
       ) : !ccHasAccess(userInfo.data, "cc_owner") ? (
         <Alert severity="info">Autofill rules are for card holders.</Alert>
       ) : (
-        <CcTaggingRules onAdd={noDialogYet} onEdit={noDialogYet} onDelete={noDialogYet} />
+        <CcTaggingRules
+          onAdd={() => setDialog({ kind: "add" })}
+          onEdit={(rule) => setDialog({ kind: "edit", rule })}
+          onDelete={(rule) => setDialog({ kind: "delete", rule })}
+        />
       )}
+
+      {dialog?.kind === "add" && <CcTaggingRuleDialog rule={null} onClose={close} />}
+      {dialog?.kind === "edit" && <CcTaggingRuleDialog rule={dialog.rule} onClose={close} />}
+      {dialog?.kind === "delete" && <CcTaggingRuleDeleteDialog rule={dialog.rule} onClose={close} />}
     </FinanceShell>
   );
 }

@@ -118,12 +118,28 @@ export function Placeholder() {
   return <span style={{ opacity: 0.6 }}>Select…</span>;
 }
 
+/** Marks a stored value the menus no longer offer, beside it in a list of options. */
+export function NoLongerOffered() {
+  return (
+    <Typography component="span" sx={{ ml: 1, fontSize: 11, color: "error.main" }}>
+      No longer offered
+    </Typography>
+  );
+}
+
+/** The select value standing for a stored product unit pair the menus no longer offer. */
+const UNAVAILABLE_PAIR = -1;
+
 /**
  * A select of product units, listed under headings for their business units. The value is the
  * unit's index in `productUnits`, not its name, because product unit names repeat across business
  * units.
  *
  * @param labelId - the id of the label naming the select, which {@link Field} passes in
+ * @param unavailable - a stored pair the units list no longer offers. While `value` is `null` it
+ *   shows as picked and marked as an error, and it is listed above the current units, marked,
+ *   until a current unit is picked
+ * @param noneLabel - when set, an option of this name comes first and picks no unit
  */
 export function ProductUnitSelect({
   value,
@@ -132,6 +148,8 @@ export function ProductUnitSelect({
   businessUnits,
   disabled,
   labelId,
+  unavailable,
+  noneLabel,
 }: {
   value: number | null;
   onChange: (index: number | null) => void;
@@ -139,17 +157,35 @@ export function ProductUnitSelect({
   businessUnits: string[];
   disabled?: boolean;
   labelId?: string;
+  unavailable?: { productUnit: string; businessUnit: string };
+  noneLabel?: string;
 }) {
   const groups = useMemo(() => groupProductUnits(productUnits, businessUnits), [productUnits, businessUnits]);
+  const showsUnavailable = value === null && Boolean(unavailable);
   return (
     <Select<number | "">
       labelId={labelId}
-      value={value ?? ""}
+      value={showsUnavailable ? UNAVAILABLE_PAIR : value ?? ""}
       disabled={disabled}
-      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+      error={showsUnavailable}
+      onChange={(e) => {
+        if (e.target.value === UNAVAILABLE_PAIR) return;
+        onChange(e.target.value === "" ? null : Number(e.target.value));
+      }}
       displayEmpty
-      renderValue={(v) => (v === "" ? <Placeholder /> : productUnits[Number(v)] ?? String(v))}
+      renderValue={(v) => {
+        if (v === "") return <Placeholder />;
+        if (v === UNAVAILABLE_PAIR) return unavailable?.productUnit;
+        return productUnits[Number(v)] ?? String(v);
+      }}
     >
+      {noneLabel && <MenuItem value="">{noneLabel}</MenuItem>}
+      {showsUnavailable && unavailable && (
+        <MenuItem value={UNAVAILABLE_PAIR} sx={{ color: "error.main" }}>
+          {unavailable.productUnit} · {unavailable.businessUnit}
+          <NoLongerOffered />
+        </MenuItem>
+      )}
       {groups.flatMap(([businessUnit, units]) => [
         <ListSubheader
           key={`h-${businessUnit}`}
@@ -278,18 +314,35 @@ export function SearchableSelect({
   disabled,
   onChange,
   labelId,
+  unavailable,
 }: {
   value: string;
   options: string[];
   disabled?: boolean;
   onChange: (value: string) => void;
   labelId?: string;
+  /** A stored value `options` no longer has. Listed first and marked, and an error while picked. */
+  unavailable?: string;
 }) {
+  const listed = unavailable && !options.includes(unavailable) ? [unavailable, ...options] : options;
   return (
     <Autocomplete
       size="small"
       disableClearable
-      options={options}
+      options={listed}
+      renderOption={(props, option) => {
+        const { key, ...rest } = props as typeof props & { key: string };
+        return option === unavailable ? (
+          <Box component="li" key={key} {...rest} sx={{ color: "error.main" }}>
+            {option}
+            <NoLongerOffered />
+          </Box>
+        ) : (
+          <li key={key} {...rest}>
+            {option}
+          </li>
+        );
+      }}
       // Passed straight through, not defaulted to `null` the way
       // `JobNumberAutocomplete` above defaults to `null` — that component's
       // `value` can itself be absent (`string | null`), where starting on
@@ -306,6 +359,7 @@ export function SearchableSelect({
         <TextField
           {...params}
           placeholder="Select…"
+          error={Boolean(unavailable) && value === unavailable}
           slotProps={{ htmlInput: { ...params.inputProps, "aria-labelledby": labelId } }}
         />
       )}

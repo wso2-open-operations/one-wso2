@@ -21,15 +21,19 @@ import {
   type CcRuleForm,
   type CcRuleMenus,
   emptyRuleForm,
+  formatAmount,
   groupRules,
   isActiveOnly,
+  isAmountDraft,
   outdatedFields,
   ruleDetailFields,
   ruleFormErrors,
   rulePatch,
+  ruleSave,
   ruleToForm,
   sortRules,
   toRuleInput,
+  withoutHiddenFields,
 } from "./ccTaggingRuleForm";
 import type { CcTaggingRule } from "./ccTypes";
 
@@ -132,12 +136,36 @@ describe("the rule form", () => {
     });
   });
 
-  it("holds a rule's empty values as blank text and its amounts as text", () => {
+  it("holds a rule's empty values as blank text and its amounts as text, to 2 decimal places", () => {
     const f = ruleToForm(rule({ amountMin: 10.5, amountMax: 100 }));
     expect(f.account).toBe("");
     expect(f.subRegion).toBe("");
-    expect(f.amountMin).toBe("10.5");
-    expect(f.amountMax).toBe("100");
+    expect(f.amountMin).toBe("10.50");
+    expect(f.amountMax).toBe("100.00");
+  });
+});
+
+describe("isAmountDraft", () => {
+  it.each(["", "1", "10.", ".5", "10.5", "10.55", "007"])("lets %j be typed", (v) => {
+    expect(isAmountDraft(v)).toBe(true);
+  });
+
+  it.each(["a", "1a", "-1", "1,000", "10.555", "1.2.3", " 1", "1e3"])("keeps %j from being typed", (v) => {
+    expect(isAmountDraft(v)).toBe(false);
+  });
+});
+
+describe("formatAmount", () => {
+  it.each([
+    ["10", "10.00"],
+    ["10.", "10.00"],
+    ["10.5", "10.50"],
+    [".5", "0.50"],
+    ["007", "7.00"],
+    ["", ""],
+    [".", ""],
+  ])("shows %j as %j", (typed, shown) => {
+    expect(formatAmount(typed)).toBe(shown);
   });
 });
 
@@ -354,5 +382,61 @@ describe("ruleDetailFields", () => {
 
   it("asks any other category for units only", () => {
     expect(ruleDetailFields("Office")).toEqual({ subRegion: false, units: true, travelNote: false });
+  });
+});
+
+describe("withoutHiddenFields", () => {
+  it("clears the units and sub region of a Travel rule, which takes neither", () => {
+    const f = withoutHiddenFields(form({ expenseCategoryLabel: "Travel", subRegion: "APAC" }));
+    expect([f.productUnit, f.businessUnit, f.subRegion]).toEqual(["", "", ""]);
+  });
+
+  it("clears the sub region of a category other than Marketing", () => {
+    expect(withoutHiddenFields(form({ subRegion: "APAC" })).subRegion).toBe("");
+  });
+
+  it("keeps what a Marketing rule shows", () => {
+    const f = form({ expenseCategoryLabel: "Marketing", subRegion: "APAC" });
+    expect(withoutHiddenFields(f)).toEqual(f);
+  });
+});
+
+describe("ruleSave", () => {
+  it("adds the rule as shown when nothing blocks it", () => {
+    const f = form({ subRegion: "APAC" });
+    expect(ruleSave(null, f, false)).toEqual({ kind: "add", input: toRuleInput({ ...f, subRegion: "" }) });
+  });
+
+  it("is blocked from adding while anything blocks it", () => {
+    expect(ruleSave(null, form(), true)).toEqual({ kind: "blocked" });
+  });
+
+  it("closes when nothing changed, blocked or not", () => {
+    expect(ruleSave(rule(), ruleToForm(rule()), true)).toEqual({ kind: "close" });
+  });
+
+  it("sends a change to Active alone even while blocked", () => {
+    expect(ruleSave(rule(), form({ active: false }), true)).toEqual({ kind: "update", patch: { active: false } });
+  });
+
+  it("is blocked from any other change while blocked", () => {
+    expect(ruleSave(rule(), form({ comment: "New" }), true)).toEqual({ kind: "blocked" });
+  });
+
+  // A Travel rule that still stores units would otherwise keep values nobody can see or change.
+  it("clears hidden fields that still hold a value with any other change", () => {
+    const travel = rule({ expenseCategoryLabel: "Travel", expenseTypeLabel: "Air" });
+    expect(ruleSave(travel, form({ ...ruleToForm(travel), comment: "New" }), false)).toEqual({
+      kind: "update",
+      patch: { comment: "New", productUnit: null, businessUnit: null },
+    });
+  });
+
+  it("leaves hidden fields alone when only Active changed", () => {
+    const travel = rule({ expenseCategoryLabel: "Travel", expenseTypeLabel: "Air" });
+    expect(ruleSave(travel, { ...ruleToForm(travel), active: false }, false)).toEqual({
+      kind: "update",
+      patch: { active: false },
+    });
   });
 });
