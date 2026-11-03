@@ -404,3 +404,13 @@ export interface CcLeadTeamCardHolder {
   unsubmittedBucket15To30: number;
   unsubmittedBucket30Plus: number;
 }
+
+/**
+ * The address a card holder's bills go to: the bills inbox with their user name as a plus alias, such as
+ * `card-invoices+jane@wso2.com`. Null without an inbox or email.
+ */
+export function ccBillsAddress(inbox: string, workEmail: string): string | null {
+  const [local, domain] = inbox.split("@");
+  const user = workEmail.split("@")[0];
+  return local && domain && user ? `${local}+${user}@${domain}` : null;
+}

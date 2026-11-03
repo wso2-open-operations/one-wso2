@@ -17,8 +17,9 @@
  */
 
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import { isCcBackendConfigured } from "@config/apiConfig";
+import { ccBillsInbox, isCcBackendConfigured } from "@config/apiConfig";
 import { FINANCE_EYEBROW } from "@constants/financeApps";
+import { useAsgardeoSub } from "@hooks/useAsgardeoSub";
 import { Alert, Skeleton } from "@wso2/oxygen-ui";
 import { useState } from "react";
 import FinanceShell from "../../components/FinanceShell";
@@ -26,7 +27,8 @@ import { CcTaggingRuleDeleteDialog } from "../CcTaggingRuleDeleteDialog";
 import { CcTaggingRuleDialog } from "../CcTaggingRuleDialog";
 import { CcTaggingRules } from "../CcTaggingRules";
 import { type CcTaggingRule, ccHasAccess } from "../ccTypes";
-import { useCcUserInfo } from "../useCc";
+import { CcAutofillGuideCard, CcAutofillGuideDialog } from "../components/CcAutofillGuide";
+import { useCcTaggingRules, useCcUserInfo } from "../useCc";
 
 /** The dialog open over the list: adding a rule, editing one, or deleting one. */
 type OpenDialog = { kind: "add" } | { kind: "edit"; rule: CcTaggingRule } | { kind: "delete"; rule: CcTaggingRule };
@@ -34,7 +36,12 @@ type OpenDialog = { kind: "add" } | { kind: "edit"; rule: CcTaggingRule } | { ki
 /** Finance → Credit Card Expenses → Autofill Rules: the card holder's own rules. */
 export default function CcAutofillRulesPage() {
   const userInfo = useCcUserInfo();
+  const identity = useAsgardeoSub().state;
+  const sub = identity.status === "ready" ? identity.sub : undefined;
+  const isHolder = ccHasAccess(userInfo.data, "cc_owner");
+  const rules = useCcTaggingRules(isHolder);
   const [dialog, setDialog] = useState<OpenDialog | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const close = () => setDialog(null);
 
   return (
@@ -55,14 +62,29 @@ export default function CcAutofillRulesPage() {
         >
           Couldn&apos;t check your access to this page.
         </ErrorNotice>
-      ) : !ccHasAccess(userInfo.data, "cc_owner") ? (
+      ) : !isHolder || !userInfo.data ? (
         <Alert severity="info">Autofill rules are for card holders.</Alert>
       ) : (
-        <CcTaggingRules
-          onAdd={() => setDialog({ kind: "add" })}
-          onEdit={(rule) => setDialog({ kind: "edit", rule })}
-          onDelete={(rule) => setDialog({ kind: "delete", rule })}
-        />
+        <>
+          {/* Until the rules load, the card counts them as there, so it doesn't lose its Got it mid-read. */}
+          <CcAutofillGuideCard
+            key={sub}
+            sub={sub}
+            hasRules={rules.data?.length !== 0}
+          />
+          <CcTaggingRules
+            onAdd={() => setDialog({ kind: "add" })}
+            onEdit={(rule) => setDialog({ kind: "edit", rule })}
+            onDelete={(rule) => setDialog({ kind: "delete", rule })}
+            onHowItWorks={() => setGuideOpen(true)}
+          />
+          <CcAutofillGuideDialog
+            open={guideOpen}
+            onClose={() => setGuideOpen(false)}
+            inbox={ccBillsInbox}
+            workEmail={userInfo.data.workEmail}
+          />
+        </>
       )}
 
       {dialog?.kind === "add" && <CcTaggingRuleDialog rule={null} onClose={close} />}

@@ -40,6 +40,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import {
+  CircleHelpIcon,
   FilterIcon,
   PencilIcon,
   PlusIcon,
@@ -140,6 +141,7 @@ export function CcTaggingRules({
   onAdd,
   onEdit,
   onDelete,
+  onHowItWorks,
 }: {
   /** Called to add a rule. */
   onAdd: () => void;
@@ -147,6 +149,8 @@ export function CcTaggingRules({
   onEdit: (rule: CcTaggingRule) => void;
   /** Called to delete a rule the card holder added. */
   onDelete: (rule: CcTaggingRule) => void;
+  /** Called to open the guide to how autofill works. */
+  onHowItWorks: () => void;
 }) {
   const rules = useCcTaggingRules();
   const ownCards = useCcOwnCards();
@@ -239,6 +243,11 @@ export function CcTaggingRules({
           </>
         )}
         <Box sx={{ flex: 1 }} />
+        <Tooltip title="How it works">
+          <IconButton size="small" aria-label="How it works" onClick={onHowItWorks}>
+            <CircleHelpIcon size={22} />
+          </IconButton>
+        </Tooltip>
         <Button variant="contained" size="small" startIcon={<PlusIcon size={14} />} onClick={onAdd}>
           Add Rule
         </Button>

@@ -78,7 +78,7 @@ vi.mock("./useCc", () => ({
 
 const { CcTaggingRules } = await import("./CcTaggingRules");
 
-const handlers = { onAdd: vi.fn(), onEdit: vi.fn(), onDelete: vi.fn() };
+const handlers = { onAdd: vi.fn(), onEdit: vi.fn(), onDelete: vi.fn(), onHowItWorks: vi.fn() };
 const renderList = () => render(<CcTaggingRules {...handlers} />);
 
 /** The supplier of each rule row, top to bottom. */
@@ -272,6 +272,14 @@ describe("CcTaggingRules", () => {
     expect(edge("AWS")).toMatch(/^inset 3px 0 0 /);
     expect(edge("Uber")).not.toBe(edge("AWS"));
     expect(edge("GitHub")).toBe("");
+  });
+
+  it("opens the guide from a ? icon beside Add Rule", async () => {
+    renderList();
+    const help = screen.getByRole("button", { name: "How it works" });
+    expect(help).toHaveTextContent("");
+    await userEvent.click(help);
+    expect(handlers.onHowItWorks).toHaveBeenCalledOnce();
   });
 
   it("offers Add Rule even when there are no rules", async () => {

@@ -115,6 +115,7 @@ declare global {
       // broken requests.
       ONE_WSO2_OPD_BACKEND_URL?: string; // opd-claims
       ONE_WSO2_CC_EXPENSES_BACKEND_URL?: string; // cc-expenses
+      ONE_WSO2_CC_BILLS_INBOX?: string; // cc-expenses bill processor inbox
       ONE_WSO2_EXPENSE_CLAIMS_BACKEND_URL?: string; // expense-claims
       ONE_WSO2_FINANCE_MASTER_DATA_BACKEND_URL?: string; // finance-master-data
       // Base URL for the digiops-finance due_diligence backend — the Due

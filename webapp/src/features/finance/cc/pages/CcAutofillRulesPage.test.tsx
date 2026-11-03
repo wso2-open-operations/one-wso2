@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,6 +27,7 @@ const state = {
   fails: false,
   fetching: false,
   refetches: 0,
+  rules: [{ id: 7 }] as unknown[] | undefined,
 };
 
 vi.mock("../useCc", () => ({
@@ -40,6 +41,16 @@ vi.mock("../useCc", () => ({
       state.refetches += 1;
     },
   }),
+  useCcTaggingRules: () => ({ data: state.rules }),
+}));
+
+vi.mock("@hooks/useAsgardeoSub", () => ({
+  useAsgardeoSub: () => ({ state: { status: "ready", sub: "sub-jane" }, retry: () => {} }),
+}));
+
+vi.mock("@config/apiConfig", async (original) => ({
+  ...(await original<typeof import("@config/apiConfig")>()),
+  ccBillsInbox: "card-invoices@wso2.com",
 }));
 
 // The real shell adds the eyebrow and the not-configured gate, which this page doesn't decide.
@@ -56,9 +67,17 @@ const listed = { id: 7, supplier: "Uber" };
 
 // The list and dialogs have their own tests; these stand-ins show which the page opens, and for what.
 vi.mock("../CcTaggingRules", () => ({
-  CcTaggingRules: (p: { onAdd: () => void; onEdit: (r: unknown) => void; onDelete: (r: unknown) => void }) => (
+  CcTaggingRules: (p: {
+    onAdd: () => void;
+    onEdit: (r: unknown) => void;
+    onDelete: (r: unknown) => void;
+    onHowItWorks: () => void;
+  }) => (
     <>
       <p>The rules list</p>
+      <button type="button" onClick={p.onHowItWorks}>
+        List guide
+      </button>
       <button type="button" onClick={p.onAdd}>
         Add
       </button>
@@ -98,6 +117,8 @@ beforeEach(() => {
   state.fails = false;
   state.fetching = false;
   state.refetches = 0;
+  state.rules = [{ id: 7 }];
+  localStorage.clear();
 });
 
 describe("CcAutofillRulesPage", () => {
@@ -136,6 +157,53 @@ describe("CcAutofillRulesPage", () => {
     expect(screen.getByText("The rules list")).toBeInTheDocument();
     expect(screen.queryByText("Autofill rules are for card holders.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it("introduces autofill above the rules, and explains it from the list", async () => {
+    render(<CcAutofillRulesPage />);
+    expect(screen.getByText(/Autofill attaches your bills/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "List guide" }));
+    const guide = screen.getByRole("dialog", { name: "How autofill works" });
+    expect(within(guide).getByText("card-invoices+jane@wso2.com")).toBeInTheDocument();
+
+    await userEvent.click(within(guide).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("brings the guide card back while there are no rules, even once dismissed", async () => {
+    const { unmount } = render(<CcAutofillRulesPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Got it" }));
+    unmount();
+
+    state.rules = [];
+    render(<CcAutofillRulesPage />);
+    expect(screen.getByText(/Autofill attaches your bills/)).toBeInTheDocument();
+  });
+
+  // Rules that are still loading, or failed to load, may be there: a dismissed card stays away, and keeps Got it.
+  it("counts rules that haven't loaded as there", async () => {
+    state.rules = undefined;
+    const { unmount } = render(<CcAutofillRulesPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Got it" }));
+    unmount();
+
+    render(<CcAutofillRulesPage />);
+    expect(screen.queryByText(/Autofill attaches your bills/)).not.toBeInTheDocument();
+  });
+
+  it("remembers Got it under the user's ID, not their email", async () => {
+    render(<CcAutofillRulesPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Got it" }));
+
+    expect(localStorage.getItem("one-wso2.cc-autofill-guide.v1.sub-jane")).toBe("true");
+    expect(Object.keys(localStorage).some((k) => k.includes("jane@wso2.com"))).toBe(false);
+  });
+
+  it("introduces autofill only to card holders", () => {
+    state.privileges = ["employee", "finance"];
+    render(<CcAutofillRulesPage />);
+    expect(screen.queryByText(/Autofill attaches your bills/)).not.toBeInTheDocument();
   });
 
   it("opens the add dialog from Add Rule", async () => {

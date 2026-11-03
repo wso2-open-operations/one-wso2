@@ -513,6 +513,9 @@ export const opdServiceUrls = {
 export const ccBackendUrl: string =
   window.config?.ONE_WSO2_CC_EXPENSES_BACKEND_URL ?? "";
 
+/** The inbox the bill processor reads card holders' bills from, such as `card-invoices@wso2.com`. Empty when unset. */
+export const ccBillsInbox: string = (window.config?.ONE_WSO2_CC_BILLS_INBOX ?? "").trim();
+
 export function isCcBackendConfigured(): boolean {
   return Boolean(ccBackendUrl);
 }

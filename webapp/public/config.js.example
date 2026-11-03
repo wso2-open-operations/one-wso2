@@ -120,6 +120,9 @@ window.config = {
   // master data. Each has its own /user-info and role scheme.
   // ONE_WSO2_OPD_BACKEND_URL: "<your-opd-claims-backend-url>",
   // ONE_WSO2_CC_EXPENSES_BACKEND_URL: "<your-cc-expenses-backend-url>",
+  // The inbox the CC bill processor reads. Card holders send bills to it with their user name as a plus alias.
+  // Unset, the Autofill Rules guide leaves out the step about sending bills.
+  // ONE_WSO2_CC_BILLS_INBOX: "bills@example.com",
   // ONE_WSO2_EXPENSE_CLAIMS_BACKEND_URL: "<your-expense-claims-backend-url>",
   // ONE_WSO2_FINANCE_MASTER_DATA_BACKEND_URL: "<your-finance-master-data-backend-url>",
 
