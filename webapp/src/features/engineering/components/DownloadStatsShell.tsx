@@ -19,8 +19,6 @@ import { Alert, Box, CircularProgress, Stack, Typography } from "@wso2/oxygen-ui
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import PerspectiveHeader from "@components/perspective-header/PerspectiveHeader";
 import RoutedTabs, { type RoutedTabDef } from "@components/routed-tabs/RoutedTabs";
-import type { ResolveBadge } from "@components/side-rail/railBadge";
-import { useRailBadges } from "@components/side-rail/useRailBadges";
 import {
   DOWNLOAD_STATS_APPS,
   DOWNLOAD_STATS_DESCRIPTION,
@@ -74,15 +72,14 @@ import {
 // is not offered an action on a screen they cannot open.
 
 /**
- * The Download Stats tabs, in registry order, each with its screen's badge. Admin comes last, and
- * only when `showAdmin` is set.
+ * The Download Stats tabs, in registry order. Admin comes last, and only when `showAdmin` is set.
  */
-function screenTabs(showAdmin: boolean, resolveBadge: ResolveBadge): RoutedTabDef[] {
+function screenTabs(showAdmin: boolean): RoutedTabDef[] {
   return DOWNLOAD_STATS_APPS.flatMap((app) => app.items)
     .filter((item) => showAdmin || item.id !== ENGINEERING_ADMIN_ITEM_ID)
     .flatMap((item) => {
       const segment = item.path?.slice(DOWNLOAD_STATS_PATH.length + 1);
-      return segment ? [{ segment, label: item.label, badge: resolveBadge(item.id) }] : [];
+      return segment ? [{ segment, label: item.label }] : [];
     });
 }
 
@@ -112,7 +109,6 @@ export default function DownloadStatsShell({
   const requiresAdmin = id === ENGINEERING_ADMIN_ITEM_ID;
   const reachable = configured && credentialed;
   const gate = useEngineeringAdminGate(reachable);
-  const { resolveBadge } = useRailBadges();
   // A failed re-check keeps the previous answer in the query. The tab follows
   // the latest check, so a failure or a 403 takes it down even when that
   // answer was yes.
@@ -154,7 +150,7 @@ export default function DownloadStatsShell({
       </Stack>
       <RoutedTabs
         basePath={DOWNLOAD_STATS_PATH}
-        tabs={screenTabs(showAdminTab, resolveBadge)}
+        tabs={screenTabs(showAdminTab)}
         ariaLabel="Download Stats screens"
         scrollable
       />
