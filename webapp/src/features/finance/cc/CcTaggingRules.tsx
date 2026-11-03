@@ -21,27 +21,51 @@ import {
   alpha,
   Box,
   Button,
+  Chip,
+  FormControlLabel,
   IconButton,
+  InputAdornment,
+  Popover,
   Skeleton,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   type Theme,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { PencilIcon, PlusIcon, SettingsIcon, TrashIcon } from "@wso2/oxygen-ui-icons-react";
-import { Fragment } from "react";
+import {
+  FilterIcon,
+  PencilIcon,
+  PlusIcon,
+  SearchIcon,
+  SettingsIcon,
+  TrashIcon,
+  XIcon,
+} from "@wso2/oxygen-ui-icons-react";
+import { Fragment, useRef, useState } from "react";
 import { ClaimGroupHeading, useCollapsedGroups } from "../approvals/ClaimGroupHeading";
 import { StatusChip } from "../components/FinanceChips";
 import { bareAmount } from "../util/financeFormat";
+import { CcPickOne } from "./CcPickOne";
 import { describeRuleError } from "./ccCopy";
-import { type CcRuleGroup, groupRules, sortRules } from "./ccTaggingRuleForm";
-import type { CcTaggingRule } from "./ccTypes";
-import { useCcTaggingRules } from "./useCc";
+import {
+  type CcRuleFilters,
+  type CcRuleGroup,
+  filterRules,
+  groupRules,
+  NO_RULE_FILTERS,
+  ruleFilterCount,
+  ruleFilterOptions,
+  sortRules,
+} from "./ccTaggingRuleList";
+import { type CcTaggingRule, ccCardIsActive, ccHolderCardName } from "./ccTypes";
+import { useCcOwnCards, useCcTaggingRules } from "./useCc";
 
 /** The groups in the order shown, each with its heading, note and row accent. */
 const GROUPS: readonly { key: CcRuleGroup; label: string; note?: string; accent?: "warning" | "error" }[] = [
@@ -94,6 +118,12 @@ function amountRange(min: number | null, max: number | null): string | null {
   return null;
 }
 
+/** The Added By filter's options: a rule's source, named as the Added By column names it. */
+const ADDED_BY_OPTIONS: Record<string, string> = { manual: "You", auto: "System" };
+
+/** What a Filter popover select calls its "narrows nothing" option. */
+const NO_FILTER = "No Filter";
+
 /** Shown on a system rule's Delete, which is unavailable. */
 const AUTO_DELETE_REASON = "System rules can only be switched off.";
 
@@ -102,8 +132,9 @@ const UNAVAILABLE_SX = { color: "action.disabled", cursor: "default", "&:hover":
 
 /**
  * The card holder's autofill rules: those needing attention first, then the rest, each group sorted
- * by card number, supplier and account. Each row offers Configure or Edit, and Delete, which a rule added
- * by the system doesn't allow.
+ * by card number, supplier and account. A search and a Filter popover narrow the list, and each group's
+ * heading counts only the rules that match. Each row offers Configure or Edit, and Delete, which a rule
+ * added by the system doesn't allow.
  */
 export function CcTaggingRules({
   onAdd,
@@ -118,17 +149,150 @@ export function CcTaggingRules({
   onDelete: (rule: CcTaggingRule) => void;
 }) {
   const rules = useCcTaggingRules();
+  const ownCards = useCcOwnCards();
   const { isCollapsed, toggleGroup } = useCollapsedGroups<CcRuleGroup>();
+  const [filters, setFilters] = useState<CcRuleFilters>(NO_RULE_FILTERS);
+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const groups = groupRules(sortRules(rules.data ?? []));
+  const all = rules.data ?? [];
+  const matching = filterRules(all, filters);
+  // Whether the list is empty only because the rules that match are inactive.
+  const onlyInactiveMatch =
+    matching.length === 0 && !filters.showInactive && filterRules(all, { ...filters, showInactive: true }).length > 0;
+  const groups = groupRules(sortRules(matching));
+  const options = ruleFilterOptions(all, filters);
+  const filterCount = ruleFilterCount(filters);
+  const narrow = (patch: Partial<CcRuleFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  // Reset and Clear leave Show inactive as it is: it's how the list is viewed, not a filter.
+  const keepView = (next: CcRuleFilters): CcRuleFilters => ({ ...next, showInactive: filters.showInactive });
+
+  const activeCards = ownCards.cards.filter(ccCardIsActive);
+  const cardLabel = (ccNumber: string) => {
+    const card = ownCards.cards.find((c) => c.ccNumber === ccNumber);
+    return card ? `${ccHolderCardName(card, activeCards)} (${ccNumber})` : ccNumber;
+  };
 
   return (
     <>
-      <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+        {/* Kept in view while they narrow, so a filter left from before the last rule went can't hide the next. */}
+        {(all.length > 0 || filterCount > 0 || filters.search) && (
+          <>
+            <TextField
+              size="small"
+              placeholder="Search rules"
+              value={filters.search}
+              onChange={(e) => narrow({ search: e.target.value })}
+              sx={{ width: 260 }}
+              slotProps={{
+                htmlInput: { "aria-label": "Search rules", ref: searchRef },
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon size={16} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: filters.search && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        aria-label="Clear search"
+                        onClick={() => {
+                          narrow({ search: "" });
+                          searchRef.current?.focus();
+                        }}
+                      >
+                        <XIcon size={14} />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <Button
+              variant="text"
+              size="small"
+              startIcon={<FilterIcon size={16} />}
+              onClick={(e) => setFilterAnchor(e.currentTarget)}
+              aria-label={filterCount > 0 ? `Filter, ${filterCount} applied` : "Filter"}
+              aria-haspopup="dialog"
+              aria-expanded={filterAnchor !== null}
+            >
+              Filter
+              {filterCount > 0 && (
+                <Chip label={filterCount} size="small" color="primary" sx={{ ml: 0.75, height: 18, fontSize: 10.5 }} />
+              )}
+            </Button>
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  checked={filters.showInactive}
+                  onChange={(e) => narrow({ showInactive: e.target.checked })}
+                />
+              }
+              label="Show inactive"
+              slotProps={{ typography: { sx: { fontSize: 13 } } }}
+            />
+          </>
+        )}
+        <Box sx={{ flex: 1 }} />
         <Button variant="contained" size="small" startIcon={<PlusIcon size={14} />} onClick={onAdd}>
           Add Rule
         </Button>
       </Stack>
+
+      <Popover
+        open={filterAnchor !== null}
+        anchorEl={filterAnchor}
+        onClose={() => setFilterAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        slotProps={{ paper: { role: "dialog", "aria-label": "Filter" } }}
+      >
+        <Stack spacing={2} sx={{ p: 2, width: 320 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography sx={{ fontSize: 16, fontWeight: 700 }}>Filter</Typography>
+            <IconButton size="small" aria-label="Close filters" onClick={() => setFilterAnchor(null)}>
+              <XIcon size={16} />
+            </IconButton>
+          </Stack>
+          <CcPickOne
+            label="Card"
+            value={filters.card}
+            onChange={(card) => narrow({ card })}
+            options={options.cards}
+            optionLabel={cardLabel}
+            emptyLabel={NO_FILTER}
+          />
+          <CcPickOne
+            label="Category"
+            value={filters.category}
+            onChange={(category) => narrow({ category })}
+            options={options.categories}
+            emptyLabel={NO_FILTER}
+          />
+          <CcPickOne
+            label="Added By"
+            value={filters.addedBy}
+            onChange={(addedBy) => narrow({ addedBy })}
+            options={Object.keys(ADDED_BY_OPTIONS)}
+            optionLabel={(o) => ADDED_BY_OPTIONS[o]}
+            emptyLabel={NO_FILTER}
+          />
+          <Stack direction="row" justifyContent="flex-end">
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={filterCount === 0}
+              onClick={() => setFilters(keepView({ ...NO_RULE_FILTERS, search: filters.search }))}
+            >
+              Reset
+            </Button>
+          </Stack>
+        </Stack>
+      </Popover>
 
       {rules.isLoading ? (
         <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1.5 }} />
@@ -136,8 +300,23 @@ export function CcTaggingRules({
         <ErrorNotice onRetry={() => void rules.refetch()} retrying={rules.isFetching}>
           Couldn&apos;t load your autofill rules. {describeRuleError(rules.error)}
         </ErrorNotice>
-      ) : (rules.data ?? []).length === 0 ? (
+      ) : all.length === 0 ? (
         <Typography sx={{ fontSize: 13, color: "text.secondary", py: 3 }}>No rules yet.</Typography>
+      ) : matching.length === 0 ? (
+        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ py: 3 }}>
+          <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
+            {onlyInactiveMatch ? "Only inactive rules match." : "No rules match."}
+          </Typography>
+          {onlyInactiveMatch ? (
+            <Button size="small" onClick={() => narrow({ showInactive: true })}>
+              Show inactive
+            </Button>
+          ) : (
+            <Button size="small" onClick={() => setFilters(keepView(NO_RULE_FILTERS))}>
+              Clear
+            </Button>
+          )}
+        </Stack>
       ) : (
         <Box sx={{ overflowX: "auto" }}>
           <Table size="small" sx={{ tableLayout: "fixed", minWidth: TABLE_MIN_WIDTH }}>

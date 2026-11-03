@@ -24,7 +24,6 @@ import {
   type CcTaggingRule,
   type CcTaggingRuleInput,
   type CcTaggingRulePatch,
-  ccRuleUnconfigured,
   isMarketingCategory,
   isTravelCategory,
 } from "./ccTypes";
@@ -51,37 +50,6 @@ export function isAmountDraft(v: string): boolean {
 export function formatAmount(v: string): string {
   if (!isAmountDraft(v)) return v;
   return v === "" || v === "." ? "" : Number(v).toFixed(2);
-}
-
-/** The groups the rules list is split into, in the order they are shown. */
-export type CcRuleGroup = "unconfigured" | "outdated" | "rules";
-
-/**
- * The rules split into groups, each in the order given. An active rule that fills in nothing is
- * unconfigured; an active rule with values no longer offered is outdated; every other rule, and
- * every inactive one, is under `rules`.
- */
-export function groupRules(rules: CcTaggingRule[]): Record<CcRuleGroup, CcTaggingRule[]> {
-  const groups: Record<CcRuleGroup, CcTaggingRule[]> = { unconfigured: [], outdated: [], rules: [] };
-  for (const r of rules) {
-    if (r.active && ccRuleUnconfigured(r)) groups.unconfigured.push(r);
-    else if (r.active && r.outdated) groups.outdated.push(r);
-    else groups.rules.push(r);
-  }
-  return groups;
-}
-
-const byText = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
-
-/**
- * The rules sorted by card number, then supplier, then account, ignoring case. A rule without an
- * account comes before those with one, and rules that tie keep their order. Returns a new list.
- */
-export function sortRules(rules: CcTaggingRule[]): CcTaggingRule[] {
-  return [...rules].sort(
-    (a, b) =>
-      byText(a.ccNumber, b.ccNumber) || byText(a.supplier, b.supplier) || byText(a.account ?? "", b.account ?? ""),
-  );
 }
 
 /** A rule as the form holds it: every value as typed, with blank for none. */

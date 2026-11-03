@@ -16,10 +16,10 @@
  * under the License.
  */
 
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CcTaggingRule } from "./ccTypes";
+import type { CcCreditCard, CcTaggingRule } from "./ccTypes";
 
 const rule = (over: Partial<CcTaggingRule> = {}): CcTaggingRule => ({
   id: 1,
@@ -57,7 +57,13 @@ const state = {
   refetches: 0,
 };
 
+const ownCards = [
+  { id: 10, ccNumber: "123456", label: "Travel", status: "Active" },
+  { id: 11, ccNumber: "045678", label: null, status: "Active" },
+] as CcCreditCard[];
+
 vi.mock("./useCc", () => ({
+  useCcOwnCards: () => ({ cards: ownCards, isLoading: false, isError: false, isFetching: false, error: null }),
   useCcTaggingRules: () => ({
     data: state.loading || state.fails ? undefined : state.rules,
     isLoading: state.loading,
@@ -81,6 +87,9 @@ const suppliers = () =>
     .getAllByRole("row")
     .map((row) => within(row).queryAllByRole("cell")[1]?.textContent)
     .filter(Boolean);
+
+/** Turns on Show inactive, which is off by default. */
+const showInactive = () => userEvent.click(screen.getByLabelText("Show inactive"));
 
 /** The text of each group heading, top to bottom. */
 const headings = () => screen.queryAllByRole("button", { expanded: true }).map((b) => b.textContent);
@@ -124,12 +133,13 @@ describe("CcTaggingRules", () => {
     expect(within(screen.getAllByRole("row")[5]).getAllByRole("cell")[2]).toHaveTextContent("acc-1");
   });
 
-  it("files inactive rules under Rules whatever their flags", () => {
+  it("files inactive rules under Rules whatever their flags", async () => {
     state.rules = [
       rule({ id: 1, supplier: "GitHub", outdated: true, active: false }),
       rule({ id: 2, supplier: "Uber", active: false, ...blank }),
     ];
     renderList();
+    await showInactive();
 
     expect(headings()).toEqual([expect.stringContaining("Rules · 2")]);
     expect(suppliers()).toEqual(["GitHub", "Uber"]);
@@ -160,9 +170,10 @@ describe("CcTaggingRules", () => {
     ]);
   });
 
-  it("shows open values as a dash, and a manual rule as yours", () => {
+  it("shows open values as a dash, and a manual rule as yours", async () => {
     state.rules = [rule({ active: false })];
     renderList();
+    await showInactive();
 
     const cells = within(screen.getAllByRole("row")[2]).getAllByRole("cell").map((c) => c.textContent);
     expect(cells.slice(2, 6)).toEqual(["—", "—", "You", "Inactive"]);
@@ -217,9 +228,10 @@ describe("CcTaggingRules", () => {
     expect(handlers.onEdit.mock.calls).toEqual([[unconfigured], [configured]]);
   });
 
-  it("offers Edit, not Configure, on an inactive rule that fills in nothing", () => {
+  it("offers Edit, not Configure, on an inactive rule that fills in nothing", async () => {
     state.rules = [rule({ supplier: "Uber", active: false, ...blank })];
     renderList();
+    await showInactive();
 
     expect(screen.getByRole("button", { name: "Edit rule for Uber" })).toBeInTheDocument();
   });
@@ -288,5 +300,164 @@ describe("CcTaggingRules", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByText("No rules yet.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Rule" })).toBeInTheDocument();
+  });
+});
+
+describe("CcTaggingRules search and filters", () => {
+  const openFilters = () => userEvent.click(screen.getByRole("button", { name: /^Filter/ }));
+  /** Picks an option in one of the Filter popover's selects. */
+  const pick = async (label: string, option: string) => {
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: label }));
+    await userEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: option }));
+  };
+  const closeFilters = () => userEvent.click(screen.getByRole("button", { name: "Close filters" }));
+
+  beforeEach(() => {
+    state.rules = [
+      rule({ id: 1, supplier: "Uber", ...blank }),
+      rule({ id: 2, supplier: "AWS", comment: "Cloud bill" }),
+      rule({ id: 3, supplier: "Uber Eats", ccNumber: "045678", creditCardId: 11, source: "auto", active: false }),
+    ];
+  });
+
+  it("hides inactive rules until Show inactive is on", async () => {
+    renderList();
+    expect(suppliers()).toEqual(["Uber", "AWS"]);
+
+    await showInactive();
+    expect(suppliers()).toEqual(["Uber", "Uber Eats", "AWS"]);
+    expect(screen.getByLabelText("Show inactive")).toBeChecked();
+  });
+
+  it("offers Show inactive when only inactive rules match", async () => {
+    renderList();
+    await userEvent.type(screen.getByRole("textbox", { name: "Search rules" }), "eats");
+
+    expect(screen.getByText("Only inactive rules match.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show inactive" }));
+    expect(suppliers()).toEqual(["Uber Eats"]);
+  });
+
+  it("narrows the rules to a search, with each heading counting only the matches", async () => {
+    renderList();
+    await showInactive();
+    await userEvent.type(screen.getByRole("textbox", { name: "Search rules" }), "uber");
+
+    expect(suppliers()).toEqual(["Uber", "Uber Eats"]);
+    expect(headings()).toEqual([
+      expect.stringContaining("Unconfigured rules · 1"),
+      expect.stringContaining("Rules · 1"),
+    ]);
+  });
+
+  it("opens the filters as a dialog, with no Apply, since each filter applies as it's picked", async () => {
+    renderList();
+    await openFilters();
+    expect(screen.getByRole("dialog", { name: "Filter" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
+  });
+
+  it("clears the search from its X, which shows only while there's a search", async () => {
+    renderList();
+    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "Search rules" }), "uber");
+    await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
+
+    expect(screen.getByRole("textbox", { name: "Search rules" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Search rules" })).toHaveFocus();
+    expect(suppliers()).toEqual(["Uber", "AWS"]);
+  });
+
+  it("names each card in the card filter, as Pending Submissions does", async () => {
+    renderList();
+    await openFilters();
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Card" }));
+
+    const options = within(screen.getByRole("listbox")).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["No Filter", "Card 2 (045678)", "Travel (123456)"]);
+  });
+
+  it.each([
+    ["Card", "Card 2 (045678)", ["Uber Eats"]],
+    ["Category", "Office", ["Uber Eats", "AWS"]],
+    ["Added By", "System", ["Uber Eats"]],
+  ])("narrows the rules with %s", async (label, option, expected) => {
+    renderList();
+    await showInactive();
+    await openFilters();
+    await pick(label, option);
+    await closeFilters();
+
+    expect(suppliers()).toEqual(expected);
+  });
+
+  it("counts the filters in use on the Filter button", async () => {
+    renderList();
+    await openFilters();
+    await pick("Category", "Office");
+    await pick("Added By", "You");
+    await closeFilters();
+
+    const button = screen.getByRole("button", { name: "Filter, 2 applied" });
+    expect(button).toHaveAttribute("aria-haspopup", "dialog");
+    expect(button).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("resets the filters but keeps the search", async () => {
+    renderList();
+    await userEvent.type(screen.getByRole("textbox", { name: "Search rules" }), "uber");
+    await openFilters();
+    await pick("Added By", "You");
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+    await closeFilters();
+    expect(screen.getByRole("button", { name: "Filter" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search rules" })).toHaveValue("uber");
+  });
+
+  it("shows a filtered card after its last rule is deleted, so it can be cleared", async () => {
+    const { rerender } = renderList();
+    await openFilters();
+    await pick("Card", "Card 2 (045678)");
+    await closeFilters();
+
+    state.rules = state.rules.filter((r) => r.ccNumber !== "045678");
+    rerender(<CcTaggingRules {...handlers} />);
+
+    await openFilters();
+    expect(screen.getByRole("combobox", { name: "Card" })).toHaveTextContent("Card 2 (045678)");
+  });
+
+  // A filter left over from before the last rule went would hide the next rule added.
+  it("keeps the search and Filter in view while they narrow, even with no rules", () => {
+    state.rules = [];
+    const { rerender } = renderList();
+    expect(screen.queryByRole("textbox", { name: "Search rules" })).not.toBeInTheDocument();
+
+    state.rules = [rule({ supplier: "Uber" })];
+    rerender(<CcTaggingRules {...handlers} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search rules" }), { target: { value: "aws" } });
+    state.rules = [];
+    rerender(<CcTaggingRules {...handlers} />);
+
+    expect(screen.getByRole("textbox", { name: "Search rules" })).toHaveValue("aws");
+  });
+
+  it("says when no rule matches, and Clear brings every rule back", async () => {
+    renderList();
+    await showInactive();
+    await openFilters();
+    await pick("Added By", "System");
+    await closeFilters();
+    await userEvent.type(screen.getByRole("textbox", { name: "Search rules" }), "aws");
+
+    expect(screen.getByText("No rules match.")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(screen.getByRole("textbox", { name: "Search rules" })).toHaveValue("");
+    expect(suppliers()).toEqual(["Uber", "Uber Eats", "AWS"]);
   });
 });

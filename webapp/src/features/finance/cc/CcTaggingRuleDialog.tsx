@@ -68,7 +68,8 @@ import {
   type CcExpenseTypeList,
   type CcProductAndBusinessUnitList,
   type CcTaggingRule,
-  ccCardName,
+  ccCardIsActive,
+  ccHolderCardName,
   ccRuleUnconfigured,
 } from "./ccTypes";
 import { useCcMenus, useCcOwnCards } from "./useCc";
@@ -107,18 +108,8 @@ const SEE_THROUGH_ALERTS_SX = Object.fromEntries(
 /** Help under a field, and the Travel note, read as quietly as the field labels; an error keeps its colour. */
 const QUIET_HELP_SX = { color: "text.disabled" };
 
-const isActiveCard = (c: CcCreditCard) => (c.status ?? "").toUpperCase() === "ACTIVE";
 /** A card's number in the card list, set apart so the numbers line up down the list. */
 const CARD_NUMBER_SX = { fontFamily: "monospace", fontSize: 13, color: "text.secondary" };
-
-/**
- * A card's name, or "Card N" by its place among the holder's active cards, as Pending Submissions names it.
- * An inactive card has no place there, so it's named as inactive.
- */
-const cardName = (c: CcCreditCard, activeCards: CcCreditCard[]) => {
-  const index = activeCards.findIndex((o) => o.id === c.id);
-  return index < 0 && !c.label ? "Inactive card" : ccCardName(c.label, index);
-};
 
 /**
  * Adds an autofill rule, or configures or edits one. A system rule's card, supplier and account
@@ -149,7 +140,7 @@ export function CcTaggingRuleDialog({
   const pending = mutation.isPending;
 
   // A card holder adding a rule with one active card has nothing to pick.
-  const activeCards = ownCards.cards.filter(isActiveCard);
+  const activeCards = ownCards.cards.filter(ccCardIsActive);
   const current: CcRuleForm = {
     ...form,
     ccNumber: form.ccNumber || (!rule && activeCards.length === 1 ? activeCards[0].ccNumber : ""),
@@ -337,7 +328,7 @@ function CardSelect({
 }) {
   const ruleCard = rule && allCards.find((c) => c.id === rule.creditCardId);
   const option = (c: CcCreditCard) => {
-    const name = cardName(c, cards);
+    const name = ccHolderCardName(c, cards);
     return { value: c.ccNumber, name, label: `${name} (${c.ccNumber})` };
   };
   const options = cards.map(option);

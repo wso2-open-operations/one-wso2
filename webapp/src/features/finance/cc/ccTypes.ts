@@ -259,6 +259,22 @@ export function ccCardName(label: string | null | undefined, index: number): str
   return label || `Card ${index + 1}`;
 }
 
+/** Whether a card is active, whatever the case of its status. */
+export function ccCardIsActive(card: CcCreditCard): boolean {
+  return (card.status ?? "").toUpperCase() === "ACTIVE";
+}
+
+/**
+ * A card holder's card by name: its label, or "Card N" by its place among their active cards, as Pending Submissions
+ * names it. An unlabelled inactive card has no place there, so it's named as inactive.
+ *
+ * @param activeCards - The card holder's active cards, in the order Pending Submissions lists them.
+ */
+export function ccHolderCardName(card: CcCreditCard, activeCards: CcCreditCard[]): string {
+  const index = activeCards.findIndex((c) => c.id === card.id);
+  return index < 0 && !card.label ? "Inactive card" : ccCardName(card.label, index);
+}
+
 /** Whether a rule fills in no expense details, as the backend counts it for `taggingRulesUnconfigured`. */
 export function ccRuleUnconfigured(r: CcTaggingRule): boolean {
   return !r.expenseTypeLabel && !r.comment && !r.subRegion && !r.productUnit && !r.businessUnit;

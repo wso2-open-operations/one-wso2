@@ -17,7 +17,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { ccRuleUnconfigured, isMarketingCategory, isTravelCategory, type CcTaggingRule } from "./ccTypes";
+import {
+  type CcCreditCard,
+  type CcTaggingRule,
+  ccCardIsActive,
+  ccHolderCardName,
+  ccRuleUnconfigured,
+  isMarketingCategory,
+  isTravelCategory,
+} from "./ccTypes";
 
 describe("isTravelCategory", () => {
   it("is Travel only, matched exactly", () => {
@@ -77,5 +85,36 @@ describe("ccRuleUnconfigured", () => {
     ["businessUnit", "Products"],
   ] as const)("is false once %s is set", (field, value) => {
     expect(ccRuleUnconfigured({ ...rule, [field]: value })).toBe(false);
+  });
+});
+
+describe("ccHolderCardName", () => {
+  const card = (id: number, label: string | null, status = "Active") => ({ id, label, status }) as CcCreditCard;
+  const inactive = card(1, null, "Inactive");
+  const unlabelled = card(2, null);
+  const active = [unlabelled, card(3, "Travel")];
+
+  it("names a card by its label", () => {
+    expect(ccHolderCardName(card(3, "Travel"), active)).toBe("Travel");
+  });
+
+  // Counted among the active cards only, as Pending Submissions counts them.
+  it("names an unlabelled card by its place among the active cards", () => {
+    expect(ccHolderCardName(unlabelled, active)).toBe("Card 1");
+  });
+
+  it("names an unlabelled inactive card as inactive", () => {
+    expect(ccHolderCardName(inactive, active)).toBe("Inactive card");
+  });
+});
+
+describe("ccCardIsActive", () => {
+  it.each([
+    ["Active", true],
+    ["ACTIVE", true],
+    ["Inactive", false],
+    [undefined, false],
+  ])("treats a card with status %s as active: %s", (status, expected) => {
+    expect(ccCardIsActive({ status } as CcCreditCard)).toBe(expected);
   });
 });
