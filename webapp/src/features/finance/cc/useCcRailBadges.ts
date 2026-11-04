@@ -19,22 +19,23 @@
 import type { RailBadgeMap } from "@components/side-rail/railBadge";
 import { CC_RULE_BADGE } from "./ccCopy";
 import { groupRules } from "./ccTaggingRuleList";
+import { ccHasAccess } from "./ccTypes";
 import { useCcTaggingRules, useCcUserInfo } from "./useCc";
 
 /**
  * The card holder's Autofill Rules badge, shown on its row and on the closed Credit Card Expenses group. Outdated
  * rules win over unconfigured ones: they have stopped filling in what they used to.
  *
- * `/user-info`'s flags decide until the Autofill Rules page has loaded the rules; from then on the rules do, as the
- * flags can lag behind them. The rules are read from the cache, never fetched here.
+ * `/user-info`'s flags decide until the rules have loaded; from then on the rules do, as the flags can lag behind
+ * them. The rules are fetched for card holders, sharing their cache with the Autofill Rules page.
  *
- * @param enabled - Whether to ask `/user-info`. Off makes no request and shows no badge.
+ * @param enabled - Whether to ask `/user-info` and the rules. Off makes no request and shows no badge.
  */
 export function useCcRailBadges(enabled: boolean): RailBadgeMap {
   // A disabled query still returns what's cached, which would badge a row outside Finance.
   const cached = useCcUserInfo(enabled).data;
   const user = enabled ? cached : undefined;
-  const rules = useCcTaggingRules(false).data;
+  const rules = useCcTaggingRules(enabled && ccHasAccess(user, "cc_owner")).data;
   const groups = enabled && rules ? groupRules(rules) : null;
   const outdated = groups ? groups.outdated.length > 0 : user?.taggingRulesOutdated;
   const unconfigured = groups ? groups.unconfigured.length > 0 : user?.taggingRulesUnconfigured;

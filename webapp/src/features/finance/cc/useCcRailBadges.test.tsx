@@ -101,12 +101,13 @@ describe("useCcRailBadges", () => {
   // The flags come from /user-info, which other Finance screens read too; outside Finance nothing asks.
   it("makes no request outside Finance", () => {
     cachedRules.data = [rule({ outdated: true })];
-    expect(badges({ taggingRulesOutdated: true }, false)).toEqual({});
+    expect(badges({ privileges: ["cc_owner"], taggingRulesOutdated: true }, false)).toEqual({});
     expect(userInfo.enabled).not.toContain(true);
+    expect(cachedRules.enabled).not.toContain(true);
   });
 });
 
-// /user-info's flags can lag behind the rules, so the rules decide once the Autofill Rules page has loaded them.
+// /user-info's flags can lag behind the rules, so the rules decide once they're loaded.
 describe("useCcRailBadges, once the rules are loaded", () => {
   it("clears the badge when no rule needs action, whatever /user-info says", () => {
     const inactive = [rule({ id: 2, active: false, outdated: true }), rule({ id: 3, active: false, ...blank })];
@@ -124,8 +125,14 @@ describe("useCcRailBadges, once the rules are loaded", () => {
     expect(badges({ taggingRulesOutdated: true })["cc-autofill-rules"]?.label).toBe("New");
   });
 
-  it("never fetches the rules itself", () => {
-    badges({});
+  // Otherwise the rules a visit to Autofill Rules left in the cache would decide, never refetched.
+  it("keeps a card holder's rules up to date", () => {
+    badges({ privileges: ["employee", "cc_owner"] });
+    expect(cachedRules.enabled).toContain(true);
+  });
+
+  it("doesn't ask for rules for someone without a card", () => {
+    badges({ privileges: ["employee", "finance"] });
     expect(cachedRules.enabled).not.toContain(true);
   });
 });
