@@ -19,8 +19,14 @@
 // strings are parsed in the LOCAL calendar to avoid the UTC-midnight
 // off-by-one for users west of UTC.
 
-// Money with its ISO currency code, thousand separators, 2 decimals.
-// e.g. money(1234.5, "LKR") → "LKR 1,234.50"; money(80, "USD") → "USD 80.00".
+// Money with a currency prefix, thousand separators, 2 decimals.
+// e.g. money(1234.5, "LKR") → "Rs. 1,234.50"; money(80, "USD") → "$80.00".
+const CURRENCY_PREFIX: Record<string, string> = {
+  LKR: "Rs.",
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+};
 
 // The cc dashboard drops the cents throughout — `formatCurrency(x).split(".")[0]`
 // in utils.ts:44-49 — and names the currency in the column header instead of
@@ -36,9 +42,9 @@ export function wholeAmount(amount: number | null | undefined): string {
  * An amount with no currency marker, two decimals.
  *
  * The card screens need this because their column header carries the currency
- * instead — they are headed "Amount (USD)" and render a bare number. Passing
- * them through `money` would repeat that code in every cell, under a header
- * that already states it.
+ * instead: the source's grids are headed "Amount($)" and render a bare number
+ * through `formatCurrency` (utils.ts:44-49). Passing them through `money`
+ * puts a second "$" in every cell, under a header that already has one.
  */
 export function bareAmount(amount: number | null | undefined): string {
   const n = typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
@@ -47,16 +53,15 @@ export function bareAmount(amount: number | null | undefined): string {
 
 export function money(amount: number | null | undefined, currency = "LKR"): string {
   const n = typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
+  const prefix = CURRENCY_PREFIX[currency] ?? currency;
   const formatted = n.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  // Always the ISO code, never a symbol. Only four currencies ever had a symbol
-  // mapped, so the same screen showed "$100.00" beside "CAD 100.00" — Finance
-  // reads these columns across entities and asked for one consistent form. A
-  // code also says WHICH dollar: "$" is ambiguous across USD, CAD and AUD,
-  // which all appear in this data.
-  return `${currency} ${formatted}`;
+  // A symbol prefix ("$","€","£") hugs the number; a word/abbrev prefix
+  // ("Rs.","USD") takes a space.
+  const sep = /[A-Za-z.]$/.test(prefix) ? " " : "";
+  return `${prefix}${sep}${formatted}`;
 }
 
 // Today as "YYYY-MM-DD" in the local calendar.

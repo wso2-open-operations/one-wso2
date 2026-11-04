@@ -806,9 +806,8 @@ function CardLeadComplianceTable({
   const reminder = useCcCardLeadReminder();
   // In flight and already-sent counts both come from the module-scoped store,
   // not from this component: see ccReminderLock.ts for why neither can live in
-  // the tree. A set rather than one slot, because Finance works down this list
-  // and two sends overlap — with a single slot the first to come back cleared
-  // the lock for the second, re-enabling a row whose request had not returned.
+  // the tree. A set, not one slot, because Finance works down this list and
+  // two sends can be open at once.
   const { inFlight, sentCounts } = useReminderLock();
 
   // Same client-side paging as the Card Holder view — a lead list can also run

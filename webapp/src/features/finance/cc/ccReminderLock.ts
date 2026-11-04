@@ -20,28 +20,10 @@ import { useSyncExternalStore } from "react";
 
 /**
  * Which card-lead reminders are in flight, and how many this browsing session
- * has sent — held OUTSIDE the React tree.
- *
- * Both facts have to outlive every component that shows them. A send is a
- * request already on its way: nothing cancels it when the view it was started
- * from goes away, so the only safe lock is one that cannot go away either.
- * Two unmounts reach it:
- *
- *  - the "Group by" toggle swaps the card-lead table out for the card-holder
- *    one, and
- *  - navigating off the dashboard unmounts the page itself.
- *
- * Holding the lock in either of those components meant coming back to a fresh,
- * empty set: the guard passed, and the same lead was mailed twice off one pass
- * down the list. Module scope is the smallest thing that survives both.
- *
- * The counts ride along for the same reason. They label a row "Email another
- * reminder" and number the follow-up, so a count that resets while a send is
- * still open tells Finance the opposite of what happened.
- *
- * Deliberately NOT persisted beyond the tab: this counts what this session has
- * sent, not what the lead has received. A reload starts it over, which is the
- * documented behaviour.
+ * has sent. Held at module scope because a send outlives the components that
+ * show it: nothing cancels the request when the "Group by" toggle swaps the
+ * table out or the dashboard is navigated away from. Counts what this session
+ * sent rather than what the lead received, and is not persisted beyond the tab.
  */
 export interface ReminderLock {
   /** Leads whose reminder request has not settled yet. */

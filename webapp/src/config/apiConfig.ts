@@ -546,8 +546,8 @@ export const ccServiceUrls = {
   submittedByCategory: `${ccBackendUrl}/transactions/submitted-transaction-summary`,
   cardHolderCompliance: `${ccBackendUrl}/transactions/card-holder-compliance-summary`,
   // Admin view's "Group by: Card Lead" — the same backlog rolled up under the lead
-  // each card is mapped to in the credit card master data, not under the card
-  // holder's HRIS manager. Finance only, enforced server-side.
+  // each card is mapped to in the credit card master data. Finance only, enforced
+  // server-side.
   cardLeadCompliance: `${ccBackendUrl}/transactions/card-lead-compliance-summary`,
   // POST — emails one card lead the unsubmitted backlog of the card holders they
   // approve for, copying those card holders and the caller. Takes only the lead and

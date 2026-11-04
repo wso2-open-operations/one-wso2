@@ -443,7 +443,7 @@ export function CcCategorisePanel({
             </Typography>
           </Tooltip>
           <Typography sx={{ fontSize: 16, fontWeight: 700, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-            USD {bareAmount(draft.txnAmount)}
+            ${bareAmount(draft.txnAmount)}
           </Typography>
         </Stack>
         {/* :909-936 — the lead rides inline only while the row is still a draft;

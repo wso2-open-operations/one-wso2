@@ -105,7 +105,7 @@ export function CcTxnTable({
       {
         // Bare, because the header carries the currency — utils.ts:44-49.
         field: "txnAmount",
-        headerName: "Amount (USD)",
+        headerName: "Amount($)",
         type: "number",
         width: 120,
         renderCell: (p) => bareAmount(p.value as number),

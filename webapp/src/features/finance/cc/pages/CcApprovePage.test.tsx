@@ -283,10 +283,9 @@ describe("the approve-role toggle", () => {
   });
 });
 
-// The table leads with the row ID, and heads the amount column with its ISO
-// currency code rather than leaving a bare number: the currency is named once
-// in the header instead of being repeated in every cell, as the rest of the
-// finance screens do.
+// PendingTransactionsDataGrid.tsx / ApproveTransactionsDataGrid.tsx both lead
+// with ID and head the amount "Amount($)" over a bare number. The port had
+// dropped the column and moved the currency into the cell.
 describe("the shared transaction table", () => {
   it("leads with the row id", async () => {
     show();
@@ -302,9 +301,9 @@ describe("the shared transaction table", () => {
   it("puts the currency in the header, not the cell", async () => {
     show();
     await screen.findAllByRole("checkbox");
-    expect(screen.getByRole("columnheader", { name: "Amount (USD)" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Amount($)" })).toBeInTheDocument();
     // The currency lives in the header, so the CELL carries a bare number. The
-    // detail panel beside it does show "USD 500.00", exactly as the source's pane
+    // detail panel beside it does show "$500.00", exactly as the source's pane
     // does, so this is scoped to the grid rather than to the whole screen.
     const cells = document.querySelectorAll('[data-field="txnAmount"][role="gridcell"]');
     expect(cells.length).toBeGreaterThan(0);

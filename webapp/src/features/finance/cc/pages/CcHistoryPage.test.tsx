@@ -319,7 +319,7 @@ describe("the history grid says what the source says", () => {
       "NetSuite Report No.",
       "Description",
       "Date",
-      "Amount (USD)",
+      "Amount($)",
       "CC Number",
       "Submitted User",
       "Submitted Date",
@@ -353,12 +353,12 @@ describe("the history grid says what the source says", () => {
 
   it("leaves the currency to the header, as the source does", async () => {
     show();
-    await screen.findByRole("columnheader", { name: "Amount (USD)" });
-    // The cell renders a bare number; the code in the header is what names the
-    // currency. Rendering "USD 500.00" under it would state the currency twice
-    // in the same column.
+    await screen.findByRole("columnheader", { name: "Amount($)" });
+    // utils.ts:44-49 — formatCurrency renders a bare number; the ($) in the
+    // header is what names the currency. Rendering "$500.00" under it shows
+    // the symbol twice.
     expect(screen.getAllByText("500.00").length).toBeGreaterThan(0);
-    expect(screen.queryByText("USD 500.00")).toBeNull();
+    expect(screen.queryByText("$500.00")).toBeNull();
   });
 
   it("marks a transaction whose card has been closed", async () => {

@@ -342,9 +342,8 @@ export interface CcCardHolderCompliance {
 
 /**
  * The same pending backlog as `CcCardHolderCompliance`, rolled up under one card
- * lead — the approver the credit card master data maps the card to, which is not
- * necessarily the card holder's reporting manager. An empty `leadEmail`
- * ("Unassigned") holds cards the master data maps to no lead at all.
+ * lead — the approver the credit card master data maps the card to. An empty
+ * `leadEmail` ("Unassigned") holds cards the master data maps to no lead at all.
  *
  * A card can name several leads, and each of them gets their own entry holding
  * the whole backlog of that card. The entries deliberately overlap, so these
