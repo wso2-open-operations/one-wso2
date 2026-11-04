@@ -117,11 +117,20 @@ describe("CcAutoTaggedIcon", () => {
   });
 
   it("leaves out what the rule doesn't set", async () => {
-    result.data = { ...rule, account: null, amountMin: null, amountMax: null, subRegion: null };
+    result.data = { ...rule, amountMin: null, amountMax: null, subRegion: null };
     const tip = await openTooltip();
-    for (const term of ["Account", "Amount Range ($)", "Sub Region"]) {
+    for (const term of ["Amount Range ($)", "Sub Region"]) {
       expect(within(tip).queryByText(term)).not.toBeInTheDocument();
     }
+  });
+
+  it("shows a rule without an account as matching none", async () => {
+    // A rule without an account matches only bills that show none, so it's a condition, not a field left out.
+    result.data = { ...rule, account: null };
+    const tip = await openTooltip();
+    const none = within(tip).getByText("(none)");
+    expect(within(tip).getByText("Account").nextElementSibling).toContainElement(none);
+    expect(none).toHaveStyle({ fontStyle: "italic" });
   });
 
   it.each([

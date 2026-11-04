@@ -19,6 +19,7 @@
 import { HttpError } from "@api/http";
 import { Box, CircularProgress, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { SparklesIcon } from "@wso2/oxygen-ui-icons-react";
+import type { ReactNode } from "react";
 import { describeRuleError } from "../ccCopy";
 import { ruleAmountRange } from "../ccTaggingRuleList";
 import type { CcTaggingRule } from "../ccTypes";
@@ -80,13 +81,23 @@ function RuleDetails({ ruleId }: { ruleId: number }) {
   return <RuleSummary rule={rule.data} />;
 }
 
-/** The rule's state, what it matches and the details it fills in, leaving out what it doesn't set. */
+/**
+ * The rule's state, what it matches and the details it fills in, leaving out what it doesn't set. A rule without an
+ * account still shows one, since it matches only bills that show none.
+ */
 function RuleSummary({ rule }: { rule: CcTaggingRule }) {
   const state = [!rule.active && "inactive", rule.outdated && "outdated"].filter(Boolean).join(", ");
-  const rows: [string, string | null][] = [
+  const rows: [string, ReactNode][] = [
     ["Card", rule.ccNumber],
     ["Supplier", rule.supplier],
-    ["Account", rule.account],
+    [
+      "Account",
+      rule.account ?? (
+        <Box component="span" sx={{ fontStyle: "italic", opacity: 0.75 }}>
+          (none)
+        </Box>
+      ),
+    ],
     ["Amount Range ($)", ruleAmountRange(rule)],
     ["Expense Category", rule.expenseCategoryLabel],
     ["Expense Type", rule.expenseTypeLabel],
