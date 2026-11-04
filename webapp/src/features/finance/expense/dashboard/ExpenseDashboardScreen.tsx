@@ -62,8 +62,14 @@ type BreakdownTab = (typeof BREAKDOWN_TABS)[number];
 // Custom starts on the current quarter, so its From and To fields are filled
 // from the first render rather than blank.
 const DEFAULT_CUSTOM_RANGE = getPeriodRange("Quarterly");
+// The opening period is bounded rather than "All Time". An open-ended report
+// makes the backend pull every claim ever filed — up to its 10,000 cap — and
+// sum them in memory, which is the whole of the first-load wait finance
+// reported. "All Time" stays in the dropdown for anyone who wants it; it is
+// just no longer what the screen asks for before being asked.
+const DEFAULT_PERIOD = "Quarterly" as const;
 const DEFAULT_FILTERS: ExpenseDashboardDraftFilters = {
-  period: "All Time",
+  period: DEFAULT_PERIOD,
   entity: ALL_ENTITIES,
   region: ALL_REGIONS,
   category: ALL_CATEGORIES,

@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
 import { authedGet } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
@@ -121,9 +121,20 @@ export function useExpenseClaimsReport(filter: ExpenseClaimsReportFilter, enable
         accessToken,
       );
     },
-    // Short — this is a live operational report, not slow-moving reference
-    // data, and finance expects Apply to reflect a just-submitted claim.
-    staleTime: 60 * 1000,
+    // Matched to the five minutes the report endpoint caches a given filter
+    // for. Below that the client can only re-ask for bytes the server is
+    // holding and will hand back unchanged, so the shorter window bought no
+    // freshness and cost a round trip on every revisit. Going back to the
+    // dashboard, or back to a filter already looked at, now draws from memory.
+    staleTime: 5 * 60 * 1000,
+    // Outlives the default five minutes so stepping away to another finance
+    // screen and returning does not land on an empty dashboard.
+    gcTime: 30 * 60 * 1000,
+    // The report is slow enough that blanking the screen on every Apply is
+    // felt as the screen breaking rather than loading. Holding the previous
+    // report lets the filter bar's progress bar carry the wait on its own,
+    // with the numbers being replaced still readable underneath.
+    placeholderData: keepPreviousData,
     retry: financeRetry,
   });
   return foldIdentityError(query, subState, retryIdentity);
