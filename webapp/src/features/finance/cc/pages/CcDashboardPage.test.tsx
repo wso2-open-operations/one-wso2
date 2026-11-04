@@ -520,6 +520,40 @@ describe("the card-lead grouping", () => {
     releaseFirst();
   });
 
+  // Switching Group by unmounts the card-lead table while a send is still open.
+  // The request carries on either way, so a lock that lives inside that table
+  // goes with it: coming back gave the row a fresh, empty set and the same lead
+  // could be mailed a second time off one pass.
+  it("keeps a lead held across a Group by switch while their send is still open", async () => {
+    let releaseSend = () => {};
+    sendReminder.mockImplementationOnce(
+      (args: { leadEmail: string; dateFrom?: string }) =>
+        new Promise<string>((resolve) => {
+          reminderCalls.push(args);
+          releaseSend = () => resolve("sent");
+        }),
+    );
+    await groupByCardLead();
+
+    await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
+
+    // Away to Card Holder and back, with the request still open.
+    await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
+    await userEvent.click(screen.getByRole("option", { name: "Group by: Card Holder" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
+    await userEvent.click(screen.getByRole("option", { name: "Group by: Card Lead" }));
+
+    // The remounted row still knows the send is in flight, so it stays held and
+    // cannot be clicked a second time. Asserted as disabled rather than by
+    // clicking: userEvent refuses a button with `pointer-events: none`, which
+    // is itself the guarantee being checked.
+    expect(screen.getByRole("button", { name: "Email reminder" })).toBeDisabled();
+    expect(sendReminder).toHaveBeenCalledTimes(1);
+
+    releaseSend();
+  });
+
   it("reports a failed send rather than leaving the reader thinking it went", async () => {
     sendReminder.mockRejectedValueOnce(new Error("boom"));
     await groupByCardLead();

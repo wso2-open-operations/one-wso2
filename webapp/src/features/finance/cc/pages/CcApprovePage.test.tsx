@@ -283,10 +283,10 @@ describe("the approve-role toggle", () => {
   });
 });
 
-// PendingTransactionsDataGrid.tsx / ApproveTransactionsDataGrid.tsx both lead
-// with ID and head the amount over a bare number, naming the currency once in
-// the header. The port had dropped the column and moved the currency into the
-// cell. The header names it by ISO code, as the rest of the finance screens do.
+// The table leads with the row ID, and heads the amount column with its ISO
+// currency code rather than leaving a bare number: the currency is named once
+// in the header instead of being repeated in every cell, as the rest of the
+// finance screens do.
 describe("the shared transaction table", () => {
   it("leads with the row id", async () => {
     show();
