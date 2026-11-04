@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { localIsoDateOffset } from "@utils/localDate";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // These exercise the query functions themselves. The expense port taught us
 // that hook-mocked screen tests cannot see a broken data path — a search that
@@ -244,6 +244,49 @@ describe("the autofill rule data", () => {
     const { result } = renderHook(() => useCcTaggingRule(7), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(responses.rule));
     expect(requests).toEqual([{ method: "GET", url: "https://cc.test/tagging-rules/7" }]);
+  });
+
+  // The app turns automatic refetching off; rules the bill processor adds would otherwise wait for a reload.
+  describe("with the app's refetch settings", () => {
+    const appWrapper = () => {
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: false },
+        },
+      });
+      return ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+    };
+    const ruleGets = () => requests.filter((r) => r.url.endsWith("/tagging-rules")).length;
+    const RULES_STALE_MS = 30 * 1000;
+
+    afterEach(() => {
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
+    });
+
+    it("asks for the rules again on returning to the tab, once they're stale", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      renderHook(() => useCcTaggingRules(), { wrapper: appWrapper() });
+      await waitFor(() => expect(ruleGets()).toBe(1));
+
+      vi.setSystemTime(Date.now() + RULES_STALE_MS + 1);
+      act(() => focusManager.setFocused(false));
+      act(() => focusManager.setFocused(true));
+      await waitFor(() => expect(ruleGets()).toBe(2));
+    });
+
+    it("asks for the rules again when the page opens, once they're stale", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      const wrapper = appWrapper();
+      renderHook(() => useCcTaggingRules(), { wrapper });
+      await waitFor(() => expect(ruleGets()).toBe(1));
+
+      vi.setSystemTime(Date.now() + RULES_STALE_MS + 1);
+      renderHook(() => useCcTaggingRules(), { wrapper });
+      await waitFor(() => expect(ruleGets()).toBe(2));
+    });
   });
 
   it("does not ask for rules while disabled", async () => {

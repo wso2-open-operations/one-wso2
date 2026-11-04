@@ -131,7 +131,8 @@ export function useCcOwnCards(): CcOwnCards {
 }
 
 /**
- * GET /tagging-rules — the caller's autofill rules, in ID order.
+ * GET /tagging-rules — the caller's autofill rules, in ID order. Asked again, once stale, when a page using them
+ * opens or the tab regains focus.
  *
  * @param enabled - Whether to fetch. Off makes no request.
  */
@@ -146,6 +147,9 @@ export function useCcTaggingRules(enabled = true) {
     enabled: enabled && isSignedIn && configured && Boolean(userSub),
     queryFn: async () => authedGet<CcTaggingRule[]>(ccServiceUrls.taggingRules, await getAccessToken()),
     staleTime: 30 * 1000,
+    // The bill processor adds rules in the background; the page and the rail badge pick them up without a reload.
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
     retry: financeRetry,
   });
   return foldIdentityError(query, subState, retryIdentity);
