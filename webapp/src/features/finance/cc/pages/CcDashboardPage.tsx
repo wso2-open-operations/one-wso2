@@ -16,17 +16,9 @@
  * under the License.
  */
 
-import {
-  Fragment,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type RefObject,
-  type SetStateAction,
-} from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
+import { beginReminder, endReminder, useReminderLock } from "../ccReminderLock";
 import {
   Alert,
   Box,
@@ -128,18 +120,6 @@ function DashboardBody() {
   // Admin view's "Group by" toggle on the compliance table — cardHolderCompliance
   // and card-lead-compliance-summary are the same backlog, rolled up two ways.
   const [complianceGroupBy, setComplianceGroupBy] = useState<"cardHolder" | "cardLead">("cardHolder");
-  // Which leads' reminders are in flight. Held HERE rather than in
-  // CardLeadComplianceTable because switching Group by unmounts that table: the
-  // request carries on, but its lock went with it, so coming back and clicking
-  // the same lead passed the guard and mailed them twice. This component owns
-  // the toggle, so it is still mounted on either side of the switch.
-  //
-  // Both halves have to live together. The ref is the synchronous copy the
-  // handler reads to turn itself away; the state is what disables the row.
-  // Lifting only the ref would leave the remounted row enabled while the guard
-  // silently swallowed the click.
-  const [sendingTo, setSendingTo] = useState<ReadonlySet<string>>(() => new Set());
-  const inFlightRef = useRef<Set<string>>(new Set());
   // index.tsx:79-83 — the view you land on follows the role you hold: finance
   // opens on the company-wide picture, a lead on their own queue, everyone else
   // on their own cards.
@@ -440,9 +420,6 @@ function DashboardBody() {
           groupBy={complianceGroupBy}
           onGroupByChange={setComplianceGroupBy}
           dateFrom={dateFrom}
-          sendingTo={sendingTo}
-          setSendingTo={setSendingTo}
-          inFlightRef={inFlightRef}
         />
       )}
 
@@ -676,9 +653,6 @@ function ComplianceTable({
   groupBy,
   onGroupByChange,
   dateFrom,
-  sendingTo,
-  setSendingTo,
-  inFlightRef,
 }: {
   query: {
     data?: CcCardHolderCompliance[];
@@ -696,10 +670,6 @@ function ComplianceTable({
   onGroupByChange: (groupBy: "cardHolder" | "cardLead") => void;
   /** The range the table was built from, so a reminder counts the same rows. */
   dateFrom?: string;
-  /** Reminder lock, owned by DashboardBody so it survives a Group by switch. */
-  sendingTo: ReadonlySet<string>;
-  setSendingTo: Dispatch<SetStateAction<ReadonlySet<string>>>;
-  inFlightRef: RefObject<Set<string>>;
 }) {
   const items = query.data ?? [];
   // Client-side paging for the Card Holder view only — this list can run into
@@ -735,13 +705,7 @@ function ComplianceTable({
       </Stack>
 
       {groupBy === "cardLead" ? (
-        <CardLeadComplianceTable
-          query={cardLeadQuery}
-          dateFrom={dateFrom}
-          sendingTo={sendingTo}
-          setSendingTo={setSendingTo}
-          inFlightRef={inFlightRef}
-        />
+        <CardLeadComplianceTable query={cardLeadQuery} dateFrom={dateFrom} />
       ) : query.isLoading ? (
         <Note>Loading card holder compliance summary...</Note>
       ) : query.isError ? (
@@ -825,9 +789,6 @@ function ComplianceTable({
 function CardLeadComplianceTable({
   query,
   dateFrom,
-  sendingTo,
-  setSendingTo,
-  inFlightRef,
 }: {
   query: {
     data?: CcCardLeadCompliance[];
@@ -837,37 +798,18 @@ function CardLeadComplianceTable({
   };
   /** Passed through to the reminder so it counts the range on screen. */
   dateFrom?: string;
-  /**
-   * The in-flight reminder lock. Owned by DashboardBody, not by this table:
-   * switching Group by unmounts this component while a send is still running,
-   * and a lock that unmounts with it lets the same lead be mailed twice.
-   */
-  sendingTo: ReadonlySet<string>;
-  setSendingTo: Dispatch<SetStateAction<ReadonlySet<string>>>;
-  inFlightRef: RefObject<Set<string>>;
 }) {
   const items = query.data ?? [];
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (key: string) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   const { showSuccess, showError } = useNotifications();
   const reminder = useCcCardLeadReminder();
-  // `sendingTo` and `inFlightRef` arrive as props — see their doc above. A set
-  // rather than one slot: Finance works down this list and two sends can
-  // overlap, and with a single slot the first to finish cleared the lock for
-  // the second, re-enabling a row whose request had not come back. The ref is
-  // the same set written and read synchronously, so the handler can turn itself
-  // away inside the window a real double-click slips through before React
-  // re-renders. Not asserted on its own — the test renderer commits between
-  // clicks, so the button is already disabled by the second one.
-  // How many reminders each lead has had from this screen, so a follow-up can say
-  // which one it is. Finance asked to be able to chase a lead a second and third
-  // time, so the button stays live after a send rather than locking the row.
-  //
-  // Held here and nowhere else: nothing is stored against the lead, so this
-  // counts what this page has sent and starts again on a reload. It is a prompt
-  // for whoever is working through the list, not a record of what the lead has
-  // received.
-  const [sentCounts, setSentCounts] = useState<Record<string, number>>({});
+  // In flight and already-sent counts both come from the module-scoped store,
+  // not from this component: see ccReminderLock.ts for why neither can live in
+  // the tree. A set rather than one slot, because Finance works down this list
+  // and two sends overlap — with a single slot the first to come back cleared
+  // the lock for the second, re-enabling a row whose request had not returned.
+  const { inFlight, sentCounts } = useReminderLock();
 
   // Same client-side paging as the Card Holder view — a lead list can also run
   // long, and scrolling through all of it at once was the same complaint.
@@ -883,22 +825,22 @@ function CardLeadComplianceTable({
   // Only the lead and the range go up — never the body, and never the card
   // holders to copy: the backend takes those from the backlog it just read.
   const emailReminder = async (lead: CcCardLeadCompliance) => {
-    if (inFlightRef.current.has(lead.leadEmail)) {
+    // Claims the lock and reports whether it got it, in one synchronous step,
+    // so both halves of a real double-click cannot pass.
+    if (!beginReminder(lead.leadEmail)) {
       return;
     }
-    inFlightRef.current.add(lead.leadEmail);
-    setSendingTo(new Set(inFlightRef.current));
+    let landed = false;
     try {
       const sent = await reminder.mutateAsync({ leadEmail: lead.leadEmail, dateFrom });
-      setSentCounts((prev) => ({ ...prev, [lead.leadEmail]: (prev[lead.leadEmail] ?? 0) + 1 }));
+      landed = true;
       showSuccess(sent || `Reminder sent to ${lead.leadName || lead.leadEmail}.`);
     } catch (error) {
       showError(describeError(error));
     } finally {
       // Only ever this handler's own lead, so a send that finishes first does
-      // not release a row that is still waiting.
-      inFlightRef.current.delete(lead.leadEmail);
-      setSendingTo(new Set(inFlightRef.current));
+      // not release a row that is still waiting. A failed send is not counted.
+      endReminder(lead.leadEmail, landed);
     }
   };
 
@@ -937,7 +879,7 @@ function CardLeadComplianceTable({
             const key = lead.leadEmail || "unassigned";
             const isOpen = !!expanded[key];
             const isUnassigned = lead.leadEmail === "";
-            const sending = sendingTo.has(lead.leadEmail);
+            const sending = inFlight.has(lead.leadEmail);
             const sentCount = sentCounts[lead.leadEmail] ?? 0;
             return (
               <Fragment key={key}>
@@ -951,7 +893,11 @@ function CardLeadComplianceTable({
                       {isOpen ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
                     </IconButton>
                   </Cell>
-                  <Cell bold>{lead.leadName || "Unassigned"}</Cell>
+                  {/* "Unassigned" means no lead is mapped at all, which is
+                      `isUnassigned` above. A card that maps to someone the
+                      master data holds no name for still has a reminder
+                      button, so the row has to say who it would go to. */}
+                  <Cell bold>{lead.leadName || lead.leadEmail || "Unassigned"}</Cell>
                   <Cell align="right">{lead.cardHolderCount}</Cell>
                   <Cell align="right">{wholeAmount(lead.outstandingAmount)}</Cell>
                   <Cell align="right">{lead.transactionCount}</Cell>

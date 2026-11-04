@@ -17,9 +17,10 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { cleanup, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import userEvent from "@testing-library/user-event";
+import { resetReminderLock } from "../ccReminderLock";
 import { localIsoMonth } from "@utils/localDate";
 
 vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "token" }));
@@ -221,6 +222,10 @@ beforeEach(() => {
   sendReminder.mockClear();
   reminderCalls.length = 0;
   extraCardLeads.length = 0;
+  // The reminder lock is module-scoped so it outlives a page unmount, which
+  // means it outlives a test too: the specs below deliberately leave a send
+  // open, and without this the next one starts with that row still held.
+  resetReminderLock();
 });
 
 // index.tsx:63-65 — only a lead or finance gets the company-wide view and the
@@ -552,6 +557,65 @@ describe("the card-lead grouping", () => {
     expect(sendReminder).toHaveBeenCalledTimes(1);
 
     releaseSend();
+  });
+
+  // Leaving the dashboard unmounts the page, not the request. A lock held
+  // anywhere in the tree went with it, so coming back handed the row a fresh
+  // set and the same lead could be mailed a second time off one open send.
+  it("keeps a lead held when the page itself is left and reopened", async () => {
+    let releaseSend = () => {};
+    sendReminder.mockImplementationOnce(
+      (args: { leadEmail: string; dateFrom?: string }) =>
+        new Promise<string>((resolve) => {
+          reminderCalls.push(args);
+          releaseSend = () => resolve("sent");
+        }),
+    );
+    await groupByCardLead();
+    await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
+
+    // Off the dashboard and back, with the request still open.
+    cleanup();
+    await groupByCardLead();
+
+    expect(screen.getByRole("button", { name: "Email reminder" })).toBeDisabled();
+    expect(sendReminder).toHaveBeenCalledTimes(1);
+
+    releaseSend();
+  });
+
+  // The follow-up count labels the button, so losing it on a Group by switch
+  // told Finance a lead had never been chased when they just had been.
+  it("remembers the follow-up count across a Group by switch", async () => {
+    await groupByCardLead();
+    await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await screen.findByRole("button", { name: "Email another reminder" });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
+    await userEvent.click(screen.getByRole("option", { name: "Group by: Card Holder" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
+    await userEvent.click(screen.getByRole("option", { name: "Group by: Card Lead" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Email another reminder" }),
+    ).toBeInTheDocument();
+  });
+
+  // "Unassigned" is a card the master data maps to no lead at all. A lead the
+  // directory holds no name for is a different thing: the reminder still goes
+  // somewhere, so the row has to say where.
+  it("names a lead by email when the master data carries no name for them", async () => {
+    extraCardLeads.push({
+      ...cardLeadFixture,
+      leadEmail: "nameless@wso2.com",
+      leadName: "",
+    });
+    await groupByCardLead();
+
+    expect(screen.getByText("nameless@wso2.com")).toBeInTheDocument();
+    const row = screen.getByText("nameless@wso2.com").closest("tr") as HTMLElement;
+    expect(row).not.toHaveTextContent("Unassigned");
   });
 
   it("reports a failed send rather than leaving the reader thinking it went", async () => {
