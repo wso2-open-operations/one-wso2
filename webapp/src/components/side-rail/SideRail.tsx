@@ -144,7 +144,7 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
   // usePerspectiveVisibility for why the perspective landing routes need the
   // same answer and why a second copy of it would drift.
   const { resolveVisible } = usePerspectiveVisibility();
-  const { resolveBadge } = useRailBadges(active.key);
+  const { resolveBadge } = useRailBadges();
 
   // Memoised because `?? []` would otherwise hand a fresh array to the
   // dependency lists below on every render, defeating both useMemos.

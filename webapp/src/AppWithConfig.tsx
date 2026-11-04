@@ -22,6 +22,7 @@ import { BrowserRouter } from "react-router";
 import { authConfig } from "@config/authConfig";
 import { ThemePreferenceProvider } from "@context/theme/ThemePreferenceContext";
 import { PerspectiveProvider } from "@context/perspective/PerspectiveContext";
+import { RailBadgeProvider } from "@components/side-rail/RailBadgeProvider";
 import { NotificationsProvider } from "@context/notifications/NotificationsContext";
 import { HttpError } from "@api/http";
 import { registerAuthAccessors } from "@api/authBridge";
@@ -100,9 +101,11 @@ export default function AppWithConfig() {
             <ThemePreferenceProvider>
               <BrowserRouter>
                 <PerspectiveProvider>
-                  <NotificationsProvider>
-                    <App />
-                  </NotificationsProvider>
+                  <RailBadgeProvider>
+                    <NotificationsProvider>
+                      <App />
+                    </NotificationsProvider>
+                  </RailBadgeProvider>
                 </PerspectiveProvider>
               </BrowserRouter>
             </ThemePreferenceProvider>

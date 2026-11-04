@@ -17,34 +17,13 @@
  */
 
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const asked: boolean[] = [];
-
-vi.mock("@features/finance/cc/useCcRailBadges", () => ({
-  useCcRailBadges: (enabled: boolean) => {
-    asked.push(enabled);
-    return enabled ? { "cc-autofill-rules": { label: "New", showOnGroup: true } } : {};
-  },
-}));
-
-const { useRailBadges } = await import("./useRailBadges");
-
-beforeEach(() => {
-  asked.length = 0;
-});
+import { describe, expect, it } from "vitest";
+import { useRailBadges } from "./useRailBadges";
 
 describe("useRailBadges", () => {
-  it("shows the Autofill Rules badge in Finance", () => {
-    const { result } = renderHook(() => useRailBadges("finance"));
+  it("shows no badges outside the provider", () => {
+    const { result } = renderHook(() => useRailBadges());
 
-    expect(result.current.resolveBadge("cc-autofill-rules")).toEqual({ label: "New", showOnGroup: true });
-  });
-
-  it("asks for card badges only in Finance", () => {
-    const { result } = renderHook(() => useRailBadges("me"));
-
-    expect(asked).toEqual([false]);
     expect(result.current.resolveBadge("cc-autofill-rules")).toBeUndefined();
   });
 });

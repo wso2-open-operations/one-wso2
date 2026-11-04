@@ -60,7 +60,10 @@ vi.mock("@context/theme/ThemePreferenceContext", () => ({
   ThemePreferenceProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@context/perspective/PerspectiveContext", () => ({
-  PerspectiveProvider: ({ children }: { children: ReactNode }) => children,
+  PerspectiveProvider: ({ children }: { children: ReactNode }) => <div data-testid="perspective">{children}</div>,
+}));
+vi.mock("@components/side-rail/RailBadgeProvider", () => ({
+  RailBadgeProvider: ({ children }: { children: ReactNode }) => <div data-testid="rail-badges">{children}</div>,
 }));
 vi.mock("@context/notifications/NotificationsContext", () => ({
   NotificationsProvider: ({ children }: { children: ReactNode }) => children,
@@ -104,5 +107,17 @@ describe("AppWithConfig sign-in provider selection", () => {
     await renderApp();
 
     expect(screen.getByText("the app")).toBeInTheDocument();
+  });
+});
+
+describe("AppWithConfig badges", () => {
+  // Once for the whole app, so every place that shows badges reads the same ones. Badges follow the perspective.
+  it("collects the badges once, inside the perspective and around the app", async () => {
+    await renderApp();
+
+    const badges = screen.getByTestId("rail-badges");
+    expect(screen.getAllByTestId("rail-badges")).toHaveLength(1);
+    expect(screen.getByTestId("perspective")).toContainElement(badges);
+    expect(badges).toContainElement(screen.getByText("the app"));
   });
 });
