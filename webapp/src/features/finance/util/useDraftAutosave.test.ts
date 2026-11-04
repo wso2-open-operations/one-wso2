@@ -176,6 +176,44 @@ describe("the flush on unmount", () => {
 
     expect(run).not.toHaveBeenCalled();
   });
+
+  // The queue is cleared on the way through the same branch that handles a
+  // revert, and both reach it with nothing to save by the hook's own reckoning.
+  // These two separate them, because telling them apart is the whole of the
+  // guard and getting it wrong silently drops an edit the user made.
+  it("drops a queued save when the edit is reverted", async () => {
+    const run = vi.fn(async () => {});
+    const { rerender, unmount } = renderHook(({ sig }) => useDraftAutosave(sig, true, run), {
+      initialProps: { sig: "a" },
+    });
+
+    rerender({ sig: "b" });
+    // Undone inside the debounce window, so there is nothing left to persist.
+    rerender({ sig: "a" });
+    await act(async () => {
+      unmount();
+    });
+
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("keeps a queued save when the caller withdraws readiness", async () => {
+    const run = vi.fn(async () => {});
+    const { rerender, unmount } = renderHook(
+      ({ sig, ready }) => useDraftAutosave(sig, ready, run),
+      { initialProps: { sig: "a", ready: true } },
+    );
+
+    rerender({ sig: "b", ready: true });
+    // Still the edited list — only readiness went away, a refetch say. Leaving
+    // now must flush it rather than discard it as though it had been undone.
+    rerender({ sig: "b", ready: false });
+    await act(async () => {
+      unmount();
+    });
+
+    expect(run).toHaveBeenCalledTimes(1);
+  });
 });
 
 // A save can still be in flight when the next one starts — a quick second edit,

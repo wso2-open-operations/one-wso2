@@ -50,7 +50,7 @@ import {
   fetchReceiptObjectUrl,
   type ReceiptSource,
 } from "../../util/financeReceipts";
-import { useDraftAutosave } from "../../util/useDraftAutosave";
+import { NOTHING_PERSISTED, useDraftAutosave } from "../../util/useDraftAutosave";
 import { useOpdAppData, useOpdUserInfo } from "../useOpd";
 import { useOpdDraftSync, useOpdReceiptUpload, useSubmitOpdClaim } from "../useOpdMutations";
 import { OPD_ROLE, opdHasRole, type OpdTransaction } from "../opdTypes";
@@ -98,6 +98,12 @@ function NewClaimBody() {
   // in an effect body renders the empty list first and then replaces it, and
   // whether autosave caught the carried-over bills depended on whether app
   // data happened to have loaded by then.
+  //
+  // Carried-over bills go straight in; a saved draft does not. A draft is
+  // offered as an explicit "Restore Draft" choice beside "Add OPD Claim",
+  // because restoring it silently would make a stale draft look like work in
+  // progress, with no way to start fresh without first deleting bills you
+  // never entered this session.
   const [items, setItems] = useState<OpdTransaction[]>(() => carriedOver ?? []);
   const [dialogOpen, setDialogOpen] = useState(false);
   // ExpenseForm.tsx:59 — the dialog doubles as the edit form for one row.
@@ -155,19 +161,11 @@ function NewClaimBody() {
   const maxForDialog =
     remainingAfter != null && editingItem ? remainingAfter + editingItem.amount : remainingAfter;
 
-  // Bills carried over from a rejected claim via "Resubmit as New Claim"
-  // (OpdHistoryPage). ClaimDetails.tsx:187-192 adds them to the working list
-  // and navigates here; autosave then persists them, replacing the old draft.
-  // Bills carried over from a resubmit go straight in; a saved draft does not.
-  // NewClaim.tsx:249-266 offers it as an explicit "Restore Draft" choice beside
-  // "Add OPD Claim" — restoring silently would make a stale draft look like
-  // work in progress, and there would be no way to start fresh without first
-  // deleting bills you never entered this session.
-  //
-  // Only the consuming is left here. The router keeps history state across a
-  // Back and across a reload, so leaving it there means these bills seed again
-  // after the claim has been submitted, and autosave writes them back as a
-  // draft for a claim that is already filed.
+  // Consume the router state once the list above has taken the bills from it.
+  // The router keeps history state across a Back and across a reload, so
+  // leaving it there means these bills seed again after the claim has been
+  // submitted, and autosave writes them back as a draft for a claim that is
+  // already filed.
   const navigate = useNavigate();
   useEffect(() => {
     if (hasCarriedOver) {
@@ -189,10 +187,10 @@ function NewClaimBody() {
     },
     undefined,
     // Carried-over bills ARE the new draft and must replace whatever is stored,
-    // so the first armed snapshot has to be compared rather than adopted. "" is
-    // never a JSON.stringify result, so it can never match and be skipped —
-    // which also makes this no longer depend on whether app data had loaded.
-    hasCarriedOver ? "" : undefined,
+    // so the first armed snapshot has to be compared rather than adopted. That
+    // also makes the save no longer depend on whether app data had loaded by
+    // the time the bills arrived.
+    hasCarriedOver ? NOTHING_PERSISTED : undefined,
   );
 
   if (userInfo.isLoading || appData.isLoading) {

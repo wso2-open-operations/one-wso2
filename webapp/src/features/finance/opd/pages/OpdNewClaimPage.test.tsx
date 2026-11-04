@@ -17,7 +17,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
@@ -28,6 +28,7 @@ vi.mock("react-router", async () => {
   return { ...actual, useNavigate: () => navigate, useLocation: () => location };
 });
 const location = { pathname: "/me/claims/opd/new", state: null as unknown, key: "k", search: "", hash: "" };
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { localIsoDateOffset } from "@utils/localDate";
 
@@ -47,7 +48,17 @@ const state = {
   lastYearClaimSummary: null as { totalClaimedAmount: number; totalRemaining: number; totalClaimLimit: number } | null,
   draft: null as { transactions: unknown[] } | null,
   roles: [444],
+  // Whether app data is still in flight on the first render. Autosave is held
+  // unready until it resolves, so a test can start the page before the load
+  // lands — the order a resubmit navigation actually arrives in.
+  appDataPending: false,
 };
+
+// Lets that pending load resolve. Held as a setter rather than a flag on
+// `state` because the page has to re-render for its own reason: the app is
+// built with the React compiler, which memoises the tree, so re-rendering the
+// root with the same element changes nothing.
+let releaseAppData = () => {};
 
 // The receipt button reaches for a token, which pulls in Asgardeo — stubbed
 // here rather than loaded, as the other finance tests do.
@@ -60,25 +71,36 @@ vi.mock("../useOpd", () => ({
     isLoading: false,
     isError: false,
   }),
-  useOpdAppData: () => ({
-    data: {
-      claimSummary: { totalClaimedAmount: 5000, totalRemaining: 45000, totalClaimLimit: 50000 },
-      lastYearClaimSummary: state.lastYearClaimSummary,
-      draft: state.draft,
-    },
-    isLoading: false,
-    isError: false,
-    isSuccess: true,
-  }),
+  useOpdAppData: () => {
+    const [pending, setPending] = useState(state.appDataPending);
+    useEffect(() => {
+      releaseAppData = () => setPending(false);
+    }, []);
+    return {
+      data: pending
+        ? undefined
+        : {
+            claimSummary: { totalClaimedAmount: 5000, totalRemaining: 45000, totalClaimLimit: 50000 },
+            lastYearClaimSummary: state.lastYearClaimSummary,
+            draft: state.draft,
+          },
+      isLoading: pending,
+      isError: false,
+      isSuccess: !pending,
+    };
+  },
 }));
 
 const submitMutate = vi.fn();
 const draftRemove = vi.fn();
+// Hoisted rather than built in the factory, so a test can assert on what the
+// draft was actually saved with.
+const draftSave = vi.fn(async () => undefined);
 vi.mock("../useOpdMutations", () => ({
   useOpdReceiptUpload: () => ({ mutateAsync: vi.fn(async () => "receipt-1.pdf"), isPending: false }),
   useSubmitOpdClaim: () => ({ mutate: submitMutate, isPending: false, isError: false, error: null }),
   useOpdDraftSync: () => ({
-    save: { mutateAsync: vi.fn(async () => undefined) },
+    save: { mutateAsync: draftSave },
     remove: { mutate: draftRemove, mutateAsync: vi.fn(async () => undefined) },
   }),
 }));
@@ -95,9 +117,12 @@ beforeEach(() => {
   navigate.mockClear();
   location.state = null;
   draftRemove.mockClear();
+  draftSave.mockClear();
   state.lastYearClaimSummary = null;
   state.draft = null;
   state.roles = [444];
+  state.appDataPending = false;
+  releaseAppData = () => {};
 });
 
 function show() {
@@ -468,6 +493,24 @@ describe("bills carried over from a resubmit", () => {
     show();
     await screen.findByText(/No bills yet/);
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // These bills ARE the new draft and have to replace whatever is stored. The
+  // save used to depend on app data having loaded before they arrived, because
+  // autosave adopts the first list it sees once ready as already-persisted: if
+  // the load landed second it adopted the carried bills and never wrote them,
+  // leaving the rejected claim's old draft on the server.
+  it("saves them as the new draft even when app data lands afterwards", async () => {
+    location.state = { resubmitTransactions: carried };
+    state.appDataPending = true;
+    show();
+    expect(draftSave).not.toHaveBeenCalled();
+
+    act(() => releaseAppData());
+    await screen.findByText("Carried");
+
+    // Waits out the autosave debounce.
+    await waitFor(() => expect(draftSave).toHaveBeenCalledWith(carried), { timeout: 3000 });
   });
 });
 

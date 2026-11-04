@@ -18,6 +18,15 @@ import { useEffect, useRef, useState } from "react";
 
 export type DraftState = "idle" | "saving" | "saved" | "error";
 
+/**
+ * `initialBaseline` for a caller whose opening list is the draft to persist —
+ * carried-over bills, say, which have to replace whatever is stored. No
+ * signature can equal it, because `JSON.stringify` never returns an empty
+ * string, so the first ready snapshot is compared and saved rather than
+ * adopted as already-persisted.
+ */
+export const NOTHING_PERSISTED = "";
+
 // Debounced draft autosave. `signature` is a stable string derived from the
 // current line items; whenever it changes (after the first "ready" snapshot)
 // the hook waits `delay` ms then runs `run` — which the caller wires to
@@ -28,7 +37,8 @@ export type DraftState = "idle" | "saving" | "saved" | "error";
 // `initialBaseline` names that persisted state up front instead, for a caller
 // that holds `ready` back while something resolves: the first ready snapshot
 // is then compared rather than skipped, so an edit made during the wait is
-// still saved.
+// still saved. A caller whose opening list IS the state to persist, rather
+// than one read back from the server, passes `NOTHING_PERSISTED`.
 export function useDraftAutosave(
   signature: string,
   ready: boolean,
@@ -85,8 +95,13 @@ export function useDraftAutosave(
   useEffect(() => {
     if (!dirty) {
       // Reverted to the last-saved state: drop the queued save so leaving the
-      // page does not write back a change that was undone.
-      pendingRef.current = null;
+      // page does not write back a change that was undone. Guarded on `ready`
+      // because `dirty` is also false when the caller withdraws readiness —
+      // a refetch, say — and a save queued from a real edit has to survive
+      // that to still be flushed on unmount.
+      if (ready) {
+        pendingRef.current = null;
+      }
       return;
     }
     const target = signature;
@@ -116,7 +131,7 @@ export function useDraftAutosave(
         });
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [dirty, signature, delay]);
+  }, [dirty, ready, signature, delay]);
 
   // Flush a still-queued save when the component unmounts, so leaving within
   // the debounce window doesn't drop the last edit.
