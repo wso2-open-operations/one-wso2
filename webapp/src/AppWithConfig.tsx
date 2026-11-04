@@ -80,6 +80,10 @@ const queryClient = new QueryClient({
 // deployments set no such URL and keep the stock provider.
 const AuthProvider = authConfig.wellKnownEndpoint ? ThunderProvider : AsgardeoProvider;
 
+/**
+ * The app inside the providers every screen needs: sign-in, queries, theme, routing, the active perspective, rail
+ * badges and notifications. In the silent sign-in frame, only the sign-in provider runs.
+ */
 export default function AppWithConfig() {
   return (
     <AuthProvider
