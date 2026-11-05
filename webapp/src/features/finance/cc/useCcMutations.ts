@@ -92,15 +92,11 @@ export function useCcSaveDraft() {
 
 /**
  * POST /transactions/card-lead-reminder — email one card lead the unsubmitted
- * backlog of the card holders they approve for, copying those card holders and
- * the caller.
+ * backlog of the card holders they approve for, copying the caller.
  *
  * Sends only the lead and the date range, never the message. The dashboard holds
  * its summary for five minutes, so a body built here could chase a card holder
  * who has already submitted; the backend reads the figures at send time instead.
- *
- * Nothing here or on the backend records that a reminder has gone out, so this
- * can be called again for the same lead as a second or third follow-up.
  */
 export function useCcCardLeadReminder() {
   const getAccessToken = useAccessToken();

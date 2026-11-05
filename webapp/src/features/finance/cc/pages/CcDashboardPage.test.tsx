@@ -102,12 +102,12 @@ const leadFixtures = {
 };
 
 // The reminder's only side effect. Recorded so a test can prove WHAT went up:
-// the lead and the range, never a message body built on this side, and never the
-// card holders to copy — the backend takes those from the backlog it reads.
+// the lead and the range, never a message body built on this side. The reminder
+// goes to the lead alone; the text here mirrors what the backend confirms with.
 const reminderCalls: { leadEmail: string; dateFrom?: string }[] = [];
 const sendReminder = vi.fn(async (args: { leadEmail: string; dateFrom?: string }) => {
   reminderCalls.push(args);
-  return "Reminder sent to Lead Person, copying the card holders.";
+  return "Reminder sent to Lead Person.";
 });
 vi.mock("../useCcMutations", () => ({
   useCcCardLeadReminder: () => ({ mutateAsync: sendReminder }),
@@ -450,8 +450,7 @@ describe("the card-lead grouping", () => {
 
   // The figures are deliberately NOT sent: the dashboard caches its summary for
   // five minutes, so a body built here could chase a card holder who has since
-  // submitted. The backend reads the backlog itself at send time, and takes the
-  // card holders to copy from it rather than from anything this page passes.
+  // submitted. The backend reads the backlog itself at send time.
   it("asks the backend to send, passing only the lead and the range", async () => {
     await groupByCardLead();
 
@@ -468,7 +467,7 @@ describe("the card-lead grouping", () => {
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
 
     await waitFor(() =>
-      expect(notify.showSuccess).toHaveBeenCalledWith("Reminder sent to Lead Person, copying the card holders."),
+      expect(notify.showSuccess).toHaveBeenCalledWith("Reminder sent to Lead Person."),
     );
   });
 

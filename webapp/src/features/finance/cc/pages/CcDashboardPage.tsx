@@ -922,7 +922,7 @@ function CardLeadComplianceTable({
                             : sending
                               ? "Sending the reminder..."
                               : sentCount === 0
-                                ? "Email this lead about unsubmitted transactions, copying the card holders"
+                                ? "Email this lead about their card holders' unsubmitted transactions"
                                 : `Send another reminder — ${sentCount} sent from this page so far`
                         }
                       >

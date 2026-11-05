@@ -550,9 +550,9 @@ export const ccServiceUrls = {
   // server-side.
   cardLeadCompliance: `${ccBackendUrl}/transactions/card-lead-compliance-summary`,
   // POST — emails one card lead the unsubmitted backlog of the card holders they
-  // approve for, copying those card holders and the caller. Takes only the lead and
-  // the date range: the backend reads the figures itself at send time, so a reminder
-  // never carries what this page last fetched. Finance only, enforced server-side.
+  // approve for, copying the caller. Takes only the lead and the date range: the
+  // backend reads the figures itself at send time, so a reminder never carries what
+  // this page last fetched. Finance only, enforced server-side.
   cardLeadReminder: `${ccBackendUrl}/transactions/card-lead-reminder`,
   // Lead view: every lead's approval backlog, and one lead's team within it.
   leadApprovalSummary: `${ccBackendUrl}/transactions/lead-approval-summary`,
