@@ -184,6 +184,12 @@ window.config = {
   // makes no requests.
   // ONE_WSO2_PRODUCT_DOWNLOAD_STATS_BACKEND_URL: "<product-download-stats-backend-url>",
 
+  // Agent Orchestrator backend — powers Ask Novera, the conversational AI
+  // assistant in the top bar. Shown only while `novera` is on in
+  // ONE_WSO2_PREVIEW_FEATURES below. With the flag on and this unset, the
+  // palette says "not connected" and makes no requests.
+  // ONE_WSO2_AGENT_ORCHESTRATOR_URL: "<your-agent-orchestrator-backend-url>",
+
   // Pardot UI base URL — for deep-linking to an email template after Email
   // Workbench pushes it. A link target, not an API. Defaults to
   // https://pi.pardot.com.
@@ -218,6 +224,6 @@ window.config = {
   // Each entry is deleted when its feature ships — a list that only grows
   // stops describing anything.
   //
-  // ONE_WSO2_PREVIEW_FEATURES: { infra: false, cado2: false, nda: false, amplify: false },
+  // ONE_WSO2_PREVIEW_FEATURES: { cado2: false, nda: false, amplify: false, novera: false },
 
 };

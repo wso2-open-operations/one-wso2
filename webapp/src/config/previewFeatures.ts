@@ -80,7 +80,14 @@ export type PreviewFeature =
    * Marketing Ops → Campaign Tracker → Pacing tab. The BudgetSyncPacingPanel
    * is still being built out; this flag hides the tab until it is ready.
    */
-  | "campaignTrackerPacing";
+  | "campaignTrackerPacing"
+  /**
+   * TopBar → Ask Novera, the conversational AI assistant in the top bar. Held
+   * back while it is built. With the flag on and
+   * `ONE_WSO2_AGENT_ORCHESTRATOR_URL` unset, the palette says "not connected"
+   * and makes no requests.
+   */
+  | "novera";
 
 /**
  * Whether a preview feature should be shown.

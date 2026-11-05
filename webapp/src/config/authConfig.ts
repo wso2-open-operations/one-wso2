@@ -201,6 +201,12 @@ declare global {
       ONE_WSO2_AUTH_WELL_KNOWN_URL?: string;
       // Backend that serves the customer-search endpoint used by the NDA page.
       ONE_WSO2_LEGAL_BACKEND_URL?: string;
+      // Base URL for the Agent Orchestrator backend — powers Ask Novera, the
+      // conversational AI assistant in the top bar. Optional — when absent (and
+      // the `novera` preview flag is on) the palette shows a not-connected state
+      // and makes no requests.
+      ONE_WSO2_AGENT_ORCHESTRATOR_URL?: string;
+
       // Features built but not yet released — see @config/previewFeatures.
       // Absent or false hides the feature, so a deployment that says nothing
       // shows nothing. Typed loosely here and narrowed by `PreviewFeature` at
