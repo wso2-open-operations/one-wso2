@@ -206,7 +206,7 @@ describe("the flush on unmount", () => {
 
     rerender({ sig: "b", ready: true });
     // Still the edited list — only readiness went away, a refetch say. Leaving
-    // now must flush it rather than discard it as though it had been undone.
+    // must flush it rather than discard it as though the edit were undone.
     rerender({ sig: "b", ready: false });
     await act(async () => {
       unmount();

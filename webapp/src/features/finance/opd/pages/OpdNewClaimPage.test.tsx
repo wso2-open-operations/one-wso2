@@ -495,11 +495,11 @@ describe("bills carried over from a resubmit", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  // These bills ARE the new draft and have to replace whatever is stored. The
-  // save used to depend on app data having loaded before they arrived, because
-  // autosave adopts the first list it sees once ready as already-persisted: if
-  // the load landed second it adopted the carried bills and never wrote them,
-  // leaving the rejected claim's old draft on the server.
+  // These bills ARE the new draft and have to replace whatever is stored, so the
+  // save must not depend on app data having loaded before they arrived. Autosave
+  // adopts the first list it sees once ready as already-persisted, so a load that
+  // lands second must not make it adopt the carried bills and write nothing,
+  // which would leave the rejected claim's old draft on the server.
   it("saves them as the new draft even when app data lands afterwards", async () => {
     location.state = { resubmitTransactions: carried };
     state.appDataPending = true;

@@ -94,16 +94,11 @@ function NewClaimBody() {
     ?.resubmitTransactions;
   const hasCarriedOver = Boolean(carriedOver && carriedOver.length > 0);
 
-  // Seeded in the initialiser rather than pushed in by an effect: a setState
-  // in an effect body renders the empty list first and then replaces it, and
-  // whether autosave caught the carried-over bills depended on whether app
-  // data happened to have loaded by then.
-  //
-  // Carried-over bills go straight in; a saved draft does not. A draft is
-  // offered as an explicit "Restore Draft" choice beside "Add OPD Claim",
-  // because restoring it silently would make a stale draft look like work in
-  // progress, with no way to start fresh without first deleting bills you
-  // never entered this session.
+  // Carried-over bills open the list; a saved draft does not. A draft is offered
+  // as an explicit "Restore Draft" choice beside "Add OPD Claim", because
+  // restoring it silently would make a stale draft look like work in progress,
+  // with no way to start fresh without first deleting bills you never entered
+  // this session.
   const [items, setItems] = useState<OpdTransaction[]>(() => carriedOver ?? []);
   const [dialogOpen, setDialogOpen] = useState(false);
   // ExpenseForm.tsx:59 — the dialog doubles as the edit form for one row.
