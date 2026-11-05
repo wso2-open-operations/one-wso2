@@ -30,6 +30,7 @@ function queryState(over: {
   isFetching?: boolean;
   isError?: boolean;
   isSuccess?: boolean;
+  isPlaceholderData?: boolean;
   data?: unknown;
   error?: unknown;
 }) {
@@ -39,6 +40,7 @@ function queryState(over: {
     isFetching: false,
     isError: false,
     isSuccess: false,
+    isPlaceholderData: false,
     data: undefined,
     error: null,
     refetch: vi.fn(),
@@ -246,6 +248,30 @@ describe("a finance approver with everything loaded", () => {
     const first = asked.reportFilters[0];
     expect(first.startDate).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
     expect(first.startDate! <= first.endDate).toBe(true);
+  });
+
+  // keepPreviousData leaves the last filter's report on screen while the next
+  // one loads, but the heading, the caption and the CSV's title all read the
+  // newly applied period. Exporting in that window would label one period's
+  // figures with another's, which for a finance report is worse than waiting.
+  it("will not export while the report on screen is the previous filter's", () => {
+    reportState.current = queryState({
+      isSuccess: true,
+      data: populatedReport,
+      isPlaceholderData: true,
+    });
+
+    render(<ExpenseDashboardScreen />);
+
+    expect(screen.getByRole("button", { name: /Export/ })).toBeDisabled();
+  });
+
+  it("exports once the report matches the filters on screen", () => {
+    reportState.current = queryState({ isSuccess: true, data: populatedReport });
+
+    render(<ExpenseDashboardScreen />);
+
+    expect(screen.getByRole("button", { name: /Export/ })).toBeEnabled();
   });
 
   it("offers a retry when the report itself fails to load", () => {

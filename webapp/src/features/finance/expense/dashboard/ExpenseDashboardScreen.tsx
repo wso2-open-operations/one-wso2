@@ -326,6 +326,12 @@ function DashboardBody() {
                   size="small"
                   startIcon={<DownloadIcon size={16} />}
                   onClick={(e) => setExportAnchor(e.currentTarget)}
+                  // Held back while the report on screen is still the previous
+                  // filter's. The heading, the caption and the CSV's own title all
+                  // read the newly applied period, so exporting mid-load would
+                  // hand finance a file labelled one period and filled with
+                  // another's figures. Covers Print too: both live in this menu.
+                  disabled={report.isPlaceholderData}
                   sx={{ textTransform: "none" }}
                 >
                   Export
