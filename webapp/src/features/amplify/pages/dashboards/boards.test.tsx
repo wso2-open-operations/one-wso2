@@ -275,6 +275,7 @@ describe("PersonDetailDialog", () => {
     expect(screen.getByText("Ada Lovelace Amplify Details")).toBeTruthy();
     expect(screen.getByText(/Team: Digital Engineering/)).toBeTruthy();
     expect(screen.getByText("Amplify has no activity for this person yet.")).toBeTruthy();
+    expect(screen.getByText(/once they share their first post/)).toBeTruthy();
     expect(screen.queryByText("Points this month")).toBeNull();
   });
 

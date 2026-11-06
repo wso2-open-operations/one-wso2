@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 
 
-import { Avatar, Box, Button, Dialog, DialogContent, Divider, IconButton, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
-import { XIcon } from "@wso2/oxygen-ui-icons-react";
+import { alpha, Avatar, Box, Button, Dialog, DialogContent, Divider, IconButton, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
+import { SparklesIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
 import { HttpError } from "@api/http";
 import { dialogPaperSx } from "@components/confirmation-dialog/dialogPaperSx";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
@@ -28,6 +28,50 @@ import { num, windowText } from "../../util/dashboardFormat";
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "")).toUpperCase() || "?";
+}
+
+/**
+ * The body for a person with no Amplify activity: no points in the period yet, or never signed in. Used both when
+ * the team list sent no id and when the Backend answers 404 for an id, so the two read the same.
+ */
+function NoActivity() {
+  return (
+    <Box
+      sx={(theme) => ({
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        gap: 1,
+        px: 3,
+        py: 4,
+        borderRadius: 2,
+        border: "1px dashed",
+        borderColor: alpha(theme.palette.primary.main, 0.35),
+        bgcolor: alpha(theme.palette.primary.main, 0.06),
+      })}
+    >
+      <Box
+        aria-hidden
+        sx={(theme) => ({
+          width: 56,
+          height: 56,
+          mb: 0.5,
+          borderRadius: "50%",
+          display: "grid",
+          placeItems: "center",
+          color: "primary.main",
+          bgcolor: alpha(theme.palette.primary.main, 0.14),
+        })}
+      >
+        <SparklesIcon size={26} />
+      </Box>
+      <Typography sx={{ fontSize: 17, fontWeight: 600 }}>Amplify has no activity for this person yet.</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 440 }}>
+        Their reposts and points show here once they share their first post.
+      </Typography>
+    </Box>
+  );
 }
 
 /**
@@ -63,13 +107,13 @@ export default function PersonDetailDialog({ person, onClose }: { person: Person
       </Box>
       <DialogContent>
         {!hasId ? (
-          // Same note as the Backend's 404 below: with no id the request would never reach it (gateway 404).
-          <Empty>Amplify has no activity for this person yet.</Empty>
+          // Same body as the Backend's 404 below: with no id the request would never reach it (gateway 404).
+          <NoActivity />
         ) : q.isPending ? (
           <Skeleton variant="rounded" height={160} />
         ) : q.isError ? (
           q.error instanceof HttpError && q.error.status === 404 ? (
-            <Empty>Amplify has no activity for this person yet.</Empty>
+            <NoActivity />
           ) : (
             <ErrorNotice error={q.error} onRetry={() => void q.refetch()}>
               Couldn&apos;t load this person.
