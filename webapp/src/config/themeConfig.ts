@@ -14,15 +14,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Theme selection, and nothing else: this file picks between the themes Oxygen
-// ships, then applies the accessibility overlay.
+// Theme selection, then the accessibility overlay.
 //
-// Oxygen's themes are used AS SHIPPED. There is deliberately no brand layer on
-// top any more — an earlier iteration extended AcrylicOrangeTheme with One WSO2
-// colours and solid surfaces (config/brandTheme.ts, removed); taking Oxygen's
-// presets unmodified is what keeps this file a picker rather than a second
-// design system. Palette questions belong upstream in Oxygen, not here.
+// Oxygen's presets are used as shipped, except the WSO2 theme's primary.
+// Oxygen sets that to brand orange 600 (#D32F00). This app uses brand orange
+// 500 (#F14E23) and keeps the neighbouring steps: 400 for light, 600 for dark.
 
+import { deepmerge } from "@mui/utils";
+import { extendTheme } from "@mui/material/styles";
 import {
   AcrylicOrangeTheme,
   AcrylicPurpleTheme,
@@ -35,6 +34,24 @@ import {
 import type { OxygenTheme } from "@wso2/oxygen-ui/styles/OxygenThemeBase";
 import { withA11yOverrides } from "@config/a11yThemeOverrides";
 
+const BRAND_ORANGE = {
+  light: "#FF6E47",
+  main: "#F14E23",
+  dark: "#D32F00",
+  contrastText: "#FFFFFF",
+} as const;
+
+function withBrandOrangePrimary(theme: OxygenTheme): OxygenTheme {
+  return extendTheme(
+    deepmerge(theme, {
+      colorSchemes: {
+        light: { palette: { primary: BRAND_ORANGE } },
+        dark: { palette: { primary: BRAND_ORANGE } },
+      },
+    }),
+  ) as OxygenTheme;
+}
+
 export const THEMES = {
   acrylicOrange: AcrylicOrangeTheme,
   // Alias, resolvable but not offered — an earlier iteration persisted this key,
@@ -46,7 +63,7 @@ export const THEMES = {
   // Deliberately NOT offered: OxygenTheme (= AcrylicBaseTheme) and
   // PaleBaseTheme, which are the bases the themes above extend rather than
   // finished looks of their own.
-  wso2: WSO2Theme,
+  wso2: withBrandOrangePrimary(WSO2Theme),
   paleIndigo: PaleIndigoTheme,
   paleGray: PaleGrayTheme,
 } satisfies Record<string, OxygenTheme>;

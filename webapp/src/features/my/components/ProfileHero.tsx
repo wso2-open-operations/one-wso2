@@ -16,12 +16,13 @@
 
 import { useState } from "react";
 import { Avatar, Box, IconButton, Skeleton, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { QrCode } from "@wso2/oxygen-ui-icons-react";
 import type { Employee, UserInfo } from "../api/types";
 import { display, fullName, initialsOf } from "../api/derive";
 import EmployeeQrDialog from "./EmployeeQrDialog";
 
 // Orange-gradient hero header. Left = large avatar; right of avatar = name
-// + designation. QR icon top-right opens the employee QR dialog (same
+// + designation. Oxygen's QR icon opens the employee QR dialog (same
 // endpoint people-app uses: GET /employees/{id}/qr-code). ID, work email,
 // business unit etc. live in the General Info card below.
 export default function ProfileHero({
@@ -74,18 +75,21 @@ export default function ProfileHero({
     >
       <Avatar
         src={thumbnail ?? undefined}
-        sx={{
+        sx={(theme) => ({
           position: "relative",
           width: 78,
           height: 78,
           fontSize: 28,
           fontWeight: 700,
-          background: (t) => `linear-gradient(135deg, ${t.palette.primary.main}, #ff8a5c)`,
-          border: "3px solid",
-          borderColor: "background.paper",
+          background: `linear-gradient(135deg, ${theme.palette.primary.main}, #ff8a5c)`,
+          border: "2px solid",
+          borderColor: "common.white",
+          ...theme.applyStyles("dark", {
+            borderColor: "color-mix(in srgb, var(--oxygen-palette-primary-light) 62%, white)",
+          }),
           boxShadow: "0 4px 14px rgba(241,78,35,.28)",
           flexShrink: 0,
-        }}
+        })}
       >
         {initials || "?"}
       </Avatar>
@@ -123,7 +127,7 @@ export default function ProfileHero({
               height: 36,
             }}
           >
-            <QrIcon />
+            <QrCode size={18} />
           </IconButton>
         </span>
       </Tooltip>
@@ -135,16 +139,5 @@ export default function ProfileHero({
         onClose={() => setQrOpen(false)}
       />
     </Box>
-  );
-}
-
-function QrIcon() {
-  return (
-    <svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}>
-      <rect x={3} y={3} width={7} height={7} rx={1} />
-      <rect x={14} y={3} width={7} height={7} rx={1} />
-      <rect x={3} y={14} width={7} height={7} rx={1} />
-      <path d="M14 14h3v3h-3zM20 14h1v1h-1zM14 20h1v1h-1zM17 17h4v4" />
-    </svg>
   );
 }
