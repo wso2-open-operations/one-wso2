@@ -66,6 +66,7 @@ import { useUmtUpdatesView } from "../lib/useUmtUpdatesView";
 import UmtCreateUpdateDialog from "../components/UmtCreateUpdateDialog";
 import UmtShell from "../components/UmtShell";
 import UmtUpdateFiltersDrawer from "../components/UmtUpdateFiltersDrawer";
+import { UMT_FROSTED_HEADER_SX } from "../components/release-chunks/umtReleaseChunkGridSx";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
@@ -319,7 +320,16 @@ function UmtUpdatesBody() {
         </ErrorNotice>
       )}
 
-      <Paper variant="outlined" sx={{ minWidth: 0, overflow: "hidden", position: "relative" }}>
+      <Paper
+        variant="outlined"
+        sx={{
+          backdropFilter: "none",
+          minWidth: 0,
+          overflow: "hidden",
+          position: "relative",
+          WebkitBackdropFilter: "none",
+        }}
+      >
         {search.isFetching && !search.isPending && <LinearProgress sx={{ left: 0, position: "absolute", right: 0, top: 0, zIndex: 4 }} />}
         <Box sx={{ height: { xs: "calc(100dvh - 360px)", md: "calc(100dvh - 310px)" }, minHeight: 240 }}>
           <OpenActionsRowContext.Provider value={actionAnchor ? (actionRow?.id ?? null) : null}>
@@ -403,6 +413,7 @@ function UpdatesEmptyState() {
 // so it still looks right in dark mode.
 const updatesGridSx = {
   border: 0,
+  ...UMT_FROSTED_HEADER_SX,
   '& .MuiDataGrid-cell[data-field="actions"]': {
     position: "sticky",
     right: 0,

@@ -30,11 +30,12 @@ function parseStatus(value: string | null): UmtReleaseChunkStatusFilter {
   return value === "released" ? "released" : "pending";
 }
 
-// Every query behind this page: the pending and released lists and each
-// chunk's lifecycle, build, CST and Docker statuses.
-function isReleaseChunkQuery(query: Query): boolean {
+// The pending and released lists. Refresh reloads only these: the build
+// statuses of the chunks on screen are read again every few seconds anyway, so
+// counting those fetches would disable the button on every poll.
+function isReleaseChunkListQuery(query: Query): boolean {
   const [key] = query.queryKey;
-  return typeof key === "string" && key.startsWith("umt-release");
+  return key === "umt-release-chunks" || key === "umt-released-chunks";
 }
 
 export default function UmtReleaseChunksPage() {
@@ -55,7 +56,7 @@ function UmtReleaseChunksBody() {
   const navigate = useNavigate();
   const gate = useUmtGate();
   const queryClient = useQueryClient();
-  const refreshing = useIsFetching({ predicate: isReleaseChunkQuery }) > 0;
+  const refreshing = useIsFetching({ predicate: isReleaseChunkListQuery }) > 0;
   const status = parseStatus(searchParams.get("status"));
 
   const setStatus = (next: UmtReleaseChunkStatusFilter) => {
@@ -88,7 +89,7 @@ function UmtReleaseChunksBody() {
             <IconButton
               aria-label="Refresh"
               disabled={refreshing}
-              onClick={() => void queryClient.invalidateQueries({ predicate: isReleaseChunkQuery })}
+              onClick={() => void queryClient.invalidateQueries({ predicate: isReleaseChunkListQuery })}
             >
               <RotateCw size={16} />
             </IconButton>

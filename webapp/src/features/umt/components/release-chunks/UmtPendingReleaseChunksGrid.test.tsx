@@ -217,4 +217,51 @@ describe("UmtPendingReleaseChunksGrid", () => {
       expect(style.paddingBottom, field).toBe("0px");
     }
   });
+
+  it("frosts the column header, so rows that scroll under it blur instead of showing through", () => {
+    render(<UmtPendingReleaseChunksGrid />);
+
+    const headers = document.querySelector<HTMLElement>(".MuiDataGrid-columnHeaders");
+    if (!headers) throw new Error("no column header row rendered");
+    const paper = headers.closest<HTMLElement>(".MuiPaper-root");
+    if (!paper) throw new Error("grid is not inside a card");
+    const grid = headers.closest<HTMLElement>(".MuiDataGrid-root");
+    if (!grid) throw new Error("header row is not inside a grid");
+
+    // The header row carries a translucent tint, the header shade and a blur.
+    const headerStyle = getComputedStyle(headers);
+    expect(headerStyle.backgroundColor).toContain("var(--oxygen-palette-background-paper) 70%, transparent");
+    expect(headerStyle.backgroundImage).toContain("var(--oxygen-palette-action-hover)");
+    expect(emotionRule(grid, " .MuiDataGrid-columnHeaders")).toMatch(/[{;]backdrop-filter:blur\(10px\)/);
+
+    // Every header cell is clear, so the cells do not paint over the blur
+    // with the grid's solid header colour.
+    const cells = [...document.querySelectorAll<HTMLElement>(".MuiDataGrid-columnHeader")];
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) {
+      expect(getComputedStyle(cell).backgroundColor, cell.dataset.field).toBe("rgba(0, 0, 0, 0)");
+    }
+
+    // The card drops its own backdrop blur, which would stop the header's blur
+    // from covering the rows.
+    expect(emotionRule(paper)).toMatch(/[{;]backdrop-filter:none/);
+  });
 });
+
+// The text of every style rule for an element's own emotion class, plus a
+// descendant selector when one is given. A component's built-in styles and
+// its sx share the class, so one selector can have several rules. jsdom
+// leaves backdrop-filter out of both computed styles and parsed style sheets,
+// so a blur can only be read from the style text that emotion writes.
+function emotionRule(element: Element, descendant = ""): string {
+  const emotionClass = [...element.classList].find((name) => name.startsWith("css-"));
+  if (!emotionClass) throw new Error("element has no emotion class");
+  const selector = `.${emotionClass}${descendant}{`;
+  const styleText = [...document.querySelectorAll("style")].map((style) => style.textContent ?? "").join("\n");
+  const rules: string[] = [];
+  for (let start = styleText.indexOf(selector); start !== -1; start = styleText.indexOf(selector, start + 1)) {
+    rules.push(styleText.slice(start, styleText.indexOf("}", start)));
+  }
+  if (rules.length === 0) throw new Error(`no style rule for ${selector}`);
+  return rules.join("\n");
+}

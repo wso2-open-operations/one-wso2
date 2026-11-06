@@ -30,8 +30,54 @@ export const CHUNK_LINE_HEIGHT = 32;
 // negative margin to bleed its divider across the full width of the cell.
 export const CHUNK_CELL_PADDING_X = 10;
 
+// The card a grid with a frosted header sits in.
+//
+// The theme gives every Paper its own backdrop blur. A backdrop blur on an
+// ancestor stops the header's blur from covering the rows beneath it: the rows
+// stay sharp under the header with only a faint halo. The card's blur is
+// removed so that the header's blur takes effect.
+export const UMT_CHUNK_GRID_PAPER_SX = {
+  backdropFilter: "none",
+  display: "flex",
+  flex: 1,
+  flexDirection: "column",
+  minHeight: 0,
+  minWidth: 0,
+  overflow: "hidden",
+  position: "relative",
+  WebkitBackdropFilter: "none",
+} as const;
+
+const HEADER_BLUR = "blur(10px)";
+
+// The frosted header for any UMT grid: rows that scroll under the sticky
+// header show through a translucent paper tint and a blur. The blur is set
+// here for every theme, because only some of the themes put one on the
+// header. The header cells, filler and scrollbar filler are cleared to
+// transparent, because the grid paints them with its solid header colour,
+// which hides the blur. The grid's card must also drop its own backdrop blur
+// (see UMT_CHUNK_GRID_PAPER_SX), or this blur has no effect.
+export const UMT_FROSTED_HEADER_SX = {
+  "& .MuiDataGrid-columnHeaders": {
+    backgroundColor: "color-mix(in srgb, var(--oxygen-palette-background-paper) 70%, transparent)",
+    // The header shade, laid over the tint across the header's full width.
+    backgroundImage:
+      "linear-gradient(var(--oxygen-palette-action-hover), var(--oxygen-palette-action-hover))",
+    backdropFilter: HEADER_BLUR,
+    WebkitBackdropFilter: HEADER_BLUR,
+  },
+  "& .MuiDataGrid-columnHeader": {
+    backgroundColor: "transparent",
+  },
+  "& .MuiDataGrid-columnHeaders .MuiDataGrid-filler, & .MuiDataGrid-columnHeaders .MuiDataGrid-scrollbarFiller":
+    {
+      backgroundColor: "transparent",
+    },
+} as const;
+
 export const UMT_CHUNK_GRID_SX = {
   border: 0,
+  ...UMT_FROSTED_HEADER_SX,
   "& .MuiDataGrid-cell": {
     alignItems: "flex-start",
     display: "flex",
@@ -92,7 +138,7 @@ export const UMT_CHUNK_GRID_BORDERED_SX = {
     borderRightColor: "divider",
   },
   "& .MuiDataGrid-columnHeader": {
-    backgroundColor: "action.hover",
+    ...UMT_CHUNK_GRID_SX["& .MuiDataGrid-columnHeader"],
     borderRightWidth: "1px",
     borderRightStyle: "solid",
     borderRightColor: "divider",

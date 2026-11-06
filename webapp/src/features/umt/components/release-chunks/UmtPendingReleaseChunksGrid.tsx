@@ -76,7 +76,7 @@ import {
   ChunkCell,
   ChunkLine,
 } from "./umtReleaseChunkGridPrimitives";
-import { UMT_CHUNK_GRID_BORDERED_SX } from "./umtReleaseChunkGridSx";
+import { UMT_CHUNK_GRID_BORDERED_SX, UMT_CHUNK_GRID_PAPER_SX } from "./umtReleaseChunkGridSx";
 import { useChunkGridPagination } from "./useChunkGridPagination";
 
 const { DataGrid: DataGridComponent } = DataGrid;
@@ -137,7 +137,7 @@ function releaseReadinessAnswered(readiness: UmtReleaseReadiness, showWarning: (
   showWarning(
     readiness === "blocked"
       ? "One or more update levels have not built successfully. Check their build status before releasing."
-      : "Build status for this release chunk is unavailable, so it cannot be released yet. Refresh the table and try again.",
+      : "Build status for this release chunk is unavailable, so it cannot be released yet. Try again in a moment.",
   );
   return false;
 }
@@ -157,15 +157,35 @@ function tgBuildStatusOf(
   status: UmtReleaseChunkRowStatus | undefined,
   level: UmtReleaseChunkUpdateLevel,
 ): string {
-  const levels = status?.buildStatus?.updateLevels;
-  if (!levels) return "UNKNOWN";
-  const match = levels.find(
-    (candidate) =>
-      candidate.productName === level.productName &&
-      candidate.productVersion === level.productVersion,
-  );
+  if (!status?.buildStatus) return "UNKNOWN";
+  const match = statusLevelOf(status, level);
   if (!match) return "UNKNOWN";
   return match.tgBuildStatus || "N/A";
+}
+
+// One update level's product build status. The list that loads the chunks
+// carries one too, but only the build status request is read again while the
+// page is open, so its value wins, even when it is null. The list's value
+// stands in until that request has answered, and for a level the answer does
+// not list.
+function productBuildStatusOf(
+  status: UmtReleaseChunkRowStatus | undefined,
+  level: UmtReleaseChunkUpdateLevel,
+): string | null | undefined {
+  const match = statusLevelOf(status, level);
+  return match ? match.buildStatus : level.buildStatus;
+}
+
+function statusLevelOf(
+  status: UmtReleaseChunkRowStatus | undefined,
+  level: UmtReleaseChunkUpdateLevel,
+) {
+  return status?.buildStatus?.updateLevels.find(
+    (candidate) =>
+      candidate.productName === level.productName &&
+      candidate.productVersion === level.productVersion &&
+      candidate.channel === level.channel,
+  );
 }
 
 // The six per-update-level columns sit under one "Build Details" title, so it
@@ -379,15 +399,18 @@ export default function UmtPendingReleaseChunksGrid() {
         headerName: "Build Status",
         width: 150,
         sortable: false,
-        renderCell: (params) => (
-          <ChunkCell divided>
-            {params.row.updateLevels.map((level, index) => (
-              <ChunkLine key={index}>
-                <BuildStatusChip status={level.buildStatus} />
-              </ChunkLine>
-            ))}
-          </ChunkCell>
-        ),
+        renderCell: (params) => {
+          const status = rowStatuses[params.row.id];
+          return (
+            <ChunkCell divided>
+              {params.row.updateLevels.map((level, index) => (
+                <ChunkLine key={index}>
+                  <BuildStatusChip status={productBuildStatusOf(status, level)} />
+                </ChunkLine>
+              ))}
+            </ChunkCell>
+          );
+        },
       },
       ...(gate.isAdmin
         ? [
@@ -398,17 +421,21 @@ export default function UmtPendingReleaseChunksGrid() {
               sortable: false,
               renderCell: (
                 params: DataGrid.GridRenderCellParams<UmtReleaseChunk>,
-              ) => (
-                <ChunkCell divided>
-                  {params.row.updateLevels.map((level, index) => (
-                    <ProductBuildRetriggerButton
-                      key={index}
-                      chunkId={params.row.id}
-                      level={level}
-                    />
-                  ))}
-                </ChunkCell>
-              ),
+              ) => {
+                const status = rowStatuses[params.row.id];
+                return (
+                  <ChunkCell divided>
+                    {params.row.updateLevels.map((level, index) => (
+                      <ProductBuildRetriggerButton
+                        key={index}
+                        chunkId={params.row.id}
+                        level={level}
+                        status={productBuildStatusOf(status, level)}
+                      />
+                    ))}
+                  </ChunkCell>
+                );
+              },
             } as DataGrid.GridColDef<UmtReleaseChunk>,
           ]
         : []),
@@ -577,18 +604,7 @@ export default function UmtPendingReleaseChunksGrid() {
         </ErrorNotice>
       )}
 
-      <Paper
-        variant="outlined"
-        sx={{
-          display: "flex",
-          flex: 1,
-          flexDirection: "column",
-          minHeight: 0,
-          minWidth: 0,
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
+      <Paper variant="outlined" sx={UMT_CHUNK_GRID_PAPER_SX}>
         {chunks.isFetching && !chunks.isPending && (
           <LinearProgress
             sx={{ left: 0, position: "absolute", right: 0, top: 0, zIndex: 4 }}
@@ -808,9 +824,11 @@ function UnlockChunkButton({ chunkId }: { chunkId: number }) {
 function ProductBuildRetriggerButton({
   chunkId,
   level,
+  status,
 }: {
   chunkId: number;
   level: UmtReleaseChunkUpdateLevel;
+  status: string | null | undefined;
 }) {
   const trigger = useUmtTriggerProductBuild(chunkId);
   return (
@@ -818,7 +836,7 @@ function ProductBuildRetriggerButton({
       label="Retrigger Job"
       title="Retrigger Build"
       successMessage="Build triggered successfully!"
-      canRetrigger={umtCanRetriggerBuild(level.buildStatus)}
+      canRetrigger={umtCanRetriggerBuild(status)}
       chunkId={chunkId}
       level={level}
       trigger={trigger}
@@ -872,7 +890,10 @@ function LevelBuildRetriggerButton({
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Still a line, even with nothing to offer: the levels below it have to
   // stay on the same rows as their names and statuses in the columns beside.
+  // A status that hides the button also closes its dialog for good, so a
+  // level that becomes retriggerable again does not reopen it unasked.
   if (!canRetrigger) {
+    if (confirmOpen) setConfirmOpen(false);
     return <ChunkLine />;
   }
   const levelName = `${level.productName ?? "N/A"} ${level.productVersion ?? ""}`.trim();

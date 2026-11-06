@@ -93,7 +93,6 @@ export interface UmtReleaseChunkRowStatus {
   buildStatus?: UmtReleaseChunkBuildStatus;
   buildStatusLoading: boolean;
   chunkStatus?: UmtReleaseChunkStatus;
-  chunkStatusLoading: boolean;
 }
 
 async function fetchUmtReleaseChunkBuildStatus(
@@ -146,11 +145,39 @@ export function useFetchFreshUmtReleaseChunkBuildStatus() {
 // out the list, and every action that depends on a status checks for one
 // before it runs.
 //
-// A chunk being created, released or retriggered has its status read again
-// every few seconds until it settles, and when it does the lists and its
+// The build statuses of the chunks on screen are read again every few seconds,
+// so a level that starts, finishes or fails a build shows it without a reload.
+//
+// A chunk being created, released or retriggered also has its status read
+// again every few seconds until it settles, and when it does the lists and its
 // build statuses are refreshed, so a released chunk leaves the pending list
 // and a created one shows its builds.
 const CHUNK_STATUS_POLL_MS = 5000;
+
+// A number for each data object a query has produced. A refetch that returns
+// the same values hands back the same object, so the number stays the same;
+// one that returns new values hands back a new object, which gets a new number.
+const dataIds = new WeakMap<object, number>();
+let nextDataId = 0;
+
+function dataId(data: unknown): string {
+  if (typeof data !== "object" || data === null) return String(data);
+  let id = dataIds.get(data);
+  if (id === undefined) {
+    id = ++nextDataId;
+    dataIds.set(data, id);
+  }
+  return `#${id}`;
+}
+
+// Whether a row's status is still on its first load. A query with no data goes
+// back to pending at the start of every fetch, so a status whose request
+// failed would count as loading again on every poll. Only a query that has
+// never finished a fetch counts as loading; after that the row keeps what it
+// last showed until the next answer arrives.
+function firstLoad(result: { isPending: boolean; isFetched: boolean } | undefined): boolean {
+  return result ? result.isPending && !result.isFetched : false;
+}
 
 export function useUmtReleaseChunkRowStatuses(ids: number[]): Record<number, UmtReleaseChunkRowStatus> {
   const { isSignedIn } = useAsgardeo();
@@ -165,6 +192,7 @@ export function useUmtReleaseChunkRowStatuses(ids: number[]): Record<number, Umt
       queryKey: ["umt-release-chunk-build-status", userSub, id],
       enabled: ready,
       queryFn: async () => fetchUmtReleaseChunkBuildStatus(id, await getAccessToken()),
+      refetchInterval: CHUNK_STATUS_POLL_MS,
       retry: httpRetry,
     })),
   });
@@ -181,17 +209,16 @@ export function useUmtReleaseChunkRowStatuses(ids: number[]): Record<number, Umt
     })),
   });
 
-
-  // A signature of what the queries have produced. `dataUpdatedAt` changes
-  // exactly when a query's data changes, so this string stays equal across
-  // renders that changed nothing, and the object below keeps its identity with
-  // it. That matters because the grid rebuilds its entire column state, and
-  // re-measures every row, whenever the columns built from this are a new
-  // reference — which a freshly built object made them on every render.
+  // A signature of what the queries have produced. It changes only when a
+  // query's data changes, not each time a poll fetches the same values again,
+  // so this string stays equal across renders that changed nothing, and the
+  // object below keeps its identity with it. That matters because the grid
+  // rebuilds its entire column state, and re-measures every row, whenever the
+  // columns built from this are a new reference.
   const signature = [
     ids.join(","),
-    buildStatusResults.map((result) => `${result.dataUpdatedAt}:${result.isPending}`).join(","),
-    chunkStatusResults.map((result) => `${result.dataUpdatedAt}:${result.isPending}`).join(","),
+    buildStatusResults.map((result) => `${dataId(result.data)}:${firstLoad(result)}`).join(","),
+    chunkStatusResults.map((result) => dataId(result.data)).join(","),
   ].join("|");
 
   // The chunks last seen in progress, so a status that moves on from it can be
@@ -221,9 +248,8 @@ export function useUmtReleaseChunkRowStatuses(ids: number[]): Record<number, Umt
     ids.forEach((id, index) => {
       statuses[id] = {
         buildStatus: buildStatusResults[index]?.data,
-        buildStatusLoading: buildStatusResults[index]?.isPending ?? false,
+        buildStatusLoading: firstLoad(buildStatusResults[index]),
         chunkStatus: chunkStatusResults[index]?.data,
-        chunkStatusLoading: chunkStatusResults[index]?.isPending ?? false,
       };
     });
     return statuses;

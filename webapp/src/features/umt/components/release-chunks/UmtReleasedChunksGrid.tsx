@@ -20,7 +20,7 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import type { UmtReleasedChunk } from "../../api/umtReleaseChunks";
 import { useUmtReleasedChunks } from "../../api/useUmtReleaseChunks";
 import { BuildStatusChip, ChunkCell, ChunkLine } from "./umtReleaseChunkGridPrimitives";
-import { UMT_CHUNK_GRID_SX } from "./umtReleaseChunkGridSx";
+import { UMT_CHUNK_GRID_PAPER_SX, UMT_CHUNK_GRID_SX } from "./umtReleaseChunkGridSx";
 import { useChunkGridPagination } from "./useChunkGridPagination";
 
 const { DataGrid: DataGridComponent } = DataGrid;
@@ -159,18 +159,7 @@ export default function UmtReleasedChunksGrid() {
         </ErrorNotice>
       )}
 
-      <Paper
-        variant="outlined"
-        sx={{
-          display: "flex",
-          flex: 1,
-          flexDirection: "column",
-          minHeight: 0,
-          minWidth: 0,
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
+      <Paper variant="outlined" sx={UMT_CHUNK_GRID_PAPER_SX}>
         {releasedChunks.isFetching && !releasedChunks.isPending && (
           <LinearProgress sx={{ left: 0, position: "absolute", right: 0, top: 0, zIndex: 4 }} />
         )}
