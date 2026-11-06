@@ -249,6 +249,9 @@ export interface UmtStagingTestResultRecord {
   automatedTestResult?: string | null;
   // The product's channel; the save looks the record up by it.
   channel?: string | null;
+  // The staging Jenkins link for this product: the job page until the run is
+  // found, then that run's own page. Empty when no staging job exists.
+  buildUrlWithBuildId?: string | null;
 }
 
 // Body for one PUT /update/{id}/integrationTest/staging call — the endpoint
