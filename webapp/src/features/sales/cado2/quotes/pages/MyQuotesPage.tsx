@@ -23,7 +23,6 @@ import {
   CircularProgress,
   Dialog,
   DialogContent,
-  IconButton,
   InputAdornment,
   Link,
   Paper,
@@ -33,24 +32,14 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableRow,
-  TableSortLabel,
   Tabs,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  ChevronsDownUpIcon,
-  ChevronsUpDownIcon,
   FileTextIcon,
-  ListIcon,
-  ListTreeIcon,
   PlusIcon,
   SearchIcon,
   StarIcon,
@@ -92,27 +81,21 @@ import {
   type QuoteSortKey,
 } from "@features/sales/cado2/quotes/list/quoteListModel";
 import { cado2Paths } from "@features/sales/cado2/cado2Paths";
+import SortableHead from "@features/sales/cado2/components/list-table/SortableHead";
+import BranchRow from "@features/sales/cado2/components/list-table/BranchRow";
+import LayoutControls from "@features/sales/cado2/components/list-table/LayoutControls";
+import {
+  LIST_CELL,
+  layoutFrom,
+  storeLayout,
+  type ListColumn,
+} from "@features/sales/cado2/components/list-table/listTable";
 import { cado2Access, useCado2Me } from "@features/sales/cado2/api/useCado2Me";
 
-/** The last layout chosen, for next time; the page works without storage. */
+/** The last layout chosen, for next time. */
 const LAYOUT_KEY = "cado2.quotes.layout";
-function storedLayout(): QuoteLayout {
-  try {
-    return localStorage.getItem(LAYOUT_KEY) === "tree" ? "tree" : "list";
-  } catch {
-    return "list";
-  }
-}
-function storeLayout(layout: QuoteLayout): void {
-  try {
-    localStorage.setItem(LAYOUT_KEY, layout);
-  } catch {
-    // Not remembered: the page works the same.
-  }
-}
 
-// Compact rows (2026-10-12 feedback: "everything is a little bit bigger than it should be").
-const CELL = { py: 1, px: 1.5 } as const;
+const CELL = LIST_CELL;
 const day = (iso: string) => formatDate(iso.slice(0, 10));
 
 /**
@@ -245,59 +228,7 @@ function StatusCell({ q }: { q: QuoteListItem }): JSX.Element {
 }
 
 /** A column: its header, and the key it sorts on (D70). */
-interface Column {
-  readonly label: string;
-  readonly sort: QuoteSortKey;
-}
-
-/** Headers that sort: click once for ascending, again for descending. */
-function Head({
-  columns,
-  sort,
-  onSort,
-}: {
-  columns: readonly Column[];
-  sort: QuoteSort;
-  onSort: (s: QuoteSort) => void;
-}): JSX.Element {
-  return (
-    <TableHead>
-      <TableRow
-        sx={{
-          "& th": {
-            ...CELL,
-            color: "text.secondary",
-            fontWeight: 600,
-            fontSize: 12,
-            whiteSpace: "nowrap",
-          },
-        }}
-      >
-        {columns.map((c) => (
-          <TableCell
-            key={c.sort}
-            sortDirection={sort.key === c.sort ? sort.dir : false}
-          >
-            <TableSortLabel
-              active={sort.key === c.sort}
-              direction={sort.key === c.sort ? sort.dir : "asc"}
-              onClick={() =>
-                onSort({
-                  key: c.sort,
-                  dir:
-                    sort.key === c.sort && sort.dir === "asc" ? "desc" : "asc",
-                })
-              }
-            >
-              {c.label}
-            </TableSortLabel>
-          </TableCell>
-        ))}
-        <TableCell aria-label="Actions" />
-      </TableRow>
-    </TableHead>
-  );
-}
+type Column = ListColumn<QuoteSortKey>;
 
 /** A quote's row; clicking anywhere on it opens the quote. */
 function QuoteTableRow({
@@ -371,7 +302,7 @@ function ListLayout({
   ];
   return (
     <Table size="small" aria-label="Quotes">
-      <Head columns={columns} sort={sort} onSort={onSort} />
+      <SortableHead columns={columns} sort={sort} onSort={onSort} actionsColumn />
       <TableBody>
         {rows.map((q) => (
           <QuoteTableRow
@@ -403,61 +334,6 @@ function ListLayout({
         ))}
       </TableBody>
     </Table>
-  );
-}
-
-/** A branch's row: a chevron that opens and closes it, and its name across the table. */
-function BranchRow({
-  depth,
-  open,
-  onToggle,
-  title,
-  detail,
-  span,
-}: {
-  depth: 0 | 1;
-  open: boolean;
-  onToggle: () => void;
-  title: string;
-  detail?: ReactNode;
-  span: number;
-}): JSX.Element {
-  return (
-    <TableRow sx={{ bgcolor: depth === 0 ? "action.hover" : undefined }}>
-      <TableCell colSpan={span} sx={{ ...CELL, pl: 1 + depth * 3 }}>
-        <Stack direction="row" spacing={0.5} alignItems="center">
-          <IconButton
-            size="small"
-            onClick={onToggle}
-            aria-expanded={open}
-            aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
-          >
-            {open ? (
-              <ChevronDownIcon size={16} />
-            ) : (
-              <ChevronRightIcon size={16} />
-            )}
-          </IconButton>
-          <Typography
-            variant="body2"
-            sx={{ fontWeight: depth === 0 ? 600 : 500 }}
-            noWrap
-          >
-            {title}
-          </Typography>
-          {detail ? (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              noWrap
-              sx={{ pl: 1 }}
-            >
-              {detail}
-            </Typography>
-          ) : null}
-        </Stack>
-      </TableCell>
-    </TableRow>
   );
 }
 
@@ -510,7 +386,7 @@ function TreeLayout({
   );
   return (
     <Table size="small" aria-label="Quotes by account and opportunity">
-      <Head columns={columns} sort={sort} onSort={onSort} />
+      <SortableHead columns={columns} sort={sort} onSort={onSort} actionsColumn />
       <TableBody>
         {groupQuotes(rows).map((a) => (
           <Fragment key={a.accountId}>
@@ -580,11 +456,7 @@ export default function MyQuotesPage(): JSX.Element {
   // so it sees All quotes only and no New Quote.
   const { canQuote } = cado2Access(useCado2Me().data);
   const scope: QuoteScope = !canQuote || params.get("scope") === "all" ? "all" : "mine";
-  const layoutParam = params.get("layout");
-  const layout: QuoteLayout =
-    layoutParam === "tree" || layoutParam === "list"
-      ? layoutParam
-      : storedLayout();
+  const layout: QuoteLayout = layoutFrom(params.get("layout"), LAYOUT_KEY);
   const setParam = (key: string, value: string, fallback: string) =>
     setParams(
       (cur) => {
@@ -688,46 +560,18 @@ export default function MyQuotesPage(): JSX.Element {
               },
             }}
           />
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ order: { xs: 2, md: 3 }, ml: { xs: "auto", md: 0 } }}>
-            {layout === "tree" ? (
-              <Tooltip title={allCollapsed ? "Expand all" : "Collapse all"}>
-                <IconButton
-                  size="small"
-                  aria-label={allCollapsed ? "Expand all" : "Collapse all"}
-                  onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(accountIds))}
-                >
-                  {allCollapsed ? <ChevronsUpDownIcon size={18} /> : <ChevronsDownUpIcon size={18} />}
-                </IconButton>
-              </Tooltip>
-            ) : null}
-            <ToggleButtonGroup
-              size="small"
-              exclusive
-              value={layout}
-              onChange={(_, v: QuoteLayout | null) => {
-                if (!v) return;
-                storeLayout(v);
+          <Box sx={{ order: { xs: 2, md: 3 }, ml: { xs: "auto", md: 0 } }}>
+            <LayoutControls
+              layout={layout}
+              onLayout={(v) => {
+                storeLayout(LAYOUT_KEY, v);
                 setParam("layout", v, "");
               }}
-              aria-label="Layout"
-            >
-              {/* The tooltip sits inside the button: a group passes its state to its direct children. */}
-              <ToggleButton value="list" aria-label="List" sx={{ px: 1 }}>
-                <Tooltip title="List">
-                  <Box component="span" sx={{ display: "flex" }}>
-                    <ListIcon size={18} />
-                  </Box>
-                </Tooltip>
-              </ToggleButton>
-              <ToggleButton value="tree" aria-label="Tree" sx={{ px: 1 }}>
-                <Tooltip title="Tree: account › opportunity › quote">
-                  <Box component="span" sx={{ display: "flex" }}>
-                    <ListTreeIcon size={18} />
-                  </Box>
-                </Tooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
-          </Stack>
+              treeLabel="account › opportunity › quote"
+              allCollapsed={allCollapsed}
+              onCollapseAll={(collapse) => setCollapsed(collapse ? new Set(accountIds) : new Set())}
+            />
+          </Box>
         </Stack>
 
         {error ? (

@@ -47,9 +47,15 @@ export function noteText(n: ReviewNote, role: LensRole): NoteText {
       title = "Start date";
       detail = first;
       break;
-    case "SEE_SPECIAL_TERMS":
-      title = "Billing: See Special Terms";
-      detail = "Describe the billing in the special terms";
+    case "SPECIAL_TERMS":
+      if (role === "DEAL_DESK") {
+        // D139: the AM wrote them; Deal Desk checks them.
+        title = "Special terms from the AM";
+        detail = "Check them, override if needed";
+        break;
+      }
+      title = "Special terms";
+      detail = first;
       break;
     default: {
       const row = parseReason(n.rule, n.lineNumber, first);
@@ -65,17 +71,7 @@ export function noteText(n: ReviewNote, role: LensRole): NoteText {
   return { title, detail, who };
 }
 
-/** Who marked it, short: the name before the @. */
-const shortName = (email: string | null) => (email ? email.split("@")[0] : "someone");
-
-/**
- * The note's state in words: "To look at", "Looks fine · priya", "Looks fine
- * on v1 · priya", "Changed since v1", or "Approved · priya" once the role approved.
- */
+/** A note's state in words: "Written" once a note to write is done; nothing otherwise (D140). */
 export function stateLabel(n: ReviewNote): string {
-  if (n.state === "CHANGED") return `Changed since v${n.markedOnVersion ?? "?"}`;
-  if (n.state !== "FINE") return "To look at";
-  if (n.byApproval) return `Approved · ${shortName(n.markedByEmail)}`;
-  if (n.yoursToWrite) return "Written";
-  return n.markedOnVersion ? `Looks fine on v${n.markedOnVersion} · ${shortName(n.markedByEmail)}` : `Looks fine · ${shortName(n.markedByEmail)}`;
+  return n.yoursToWrite && n.state === "DONE" ? "Written" : "";
 }

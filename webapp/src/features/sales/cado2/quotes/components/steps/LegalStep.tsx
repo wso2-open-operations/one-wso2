@@ -17,9 +17,11 @@
 import type { JSX } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import {
+  Alert,
   Box,
   Chip,
   DatePickers,
+  FormControlLabel,
   MenuItem,
   Skeleton,
   Stack,
@@ -32,6 +34,7 @@ import SectionCard from "@features/sales/cado2/components/section-card/SectionCa
 import LegalHtml from "@features/sales/cado2/components/legal-rich-text/LegalHtml";
 import LegalNotices from "@features/sales/cado2/components/legal-rich-text/LegalNotices";
 import LegalQuote from "@features/sales/cado2/components/legal-rich-text/LegalQuote";
+import LegalRichTextField from "@features/sales/cado2/components/legal-rich-text/LegalRichTextField";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useLegalConfig } from "@features/sales/cado2/quotes/api/useQuoteApi";
 import { parseDateString, toDateString, type DraftFormValues } from "@features/sales/cado2/quotes/form/draftForm";
@@ -42,7 +45,7 @@ import {
   needsLegal,
   resolveLegal,
 } from "@features/sales/cado2/quotes/form/legalModel";
-import { isEmptyLegalText } from "@features/sales/cado2/utils/legalRichText";
+import { SPECIAL_TERMS_BILLING } from "@features/sales/cado2/quotes/form/stepRules";
 import { useFieldIssue } from "@features/sales/cado2/quotes/components/fieldIssues";
 import SupportingDocumentsCard from "@features/sales/cado2/quotes/components/SupportingDocumentsCard";
 
@@ -82,8 +85,8 @@ const VISIBLE_SWITCH = {
  *                deal, the partner agreement first (name, partner, date)
  *   Notices      set by Legal; regional and renewal clauses appear by
  *                themselves, each saying why
- *   Special      the special terms: Deal Desk writes them during its
- *                approval (D128), so the AM only sees them here
+ *   Special      the AM's special terms (D139); Deal Desk and Legal review
+ *                them during approval and may override them
  */
 export default function LegalStep({ quoteId = null }: { quoteId?: number | null }): JSX.Element {
   const { control } = useFormContext<DraftFormValues>();
@@ -112,7 +115,8 @@ export default function LegalStep({ quoteId = null }: { quoteId?: number | null 
   const legal = needsLegal(mix, { onPremNonStandard: v.termsOnPremNonStandard, saasNonStandard: v.termsSaasNonStandard });
   const nameIssue = useFieldIssue("partnerContractName");
   const dateIssue = useFieldIssue("partnerContractDate");
-  const billingSeesSpecialTerms = v.billingFrequency === "SPECIAL_TERMS";
+  const specialIssue = useFieldIssue("specialTerms.text");
+  const billingNeedsSpecialTerms = v.billingFrequency === "SPECIAL_TERMS" && !v.specialTermsEnabled;
 
   if (config.error) {
     return (
@@ -242,20 +246,39 @@ export default function LegalStep({ quoteId = null }: { quoteId?: number | null 
         {!sections ? <Skeleton variant="rounded" height={120} /> : <LegalNotices notices={sections.notices} reasons />}
       </SectionCard>
 
-      {/* D128: Deal Desk writes the special terms during its approval; Legal reviews them. */}
       <SectionCard title="Special Terms" icon={<PenLineIcon size={18} />}>
         <Stack spacing={1.5}>
-          {v.specialTermsEnabled && !isEmptyLegalText(v.specialTerms) ? (
-            <LegalQuote>
-              <LegalHtml html={v.specialTerms} />
-            </LegalQuote>
-          ) : null}
-          <Typography variant="body2" color="text.secondary">
-            {v.specialTermsEnabled && !isEmptyLegalText(v.specialTerms)
-              ? "Deal Desk reviews these during its approval and may change them."
-              : "Deal Desk adds any special terms after you submit."}
-            {billingSeesSpecialTerms ? " Billing says See Special Terms, so Deal Desk describes the billing there." : ""}
-          </Typography>
+          {billingNeedsSpecialTerms ? <Alert severity="warning">{SPECIAL_TERMS_BILLING}</Alert> : null}
+          <Controller
+            name="specialTermsEnabled"
+            control={control}
+            render={({ field }) => (
+              <FormControlLabel
+                control={<Switch checked={field.value} onChange={(_, on) => field.onChange(on)} sx={VISIBLE_SWITCH} slotProps={{ input: { role: "switch" } }} />}
+                label={`Special terms: ${field.value ? "On" : "Off"}`}
+              />
+            )}
+          />
+          {v.specialTermsEnabled ? (
+            <Controller
+              name="specialTerms"
+              control={control}
+              render={({ field }) => (
+                <LegalRichTextField
+                  label="Special terms"
+                  value={field.value}
+                  onChange={field.onChange}
+                  required
+                  error={Boolean(specialIssue)}
+                  helperText={specialIssue ?? "Deal Desk and Legal check these during approval and may override them."}
+                />
+              )}
+            />
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Special terms go to Legal for approval. Deal Desk and Legal may override them.
+            </Typography>
+          )}
         </Stack>
       </SectionCard>
 

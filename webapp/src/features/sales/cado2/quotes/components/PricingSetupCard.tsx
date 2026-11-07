@@ -14,97 +14,163 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useEffect, type JSX } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
-import { Alert, AlertTitle, InputAdornment, Stack, TextField } from "@wso2/oxygen-ui";
+import { Alert, AlertTitle, InputAdornment, MenuItem, Stack, TextField } from "@wso2/oxygen-ui";
 import { CoinsIcon, LockIcon } from "@wso2/oxygen-ui-icons-react";
 import SectionCard from "@features/sales/cado2/components/section-card/SectionCard";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
+import LifecycleDialog from "@features/sales/cado2/quotes/components/detail/LifecycleDialog";
 import { useAccountOpportunities, useCurrencies, usePricebooks } from "@features/sales/cado2/quotes/api/useQuoteApi";
 import { useFieldIssue } from "@features/sales/cado2/quotes/components/fieldIssues";
 import type { DraftFormValues } from "@features/sales/cado2/quotes/form/draftForm";
 
 const FROM_SALESFORCE = "From the Salesforce opportunity";
 
+/** A choice waiting for the AM to confirm removing the products (D10). */
+type PendingChange =
+  | { readonly kind: "currency"; readonly value: string }
+  | { readonly kind: "book"; readonly value: string; readonly name: string };
+
 /**
- * The quote's currency and price book: the Salesforce opportunity's, shown
- * locked. Salesforce allows one price book per opportunity, so the
- * quote can't differ. If Salesforce lacks something, this says exactly what
- * to fix there, and no products can be added until it is fixed:
+ * The quote's currency and price book (D142). What the Salesforce opportunity
+ * has is locked: Salesforce allows one price book per opportunity, and every
+ * product on it comes from that book. What it lacks, the AM chooses here,
+ * and the sync sets it on the opportunity:
  *
- *   no currency · a currency CadO2 doesn't offer · no price book ·
- *   a book that's inactive or has no active products in the currency
+ *   opportunity has          currency       price book
+ *   currency + price book    locked         locked
+ *   currency, no book        locked         AM chooses
+ *   neither                  AM chooses     AM chooses
  *
- * The form follows the opportunity, so a fix in Salesforce shows on reload;
- * the backend takes both from Salesforce on every save.
+ * Changing a choice once products are added asks first and removes them,
+ * as their prices come from the book and currency. A locked book Salesforce
+ * can't use (inactive, or no active products in the currency) is to be
+ * fixed there; no products can be added until it is.
  */
 export default function PricingSetupCard(): JSX.Element {
-  const { control, setValue } = useFormContext<DraftFormValues>();
+  const { control, setValue, getValues } = useFormContext<DraftFormValues>();
   const [accountId, opportunityId, currency, bookId, bookName] = useWatch({
     control,
     name: ["accountId", "opportunityId", "currencyIsoCode", "defaultPricebookId", "defaultPricebookName"],
   });
-  const currencies = useCurrencies();
   const opportunities = useAccountOpportunities(accountId || null);
   const opportunity = opportunities.data?.find((o) => o.id === opportunityId);
   const sfCurrency = opportunity?.currencyIsoCode ?? null;
   const sfBook = opportunity?.pricebook ?? null;
-  // A draft already in a currency an Admin has since switched off keeps it.
-  const offered = Boolean(sfCurrency && (currencies.data?.includes(sfCurrency) || currency === sfCurrency));
-  const books = usePricebooks(opportunity && offered && sfCurrency ? sfCurrency : "");
+  const currencyLocked = Boolean(sfCurrency);
+  const bookLocked = Boolean(sfBook);
+  // The currency list is only needed when the AM chooses it (D143: Salesforce's).
+  const currencies = useCurrencies(Boolean(opportunity) && !currencyLocked);
+  const activeCurrency = currencyLocked ? (sfCurrency ?? "") : currency;
+  const books = usePricebooks(opportunity ? activeCurrency : "");
   const usable = Boolean(sfBook && books.data?.some((b) => b.id === sfBook.id));
   const currencyIssue = useFieldIssue("currencyIsoCode");
   const bookIssue = useFieldIssue("defaultPricebookId");
+  const [pending, setPending] = useState<PendingChange | null>(null);
 
-  // What's wrong in Salesforce, if anything; null while it's still loading.
-  const problem = !opportunity
-    ? null
-    : !sfCurrency
-      ? "The opportunity has no currency in Salesforce. Set it there, then reload this quote."
-      : currencies.data && !offered
-        ? `The opportunity is in ${sfCurrency}, which QuickQuote doesn't offer. Ask an Admin to add ${sfCurrency}, or change the opportunity's currency in Salesforce, then reload this quote.`
-        : !sfBook
-          ? "The opportunity has no price book in Salesforce. Set its price book there, then reload this quote."
-          : books.data && !usable
-            ? `The opportunity's price book, ${sfBook.name ?? sfBook.id}, is inactive in Salesforce or has no active products in ${sfCurrency}. Fix it in Salesforce, then reload this quote.`
-            : null;
+  // What's wrong in Salesforce with a locked book; null while loading.
+  const problem =
+    opportunity && bookLocked && sfBook && books.data && !usable
+      ? `The opportunity's price book, ${sfBook.name ?? sfBook.id}, is inactive in Salesforce or has no active products in ${activeCurrency}. Fix it in Salesforce, then reload this quote.`
+      : null;
 
-  // The form follows the opportunity (the backend does the same on save).
+  // What the opportunity has, the form follows (the backend does the same on save).
   useEffect(() => {
-    if (!opportunity || !currencies.data) return;
-    const nextCurrency = offered && sfCurrency ? sfCurrency : "";
-    if (currency !== nextCurrency) setValue("currencyIsoCode", nextCurrency, { shouldDirty: true });
-    if (nextCurrency && sfBook && !books.data) return; // the book's check is still loading
+    if (!opportunity) return;
+    if (currencyLocked && currency !== sfCurrency) setValue("currencyIsoCode", sfCurrency ?? "", { shouldDirty: true });
+    if (!bookLocked || !books.data) return; // the AM's choice, or the book's check still loading
     const next = usable && sfBook ? sfBook : null;
     if (bookId !== (next?.id ?? "")) {
       setValue("defaultPricebookId", next?.id ?? "", { shouldDirty: true });
       setValue("defaultPricebookName", next?.name ?? "", { shouldDirty: true });
     }
-  }, [opportunity, currencies.data, offered, sfCurrency, sfBook, books.data, usable, currency, bookId, setValue]);
+  }, [opportunity, currencyLocked, bookLocked, sfCurrency, sfBook, books.data, usable, currency, bookId, setValue]);
+
+  const apply = (change: PendingChange) => {
+    if (change.kind === "currency") {
+      setValue("currencyIsoCode", change.value, { shouldDirty: true });
+      // A book is priced per currency: choose it again.
+      setValue("defaultPricebookId", "", { shouldDirty: true });
+      setValue("defaultPricebookName", "", { shouldDirty: true });
+    } else {
+      setValue("defaultPricebookId", change.value, { shouldDirty: true });
+      setValue("defaultPricebookName", change.name, { shouldDirty: true });
+    }
+    setValue("lines", [], { shouldDirty: true });
+  };
+  const choose = (change: PendingChange) => {
+    if (getValues("lines").length > 0) setPending(change);
+    else apply(change);
+  };
+  const lineCount = getValues("lines").length;
 
   const locked = { input: { readOnly: true, endAdornment: <InputAdornment position="end"><LockIcon size={14} /></InputAdornment> } };
+  const missing = !opportunity ? null : !currencyLocked ? "currency and price book" : !bookLocked ? "price book" : null;
   return (
     <SectionCard title="Currency & Price Book" icon={<CoinsIcon size={18} />}>
       <Stack spacing={2}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <TextField
-            label="Currency"
-            value={currency || "—"}
-            size="small"
-            error={Boolean(currencyIssue) && !problem}
-            helperText={(!problem && currencyIssue) || FROM_SALESFORCE}
-            slotProps={locked}
-            sx={{ width: { sm: 160 } }}
-          />
-          <TextField
-            label="Price book"
-            value={bookId ? bookName : "—"}
-            size="small"
-            error={Boolean(bookIssue) && !problem}
-            helperText={(!problem && bookIssue) || FROM_SALESFORCE}
-            slotProps={locked}
-            sx={{ flexGrow: 1 }}
-          />
+          {currencyLocked || !opportunity ? (
+            <TextField
+              label="Currency"
+              value={currency || "—"}
+              size="small"
+              error={Boolean(currencyIssue) && !problem}
+              helperText={(!problem && currencyIssue) || FROM_SALESFORCE}
+              slotProps={locked}
+              sx={{ width: { sm: 160 } }}
+            />
+          ) : (
+            <TextField
+              select
+              label="Currency"
+              value={currency}
+              size="small"
+              error={Boolean(currencyIssue)}
+              helperText={currencyIssue || "The opportunity has no currency"}
+              onChange={(e) => e.target.value !== currency && choose({ kind: "currency", value: e.target.value })}
+              sx={{ width: { sm: 200 } }}
+            >
+              {(currencies.data ?? []).map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+          {bookLocked || !opportunity ? (
+            <TextField
+              label="Price book"
+              value={bookId ? bookName : "—"}
+              size="small"
+              error={Boolean(bookIssue) && !problem}
+              helperText={(!problem && bookIssue) || FROM_SALESFORCE}
+              slotProps={locked}
+              sx={{ flexGrow: 1 }}
+            />
+          ) : (
+            <TextField
+              select
+              label="Price book"
+              value={books.data?.some((b) => b.id === bookId) ? bookId : ""}
+              size="small"
+              disabled={!activeCurrency}
+              error={Boolean(bookIssue)}
+              helperText={bookIssue || (activeCurrency ? `Active books priced in ${activeCurrency}` : "Choose the currency first")}
+              onChange={(e) => {
+                const b = books.data?.find((x) => x.id === e.target.value);
+                if (b && b.id !== bookId) choose({ kind: "book", value: b.id, name: b.name ?? b.id });
+              }}
+              sx={{ flexGrow: 1 }}
+            >
+              {(books.data ?? []).map((b) => (
+                <MenuItem key={b.id} value={b.id}>
+                  {b.name ?? b.id}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
         </Stack>
         {problem ? (
           <Alert severity="error">
@@ -113,10 +179,35 @@ export default function PricingSetupCard(): JSX.Element {
           </Alert>
         ) : books.error ? (
           <ErrorNotice error={books.error} onRetry={() => void books.refetch()} retrying={books.isFetching}>
-            Couldn&apos;t check the opportunity&apos;s price book.
+            Couldn&apos;t load the price books.
           </ErrorNotice>
+        ) : currencies.error ? (
+          <ErrorNotice error={currencies.error} onRetry={() => void currencies.refetch()} retrying={currencies.isFetching}>
+            Couldn&apos;t load the currencies.
+          </ErrorNotice>
+        ) : missing ? (
+          <Alert severity="info">
+            The opportunity has no {missing} in Salesforce, so choose {missing === "price book" ? "one" : "them"} here.
+            Syncing to Salesforce sets {missing === "price book" ? "it" : "them"} on the opportunity.
+          </Alert>
         ) : null}
       </Stack>
+      {pending ? (
+        <LifecycleDialog
+          title={pending.kind === "currency" ? "Change the currency?" : "Change the price book?"}
+          confirmLabel="Change and remove products"
+          danger
+          pending={false}
+          error={null}
+          onClose={() => setPending(null)}
+          onConfirm={() => {
+            apply(pending);
+            setPending(null);
+          }}
+        >
+          {`Prices come from the price book, in the quote's currency, so the ${lineCount === 1 ? "product" : `${lineCount} products`} on this quote ${lineCount === 1 ? "is" : "are"} removed. You add them again afterwards.`}
+        </LifecycleDialog>
+      ) : null}
     </SectionCard>
   );
 }

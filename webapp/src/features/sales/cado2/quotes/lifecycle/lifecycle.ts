@@ -323,6 +323,9 @@ function eventText({ event: e, count }: HistoryEntry): string {
     }
     // D128: written by Deal Desk during its approval.
     case "SPECIAL_TERMS_WRITTEN":
+      // D139: Deal Desk's override (metadata.override); before it, D128's writing (metadata.specialTerms).
+      if (meta.override === false) return `Deal Desk went back to the AM's special terms on ${v.toLowerCase()}`;
+      if (meta.override === true) return `Deal Desk overrode the special terms of ${v.toLowerCase()}`;
       return meta.specialTerms === false ? `Deal Desk removed the special terms of ${v.toLowerCase()}` : `Deal Desk wrote the special terms of ${v.toLowerCase()}`;
     default:
       return e.eventType;

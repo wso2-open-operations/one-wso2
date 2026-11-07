@@ -63,14 +63,19 @@ function saveBlob(blob: Blob, name: string): void {
  * (D111); the panel says whether it's there, with a retry when it failed.
  *
  * The supporting documents that follow the order form (DGD-10) are listed
- * here too, and can change until Issue; before approval the panel shows
- * only them, when there are any. On an older version they are read-only.
+ * here too, and can change until Issue; before approval the panel is a
+ * "Supporting Documents" card with only them, when there are any (there is
+ * no order form yet, 2026-11-07). On an older version they are read-only.
+ *
+ * `downloadOnly`: for an approver who doesn't work on quotes (Legal, CFO, …):
+ * once the order form is issued, its Download, nothing else (2026-11-07).
  */
 export default function DocumentsPanel({
   quoteId,
   version,
   approved,
   olderVersion = false,
+  downloadOnly = false,
 }: {
   quoteId: number;
   version: number;
@@ -78,7 +83,10 @@ export default function DocumentsPanel({
   approved: boolean;
   /** An older version in view mode: the supporting documents can't be changed from it. */
   olderVersion?: boolean;
+  /** Only the issued order form's Download, for an approver who doesn't work on quotes. */
+  downloadOnly?: boolean;
 }): JSX.Element | null {
+  if (downloadOnly) return approved ? <IssuedDownload quoteId={quoteId} version={version} /> : null;
   if (!approved) return <BeforeApproval quoteId={quoteId} olderVersion={olderVersion} />;
   return <ApprovedOrderForm quoteId={quoteId} version={version} olderVersion={olderVersion} />;
 }
@@ -88,12 +96,54 @@ function BeforeApproval({ quoteId, olderVersion }: { quoteId: number; olderVersi
   const visible = useHasSupportingDocuments(quoteId);
   if (!visible) return null;
   return (
-    <SectionCard title="Order Form" icon={<FileTextIcon size={18} />}>
-      <Typography variant="body2" color="text.secondary">
-        The order form can be previewed and issued once the quote is approved.
+    <SectionCard title="Supporting Documents" icon={<FileTextIcon size={18} />}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        Added after the order form when it&apos;s issued, once the quote is approved.
       </Typography>
-      <Divider sx={{ my: 1.5 }} />
       <SupportingDocumentsSection quoteId={quoteId} readOnly={olderVersion} />
+    </SectionCard>
+  );
+}
+
+/** The issued order form's Download, and nothing until it is issued. */
+function IssuedDownload({ quoteId, version }: { quoteId: number; version: number }): JSX.Element | null {
+  const docs = useDocuments(quoteId, version, true);
+  const files = useDocumentFiles();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const active = docs.data?.documents.find((x) => x.status === "ACTIVE");
+  if (!active) return null;
+  const download = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      saveBlob(await files.download(quoteId, active.id), active.fileName);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <SectionCard title="Order Form" icon={<FileTextIcon size={18} />}>
+      {error ? (
+        <ErrorNotice error={error} sx={{ mb: 1.5 }}>
+          Couldn&apos;t download the order form.
+        </ErrorNotice>
+      ) : null}
+      <Stack spacing={1.5}>
+        <Box>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Issued {formatDate(active.issueDate)}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" component="div">
+            {active.fileName}
+          </Typography>
+        </Box>
+        <Button variant="contained" startIcon={<DownloadIcon size={16} />} onClick={() => void download()} disabled={busy}>
+          {busy ? "Downloading…" : "Download PDF"}
+        </Button>
+      </Stack>
     </SectionCard>
   );
 }

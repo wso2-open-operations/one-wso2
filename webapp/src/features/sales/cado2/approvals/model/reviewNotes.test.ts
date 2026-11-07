@@ -21,8 +21,7 @@ import { noteText, stateLabel } from "./reviewNotes";
 const note = (over: Partial<ReviewNote>): ReviewNote => ({
   key: "DISCOUNT.L2", rule: "DISCOUNT", lineNumber: 2,
   reasons: ["Year 1 · line 2 · WSO2 API Manager (APIM): 18% discount is above the Account Manager's 15% limit"],
-  roles: ["Regional Director · NA"], target: "line:2", yoursToWrite: false, state: "OPEN",
-  markedByEmail: null, markedAt: null, markedOnVersion: null, ...over,
+  roles: ["Regional Director · NA"], target: "line:2", yoursToWrite: false, state: "OPEN", ...over,
 });
 
 // D129: a note's words, from the rule sentences.
@@ -41,19 +40,20 @@ describe("noteText", () => {
       .toEqual({ title: "Category chosen by the AM", detail: "Professional Service", who: "Only Deal Desk checks this" });
     expect(noteText(note({ rule: "RENEWAL_START", lineNumber: 0, roles: [], reasons: ["Starts 1 Mar 2027, not 1 Feb 2027, the day after APIM ends"] }), "DEAL_DESK").title)
       .toBe("Start date");
-    expect(noteText(note({ rule: "SEE_SPECIAL_TERMS", lineNumber: 0, roles: [], yoursToWrite: true }), "DEAL_DESK").who).toBe("Yours to write");
+    expect(noteText(note({ rule: "GOVERNING_TERMS", lineNumber: 0, roles: [], yoursToWrite: true }), "LEGAL").who).toBe("Yours to write");
+    // D139: the AM's special terms, for Deal Desk to check.
+    expect(noteText(note({ rule: "SPECIAL_TERMS", lineNumber: 0, roles: ["Legal"], reasons: ["The quote includes special terms"] }), "DEAL_DESK"))
+      .toEqual({ title: "Special terms from the AM", detail: "Check them, override if needed", who: "Legal approves after you" });
     expect(noteText(note({ rule: "SPECIAL_TERMS", lineNumber: 0, roles: [], reasons: ["The quote includes special terms"] }), "LEGAL"))
       .toEqual({ title: "Special terms", detail: "The quote includes special terms", who: "Why you're asked" });
   });
 });
 
+// D140: no marks; a note to write says when it's written.
 describe("stateLabel", () => {
-  it("says who found it fine, on which version, or that it changed", () => {
-    expect(stateLabel(note({}))).toBe("To look at");
-    expect(stateLabel(note({ state: "FINE", markedByEmail: "priya@wso2.com" }))).toBe("Looks fine · priya");
-    expect(stateLabel(note({ state: "FINE", markedByEmail: "priya@wso2.com", markedOnVersion: 1 }))).toBe("Looks fine on v1 · priya");
-    expect(stateLabel(note({ state: "CHANGED", markedOnVersion: 1 }))).toBe("Changed since v1");
-    expect(stateLabel(note({ state: "FINE", yoursToWrite: true }))).toBe("Written");
-    expect(stateLabel(note({ state: "FINE", byApproval: true, markedByEmail: "arjun@wso2.com" }))).toBe("Approved · arjun");
+  it("says Written for a note to write once done, and nothing otherwise", () => {
+    expect(stateLabel(note({}))).toBe("");
+    expect(stateLabel(note({ yoursToWrite: true }))).toBe("");
+    expect(stateLabel(note({ yoursToWrite: true, state: "DONE" }))).toBe("Written");
   });
 });

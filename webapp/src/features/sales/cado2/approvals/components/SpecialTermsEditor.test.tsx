@@ -17,6 +17,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { LegalView } from "@features/sales/cado2/quotes/api/quoteTypes";
 import SpecialTermsEditor from "./SpecialTermsEditor";
 
 const write = { mutate: vi.fn(), isPending: false, error: null as unknown };
@@ -32,35 +33,50 @@ vi.mock("@features/sales/cado2/components/legal-rich-text/LegalRichTextField", (
   ),
 }));
 
-// D128: Deal Desk writes the special terms during its approval, behind a switch.
-describe("SpecialTermsEditor", () => {
-  it("switches the special terms on, then saves them", async () => {
-    write.mutate.mockClear();
-    render(<SpecialTermsEditor quoteId={7} versionNumber={1} enabled={false} text={null} billingSeesSpecialTerms={false} />);
-    const user = userEvent.setup();
-    const save = screen.getByRole("button", { name: "Save special terms" });
-    expect(save).toBeDisabled();
-    expect(screen.getByText(/No special terms. Switch them on only if this deal needs them/)).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "Special terms" })).not.toBeInTheDocument();
+const legal = (over: Partial<LegalView> = {}): LegalView => ({
+  onPrem: true, saas: false, onPremNonStandard: false, saasNonStandard: false, contractName: "", partnerName: "", contractDate: null,
+  sections: { blocks: [], notices: [], contractName: "" }, specialTerms: "<p>AM text</p>", specialTermsBy: "AM",
+  specialTermsByLegal: false, amSpecialTerms: "<p>AM text</p>", deskSpecialTerms: null, deskSpecialTermsByEmail: null,
+  legalSpecialTermsByEmail: null, frozen: true, ...over,
+} as LegalView);
 
-    await user.click(screen.getByRole("switch", { name: "Special terms" }));
-    expect(save).toBeDisabled(); // on with nothing written
-    await user.type(screen.getByRole("textbox", { name: "Special terms" }), "Customer may terminate on 30 days' notice.");
-    await user.click(save);
-    expect(write.mutate).toHaveBeenCalledWith(
-      { enabled: true, specialTerms: "Customer may terminate on 30 days' notice." },
-      expect.anything(),
-    );
+// D139: the AM wrote the special terms; Deal Desk may override them.
+describe("SpecialTermsEditor", () => {
+  it("overrides the AM's text, pre-filled with it", async () => {
+    write.mutate.mockClear();
+    render(<SpecialTermsEditor quoteId={7} versionNumber={1} legal={legal()} />);
+    const user = userEvent.setup();
+    expect(screen.getByText("Written by the AM")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Override special terms" }));
+    const box = screen.getByRole("textbox", { name: "Override special terms" });
+    expect(box).toHaveValue("<p>AM text</p>");
+    expect(screen.getByRole("button", { name: "Save override" })).toBeDisabled();
+    await user.clear(box);
+    await user.type(box, "Desk text");
+    await user.click(screen.getByRole("button", { name: "Save override" }));
+    expect(write.mutate).toHaveBeenCalledWith({ specialTerms: expect.stringContaining("Desk text") }, expect.anything());
   });
 
-  it("switching off keeps the text, unused", async () => {
+  it("says who overrode them, shows the AM's text, and goes back to it", async () => {
     write.mutate.mockClear();
-    render(<SpecialTermsEditor quoteId={7} versionNumber={1} enabled text="Old terms" billingSeesSpecialTerms />);
+    render(
+      <SpecialTermsEditor
+        quoteId={7}
+        versionNumber={1}
+        legal={legal({ specialTerms: "<p>Desk text</p>", specialTermsBy: "DEAL_DESK", deskSpecialTerms: "<p>Desk text</p>", deskSpecialTermsByEmail: "priya@wso2.com" })}
+      />,
+    );
     const user = userEvent.setup();
-    expect(screen.getByText(/Billing says See Special Terms: describe the billing here/)).toBeInTheDocument();
-    await user.click(screen.getByRole("switch", { name: "Special terms" }));
-    expect(screen.getByText(/switch the special terms on and describe the billing/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Save special terms" }));
-    expect(write.mutate).toHaveBeenCalledWith({ enabled: false, specialTerms: "Old terms" }, expect.anything());
+    expect(screen.getByText(/Overridden by priya \(Deal Desk\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show what the AM wrote" }));
+    expect(screen.getByText("AM text")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Use the AM's text again" }));
+    expect(write.mutate).toHaveBeenCalledWith({ specialTerms: "<p>AM text</p>" }, expect.anything());
+  });
+
+  it("has nothing to override on a quote without special terms", () => {
+    render(<SpecialTermsEditor quoteId={7} versionNumber={1} legal={legal({ specialTerms: null, amSpecialTerms: null })} />);
+    expect(screen.getByText("The AM added no special terms to this quote.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Override special terms" })).toBeNull();
   });
 });

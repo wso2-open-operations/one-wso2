@@ -213,13 +213,3 @@ export function useReview(quoteId: number | null, version: number | null, enable
     retry: httpRetry,
   });
 }
-
-/** "Looks fine" (true) or "Check again" (false) on a lens note, for the whole role (D129). */
-export function useMarkNote(quoteId: number, version: number) {
-  const { getToken, key } = useCado2Basis();
-  const queryClient = useQueryClient();
-  return useMutation<Review, Error, { role: string; key: string; fine: boolean }>({
-    mutationFn: async (body) => cado2Send<Review>("PUT", cado2ServiceUrls.reviewMarks(quoteId, version), await getToken(), body),
-    onSuccess: (review) => queryClient.setQueryData(key("quotes", "review", quoteId, version), review),
-  });
-}

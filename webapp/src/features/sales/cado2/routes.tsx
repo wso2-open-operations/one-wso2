@@ -30,7 +30,6 @@ import { FIRST_ADMIN_SECTION } from "./admin/adminSections";
 import ApprovalMatrixPage from "./admin/approval-matrix/pages/ApprovalMatrixPage";
 import ApprovalSlasPage from "./admin/approval-slas/pages/ApprovalSlasPage";
 import LegalEntitiesPage from "./admin/legal-entities/pages/LegalEntitiesPage";
-import CurrenciesPage from "./admin/currencies/pages/CurrenciesPage";
 import ProductCategoriesPage from "./admin/product-categories/pages/ProductCategoriesPage";
 import ProductBundlesPage from "./admin/product-bundles/pages/ProductBundlesPage";
 import QuoteAccessPage from "./admin/quote-access/pages/QuoteAccessPage";
@@ -101,7 +100,6 @@ export const cado2Routes = (
       <Route path="approval-matrix" element={<ApprovalMatrixPage />} />
       <Route path="approval-slas" element={<ApprovalSlasPage />} />
       <Route path="legal-entities" element={<LegalEntitiesPage />} />
-      <Route path="currencies" element={<CurrenciesPage />} />
       <Route path="product-categories" element={<ProductCategoriesPage />} />
       <Route path="product-bundles" element={<ProductBundlesPage />} />
       <Route path="legal-texts" element={deferred(<LegalTextsPage />)} />

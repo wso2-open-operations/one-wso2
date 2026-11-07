@@ -69,25 +69,11 @@ function Harness({ lines, values = {} }: { lines: LineValue[]; values?: Partial<
   );
 }
 
+// D141: the justification moved to Review, just above Submit.
 describe("CommercialStep — justification", () => {
-  it("is optional when no line has a discount", () => {
-    render(<Harness lines={[line("0"), line("")]} />);
-    expect(
-      screen.getByRole("textbox", { name: "Justification (optional)" }),
-    ).not.toBeRequired();
-    expect(screen.queryByText(/a justification is required/)).toBeNull();
-  });
-
-  it("is required, with a hint, once a line has a discount", () => {
-    render(<Harness lines={[line("18"), line("0"), line("5.5")]} />);
-    expect(
-      screen.getByRole("textbox", { name: /^Justification/ }),
-    ).toBeRequired();
-    expect(
-      screen.getByText(
-        "A discount has been added to 2 lines, so a justification is required.",
-      ),
-    ).toBeInTheDocument();
+  it("is no longer on Commercials", () => {
+    render(<Harness lines={[line("18")]} />);
+    expect(screen.queryByRole("textbox", { name: /^Justification/ })).toBeNull();
   });
 });
 

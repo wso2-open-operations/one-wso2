@@ -15,110 +15,146 @@
 // under the License.
 
 import { useState, type JSX } from "react";
-import { Alert, Button, Stack, Switch, Typography } from "@wso2/oxygen-ui";
+import { Alert, Box, Button, Link, Stack, Typography } from "@wso2/oxygen-ui";
 import { CircleCheckIcon } from "@wso2/oxygen-ui-icons-react";
+import type { LegalView } from "@features/sales/cado2/quotes/api/quoteTypes";
 import { useWriteSpecialTerms } from "@features/sales/cado2/quotes/api/useQuoteApi";
 import { messageOf } from "@features/sales/cado2/quotes/api/errors";
 import { useCado2Toast } from "@features/sales/cado2/components/toast/toastContext";
 import LegalRichTextField from "@features/sales/cado2/components/legal-rich-text/LegalRichTextField";
+import LegalHtml from "@features/sales/cado2/components/legal-rich-text/LegalHtml";
 import { cleanLegalText, sameLegalText } from "@features/sales/cado2/utils/legalRichText";
 
-// The theme's switch knob is white, so it vanishes on a white card when off:
-// a grey knob when off, the primary colour when on (as in the Legal step).
-const VISIBLE_SWITCH = {
-  "& .MuiSwitch-thumb": { bgcolor: "grey.600" },
-  "& .MuiSwitch-switchBase.Mui-checked .MuiSwitch-thumb": { bgcolor: "primary.main" },
-};
+/** The name before the @: "priya". */
+const shortName = (email: string | null | undefined) => (email ? email.split("@")[0] : "");
 
 /**
- * Deal Desk's part of its approval (D128): the special terms, which only
- * Deal Desk writes. Saved on the submitted version (and in its history), no
- * new version. The switch guards against accidental terms: off, the quote
- * has none and the text is kept, unused. Approving then asks Legal to review
- * them.
+ * Deal Desk's part of its approval (D139): the AM wrote the special terms;
+ * Deal Desk checks them and may override them. Saved on the submitted
+ * version (and in its history), no new version; the AM's text is kept. The
+ * override pre-fills with the current text, so Deal Desk adjusts rather than
+ * retypes; the AM's text again removes the override. Legal reviews the
+ * special terms after Deal Desk approves, and may override them in turn.
  */
 export default function SpecialTermsEditor({
   quoteId,
   versionNumber,
-  enabled,
-  text,
-  billingSeesSpecialTerms,
+  legal,
   minHeight = 120,
 }: {
   quoteId: number;
   versionNumber: number;
-  /** The switch as saved. */
-  enabled: boolean;
-  /** The saved text, kept even while switched off; null when none. */
-  text: string | null;
-  /** Billing says See Special Terms (D86): the terms must describe it. */
-  billingSeesSpecialTerms: boolean;
+  /** The version's legal view: the AM's text and any override. */
+  legal: LegalView | null;
   /** The editor's height; taller in the lens's own section (D129). */
   minHeight?: number;
 }): JSX.Element {
   const write = useWriteSpecialTerms(quoteId, versionNumber);
   const notify = useCado2Toast();
-  const [on, setOn] = useState(enabled);
-  const [special, setSpecial] = useState(text ?? "");
-  // Saved and not changed since: the button says so, in green, until the next edit.
+  const amText = legal?.amSpecialTerms ?? null;
+  const deskText = legal?.deskSpecialTerms ?? null;
+  const current = deskText ?? amText ?? "";
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(current);
+  const [showAM, setShowAM] = useState(false);
+  // Saved and not changed since: says so, in green, until the next edit.
   const [saved, setSaved] = useState(false);
-  // Compared as clean rich text, so opening the editor doesn't count as a change.
-  const changed = on !== enabled || !sameLegalText(special, text ?? "");
-  const blank = cleanLegalText(special) === "";
 
-  const save = () =>
+  if (!legal || legal.specialTerms === null || amText === null) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        The AM added no special terms to this quote.
+      </Typography>
+    );
+  }
+
+  const save = (value: string, message: string) =>
     write.mutate(
-      { enabled: on, specialTerms: cleanLegalText(special) },
+      { specialTerms: cleanLegalText(value) },
       {
         onSuccess: () => {
           setSaved(true);
-          notify(on ? "Special terms saved" : "Special terms switched off");
+          setEditing(false);
+          notify(message);
         },
       },
     );
 
   return (
-    <Stack spacing={2} aria-label="Special terms">
-      {/* Only the switch changes it; the words beside it don't. */}
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <Switch
-          checked={on}
-          onChange={(_, value) => {
-            setSaved(false);
-            setOn(value);
-          }}
-          sx={VISIBLE_SWITCH}
-          slotProps={{ input: { role: "switch", "aria-label": "Special terms" } }}
-        />
-        <Typography variant="body2">Special terms</Typography>
-      </Stack>
-      {on ? (
+    <Stack spacing={1.5} aria-label="Special terms">
+      <Typography variant="caption" color="text.secondary">
+        {deskText ? (
+          <>
+            Overridden by {shortName(legal.deskSpecialTermsByEmail) || "Deal Desk"} (Deal Desk) ·{" "}
+            <Link component="button" type="button" variant="caption" onClick={() => setShowAM((v) => !v)}>
+              {showAM ? "Hide what the AM wrote" : "Show what the AM wrote"}
+            </Link>
+          </>
+        ) : (
+          "Written by the AM"
+        )}
+      </Typography>
+      {showAM && deskText ? (
+        <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: "action.hover", color: "text.secondary" }}>
+          <LegalHtml html={amText} />
+        </Box>
+      ) : null}
+      {editing ? (
         <LegalRichTextField
-          label="Special terms"
-          value={special}
+          label="Override special terms"
+          value={text}
           onChange={(html) => {
             setSaved(false);
-            setSpecial(html);
+            setText(html);
           }}
           minHeight={minHeight}
-          helperText={
-            billingSeesSpecialTerms
-              ? "Billing says See Special Terms: describe the billing here. Legal reviews the special terms after you approve."
-              : "Legal reviews the special terms after you approve."
-          }
+          helperText="Your text replaces the AM's on the order form. Legal reviews the special terms after you approve."
         />
       ) : (
-        <Typography variant="body2" color="text.secondary">
-          {billingSeesSpecialTerms
-            ? "Billing says See Special Terms: switch the special terms on and describe the billing."
-            : "No special terms. Switch them on only if this deal needs them."}
-        </Typography>
+        <Box sx={{ p: 1.5, borderRadius: 1, border: 1, borderColor: "divider" }}>
+          <LegalHtml html={current} />
+        </Box>
       )}
       {write.error ? <Alert severity="error">{messageOf(write.error) ?? "Couldn't save the special terms. Try again."}</Alert> : null}
-      <Stack direction="row" spacing={1.5} alignItems="center">
-        <Button variant="outlined" onClick={save} disabled={saved || !changed || (on && blank) || write.isPending}>
-          {write.isPending ? "Saving…" : "Save special terms"}
-        </Button>
+      <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+        {editing ? (
+          <>
+            <Button
+              variant="outlined"
+              onClick={() => save(text, "Special terms overridden")}
+              disabled={sameLegalText(text, current) || cleanLegalText(text) === "" || write.isPending}
+            >
+              {write.isPending ? "Saving…" : "Save override"}
+            </Button>
+            <Button
+              onClick={() => {
+                setText(current);
+                setEditing(false);
+              }}
+              disabled={write.isPending}
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setSaved(false);
+                setText(current);
+                setEditing(true);
+              }}
+            >
+              Override special terms
+            </Button>
+            {deskText ? (
+              <Button onClick={() => save(amText, "The AM's special terms are back")} disabled={write.isPending}>
+                Use the AM&apos;s text again
+              </Button>
+            ) : null}
+          </>
+        )}
         {saved ? (
           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ color: "success.main" }} role="status">
             <CircleCheckIcon size={16} aria-hidden />

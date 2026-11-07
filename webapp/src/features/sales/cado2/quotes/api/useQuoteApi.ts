@@ -43,6 +43,7 @@ import type {
   Opportunity,
   OpportunityQuote,
   PricebookOption,
+  SyncPreview,
   PricingFormula,
   PricingPreview,
   Product,
@@ -125,7 +126,7 @@ export function useLegalConfig() {
   });
 }
 
-/** Legal writes the non-standard terms (and may reword the special terms) during their approval. */
+/** Legal writes the non-standard terms (and may override the special terms, D139) during their approval. */
 export function useWriteLegalTerms(quoteId: number, versionNumber: number) {
   const { getToken, key } = useCado2Basis();
   const queryClient = useQueryClient();
@@ -140,7 +141,7 @@ export function useWriteLegalTerms(quoteId: number, versionNumber: number) {
 export function useWriteSpecialTerms(quoteId: number, versionNumber: number) {
   const { getToken, key } = useCado2Basis();
   const queryClient = useQueryClient();
-  return useMutation<DraftResponse, Error, { enabled: boolean; specialTerms: string }>({
+  return useMutation<DraftResponse, Error, { specialTerms: string }>({
     mutationFn: async (body) =>
       cado2Send<DraftResponse>("PUT", cado2ServiceUrls.specialTerms(quoteId, versionNumber), await getToken(), body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: key() }),
@@ -194,8 +195,9 @@ export function usePricebooks(currency: string) {
   return useAuthedQuery<PricebookOption[]>(["pricebooks", currency], currency ? cado2ServiceUrls.pricebooks(currency) : null);
 }
 
-export function useCurrencies() {
-  return useAuthedQuery<string[]>(["currencies"], cado2ServiceUrls.currencies);
+/** The quote currencies: those Salesforce's price books price in (D143). Read when enabled. */
+export function useCurrencies(enabled = true) {
+  return useAuthedQuery<string[]>(["currencies"], enabled ? cado2ServiceUrls.currencies : null);
 }
 
 /** The quote rules shown ahead of time, e.g. the validity period. */
@@ -390,6 +392,15 @@ export function useSubmitVersion() {
       void queryClient.invalidateQueries({ queryKey: key("quotes") });
     },
   });
+}
+
+/** What syncing a saved draft would change on its opportunity (D138); read live, when enabled. */
+export function useSyncPreview(quoteId: number | null, version: number | null, enabled: boolean) {
+  return useAuthedQuery<SyncPreview>(
+    ["sync-preview", quoteId, version],
+    enabled && quoteId !== null && version !== null ? cado2ServiceUrls.quoteSyncPreview(quoteId, version) : null,
+    "live",
+  );
 }
 
 /** "Sync to Salesforce" (D77): writes a saved draft of the primary quote to its opportunity. */

@@ -16,11 +16,11 @@
 
 import type { JSX, ReactNode } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
-import { Alert, Checkbox, FormControlLabel, Stack, TextField, Typography } from "@wso2/oxygen-ui";
-import { MapPinIcon, MessageSquareTextIcon, TruckIcon } from "@wso2/oxygen-ui-icons-react";
+import { Checkbox, FormControlLabel, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { MapPinIcon, TruckIcon } from "@wso2/oxygen-ui-icons-react";
 import SectionCard from "@features/sales/cado2/components/section-card/SectionCard";
 import { useOpportunityContacts } from "@features/sales/cado2/quotes/api/useQuoteApi";
-import { discountedLines, type DraftFormValues } from "@features/sales/cado2/quotes/form/draftForm";
+import type { DraftFormValues } from "@features/sales/cado2/quotes/form/draftForm";
 import AddressFields from "@features/sales/cado2/quotes/components/AddressFields";
 import ContactPicker from "@features/sales/cado2/quotes/components/ContactPicker";
 import BillingFrequencyCard from "@features/sales/cado2/quotes/components/BillingFrequencyCard";
@@ -45,18 +45,17 @@ function Section({ title, icon, hint, children }: { title: string; icon: ReactNo
 /**
  * Step ③ Commercials (D86): how often it is invoiced (every quote, D88)
  * and when each invoice is due, who is billed and who receives it (each
- * with its contact; the PO number in Bill To), and the justification. The
- * terms moved to the Legal step.
+ * with its contact; the PO number in Bill To). The terms moved to the Legal
+ * step, and the justification to Review (D141).
  */
 export default function CommercialStep(): JSX.Element {
   const { control } = useFormContext<DraftFormValues>();
-  const [opportunityId, dealType, sameAsBillTo, lines] = useWatch({
+  const [opportunityId, dealType, sameAsBillTo] = useWatch({
     control,
-    name: ["opportunityId", "dealType", "shipToSameAsBillTo", "lines"],
+    name: ["opportunityId", "dealType", "shipToSameAsBillTo"],
   });
   const contacts = useOpportunityContacts(opportunityId || null);
   const partnerDeal = dealType === "PARTNER";
-  const discounted = discountedLines(lines);
 
   return (
     <Stack spacing={2.5}>
@@ -119,29 +118,6 @@ export default function CommercialStep(): JSX.Element {
           loadError={contacts.error}
           onRetry={() => void contacts.refetch()}
           helperText="Receives WSO2 security bulletins"
-        />
-      </Section>
-
-      <Section title="Justification" icon={<MessageSquareTextIcon size={18} />} hint="Why this quote needs anything non-standard. Future approvers will read it.">
-        {discounted > 0 ? (
-          <Alert severity="info">
-            A discount has been added to {discounted === 1 ? "a line" : `${discounted} lines`}, so a justification is
-            required.
-          </Alert>
-        ) : null}
-        <Controller
-          name="justification"
-          control={control}
-          render={({ field }) => (
-            <TextField
-              {...field}
-              label={discounted > 0 ? "Justification" : "Justification (optional)"}
-              required={discounted > 0}
-              multiline
-              minRows={3}
-              size="small"
-            />
-          )}
         />
       </Section>
     </Stack>

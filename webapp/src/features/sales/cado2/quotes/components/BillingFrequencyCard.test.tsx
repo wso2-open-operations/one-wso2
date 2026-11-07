@@ -57,6 +57,6 @@ describe("Billing Frequency card", () => {
 
   it("points at the special terms when the billing says See Special Terms", () => {
     render(<Harness values={{ billingFrequency: "SPECIAL_TERMS" }} />);
-    expect(screen.getByText("Describe the billing in the special terms below.")).toBeInTheDocument();
+    expect(screen.getByText("Describe the billing in the special terms, on the Legal step.")).toBeInTheDocument();
   });
 });

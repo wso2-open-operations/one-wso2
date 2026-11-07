@@ -293,10 +293,16 @@ export interface LegalView {
   readonly partnerName: string;
   readonly contractDate: string | null;
   readonly sections: LegalSections;
-  /** What section 06 says: Legal's wording when they changed it, else the AM's; null when off. */
+  /** What section 06 says (D139): Legal's override, else Deal Desk's, else the AM's; null when off. */
   readonly specialTerms: string | null;
+  /** Whose text specialTerms is. */
+  readonly specialTermsBy?: "AM" | "DEAL_DESK" | "LEGAL";
   readonly specialTermsByLegal: boolean;
+  /** The AM's text; Deal Desk's override (null when none); who wrote each override. */
   readonly amSpecialTerms: string | null;
+  readonly deskSpecialTerms?: string | null;
+  readonly deskSpecialTermsByEmail?: string | null;
+  readonly legalSpecialTermsByEmail?: string | null;
   readonly frozen: boolean;
 }
 
@@ -486,7 +492,8 @@ export interface DraftInput {
   /** Partner-led quotes only: one % for every line. */
   readonly partnerCommissionPercent?: string;
   readonly netTermsDays?: number;
-  // No specialTerms: Deal Desk writes them during its approval (D128).
+  /** The AM's special terms (D139); Deal Desk and Legal may override them during approval. */
+  readonly specialTerms: { readonly enabled: boolean; readonly text?: string };
   readonly governingTerms: {
     readonly enabled: boolean;
     readonly text?: string;
@@ -695,6 +702,8 @@ export interface QuoteView {
   readonly isPrimary: boolean;
   /** The caller may "Sync to Salesforce": sync on, primary, may change it (D77). */
   readonly canSync?: boolean;
+  /** An Admin switched the Salesforce sync on (D84): shown greyed on a non-primary draft (D137). */
+  readonly syncSwitchOn?: boolean;
   /** The last sync to Salesforce (D77); null until the first. */
   readonly sfSyncedAt?: string | null;
   readonly sfSyncedByEmail?: string | null;
@@ -786,7 +795,7 @@ export interface AuditEvent {
     | "ORDER_FORM_ATTACH_FAILED"
     // The AM changed the supporting documents (DGD-10); metadata: before, after.
     | "SUPPORTING_DOCUMENTS_CHANGED"
-    // Deal Desk wrote the special terms during its step (D128); metadata: specialTerms (any now).
+    // Deal Desk overrode the special terms during its step (D139; D128: wrote them); metadata: override.
     | "SPECIAL_TERMS_WRITTEN";
   readonly versionNumber: number | null;
   readonly actorEmail: string;
@@ -876,3 +885,32 @@ export type QuoteAccess = "VIEW" | "VIEW_EDIT";
 /** Whose quotes the Quotes page lists (D70): the caller's own, or everyone's. */
 export type QuoteScope = "mine" | "all";
 
+
+/** One field a sync writes (D138): Salesforce now → after. Plain strings: dates YYYY-MM-DD, amounts with 2 decimals. */
+export interface SyncFieldChange {
+  /** pricebook, currency, subsStartDate, subsEndDate; quantity, salesPrice, discount (the total), serviceStartDate, serviceEndDate, commission. */
+  readonly field: string;
+  readonly before: string | null;
+  readonly after: string | null;
+  readonly changed: boolean;
+}
+
+export type SyncChange = "ADDED" | "CHANGED" | "REMOVED" | "UNCHANGED";
+
+/** One product on the quote or the opportunity. */
+export interface SyncProductChange {
+  readonly productName: string;
+  readonly change: SyncChange;
+  readonly fields: readonly SyncFieldChange[];
+}
+
+/** What syncing would change on the opportunity (D138). */
+export interface SyncPreview {
+  readonly opportunityName: string | null;
+  /** The amounts' currency: the quote's. */
+  readonly currency: string;
+  readonly opportunity: readonly SyncFieldChange[];
+  readonly products: readonly SyncProductChange[];
+  /** Changed opportunity fields, and products added, changed or removed. */
+  readonly changes: number;
+}

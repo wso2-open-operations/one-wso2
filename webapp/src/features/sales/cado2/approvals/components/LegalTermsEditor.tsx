@@ -28,7 +28,7 @@ import { cleanLegalText, legalPlainText, sameLegalText } from "@features/sales/c
 /**
  * Legal's part of their approval: the non-standard
  * governing terms, which only Legal writes, and the special terms, which
- * they may reword. Saved on the version (and in its history); Approve
+ * they may override (D139). Saved on the version (and in its history); Approve
  * waits until every non-standard block is written.
  */
 export default function LegalTermsEditor({
@@ -117,8 +117,10 @@ export default function LegalTermsEditor({
           minHeight={part === "special" ? minHeight : undefined}
           helperText={
             legal.specialTermsByLegal
-              ? `Reworded by Legal. Before: "${legalPlainText(legal.amSpecialTerms ?? "")}"`
-              : "As Deal Desk wrote them: reword if needed."
+              ? `Overridden by Legal. Before: "${legalPlainText(legal.deskSpecialTerms ?? legal.amSpecialTerms ?? "")}"`
+              : legal.deskSpecialTerms
+                ? "Override Deal Desk's special terms: change the wording only if it needs it."
+                : "Override the AM's special terms: change the wording only if it needs it."
           }
         />
       ) : null}

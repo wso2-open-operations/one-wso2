@@ -152,20 +152,10 @@ describe("LegalStep", () => {
     expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Value Added Reseller", "Global System Integrator", "One Time Reseller"]);
   });
 
-  // D128: Deal Desk writes them during its approval; the AM only sees them.
-  it("shows the special terms read-only: Deal Desk adds them, the billing included", () => {
+  it("has the special terms, and says when the billing needs them", () => {
     render(<Harness values={{ billingFrequency: "SPECIAL_TERMS" }} />);
     const special = within(screen.getByRole("region", { name: "Special Terms" }));
-    expect(special.getByText(/Deal Desk adds any special terms after you submit/)).toBeInTheDocument();
-    expect(special.getByText(/Deal Desk describes the billing there/)).toBeInTheDocument();
-    expect(special.queryByRole("switch")).toBeNull();
-    expect(special.queryByRole("textbox")).toBeNull();
-  });
-
-  it("shows special terms carried from an earlier version, for Deal Desk to review", () => {
-    render(<Harness values={{ specialTermsEnabled: true, specialTerms: "<p>Customer may terminate on 30 days' notice.</p>" }} />);
-    const special = within(screen.getByRole("region", { name: "Special Terms" }));
-    expect(special.getByText("Customer may terminate on 30 days' notice.")).toBeInTheDocument();
-    expect(special.getByText(/Deal Desk reviews these during its approval/)).toBeInTheDocument();
+    expect(special.getByText(/Billing says See Special Terms/)).toBeInTheDocument();
+    expect(special.getByRole("switch")).not.toBeChecked();
   });
 });

@@ -15,12 +15,12 @@
 // under the License.
 
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
-import { Box, Button, Link, Stack, Typography } from "@wso2/oxygen-ui";
+import { Box, Stack, Typography } from "@wso2/oxygen-ui";
 import type { LensRole, ReviewLens, ReviewNote } from "@features/sales/cado2/approvals/api/approvalTypes";
 import { noteText, stateLabel } from "@features/sales/cado2/approvals/model/reviewNotes";
 
-/** A note's colour: red to look at (or changed), green once fine. */
-const tone = (n: ReviewNote) => (n.state === "FINE" ? "success" : "error");
+/** A note's colour: the accent, or green once a note to write is written. */
+const tone = (n: ReviewNote) => (n.state === "DONE" ? "success" : "primary");
 
 /** Controls inside a marked place keep their own clicks (an editor's Save, a switch). */
 const CONTROLS = "button, a, input, textarea, select, label, [contenteditable='true'], [role='switch'], [role='textbox'], .ql-editor";
@@ -36,21 +36,16 @@ function targetOf(sheet: HTMLElement, n: ReviewNote): HTMLElement | null {
  * A lens's notes (D129), the last part of the approval card beside the
  * quote: in the order their places appear in the quote, each marked there
  * with a thin line in its colour. Clicking a note shows its place; clicking
- * a marked place selects its note. "Looks fine" turns both green; "Check
- * again" turns them red.
+ * a marked place selects its note. A plain list: nothing to mark (D140).
  */
 export default function ReviewNotes({
   lens,
   sheet,
-  onMark,
-  pending,
   empty,
 }: {
   readonly lens: ReviewLens;
   /** The element holding the quote sheet, where the notes find their places. */
   readonly sheet: HTMLElement | null;
-  readonly onMark: (key: string, fine: boolean) => void;
-  readonly pending: boolean;
   /** What the panel says when the rules flag nothing. */
   readonly empty: string;
 }): JSX.Element {
@@ -78,7 +73,7 @@ export default function ReviewNotes({
       const el = targetOf(sheet, n);
       if (!el) continue;
       const m = marked.get(el) ?? { state: "fine", keys: [] };
-      if (n.state !== "FINE") m.state = "open";
+      if (n.state !== "DONE") m.state = "open";
       m.keys.push(n.key);
       marked.set(el, m);
     }
@@ -142,9 +137,6 @@ export default function ReviewNotes({
               note={n}
               role={lens.role}
               active={active === n.key}
-              canMark={lens.canMark && !n.yoursToWrite}
-              pending={pending}
-              onMark={onMark}
               onOpen={() => open(n)}
               cardRef={(el) => {
                 if (el) cards.current.set(n.key, el);
@@ -166,23 +158,18 @@ function NoteCard({
   note: n,
   role,
   active,
-  canMark,
-  pending,
-  onMark,
   onOpen,
   cardRef,
 }: {
   readonly note: ReviewNote;
   readonly role: LensRole;
   readonly active: boolean;
-  readonly canMark: boolean;
-  readonly pending: boolean;
-  readonly onMark: (key: string, fine: boolean) => void;
   readonly onOpen: () => void;
   readonly cardRef: (el: HTMLDivElement | null) => void;
 }): JSX.Element {
   const text = noteText(n, role);
-  const fine = n.state === "FINE";
+  const done = n.state === "DONE";
+  const label = stateLabel(n);
   return (
     <Box
       ref={cardRef}
@@ -210,11 +197,13 @@ function NoteCard({
         <Typography variant="body2" sx={{ fontWeight: 700 }}>
           {text.title}
         </Typography>
-        <Typography variant="caption" sx={{ fontWeight: 700, color: `${tone(n)}.main`, whiteSpace: "nowrap" }}>
-          {stateLabel(n)}
-        </Typography>
+        {label ? (
+          <Typography variant="caption" sx={{ fontWeight: 700, color: `${tone(n)}.main`, whiteSpace: "nowrap" }}>
+            {label}
+          </Typography>
+        ) : null}
       </Stack>
-      {fine && !n.yoursToWrite ? null : (
+      {done ? null : (
         <>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
             {text.detail}
@@ -224,19 +213,6 @@ function NoteCard({
           </Typography>
         </>
       )}
-      {canMark ? (
-        <Box sx={{ mt: 0.75 }} onClick={(e) => e.stopPropagation()}>
-          {fine ? (
-            <Link component="button" type="button" variant="caption" sx={{ fontWeight: 600 }} disabled={pending} onClick={() => onMark(n.key, false)}>
-              Check again
-            </Link>
-          ) : (
-            <Button size="small" variant="outlined" disabled={pending} onClick={() => onMark(n.key, true)}>
-              Looks fine
-            </Button>
-          )}
-        </Box>
-      ) : null}
     </Box>
   );
 }

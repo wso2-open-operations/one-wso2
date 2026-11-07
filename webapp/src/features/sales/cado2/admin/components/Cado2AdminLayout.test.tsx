@@ -49,17 +49,17 @@ function open(at: string) {
 describe("CadO2 Admin's section list", () => {
   it("lists every section under its group, and marks the open one", () => {
     wide.value = true;
-    open("/sales/cado2/admin/currencies");
+    open("/sales/cado2/admin/pricing-formulas");
     const nav = screen.getByRole("navigation", { name: "QuickQuote Admin sections" });
     for (const group of ADMIN_SECTION_GROUPS) expect(within(nav).getByText(group.label)).toBeInTheDocument();
     expect(within(nav).getAllByRole("link")).toHaveLength(ADMIN_SECTIONS.length);
-    expect(within(nav).getByRole("link", { name: "Currencies" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByText("Currencies content")).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Pricing Formulas" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Pricing Formulas content")).toBeInTheDocument();
   });
 
   it("gives each section its own address", () => {
     wide.value = true;
-    open("/sales/cado2/admin/currencies");
+    open("/sales/cado2/admin/pricing-formulas");
     expect(screen.getByRole("link", { name: "Legal Entities" })).toHaveAttribute(
       "href",
       "/sales/cado2/admin/legal-entities",
@@ -83,7 +83,7 @@ describe("CadO2 Admin's section list", () => {
   // 2026-10-30: grouped by what the Admin changes, in the quote's order.
   it("groups the sections by what they change", () => {
     expect(ADMIN_SECTION_GROUPS.map((g) => [g.label, g.sections.map((s) => s.label)])).toEqual([
-      ["Products & Pricing", ["Product Categories", "Product Bundles", "Pricing Formulas", "Currencies"]],
+      ["Products & Pricing", ["Product Categories", "Product Bundles", "Pricing Formulas"]],
       ["Approvals", ["Approval Matrix", "Approval SLAs"]],
       ["Order Form", ["Legal Entities", "Legal Texts", "Supporting Documents"]],
       ["Settings", ["Quote Access", "Salesforce Sync", "Email Notifications"]],

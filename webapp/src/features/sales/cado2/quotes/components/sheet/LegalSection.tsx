@@ -20,7 +20,7 @@ import { ScaleIcon } from "@wso2/oxygen-ui-icons-react";
 import SheetCard from "@features/sales/cado2/components/section-card/SectionCard";
 import { formatDate } from "@features/sales/cado2/quotes/form/draftForm";
 import { BLOCK_TITLE } from "@features/sales/cado2/quotes/form/legalModel";
-import type { QuoteSheet } from "@features/sales/cado2/quotes/sheet/sheetModel";
+import type { QuoteSheet, SheetLegal } from "@features/sales/cado2/quotes/sheet/sheetModel";
 import LegalHtml from "@features/sales/cado2/components/legal-rich-text/LegalHtml";
 import LegalNotices from "@features/sales/cado2/components/legal-rich-text/LegalNotices";
 import LegalQuote from "@features/sales/cado2/components/legal-rich-text/LegalQuote";
@@ -37,22 +37,72 @@ function Heading({ title }: { title: string }): JSX.Element {
 /**
  * The order form's legal sections, read-only: Governing
  * Terms (a block per product type; Legal's own terms where non-standard),
- * notices, special terms (Legal's wording when they changed it). As
- * submitted on a frozen version.
+ * notices, special terms (the latest override, D139). As submitted on a
+ * frozen version.
  */
 /**
  * Under a lens (D129), what the reviewer writes, in place: Legal's governing
- * terms where the governing terms are; the special terms (Deal Desk's, or
- * Legal's rewording) where the special terms are.
+ * terms where the governing terms are; the special terms (the AM's, which
+ * Deal Desk or Legal may override, D139) where the special terms are.
  */
 export interface LegalWriting {
   readonly governing?: ReactNode;
   readonly special?: ReactNode;
 }
 
+/** The name before the @: "priya". */
+const shortName = (email: string | null) => (email ? email.split("@")[0] : "");
+
+/**
+ * Who wrote the special terms shown (D139): the AM's, overridden by Deal
+ * Desk, then by Legal. Each earlier text behind its own link.
+ */
+function SpecialTermsWriters({ legal }: { legal: SheetLegal }): JSX.Element | null {
+  const [open, setOpen] = useState<"desk" | "am" | null>(null);
+  if (legal.specialTermsBy === "AM") return null;
+  const by =
+    legal.specialTermsBy === "LEGAL"
+      ? `Overridden by ${shortName(legal.legalSpecialTermsByEmail) || "Legal"} (Legal)`
+      : `Overridden by ${shortName(legal.deskSpecialTermsByEmail) || "Deal Desk"} (Deal Desk)`;
+  const earlier = [
+    ...(legal.specialTermsBy === "LEGAL" && legal.deskSpecialTerms
+      ? [{ key: "desk" as const, label: "Deal Desk's text", html: legal.deskSpecialTerms }]
+      : []),
+    ...(legal.amSpecialTerms ? [{ key: "am" as const, label: "what the AM wrote", html: legal.amSpecialTerms }] : []),
+  ];
+  const shown = earlier.find((e) => e.key === open);
+  return (
+    <Stack spacing={0.75} sx={{ mt: 0.5 }}>
+      <Typography variant="caption" color="text.secondary">
+        {by}
+        {earlier.map((e) => (
+          <span key={e.key}>
+            {" · "}
+            <Link
+              component="button"
+              type="button"
+              variant="caption"
+              onClick={() => setOpen((o) => (o === e.key ? null : e.key))}
+              aria-expanded={open === e.key}
+            >
+              {open === e.key ? `Hide ${e.label}` : `Show ${e.label}`}
+            </Link>
+          </span>
+        ))}
+      </Typography>
+      {shown ? (
+        <Box aria-label={shown.label} sx={{ color: "text.secondary" }}>
+          <LegalQuote>
+            <LegalHtml html={shown.html} />
+          </LegalQuote>
+        </Box>
+      ) : null}
+    </Stack>
+  );
+}
+
 export default function LegalSection({ sheet, writing }: { sheet: QuoteSheet; writing?: LegalWriting }): JSX.Element | null {
   const legal = sheet.legal;
-  const [showAm, setShowAm] = useState(false);
   if (!legal) return null;
   const { sections } = legal;
   return (
@@ -120,30 +170,7 @@ export default function LegalSection({ sheet, writing }: { sheet: QuoteSheet; wr
                 <LegalQuote>
                   <LegalHtml html={legal.specialTerms} />
                 </LegalQuote>
-                {legal.specialTermsByLegal ? (
-                  // Both texts on the version Legal reworded (D109): the earlier wording behind a toggle
-                  // (Deal Desk's since D128, the AM's before).
-                  <Stack spacing={0.75} sx={{ mt: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Reworded by Legal during their approval
-                      {legal.amSpecialTerms ? (
-                        <>
-                          {" · "}
-                          <Link component="button" type="button" variant="caption" onClick={() => setShowAm((s) => !s)} aria-expanded={showAm}>
-                            {showAm ? "Hide the wording before Legal's" : "Show the wording before Legal's"}
-                          </Link>
-                        </>
-                      ) : null}
-                    </Typography>
-                    {showAm && legal.amSpecialTerms ? (
-                      <Box aria-label="The wording before Legal's" sx={{ color: "text.secondary" }}>
-                        <LegalQuote>
-                          <LegalHtml html={legal.amSpecialTerms} />
-                        </LegalQuote>
-                      </Box>
-                    ) : null}
-                  </Stack>
-                ) : null}
+                <SpecialTermsWriters legal={legal} />
               </>
             ) : (
               <Typography variant="body2">None</Typography>

@@ -84,8 +84,9 @@ describe("stepChecks", () => {
 
   // The Legal step wants the special terms' text when on,
   // and a partner deal's agreement, always the AM's choice, and its date.
-  it("checks the partner agreement on the Legal step", () => {
+  it("checks the special terms and the partner agreement on the Legal step", () => {
     const legal = (v: Partial<DraftFormValues>) => stepChecks({ ...complete(), ...v })[3].map((c) => c.field);
+    expect(legal({ specialTermsEnabled: true, specialTerms: " " })).toEqual(["specialTerms.text"]);
     expect(legal({ partnerContractDate: "" })).toEqual(["partnerContractDate"]);
     expect(legal({ partnerContractName: "" })).toEqual(["partnerContractName"]);
     expect(legal({ dealType: "DIRECT", partnerContractName: "", partnerContractDate: "" })).toEqual([]); // a direct deal has no agreement
@@ -116,11 +117,17 @@ describe("stepChecks", () => {
   });
 
   // D86: "See Special Terms" billing points at the special terms.
-  // D128: the special terms are Deal Desk's, "See Special Terms" billing included.
-  it("asks the AM nothing about the special terms", () => {
+  it("needs the special terms on when the billing says See Special Terms", () => {
+    // On the Legal step, with the switch.
     const step3 = (v: Partial<DraftFormValues>) => stepChecks({ ...complete(), billingFrequency: "SPECIAL_TERMS", ...v })[3];
-    expect(step3({ specialTermsEnabled: false })).toEqual([]);
-    expect(step3({ specialTermsEnabled: true, specialTerms: " " })).toEqual([]);
+    expect(step3({ specialTermsEnabled: false })).toEqual([
+      { field: "specialTerms.billing", message: "Billing says See Special Terms: switch on special terms and describe the billing" },
+    ]);
+    expect(step3({ specialTermsEnabled: true, specialTerms: "40% on signing, 60% on go-live" })).toEqual([]);
+    expect(step3({ specialTermsEnabled: true, specialTerms: " " }).map((c) => c.field)).toEqual(["specialTerms.text"]);
+    // Services-only too (D88).
+    const services = complete().lines.map((l) => ({ ...l, recurring: false }));
+    expect(step3({ specialTermsEnabled: false, lines: services }).map((c) => c.field)).toEqual(["specialTerms.billing"]);
   });
 
   it("needs the partner's commission on a partner-led quote", () => {

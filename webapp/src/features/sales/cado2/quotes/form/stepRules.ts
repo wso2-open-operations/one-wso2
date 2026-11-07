@@ -24,7 +24,11 @@
 // get stuck on bad Salesforce data; revisit if it is reported.
 
 import type { AddressValue, ContactValue, DraftFormValues } from "./draftForm";
+import { isEmptyLegalText } from "@features/sales/cado2/utils/legalRichText";
 import { commissionProblem, formYears, isPartnerLed, lastYearEndProblem, lineDatesProblem } from "./draftForm";
+
+/** The to-do when the billing says "See Special Terms" and they are off (D86), as the backend words it. */
+export const SPECIAL_TERMS_BILLING = "Billing says See Special Terms: switch on special terms and describe the billing";
 
 export interface StepCheck {
   /** The backend field it corresponds to, so the step can mark it. */
@@ -100,10 +104,17 @@ export function stepChecks(
   need(commercial, !shipNeeded || addressComplete(v.shipTo), "shipTo", "Complete the ship-to address (company, street, city, country)");
   need(commercial, hasContact(v.billingContact), "contacts.billing", "Choose the billing contact");
 
-  // Legal: on a partner deal, its agreement. The non-standard switches need
-  // nothing: Legal writes those terms; nor the special terms: Deal Desk
-  // writes them during its approval, "See Special Terms" billing included (D128).
+  // Legal: the special terms (D86's "See Special Terms"
+  // billing points at them) and, on a partner deal, its agreement. The
+  // non-standard switches need nothing: Legal writes those terms.
   const legalStep: StepCheck[] = [];
+  need(
+    legalStep,
+    v.billingFrequency !== "SPECIAL_TERMS" || v.specialTermsEnabled,
+    "specialTerms.billing",
+    SPECIAL_TERMS_BILLING,
+  );
+  need(legalStep, !v.specialTermsEnabled || !isEmptyLegalText(v.specialTerms), "specialTerms.text", "Write the special terms, or switch them off");
   if (v.dealType === "PARTNER") {
     need(legalStep, v.partnerContractName.trim() !== "", "partnerContractName", "Choose the partner agreement");
     need(legalStep, v.partnerContractDate !== "", "partnerContractDate", "Enter the date of the partner agreement");

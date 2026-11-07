@@ -30,7 +30,7 @@ const card = (over: Partial<DeskCard>): DeskCard => ({
 });
 
 const columns: Record<DeskColumnKey, { total: number; items: DeskCard[] }> = {
-  review: { total: 14, items: [card({})] },
+  review: { total: 14, items: [card({}), card({ quoteId: 4, quoteNumber: "Q-26-01050", accountName: "Initech", submittedByYou: true })] },
   others: { total: 1, items: [card({ quoteId: 2, quoteNumber: "Q-26-01019", accountName: "Umbrella Health", waitingOn: ["Area GM · NA"], approvedSteps: 2, totalSteps: 5, overdueOnBehalf: true })] },
   back: { total: 1, items: [card({ quoteId: 3, quoteNumber: "Q-26-01007", status: "RETURNED", accountName: "Soylent Foods", returnedBy: "CFO", returnComment: "Net 90 needs a reason" })] },
   approved: { total: 0, items: [] },
@@ -51,15 +51,17 @@ describe("DeskBoardPage", () => {
     const review = screen.getByRole("region", { name: "Your review" });
     expect(within(review).getByLabelText("14 quotes")).toBeInTheDocument();
     expect(within(review).getByRole("link", { name: "Q-26-01042 · Acme Logistics" })).toHaveTextContent("Resubmitted");
-    expect(review).toHaveTextContent("Showing 1 of 14");
+    expect(review).toHaveTextContent("Showing 2 of 14");
     const others = screen.getByRole("region", { name: "With other approvers" });
     expect(others).toHaveTextContent("Waiting on Area GM · NA");
     expect(within(others).getByRole("link", { name: "Approve on behalf…" })).toHaveAttribute("href", "/sales/cado2/quotes/2/approvals?from=desk");
     const back = screen.getByRole("region", { name: "Back with the AM" });
     expect(back).toHaveTextContent("Returned by CFO");
     expect(within(back).getByRole("link", { name: "Revise as Deal Desk" })).toHaveAttribute("href", "/sales/cado2/quotes/3/quote?from=desk&do=revise");
-    // In approval, or approved but not issued: Recall first (then Revise).
-    expect(within(review).getByRole("link", { name: "Recall as Deal Desk" })).toHaveAttribute("href", "/sales/cado2/quotes/1/quote?from=desk&do=recall");
+    // Deal Desk's own approval: Approve opens the quote; who submitted it gets Recall.
+    expect(within(review).getByRole("link", { name: "Approve" })).toHaveAttribute("href", "/sales/cado2/quotes/1/quote?from=desk");
+    expect(within(review).getByRole("link", { name: "Recall as Deal Desk" })).toHaveAttribute("href", "/sales/cado2/quotes/4/quote?from=desk&do=recall");
+    // With other approvers, or approved but not issued: Recall first (then Revise).
     expect(within(others).getByRole("link", { name: "Recall as Deal Desk" })).toBeInTheDocument();
     expect(within(back).queryByRole("link", { name: "Recall as Deal Desk" })).toBeNull();
     expect(screen.getByRole("region", { name: "Approved, not issued" })).toHaveTextContent("Nothing here.");

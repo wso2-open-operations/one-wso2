@@ -15,11 +15,14 @@
 // under the License.
 
 import { useMemo, type JSX, type ReactNode } from "react";
-import { useFormContext, useWatch } from "react-hook-form";
-import { Stack } from "@wso2/oxygen-ui";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
+import { Stack, TextField } from "@wso2/oxygen-ui";
+import { MessageSquareTextIcon } from "@wso2/oxygen-ui-icons-react";
+import SectionCard from "@features/sales/cado2/components/section-card/SectionCard";
+import { useFieldIssue } from "@features/sales/cado2/quotes/components/fieldIssues";
 import type { PricingPreview } from "@features/sales/cado2/quotes/api/quoteTypes";
 import { useActiveLegalEntities, useLegalConfig } from "@features/sales/cado2/quotes/api/useQuoteApi";
-import type { DraftFormValues } from "@features/sales/cado2/quotes/form/draftForm";
+import { discountedLines, type DraftFormValues } from "@features/sales/cado2/quotes/form/draftForm";
 import { sheetFromForm } from "@features/sales/cado2/quotes/sheet/sheetModel";
 import QuoteSheet from "@features/sales/cado2/quotes/components/sheet/QuoteSheet";
 import { SupportingDocumentsSummary } from "@features/sales/cado2/quotes/components/SupportingDocumentsCard";
@@ -33,18 +36,24 @@ interface ReviewStepProps {
   readonly approvals: ReactNode;
   /** The saved quote, for its supporting documents; null before the first save. */
   readonly quoteId?: number | null;
+  /** The AM may still change the draft: the justification is written here (D141). */
+  readonly editable?: boolean;
 }
 
 /**
  * Step ④ Review: the same read-only sheet as the quote page
  * (F4-1), built from the form, so the rep sees exactly what submitting will
  * freeze: the order form, the deal figures and, for multi-year, the schedule.
+ * Last, just above Submit, the justification (D141): required when a line
+ * has a discount (D58), optional for anything else non-standard.
  */
-export default function ReviewStep({ preview, savedLegalEntityName, approvals, quoteId = null }: ReviewStepProps): JSX.Element {
+export default function ReviewStep({ preview, savedLegalEntityName, approvals, quoteId = null, editable = false }: ReviewStepProps): JSX.Element {
   const { control } = useFormContext<DraftFormValues>();
   const v = useWatch({ control }) as DraftFormValues;
   const legalEntities = useActiveLegalEntities();
   const legalConfig = useLegalConfig();
+  const justificationIssue = useFieldIssue("justification");
+  const discounted = discountedLines(v.lines ?? []);
 
   const active = legalEntities.data?.find((e) => String(e.id) === v.legalEntityId);
   const sheet = useMemo(() => {
@@ -62,6 +71,32 @@ export default function ReviewStep({ preview, savedLegalEntityName, approvals, q
       {approvals}
       <QuoteSheet sheet={sheet} />
       <SupportingDocumentsSummary quoteId={quoteId} />
+      {editable ? (
+        <SectionCard title="Justification" icon={<MessageSquareTextIcon size={18} />}>
+          <Controller
+            name="justification"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label={discounted > 0 ? "Justification" : "Justification (optional)"}
+                required={discounted > 0}
+                multiline
+                minRows={3}
+                size="small"
+                fullWidth
+                error={Boolean(justificationIssue)}
+                helperText={
+                  justificationIssue ??
+                  (discounted > 0
+                    ? `Required: ${discounted === 1 ? "a line has" : `${discounted} lines have`} a discount. You can also explain anything else non-standard listed under the approvals.`
+                    : "Optional. Explain anything non-standard to the approvers, such as what's listed under the approvals.")
+                }
+              />
+            )}
+          />
+        </SectionCard>
+      ) : null}
     </Stack>
   );
 }

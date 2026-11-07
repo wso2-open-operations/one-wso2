@@ -15,9 +15,10 @@
 // under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
-import { emptyDraftForm, type DraftFormValues } from "@features/sales/cado2/quotes/form/draftForm";
+import { emptyDraftForm, type DraftFormValues, type LineValue } from "@features/sales/cado2/quotes/form/draftForm";
 import PricingSetupCard from "./PricingSetupCard";
 
 const lookup = (data: unknown) => ({ data, isPending: false, isFetching: false, error: null, refetch: vi.fn() });
@@ -80,28 +81,52 @@ describe("PricingSetupCard", () => {
     expect(await screen.findByText("value: EUR · EUR Price Book (Current)")).toBeInTheDocument();
   });
 
-  it.each([
-    ["no price book", () => (opportunity.pricebook = null), "The opportunity has no price book in Salesforce. Set its price book there"],
-    [
-      "a book with no active products in the currency",
-      () => (opportunity.pricebook = { id: "01sOLD00000000001A", name: "EUR Price Book 2021" }),
-      "The opportunity's price book, EUR Price Book 2021, is inactive in Salesforce or has no active products in EUR",
-    ],
-    ["a currency CadO2 doesn't offer", () => (opportunity.currencyIsoCode = "AUD"), "The opportunity is in AUD, which QuickQuote doesn't offer. Ask an Admin to add AUD"],
-    ["no currency", () => (opportunity.currencyIsoCode = null), "The opportunity has no currency in Salesforce"],
-  ])("says what to fix in Salesforce, and leaves no book to add products from: %s", async (_name, setUp, says) => {
-    setUp();
+  it("says what to fix in Salesforce when the opportunity's book can't be used, and leaves no book", async () => {
+    opportunity.pricebook = { id: "01sOLD00000000001A", name: "EUR Price Book 2021" };
     render(<Harness values={{}} />);
     expect(screen.getByText("Products can't be added")).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(says.replace(/[().]/g, "\\$&")))).toBeInTheDocument();
+    expect(
+      screen.getByText(/The opportunity's price book, EUR Price Book 2021, is inactive in Salesforce or has no active products in EUR/),
+    ).toBeInTheDocument();
     expect(await screen.findByText(/· none$/)).toBeInTheDocument();
   });
 
-  it("keeps a draft's currency that an Admin has since switched off", async () => {
-    opportunity.currencyIsoCode = "GBP";
+  // D142: what the opportunity lacks, the AM chooses.
+  it("lets the AM choose the price book when the opportunity has none, the currency staying locked", async () => {
     opportunity.pricebook = null;
-    render(<Harness values={{ currencyIsoCode: "GBP" }} />);
-    expect(screen.queryByText(/which QuickQuote doesn't offer/)).toBeNull();
-    expect(screen.getByText(/has no price book in Salesforce/)).toBeInTheDocument();
+    const user = userEvent.setup();
+    render(<Harness values={{}} />);
+    expect(screen.getByRole("textbox", { name: "Currency" })).toHaveAttribute("readonly");
+    expect(screen.getByText(/The opportunity has no price book in Salesforce, so choose one here/)).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Price book" }));
+    await user.click(screen.getByRole("option", { name: "EUR Price Book (2025)" }));
+    expect(await screen.findByText("value: EUR · EUR Price Book (2025)")).toBeInTheDocument();
+  });
+
+  it("lets the AM choose the currency, then the book, when the opportunity has neither", async () => {
+    opportunity.currencyIsoCode = null;
+    opportunity.pricebook = null;
+    const user = userEvent.setup();
+    render(<Harness values={{}} />);
+    expect(screen.getByText(/no currency and price book in Salesforce, so choose them here/)).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    await user.click(screen.getByRole("option", { name: "USD" }));
+    await user.click(screen.getByRole("combobox", { name: "Price book" }));
+    await user.click(screen.getByRole("option", { name: "USD Price Book (Current)" }));
+    expect(await screen.findByText("value: USD · USD Price Book (Current)")).toBeInTheDocument();
+  });
+
+  it("asks before a change removes the products", async () => {
+    opportunity.pricebook = null;
+    const user = userEvent.setup();
+    // Only the count matters here.
+    const line = { key: "l1", productName: "API Manager" } as unknown as LineValue;
+    render(<Harness values={{ defaultPricebookId: "01sEUR00000000001A", defaultPricebookName: "EUR Price Book (Current)", lines: [line] }} />);
+    await user.click(screen.getByRole("combobox", { name: "Price book" }));
+    await user.click(screen.getByRole("option", { name: "EUR Price Book (2025)" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Change the price book?" }));
+    expect(dialog.getByText(/the product on this quote is removed/)).toBeInTheDocument();
+    await user.click(dialog.getByRole("button", { name: "Change and remove products" }));
+    expect(await screen.findByText("value: EUR · EUR Price Book (2025)")).toBeInTheDocument();
   });
 });

@@ -37,7 +37,7 @@ import type {
   PricingPreview,
 } from "@features/sales/cado2/quotes/api/quoteTypes";
 import { sumMoney } from "@features/sales/cado2/utils/money";
-import { isEmptyLegalText } from "@features/sales/cado2/utils/legalRichText";
+import { cleanLegalText, isEmptyLegalText } from "@features/sales/cado2/utils/legalRichText";
 
 /**
  * Contact: none yet, or one of the opportunity's contacts in Salesforce
@@ -792,6 +792,11 @@ export function toDraftInput(v: DraftFormValues, expectedUpdatedAt?: string): Dr
     ...termInput(v),
     partnerCommissionPercent: isPartnerLed(v) ? opt(v.partnerCommissionPercent) : undefined,
     netTermsDays: v.netTermsDays ? Number(v.netTermsDays) : undefined,
+    specialTerms: {
+      enabled: v.specialTermsEnabled,
+      // Rich text (2026-10-24), cleaned; the editor's empty value is none.
+      text: v.specialTermsEnabled ? opt(cleanLegalText(v.specialTerms)) : undefined,
+    },
     // No longer used: section 04 is per product type.
     governingTerms: { enabled: false },
     termsOnPremNonStandard: v.termsOnPremNonStandard,
@@ -999,7 +1004,6 @@ const STEP_3_FIELDS = [
   "shipTo",
   "contacts.billing",
   "contacts.security",
-  "justification",
 ];
 
 /** Legal: section 04, the partner agreement and the special terms. */
@@ -1011,5 +1015,7 @@ export function stepOfField(field: string): number {
   if (field === "lines" || field.startsWith("lines[") || field === "salesforce" || STEP_2_FIELDS.includes(field)) return 1;
   if (STEP_3_FIELDS.some((f) => field === f || field.startsWith(f + ".") || field.startsWith(f + "["))) return 2;
   if (STEP_4_FIELDS.some((f) => field === f || field.startsWith(f + "."))) return 3;
+  // The justification is written on Review, just above Submit (D141).
+  if (field === "justification") return 4;
   return 0;
 }

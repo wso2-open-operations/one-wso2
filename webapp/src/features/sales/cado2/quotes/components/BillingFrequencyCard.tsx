@@ -58,7 +58,7 @@ export default function BillingFrequencyCard(): JSX.Element {
         />
         {billing === "SPECIAL_TERMS" ? (
           <Typography variant="body2" color="text.secondary">
-            Describe the billing in the special terms below.
+            Describe the billing in the special terms, on the Legal step.
           </Typography>
         ) : null}
       </Stack>

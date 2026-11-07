@@ -242,7 +242,7 @@ describe("toDraftInput", () => {
     });
     expect(input.shipTo).toBeUndefined();
     expect(input.shipToSameAsBillTo).toBe(true);
-    expect(input).not.toHaveProperty("specialTerms"); // Deal Desk's (D128)
+    expect(input.specialTerms).toEqual({ enabled: false, text: undefined });
   });
 
   it("sends the years, a shortened last year, and each line's own dates", () => {

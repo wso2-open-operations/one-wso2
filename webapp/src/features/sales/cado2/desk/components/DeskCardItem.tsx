@@ -50,9 +50,10 @@ function Act({ to, children }: { readonly to: string; readonly children: ReactNo
 
 /**
  * One quote on the board (D130): what kind of deal, where it stands, and how
- * Deal Desk can step in: Revise when it's back with the AM, Recall while it's
- * in approval or approved but not issued (then Revise), Approve on behalf
- * when another approval is overdue. Opens the quote; its back link returns here.
+ * Deal Desk can act: Approve when its own approval is pending, Revise when
+ * it's back with the AM, Recall while it's with other approvers or approved
+ * but not issued (then Revise), Approve on behalf when another approval is
+ * overdue. Opens the quote; its back link returns here.
  */
 export default function DeskCardItem({ card: c, column }: { readonly card: DeskCard; readonly column: DeskColumnKey }): JSX.Element {
   const navigate = useNavigate();
@@ -67,6 +68,11 @@ export default function DeskCardItem({ card: c, column }: { readonly card: DeskC
   let act: ReactNode = recall;
   if (column === "review" || column === "others") {
     pill = due ? <Pill label={due.text} tone={due.tone} /> : null;
+  }
+  // Deal Desk's own approval: the quote page opens on its Approval card.
+  // Who submitted it can't approve it, so Recall stays for them.
+  if (column === "review" && !c.submittedByYou) {
+    act = <Act to={cado2Paths.quoteFromDesk(c.quoteId)}>Approve</Act>;
   }
   if (column === "others") {
     line = `Waiting on ${c.waitingOn.join(", ") || "—"}`;

@@ -54,14 +54,14 @@ const attention = (n: number) =>
 
 const opsData: ApprovalOperations = {
   ...meta, region: null, regions: ["NA", "EU"], inApproval: 17, inApprovalValue: "6400000.00", overdueSteps: 7, dueSoonSteps: 4,
-  medianApprovalHours: 13.1, approvedInWindow: 12, approvalWindowDays: 30, submittedLastDay: 8,
+  averageApprovalHours: 13.1, approvedInWindow: 12, approvalWindowDays: 30, submittedLastDay: 8,
   byRole: [
     { role: "DEAL_DESK", label: "Deal Desk", onTrack: 5, dueSoon: 2, overdue: 2, regions: [] },
     { role: "REGIONAL_DIRECTOR", label: "Regional Director", onTrack: 0, dueSoon: 1, overdue: 2, regions: ["EU", "NA"] },
   ],
   speed: [
-    { role: "CEO", label: "CEO", medianHours: 44, decisions: 3, slaHours: 24 },
-    { role: "DEAL_DESK", label: "Deal Desk", medianHours: 4.5, decisions: 20, slaHours: 24 },
+    { role: "CEO", label: "CEO", averageHours: 44, decisions: 3, slaHours: 24 },
+    { role: "DEAL_DESK", label: "Deal Desk", averageHours: 4.5, decisions: 20, slaHours: 24 },
   ],
   oldest: { quoteId: 32, quoteNumber: "Q-26-90032", accountName: "Woodgrove Bank", days: 8.3, waitingOn: ["CEO"] },
   aging: [
@@ -74,7 +74,7 @@ const opsData: ApprovalOperations = {
 };
 
 const reportData: QuoteReport = {
-  ...meta, total: 120, page: 1, pageSize: 50, totalValue: "9100000.00", truncated: false,
+  ...meta, total: 120, page: 1, pageSize: 50, truncated: false,
   rows: [{
     quoteId: 31, quoteNumber: "Q-26-00031", versionNumber: 2, status: "SUBMITTED", accountName: "Northwind", opportunityName: "Renewal",
     region: "NA", partnerName: null, channel: "DIRECT", dealKind: "RENEWAL", recordTypeName: "Renewal", currency: "EUR", tcv: "738000.00", tcvConverted: "820000.00",
@@ -117,7 +117,7 @@ describe("Approval Operations (D106, v2)", () => {
     expect(kpi("Value in approval").getByText("$6.4")).toBeInTheDocument();
     expect(kpi("Value in approval").getByText("M")).toBeInTheDocument();
     expect(kpi("Overdue approvals").getByText("4 more due within hours")).toBeInTheDocument();
-    expect(kpi("Median approval time").getByText("13.1")).toBeInTheDocument();
+    expect(kpi("Average approval time").getByText("13.1")).toBeInTheDocument();
   });
 
   it("draws SLA health, the waiting bars, approval time by role and the longest wait", () => {
@@ -125,7 +125,7 @@ describe("Approval Operations (D106, v2)", () => {
     expect(screen.getByRole("img", { name: "12 approvals waiting: 5 on track, 3 due soon, 4 overdue" })).toBeInTheDocument();
     expect(screen.getByLabelText("Deal Desk: 5 on track · 2 due soon · 2 overdue")).toBeInTheDocument();
     expect(screen.getByText("EU, NA")).toBeInTheDocument();
-    expect(screen.getByLabelText("CEO: median 44 h, SLA 24 h")).toBeInTheDocument();
+    expect(screen.getByLabelText("CEO: average 44 h, SLA 24 h")).toBeInTheDocument();
     expect(screen.getByText("SLA (24 h)")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Q-26-90032" })).toHaveAttribute("href", "/sales/cado2/quotes/32/approvals");
     expect(screen.getByText(/now with CEO/)).toBeInTheDocument();
@@ -157,11 +157,11 @@ describe("Approval Operations (D106, v2)", () => {
 });
 
 describe("Quote Report (D106)", () => {
-  it("lists quotes with the total, and sorts from the headings", async () => {
+  it("lists quotes with their count, and sorts from the headings", async () => {
     const onChange = vi.fn();
     render(<MemoryRouter><QuoteReportTab filters={DEFAULT_FILTERS} onChange={onChange} /></MemoryRouter>);
     expect(screen.getByText("120")).toBeInTheDocument();
-    expect(screen.getByText("USD 9.1M")).toBeInTheDocument();
+    expect(screen.queryByText(/total contract value/)).toBeNull();
     const table = screen.getByRole("table", { name: "Quote report" });
     expect(within(table).getByText("Q-26-00031")).toBeInTheDocument();
     expect(within(table).getByText("In approval")).toBeInTheDocument();
@@ -279,7 +279,7 @@ describe("Quote Report (D106)", () => {
   });
 
   it("says when nothing matches", () => {
-    Object.assign(report, { data: { ...reportData, rows: [], total: 0, totalValue: "0.00" } });
+    Object.assign(report, { data: { ...reportData, rows: [], total: 0 } });
     render(<MemoryRouter><QuoteReportTab filters={DEFAULT_FILTERS} onChange={vi.fn()} /></MemoryRouter>);
     expect(screen.getByText("No quotes match these filters.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();

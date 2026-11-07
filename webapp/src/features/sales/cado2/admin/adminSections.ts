@@ -39,7 +39,6 @@ export const ADMIN_SECTION_GROUPS: readonly AdminSectionGroup[] = [
       { id: "product-categories", label: "Product Categories" },
       { id: "product-bundles", label: "Product Bundles" },
       { id: "pricing-formulas", label: "Pricing Formulas" },
-      { id: "currencies", label: "Currencies" },
     ],
   },
   {

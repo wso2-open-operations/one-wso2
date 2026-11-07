@@ -285,13 +285,14 @@ describe("OverviewStep — Salesforce first (2026-09-28)", () => {
     expect(screen.getByText("lines: WSO2 Gateway ×2")).toBeInTheDocument();
   });
 
-  it("leaves the currency empty when the opportunity's isn't offered in CadO2", async () => {
+  // D143: no currency list of QuickQuote's own; the price book check decides.
+  it("takes the opportunity's currency as it is", async () => {
     oppCurrency = "AUD";
     try {
       render(<Harness values={account} />);
       const user = userEvent.setup();
       await user.click(await screen.findByRole("option", { name: "API Platform 2027" }, { timeout: 3000 }));
-      expect(screen.getByText("pricing: none · none")).toBeInTheDocument();
+      expect(screen.getByText(/^pricing: AUD · /)).toBeInTheDocument();
     } finally {
       oppCurrency = "USD";
     }

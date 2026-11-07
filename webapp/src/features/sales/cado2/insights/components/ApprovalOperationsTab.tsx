@@ -75,7 +75,7 @@ export default function ApprovalOperationsTab({
 function Operations({ data }: { data: ApprovalOperations }): JSX.Element {
   const cur = data.currency;
   const value = splitCompactMoney(data.inApprovalValue, cur);
-  const median = splitHours(data.medianApprovalHours);
+  const average = splitHours(data.averageApprovalHours);
   const sla = data.byRole.reduce(
     (t, r) => ({ onTrack: t.onTrack + r.onTrack, dueSoon: t.dueSoon + r.dueSoon, overdue: t.overdue + r.overdue }),
     { onTrack: 0, dueSoon: 0, overdue: 0 },
@@ -89,7 +89,7 @@ function Operations({ data }: { data: ApprovalOperations }): JSX.Element {
           value={value.value}
           unit={value.unit}
           title={data.inApprovalValue ? `${cur} ${formatMoney(data.inApprovalValue)}` : undefined}
-          hint={`Total contract value, in ${cur}`}
+          hint={`Total contract value, one quote per opportunity, in ${cur}`}
         />
         <KpiCard
           label="Overdue approvals"
@@ -98,9 +98,9 @@ function Operations({ data }: { data: ApprovalOperations }): JSX.Element {
           hint={data.dueSoonSteps > 0 ? `${data.dueSoonSteps} more due within hours` : "None due soon"}
         />
         <KpiCard
-          label="Median approval time"
-          value={median.value}
-          unit={median.unit}
+          label="Average approval time"
+          value={average.value}
+          unit={average.unit}
           hint={`Submission to approval, last ${data.approvalWindowDays} days`}
         />
       </Box>
@@ -117,7 +117,7 @@ function Operations({ data }: { data: ApprovalOperations }): JSX.Element {
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
         <InsightsCard
           title="Approval time by role"
-          hint={`Median time from a quote reaching the approver to their decision, last ${data.approvalWindowDays} days`}
+          hint={`Average time from a quote reaching the approver to their decision, last ${data.approvalWindowDays} days`}
         >
           <ApprovalSpeed data={data.speed} days={data.approvalWindowDays} />
         </InsightsCard>

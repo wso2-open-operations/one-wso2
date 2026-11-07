@@ -177,11 +177,16 @@ export interface SheetLegal {
   readonly contractName: string;
   readonly contractDate: string;
   readonly partnerName: string;
-  /** Section 06 as it prints: Legal's wording when they changed it. */
+  /** Section 06 as it prints (D139): Legal's override, else Deal Desk's, else the AM's. */
   readonly specialTerms: string | null;
+  /** Whose text it is: AM, DEAL_DESK or LEGAL. */
+  readonly specialTermsBy: "AM" | "DEAL_DESK" | "LEGAL";
   readonly specialTermsByLegal: boolean;
-  /** What the AM wrote, when Legal reworded it. */
+  /** What the AM wrote; Deal Desk's override (null when none); who wrote each override. */
   readonly amSpecialTerms: string | null;
+  readonly deskSpecialTerms: string | null;
+  readonly deskSpecialTermsByEmail: string | null;
+  readonly legalSpecialTermsByEmail: string | null;
   readonly frozen: boolean;
 }
 
@@ -301,8 +306,12 @@ export function sheetFromVersion(res: DraftResponse): QuoteSheet {
           contractDate: v.legal.contractDate ?? "",
           partnerName: v.legal.partnerName,
           specialTerms: v.legal.specialTerms,
+          specialTermsBy: v.legal.specialTermsBy ?? (v.legal.specialTermsByLegal ? "LEGAL" : "AM"),
           specialTermsByLegal: v.legal.specialTermsByLegal,
           amSpecialTerms: v.legal.amSpecialTerms,
+          deskSpecialTerms: v.legal.deskSpecialTerms ?? null,
+          deskSpecialTermsByEmail: v.legal.deskSpecialTermsByEmail ?? null,
+          legalSpecialTermsByEmail: v.legal.legalSpecialTermsByEmail ?? null,
           frozen: v.legal.frozen,
         }
       : null,
@@ -352,8 +361,12 @@ function formLegal(v: DraftFormValues, cfg: LegalConfig): SheetLegal {
     contractDate: v.partnerContractDate,
     partnerName: v.partner?.name ?? "",
     specialTerms: v.specialTermsEnabled ? blank(v.specialTerms) : null,
+    specialTermsBy: "AM",
     specialTermsByLegal: false,
     amSpecialTerms: null,
+    deskSpecialTerms: null,
+    deskSpecialTermsByEmail: null,
+    legalSpecialTermsByEmail: null,
     frozen: false,
   };
 }

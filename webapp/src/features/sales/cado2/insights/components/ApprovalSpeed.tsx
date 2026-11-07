@@ -25,7 +25,7 @@ import { BarRow, Legend, Swatch } from "./BarParts";
 const CLOSE_FROM = 0.75;
 
 /**
- * Approval time by role (v2): each role's median time from a step starting to
+ * Approval time by role (v2): each role's average time from a step starting to
  * its decision, slowest first, against a mark at the role's SLA.
  */
 export default function ApprovalSpeed({ data, days }: { readonly data: readonly RoleSpeed[]; readonly days: number }): JSX.Element {
@@ -38,15 +38,15 @@ export default function ApprovalSpeed({ data, days }: { readonly data: readonly 
     );
   }
   // The scale fits the slowest role and every SLA mark.
-  const max = Math.max(...data.map((r) => Math.max(r.medianHours, r.slaHours))) * 1.08;
+  const max = Math.max(...data.map((r) => Math.max(r.averageHours, r.slaHours))) * 1.08;
   const slas = [...new Set(data.map((r) => r.slaHours))];
   return (
     <Box>
       <Box sx={{ display: "grid", gap: 1.75 }}>
         {data.map((r) => {
-          const ratio = r.medianHours / r.slaHours;
+          const ratio = r.averageHours / r.slaHours;
           const color = ratio > 1 ? c.late : ratio >= CLOSE_FROM ? c.soon : c.ok;
-          const t = splitHours(r.medianHours);
+          const t = splitHours(r.averageHours);
           return (
             <BarRow
               key={r.role}
@@ -61,12 +61,12 @@ export default function ApprovalSpeed({ data, days }: { readonly data: readonly 
                 </>
               }
               bar={
-                <Tooltip title={`Median of ${r.decisions} decision${r.decisions === 1 ? "" : "s"} · SLA ${r.slaHours} h`} placement="top">
+                <Tooltip title={`Average of ${r.decisions} decision${r.decisions === 1 ? "" : "s"} · SLA ${r.slaHours} h`} placement="top">
                   <Box
-                    aria-label={`${r.label}: median ${t.value} ${t.unit}, SLA ${r.slaHours} h`}
+                    aria-label={`${r.label}: average ${t.value} ${t.unit}, SLA ${r.slaHours} h`}
                     sx={{ position: "relative", height: 16, bgcolor: c.track, borderRadius: 1 }}
                   >
-                    <Box sx={{ width: `${(r.medianHours / max) * 100}%`, minWidth: 6, height: "100%", bgcolor: color, borderRadius: 1 }} />
+                    <Box sx={{ width: `${(r.averageHours / max) * 100}%`, minWidth: 6, height: "100%", bgcolor: color, borderRadius: 1 }} />
                     <Box
                       sx={{
                         position: "absolute",

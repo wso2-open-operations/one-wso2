@@ -338,8 +338,12 @@ describe("LegalSection", () => {
       contractDate: "2024-03-12",
       partnerName: "Acme Reseller",
       specialTerms: "Legal's wording",
+      specialTermsBy: "LEGAL",
       specialTermsByLegal: true,
       amSpecialTerms: "AM's wording",
+      deskSpecialTerms: "Deal Desk's wording",
+      deskSpecialTermsByEmail: "priya@wso2.com",
+      legalSpecialTermsByEmail: "anna@wso2.com",
       frozen: true,
     },
   };
@@ -354,18 +358,30 @@ describe("LegalSection", () => {
     expect(legal.getByText("Legal writes these terms during their approval.")).toBeInTheDocument();
     expect(legal.getByText("Auto Renewal")).toBeInTheDocument();
     expect(legal.getByText("Legal's wording")).toBeInTheDocument();
-    expect(legal.getByText(/Reworded by Legal during their approval/)).toBeInTheDocument();
+    expect(legal.getByText(/Overridden by anna \(Legal\)/)).toBeInTheDocument();
   });
 
-  // D109: both texts on the version Legal reworded; the AM's behind a toggle.
-  it("shows the wording before Legal's on request", () => {
+  // D109, D139: every text kept; the earlier ones behind their own links.
+  it("shows Deal Desk's text and the AM's on request", () => {
     render(<QuoteSheet sheet={withLegal} />);
     const legal = within(screen.getByRole("region", { name: "Legal" }));
     expect(legal.queryByText("AM's wording")).toBeNull();
-    fireEvent.click(legal.getByRole("button", { name: "Show the wording before Legal's" }));
+    fireEvent.click(legal.getByRole("button", { name: "Show Deal Desk's text" }));
+    expect(legal.getByText("Deal Desk's wording")).toBeInTheDocument();
+    fireEvent.click(legal.getByRole("button", { name: "Show what the AM wrote" }));
     expect(legal.getByText("AM's wording")).toBeInTheDocument();
-    fireEvent.click(legal.getByRole("button", { name: "Hide the wording before Legal's" }));
+    expect(legal.queryByText("Deal Desk's wording")).toBeNull();
+    fireEvent.click(legal.getByRole("button", { name: "Hide what the AM wrote" }));
     expect(legal.queryByText("AM's wording")).toBeNull();
+  });
+
+  it("says Deal Desk overrode the AM's, with nothing about Legal", () => {
+    const desk = { ...withLegal, legal: { ...withLegal.legal!, specialTerms: "Deal Desk's wording", specialTermsBy: "DEAL_DESK" as const, specialTermsByLegal: false } };
+    render(<QuoteSheet sheet={desk} />);
+    const legal = within(screen.getByRole("region", { name: "Legal" }));
+    expect(legal.getByText(/Overridden by priya \(Deal Desk\)/)).toBeInTheDocument();
+    expect(legal.queryByRole("button", { name: "Show Deal Desk's text" })).toBeNull();
+    expect(legal.getByRole("button", { name: "Show what the AM wrote" })).toBeInTheDocument();
   });
 
   it("isn't shown without the legal texts", () => {

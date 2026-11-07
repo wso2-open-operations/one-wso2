@@ -22,10 +22,10 @@ import type { ReviewLens } from "@features/sales/cado2/approvals/api/approvalTyp
 import ReviewNotes from "./ReviewNotes";
 
 const lens: ReviewLens = {
-  role: "DEAL_DESK", roleLabel: "Deal Desk", canMark: true,
+  role: "DEAL_DESK", roleLabel: "Deal Desk",
   notes: [{
-    key: "SPECIAL_TERMS", rule: "SPECIAL_TERMS", lineNumber: 0, reasons: ["The quote includes special terms"], roles: ["Legal"],
-    target: "specialTerms", yoursToWrite: false, state: "OPEN", markedByEmail: null, markedAt: null, markedOnVersion: null,
+    key: "SPECIAL_TERMS", rule: "SPECIAL_TERMS", lineNumber: 0, reasons: ["The quote includes special terms", "The AM added special terms. Check them, override if needed"],
+    roles: ["Legal"], target: "specialTerms", yoursToWrite: false, state: "OPEN",
   }],
 };
 
@@ -42,7 +42,7 @@ function Page({ onSave }: { onSave: () => void }): JSX.Element {
           </button>
         </div>
       </div>
-      <ReviewNotes lens={lens} sheet={sheet} onMark={vi.fn()} pending={false} empty="" />
+      <ReviewNotes lens={lens} sheet={sheet} empty="" />
     </>
   );
 }
@@ -62,6 +62,10 @@ describe("ReviewNotes", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
 
     await user.click(place);
-    expect(screen.getByRole("article", { name: "Special terms" })).toHaveAttribute("aria-current", "true");
+    const card = screen.getByRole("article", { name: "Special terms from the AM" });
+    expect(card).toHaveAttribute("aria-current", "true");
+    expect(card).toHaveTextContent("Check them, override if needed");
+    // D140: a plain list, nothing to mark.
+    expect(screen.queryByRole("button", { name: "Looks fine" })).toBeNull();
   });
 });

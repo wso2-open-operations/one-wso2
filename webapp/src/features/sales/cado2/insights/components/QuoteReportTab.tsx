@@ -40,7 +40,6 @@ import { formatDate } from "@features/sales/cado2/quotes/form/draftForm";
 import { formatMoney } from "@features/sales/cado2/utils/money";
 import { useQuoteReport, useReportExportFetch } from "../api/useInsights";
 import type { QuoteReport, ReportFilters, ReportRow, ReportSort } from "../api/insightsTypes";
-import { compactMoney } from "../utils/format";
 import { dealLabel } from "../utils/reportFilters";
 import { EXPORT_MAX_ROWS, saveReport } from "../utils/reportExport";
 import ReportFilterBar from "./ReportFilterBar";
@@ -140,13 +139,6 @@ function ReportTable({
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap" }}>
         <Typography variant="body2" sx={{ flexGrow: 1 }}>
           <strong>{report.total.toLocaleString("en-US")}</strong> {report.total === 1 ? "quote" : "quotes"}
-          {report.totalValue ? (
-            <>
-              {" · "}
-              <span title={`${cur} ${formatMoney(report.totalValue)}`}>{compactMoney(report.totalValue, cur)}</span> total
-              contract value
-            </>
-          ) : null}
           {report.truncated ? " (only the newest 20,000 read: narrow the filters)" : ""}
         </Typography>
       </Stack>

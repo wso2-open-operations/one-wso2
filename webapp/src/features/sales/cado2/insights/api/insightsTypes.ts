@@ -41,7 +41,7 @@ export interface RoleLoad {
 export interface RoleSpeed {
   readonly role: string;
   readonly label: string;
-  readonly medianHours: number;
+  readonly averageHours: number;
   readonly decisions: number;
   readonly slaHours: number;
 }
@@ -85,7 +85,7 @@ export interface ApprovalOperations extends MoneyMeta {
   readonly inApprovalValue: string | null;
   readonly overdueSteps: number;
   readonly dueSoonSteps: number;
-  readonly medianApprovalHours: number | null;
+  readonly averageApprovalHours: number | null;
   readonly approvedInWindow: number;
   readonly approvalWindowDays: number;
   readonly submittedLastDay: number;
@@ -130,7 +130,6 @@ export interface QuoteReport extends MoneyMeta {
   readonly total: number;
   readonly page: number;
   readonly pageSize: number;
-  readonly totalValue: string | null;
   readonly truncated: boolean;
 }
 

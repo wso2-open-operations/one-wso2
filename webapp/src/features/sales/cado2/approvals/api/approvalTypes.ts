@@ -153,6 +153,9 @@ export interface ApprovalInboxItem {
   readonly quoteId: number;
   readonly quoteNumber: string;
   readonly versionNumber: number;
+  /** Salesforce Ids, for grouping by account and opportunity (D144). */
+  readonly sfAccountId: string;
+  readonly sfOpportunityId: string;
   readonly accountName: string | null;
   readonly opportunityName: string | null;
   readonly currencyIsoCode: string | null;
@@ -287,8 +290,8 @@ export interface ApprovalSlaChange {
 /** The approval role whose notes a lens shows (D129): any approver; Deal Desk and Legal also write in the quote. */
 export type LensRole = ApprovalRole;
 
-/** A note's state: red to look at, green looks fine, or red again because it changed since an earlier version. */
-export type ReviewNoteState = "OPEN" | "FINE" | "CHANGED";
+/** A note's state: DONE for a note to write (Legal's terms) once written, else OPEN (D140: nothing to mark). */
+export type ReviewNoteState = "OPEN" | "DONE";
 
 /**
  * One note of a lens (D129): something on the quote a rule flagged, and where
@@ -304,22 +307,15 @@ export interface ReviewNote {
   /** Who approves it after Deal Desk; empty on Legal's lens and Deal Desk's own checks. */
   readonly roles: readonly string[];
   readonly target: string;
-  /** Done by writing (special terms, Legal's terms), not by marking. */
+  /** The approver writes it (Legal's non-standard governing terms). */
   readonly yoursToWrite: boolean;
   readonly state: ReviewNoteState;
-  readonly markedByEmail: string | null;
-  readonly markedAt: string | null;
-  /** The earlier version a carried "Looks fine" was made on. */
-  readonly markedOnVersion: number | null;
-  /** Green because the role approved (marked by = the approver), not because of a mark. */
-  readonly byApproval?: boolean;
 }
 
-/** One role's lens: its notes, and whether the caller may mark them now. */
+/** One role's lens: its notes. */
 export interface ReviewLens {
   readonly role: LensRole;
   readonly roleLabel: string;
-  readonly canMark: boolean;
   readonly notes: readonly ReviewNote[];
 }
 

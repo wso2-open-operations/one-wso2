@@ -47,7 +47,6 @@ vi.mock("../api/useCado2Me", async (importOriginal) => ({
 vi.mock("../quotes/pages/MyQuotesPage", () => ({ default: () => <h1>My Quotes</h1> }));
 vi.mock("../approvals/pages/MyApprovalsPage", () => ({ default: () => <h1>My Approvals</h1> }));
 vi.mock("../admin/approval-matrix/pages/ApprovalMatrixPage", () => ({ default: () => <h1>Approval matrix page</h1> }));
-vi.mock("../admin/currencies/pages/CurrenciesPage", () => ({ default: () => <h1>Currencies page</h1> }));
 vi.mock("../quotes/pages/QuoteDetailPage", async () => {
   const { useParams } = await import("react-router");
   return {
@@ -99,9 +98,9 @@ describe("the CadO2 access ladder", () => {
 
   it("holds the page, and redirects nothing, while access is being checked", () => {
     state.me = { ...state.me, data: undefined, isPending: true };
-    open("/sales/cado2/admin/currencies");
+    open("/sales/cado2/admin/approval-matrix");
     expect(screen.getByText("Checking your QuickQuote access…")).toBeInTheDocument();
-    expect(where()).toBe("/sales/cado2/admin/currencies");
+    expect(where()).toBe("/sales/cado2/admin/approval-matrix");
   });
 
   it("offers Retry when the check itself failed, rather than claiming no access", () => {
@@ -149,7 +148,7 @@ describe("CadO2 routing", () => {
   });
 
   it("refuses Admin to a rep at its URL, not just in the rail", () => {
-    open("/sales/cado2/admin/currencies");
+    open("/sales/cado2/admin/approval-matrix");
     expect(where()).toBe("/sales/cado2/quotes");
   });
 
