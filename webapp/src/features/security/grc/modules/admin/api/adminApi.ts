@@ -213,6 +213,9 @@ export interface AdminTeam {
   // True once any risk uses the team, as its source register or its assignment
   // team. Its template can then no longer change (the backend answers 409).
   has_risks: boolean;
+  // The platforms and sub-platforms an Aggregated register offers on Add Risk.
+  // Empty means every active platform.
+  platform_ids?: number[];
   status: "ACTIVE" | "INACTIVE" | "REMOVED";
 }
 
@@ -232,6 +235,9 @@ export interface TeamPayload {
   // silently upgrade it to a full register.
   team_type: "BOTH" | "ASSIGNMENT" | "SOURCE_REGISTER";
   register_template: RegisterTemplate;
+  // Aggregated registers only. On an update, a list replaces the stored one (an
+  // empty list clears it) and leaving it out keeps it.
+  platform_ids?: number[];
   status: "ACTIVE" | "INACTIVE";
 }
 
@@ -274,6 +280,8 @@ export interface Lookup {
   name: string;
   // Customers only: A-Z/0-9, embedded in Managed Services risk codes.
   code?: string;
+  // Platforms only. Set on a sub-platform: the platform it sits under.
+  parent_id?: number;
   status: "ACTIVE" | "INACTIVE";
   // True once any risk uses the value. It can then be deactivated but not
   // deleted, and a customer's code can no longer change.
@@ -283,6 +291,9 @@ export interface Lookup {
 export interface LookupPayload {
   name: string;
   code?: string;
+  // Platforms only, on create: makes the new value a sub-platform of this
+  // platform. It cannot be changed afterwards.
+  parent_id?: number;
   status?: "ACTIVE" | "INACTIVE";
 }
 

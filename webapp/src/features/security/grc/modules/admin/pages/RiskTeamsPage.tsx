@@ -46,12 +46,15 @@ import { useAuthApiClient } from "@features/security/grc/shim/useAuthApiClient";
 import {
   createTeam,
   fetchAllTeams,
+  fetchLookups,
   updateTeam,
   type AdminTeam,
+  type Lookup,
   type RegisterTemplate,
   type TeamPayload,
 } from "../api/adminApi";
 import { dialogPaperSx } from "../cardStyles";
+import PlatformChecklist from "../components/PlatformChecklist";
 
 // The DB's team_type enum still has three values (SOURCE_REGISTER, ASSIGNMENT,
 // BOTH — see risk_schema.sql), but this console deliberately offers only two:
@@ -79,7 +82,7 @@ const templateLabel: Record<RegisterTemplate, string> = {
 
 const registerTemplateOptions: { value: RegisterTemplate; label: string; hint: string }[] = [
   { value: "STANDARD", label: "Standard", hint: "The original risk fields, including Security Compliance Reference." },
-  { value: "AGGREGATED", label: "Aggregated", hint: "The standard fields plus Platform." },
+  { value: "AGGREGATED", label: "Aggregated", hint: "The standard fields plus Platform and its sub-platforms." },
   {
     value: "MANAGED_SERVICES",
     label: "Managed Services",
@@ -103,6 +106,11 @@ export default function RiskTeamsPage(): JSX.Element {
   const [teamType, setTeamType] = useState<"BOTH" | "ASSIGNMENT">("BOTH");
   const [registerTemplate, setRegisterTemplate] = useState<RegisterTemplate>("STANDARD");
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
+  // Aggregated registers only: the platforms and sub-platforms the register
+  // offers on Add Risk. Empty offers every active platform.
+  const [platformIds, setPlatformIds] = useState<number[]>([]);
+  const [platforms, setPlatforms] = useState<Lookup[]>([]);
+  const [platformsError, setPlatformsError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
@@ -120,6 +128,15 @@ export default function RiskTeamsPage(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Every platform and sub-platform, for the Aggregated register's checklist.
+  // A failure only disables that checklist, not the rest of the form.
+  useEffect(() => {
+    fetchLookups(authFetch, "platforms")
+      .then(setPlatforms)
+      .catch((e) => setPlatformsError(e instanceof Error ? e.message : "Failed to load platforms"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openAdd = () => {
     setEditing(null);
     setName("");
@@ -128,6 +145,7 @@ export default function RiskTeamsPage(): JSX.Element {
     setTeamType("BOTH");
     setRegisterTemplate("STANDARD");
     setStatus("ACTIVE");
+    setPlatformIds([]);
     setDialogError(null);
     setDialogOpen(true);
   };
@@ -145,6 +163,7 @@ export default function RiskTeamsPage(): JSX.Element {
     // display-only substitution never reaches the save payload.
     setTeamType(team.team_type === "ASSIGNMENT" ? "ASSIGNMENT" : "BOTH");
     setRegisterTemplate(team.register_template);
+    setPlatformIds(team.platform_ids ?? []);
     setStatus(team.status === "INACTIVE" ? "INACTIVE" : "ACTIVE");
     setDialogError(null);
     setDialogOpen(true);
@@ -170,6 +189,8 @@ export default function RiskTeamsPage(): JSX.Element {
   const effectiveTemplate: RegisterTemplate = showTemplate
     ? registerTemplate
     : (editing?.register_template ?? "STANDARD");
+
+  const showPlatforms = showTemplate && effectiveTemplate === "AGGREGATED";
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -199,6 +220,10 @@ export default function RiskTeamsPage(): JSX.Element {
         description: description.trim(),
         team_type: isSourceRegister ? "SOURCE_REGISTER" : teamType,
         register_template: effectiveTemplate,
+        // Only an Aggregated register has a list. Sent whole on every save, so
+        // unticking everything clears it; the platforms failing to load leaves
+        // it out rather than wiping the stored list.
+        ...(showPlatforms && !platformsError ? { platform_ids: platformIds } : {}),
         status,
       };
       if (editing) {
@@ -376,6 +401,26 @@ export default function RiskTeamsPage(): JSX.Element {
                   : `${registerTemplateOptions.find((o) => o.value === effectiveTemplate)?.hint} Fixed once a risk uses the team.`}
               </Typography>
             </>
+          )}
+          {showPlatforms && (
+            <Box sx={{ mb: 2.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                Platforms
+              </Typography>
+              {platformsError ? (
+                <Alert severity="warning">
+                  Couldn't load the platforms, so this register's list is left unchanged. {platformsError}
+                </Alert>
+              ) : (
+                <>
+                  <PlatformChecklist platforms={platforms} value={platformIds} onChange={setPlatformIds} />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                    The platforms, and the sub-platforms ticked under them, that Add Risk offers for this register. Leave
+                    everything unticked to offer every platform.
+                  </Typography>
+                </>
+              )}
+            </Box>
           )}
           <TextField
             fullWidth

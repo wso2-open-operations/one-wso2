@@ -25,6 +25,7 @@ export default function PlatformsPage(): JSX.Element {
       itemLabel="platform"
       emptyLabel="No platforms found."
       nameHint="Shown in the risk form's Platform picker for Aggregated registers."
+      hasParent
     />
   );
 }

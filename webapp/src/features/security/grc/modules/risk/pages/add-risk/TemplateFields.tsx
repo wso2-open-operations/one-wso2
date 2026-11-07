@@ -14,15 +14,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { Box, ComplexSelect, FormHelperText, Link, Stack, Typography } from "@wso2/oxygen-ui";
 import type { JSX } from "react";
 import type { LookupOption, RegisterTemplate } from "../../api/riskApi";
 import FieldLabel from "./FieldLabel";
 import PillMultiSelect from "./PillMultiSelect";
+import PlatformPicker from "./PlatformPicker";
 import AddCustomerDialog from "./AddCustomerDialog";
-import { ENVIRONMENTS } from "./templates";
+import { ENVIRONMENTS, platformChoices } from "./templates";
 import type { AddRiskFormValues } from "./types";
 
 export interface TemplateLookups {
@@ -35,6 +36,9 @@ export interface TemplateLookups {
 interface TemplateFieldsProps {
   template: RegisterTemplate;
   lookups: TemplateLookups;
+  // The platforms and sub-platforms the chosen register offers; empty offers
+  // every active one.
+  offeredPlatformIds: number[];
 }
 
 interface CustomerFieldProps {
@@ -115,11 +119,18 @@ export function CustomerField({ lookups, onCustomerAdded }: CustomerFieldProps):
 //
 // Every one is required. The Source Register is what brings these up, so
 // there is no way to pick a template here.
-export default function TemplateFields({ template, lookups }: TemplateFieldsProps): JSX.Element | null {
+export default function TemplateFields({ template, lookups, offeredPlatformIds }: TemplateFieldsProps): JSX.Element | null {
   const { control, clearErrors } = useFormContext<AddRiskFormValues>();
   const platforms = useWatch({ control, name: "platforms" });
   const products = useWatch({ control, name: "products" });
   const environments = useWatch({ control, name: "environments" });
+  const offeredKey = offeredPlatformIds.join(",");
+  const choices = useMemo(
+    () => platformChoices(lookups.platforms, offeredPlatformIds),
+    // offeredKey stands in for the array, which is a new object on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lookups.platforms, offeredKey],
+  );
 
   if (template === "STANDARD") return null;
 
@@ -130,18 +141,14 @@ export default function TemplateFields({ template, lookups }: TemplateFieldsProp
           name="platforms"
           control={control}
           render={({ field, fieldState }) => (
-            <PillMultiSelect
-              label="Platform"
-              required
-              ariaLabel="Platforms"
-              options={lookups.platforms.map((p) => ({ value: p.id, label: p.name }))}
+            <PlatformPicker
+              choices={choices}
               value={platforms}
               onChange={(next) => {
                 field.onChange(next);
                 if (next.length > 0) clearErrors("platforms");
               }}
               error={fieldState.error?.message}
-              emptyMessage="No platforms have been added yet. Ask a platform admin to add them."
             />
           )}
         />

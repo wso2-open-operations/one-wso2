@@ -31,6 +31,9 @@ export interface RiskTeam {
   description: string | null;
   team_type: string;
   register_template: RegisterTemplate;
+  // The platforms and sub-platforms an Aggregated register offers. Empty means
+  // every active platform.
+  platform_ids?: number[];
   status: string;
 }
 
@@ -40,6 +43,8 @@ export interface LookupOption {
   id: number;
   name: string;
   code?: string;
+  // Platforms only. Set on a sub-platform: the platform it sits under.
+  parent_id?: number;
   status: "ACTIVE" | "INACTIVE";
 }
 

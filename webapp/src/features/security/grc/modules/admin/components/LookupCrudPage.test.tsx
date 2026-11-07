@@ -237,3 +237,81 @@ describe("LookupCrudPage (a lookup without a code)", () => {
     expect(await screen.findByText("No platforms found.")).toBeInTheDocument();
   });
 });
+
+describe("LookupCrudPage (platforms with sub-platforms)", () => {
+  // Integration Platform (1) has Ballerina (3) under it; Core Platform (2) has none.
+  const platforms = (): Lookup[] => [
+    { id: 3, name: "Ballerina", parent_id: 1, status: "ACTIVE", in_use: false },
+    { id: 2, name: "Core Platform", status: "ACTIVE", in_use: false },
+    { id: 1, name: "Integration Platform", status: "ACTIVE", in_use: false },
+  ];
+  const renderPage = () =>
+    render(
+      <LookupCrudPage
+        path="platforms"
+        addLabel="Add Platform"
+        itemLabel="platform"
+        emptyLabel="No platforms found."
+        nameHint="hint"
+        hasParent
+      />,
+    );
+
+  it("lists a sub-platform right under its platform", async () => {
+    rows = platforms();
+    renderPage();
+    await screen.findByText("Integration Platform");
+    const names = screen.getAllByRole("row").slice(1).map((r) => r.textContent ?? "");
+    const order = ["Core Platform", "Integration Platform", "Ballerina"].map((n) => names.findIndex((t) => t.includes(n)));
+    expect(order).toEqual([0, 1, 2]);
+    expect(screen.getByText(/↳/)).toBeInTheDocument();
+  });
+
+  it("won't delete a platform that still has sub-platforms", async () => {
+    rows = platforms();
+    renderPage();
+    const parent = (await screen.findByText("Integration Platform")).closest("tr")!;
+    expect(within(parent).getByRole("button", { name: "Delete" })).toBeDisabled();
+    const childless = screen.getByText("Core Platform").closest("tr")!;
+    expect(within(childless).getByRole("button", { name: "Delete" })).toBeEnabled();
+  });
+
+  it("adds a sub-platform under the chosen platform", async () => {
+    rows = platforms();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Integration Platform");
+    await user.click(screen.getByRole("button", { name: /Add Platform/ }));
+    await user.type(await screen.findByLabelText("Name"), "Micro Integrator");
+    await user.click(screen.getByRole("combobox", { name: "Parent platform" }));
+    const options = within(await screen.findByRole("listbox")).getAllByRole("option").map((o) => o.textContent);
+    // Only top-level platforms can be a parent: Ballerina is not offered.
+    expect(options).toEqual(["None (top-level platform)", "Core Platform", "Integration Platform"]);
+    await user.click(screen.getByRole("option", { name: "Integration Platform" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(requestsTo("POST")).toHaveLength(1));
+    expect(requestsTo("POST")[0].body).toEqual({ name: "Micro Integrator", parent_id: 1 });
+  });
+
+  it("adds a top-level platform without a parent_id", async () => {
+    rows = platforms();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Integration Platform");
+    await user.click(screen.getByRole("button", { name: /Add Platform/ }));
+    await user.type(await screen.findByLabelText("Name"), "Analytics Platform");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(requestsTo("POST")).toHaveLength(1));
+    expect(requestsTo("POST")[0].body).toEqual({ name: "Analytics Platform" });
+  });
+
+  it("shows the parent of an existing sub-platform but won't let it move", async () => {
+    rows = platforms();
+    const user = userEvent.setup();
+    renderPage();
+    const sub = (await screen.findByText(/Ballerina/)).closest("tr")!;
+    await user.click(within(sub).getByRole("button", { name: "Edit" }));
+    expect(await screen.findByText(/A sub-platform of Integration Platform/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Parent platform" })).toHaveAttribute("aria-disabled", "true");
+  });
+});

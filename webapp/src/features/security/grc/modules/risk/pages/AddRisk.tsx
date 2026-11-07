@@ -36,7 +36,7 @@ import BasicInformationStep from "./add-risk/BasicInformationStep";
 import RiskAssessmentStep from "./add-risk/RiskAssessmentStep";
 import ActionPlanStep from "./add-risk/ActionPlanStep";
 import { buildRiskCode, getCurrentQuarter, getCurrentYear } from "./add-risk/constants";
-import { missingTemplateFields, resetForRegisterChange, templateOf } from "./add-risk/templates";
+import { missingTemplateFields, platformChoices, resetForRegisterChange, templateOf } from "./add-risk/templates";
 import type { TemplateField } from "./add-risk/templates";
 import type { AddRiskFormValues } from "./add-risk/types";
 import { darkCardSx } from "./cardStyles";
@@ -317,7 +317,12 @@ export default function AddRisk(): JSX.Element {
       valid = await trigger([...STEP_1_FIELDS, "identifiedByName"]);
       // The template fields have no field-level rules (they only exist for some
       // registers), so the register's template decides what is required here.
-      const missing = missingTemplateFields(template, getValues());
+      const registerPlatformIds = sourceRegisterTeams.find((t) => t.id === watchedSourceRegister)?.platform_ids ?? [];
+      const missing = missingTemplateFields(
+        template,
+        getValues(),
+        platformChoices(platforms, registerPlatformIds),
+      );
       (Object.entries(missing) as [TemplateField, string][]).forEach(([field, message]) =>
         setError(field, { type: "required", message }),
       );

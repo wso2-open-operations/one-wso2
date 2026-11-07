@@ -52,6 +52,9 @@ interface LookupCrudPageProps {
   nameHint: string;
   // Customers only: the code that goes into Managed Services risk codes.
   hasCode?: boolean;
+  // Platforms only: a value may sit under another (Ballerina under Integration
+  // Platform). One level: only a top-level platform can be a parent.
+  hasParent?: boolean;
 }
 
 // List + dialog CRUD for one register-template lookup (Platforms, Customers,
@@ -66,6 +69,7 @@ export default function LookupCrudPage({
   emptyLabel,
   nameHint,
   hasCode = false,
+  hasParent = false,
 }: LookupCrudPageProps): JSX.Element {
   const authFetch = useAuthApiClient();
   const { rows, loading, error, setError, reload } = useCrudList(() => fetchLookups(authFetch, path), [path]);
@@ -74,6 +78,8 @@ export default function LookupCrudPage({
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
+  // "" is a top-level platform. Chosen when adding; fixed once saved.
+  const [parentId, setParentId] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Lookup | null>(null);
@@ -85,6 +91,7 @@ export default function LookupCrudPage({
     setName("");
     setCode("");
     setStatus("ACTIVE");
+    setParentId("");
     setDialogError(null);
     setDialogOpen(true);
   };
@@ -94,6 +101,7 @@ export default function LookupCrudPage({
     setName(row.name);
     setCode(row.code ?? "");
     setStatus(row.status);
+    setParentId(row.parent_id ?? "");
     setDialogError(null);
     setDialogOpen(true);
   };
@@ -125,7 +133,11 @@ export default function LookupCrudPage({
           ...(hasCode && !codeLocked && code !== editing.code ? { code } : {}),
         });
       } else {
-        await createLookup(authFetch, path, { name: name.trim(), ...(hasCode ? { code } : {}) });
+        await createLookup(authFetch, path, {
+          name: name.trim(),
+          ...(hasCode ? { code } : {}),
+          ...(hasParent && parentId !== "" ? { parent_id: parentId } : {}),
+        });
       }
       setDialogOpen(false);
       reload();
@@ -152,6 +164,18 @@ export default function LookupCrudPage({
   };
 
   const columnCount = hasCode ? 5 : 4;
+
+  // Sub-platforms sit right under their platform. The list arrives ordered by
+  // name, so each platform keeps its place and its children follow it.
+  const topLevel = hasParent ? rows.filter((r) => r.parent_id === undefined) : rows;
+  const displayRows = hasParent
+    ? topLevel.flatMap((r) => [r, ...rows.filter((c) => c.parent_id === r.id)])
+    : rows;
+  // Parents offered when adding: active, top-level platforms.
+  const parentOptions = topLevel.filter((r) => r.status === "ACTIVE");
+  const parentName = (id: number | undefined) => rows.find((r) => r.id === id)?.name;
+  // A platform that has sub-platforms can't be deleted until they are gone.
+  const hasChildren = (id: number) => rows.some((r) => r.parent_id === id);
 
   return (
     <Box>
@@ -198,9 +222,12 @@ export default function LookupCrudPage({
               </TableRow>
             )}
             {!loading &&
-              rows.map((row) => (
+              displayRows.map((row) => (
                 <TableRow key={row.id} sx={row.status !== "ACTIVE" ? { opacity: 0.55 } : undefined}>
-                  <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
+                  <TableCell sx={{ fontWeight: row.parent_id === undefined ? 600 : 400, pl: row.parent_id === undefined ? 2 : 6 }}>
+                    {row.parent_id !== undefined && "↳ "}
+                    {row.name}
+                  </TableCell>
                   {hasCode && (
                     <TableCell>
                       <Chip size="small" label={row.code} variant="outlined" sx={{ fontFamily: "monospace" }} />
@@ -218,12 +245,20 @@ export default function LookupCrudPage({
                     <IconButton size="small" onClick={() => openEdit(row)} aria-label="Edit">
                       <Pencil size={15} />
                     </IconButton>
-                    <Tooltip title={row.in_use ? "In use by risks — deactivate it instead" : "Delete"}>
+                    <Tooltip
+                      title={
+                        row.in_use
+                          ? "In use by risks — deactivate it instead"
+                          : hasChildren(row.id)
+                            ? "Has sub-platforms — remove them first"
+                            : "Delete"
+                      }
+                    >
                       {/* span: a disabled button doesn't fire the tooltip's hover events. */}
                       <span>
                         <IconButton
                           size="small"
-                          disabled={row.in_use}
+                          disabled={row.in_use || hasChildren(row.id)}
                           onClick={() => {
                             setDeleteError(null);
                             setDeleteTarget(row);
@@ -246,7 +281,7 @@ export default function LookupCrudPage({
         title={editing ? `Edit ${itemLabel}` : addLabel}
         error={dialogError}
         saving={saving}
-        minHeight={hasCode ? 300 : 240}
+        minHeight={hasCode || hasParent ? 300 : 240}
         onClose={() => setDialogOpen(false)}
         onClearError={() => setDialogError(null)}
         onSave={handleSave}
@@ -262,6 +297,41 @@ export default function LookupCrudPage({
             helperText={nameHint}
             sx={{ mb: 2.5 }}
           />
+          {hasParent && (
+            <FormControl fullWidth size="small" disabled={!!editing} sx={{ mb: 2.5 }}>
+              {/* shrink + notched: the empty value ("None") is shown as text, so the
+                  label must start lifted or it is drawn over it. */}
+              <InputLabel id="lookup-parent-label" shrink>
+                Parent {itemLabel}
+              </InputLabel>
+              <Select
+                labelId="lookup-parent-label"
+                label={`Parent ${itemLabel}`}
+                value={parentId}
+                displayEmpty
+                notched
+                onChange={(e) => {
+                  const next = e.target.value as number | "";
+                  setParentId(next === "" ? "" : Number(next));
+                }}
+              >
+                <MenuItem value="">None (top-level {itemLabel})</MenuItem>
+                {/* On edit the parent is fixed, so show it even if it has since been deactivated. */}
+                {(editing ? rows.filter((r) => r.id === editing.parent_id) : parentOptions).map((r) => (
+                  <MenuItem key={r.id} value={r.id}>
+                    {r.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                {editing
+                  ? editing.parent_id !== undefined
+                    ? `A sub-${itemLabel} of ${parentName(editing.parent_id) ?? "its parent"}. It can't be moved.`
+                    : `A top-level ${itemLabel}.`
+                  : `Pick one to add this as a sub-${itemLabel}, e.g. Ballerina under Integration Platform. It can't be changed later.`}
+              </Typography>
+            </FormControl>
+          )}
           {hasCode && (
             <TextField
               fullWidth

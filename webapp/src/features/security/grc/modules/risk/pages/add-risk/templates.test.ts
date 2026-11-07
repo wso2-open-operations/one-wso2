@@ -21,6 +21,8 @@ import {
   hasComplianceReferences,
   missingTemplateFields,
   optionsForEdit,
+  platformChoices,
+  platformMissingSub,
   resetForRegisterChange,
   riskCodePreview,
   sameValues,
@@ -194,5 +196,62 @@ describe("templateInView", () => {
 
   it("treats an unknown register as Standard", () => {
     expect(templateInView([99], registers)).toBeNull();
+  });
+});
+
+// Integration Platform (7) has the sub-platforms Ballerina (9) and Micro
+// Integrator (10); Core Platform (4) has none; Analytics (3) is inactive.
+describe("platformChoices", () => {
+  const all: LookupOption[] = [
+    { id: 3, name: "Analytics Platform", status: "INACTIVE" },
+    { id: 4, name: "Core Platform", status: "ACTIVE" },
+    { id: 7, name: "Integration Platform", status: "ACTIVE" },
+    { id: 9, name: "Ballerina", parent_id: 7, status: "ACTIVE" },
+    { id: 10, name: "Micro Integrator", parent_id: 7, status: "ACTIVE" },
+  ];
+
+  it("offers every active platform and sub-platform when the register lists none", () => {
+    const c = platformChoices(all, []);
+    expect(c.restricted).toBe(false);
+    expect(c.platforms.map((p) => p.id)).toEqual([4, 7]);
+    expect(c.subsByParent.get(7)?.map((s) => s.id)).toEqual([9, 10]);
+  });
+
+  it("offers only what the register lists", () => {
+    const c = platformChoices(all, [7, 9]);
+    expect(c.restricted).toBe(true);
+    expect(c.platforms.map((p) => p.id)).toEqual([7]);
+    expect(c.subsByParent.get(7)?.map((s) => s.id)).toEqual([9]);
+  });
+
+  it("keeps a value the risk already carries, even if inactive or no longer offered", () => {
+    const c = platformChoices(all, [7, 9], [3, 4]);
+    expect(c.platforms.map((p) => p.id)).toEqual([3, 4, 7]);
+  });
+});
+
+describe("platformMissingSub", () => {
+  const all: LookupOption[] = [
+    { id: 4, name: "Core Platform", status: "ACTIVE" },
+    { id: 7, name: "Integration Platform", status: "ACTIVE" },
+    { id: 9, name: "Ballerina", parent_id: 7, status: "ACTIVE" },
+  ];
+
+  it("requires a sub-platform when the register lists one under a chosen platform", () => {
+    const c = platformChoices(all, [4, 7, 9]);
+    expect(platformMissingSub(c, [7])?.id).toBe(7);
+    expect(platformMissingSub(c, [7, 9])).toBeNull();
+    expect(platformMissingSub(c, [4])).toBeNull();
+  });
+
+  it("does not require one when the register lists no platforms", () => {
+    expect(platformMissingSub(platformChoices(all, []), [7])).toBeNull();
+  });
+
+  it("is reported by missingTemplateFields", () => {
+    const values = { platforms: [7], customer: "" as const, deploymentType: "" as const, products: [], environments: [] };
+    const c = platformChoices(all, [7, 9]);
+    expect(missingTemplateFields("AGGREGATED", values, c).platforms).toMatch(/Integration Platform sub-platform/);
+    expect(missingTemplateFields("AGGREGATED", { ...values, platforms: [7, 9] }, c).platforms).toBeUndefined();
   });
 });

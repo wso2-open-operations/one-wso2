@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AdapterDateFns,
   Alert,
@@ -43,7 +43,7 @@ import { Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
 import { parseDateOnly, toDateOnlyString } from "@features/security/grc/utils/dateTime";
 import type { JSX } from "react";
 import type * as React from "react";
-import { fetchLookupOptions, resolveUserByEmail, searchEmployees } from "../../api/riskApi";
+import { fetchLookupOptions, fetchSourceRegisterTeams, resolveUserByEmail, searchEmployees } from "../../api/riskApi";
 import type {
   ComplianceReference,
   EmployeeOption,
@@ -57,11 +57,13 @@ import type {
 } from "../../api/riskApi";
 import { RISK_ACCEPTORS, TREATMENT_STRATEGIES } from "../add-risk/constants";
 import PillMultiSelect from "../add-risk/PillMultiSelect";
+import PlatformPicker from "../add-risk/PlatformPicker";
 import {
   ENVIRONMENTS,
   hasComplianceReferences,
   missingTemplateFields,
   optionsForEdit,
+  platformChoices,
   sameValues,
 } from "../add-risk/templates";
 import { LEVEL_FALLBACK_COLORS } from "../dashboard/constants";
@@ -175,6 +177,15 @@ export default function EditRiskDialog({
   // Every value, inactive included: a value the risk already carries stays
   // selectable after being deactivated (see optionsForEdit).
   const [platformOptions, setPlatformOptions] = useState<LookupOption[]>([]);
+  // The platforms and sub-platforms this risk's register offers; empty offers
+  // every active one. A value the risk already carries stays offered either way.
+  const [registerPlatformIds, setRegisterPlatformIds] = useState<number[]>([]);
+  const platformPickerChoices = useMemo(
+    () => platformChoices(platformOptions, registerPlatformIds, currentPlatformIds),
+    // currentPlatformIds is rebuilt on every render; its content only changes with the detail.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [platformOptions, registerPlatformIds, detail.platforms],
+  );
   const [productOptions, setProductOptions] = useState<LookupOption[]>([]);
   const [deploymentTypeOptions, setDeploymentTypeOptions] = useState<LookupOption[]>([]);
 
@@ -290,8 +301,14 @@ export default function EditRiskDialog({
     const load = async () => {
       try {
         if (template === "AGGREGATED") {
-          const platforms = await fetchLookupOptions(authFetch, "platforms", "ALL");
-          if (!cancelled) setPlatformOptions(platforms);
+          const [platforms, registers] = await Promise.all([
+            fetchLookupOptions(authFetch, "platforms", "ALL"),
+            fetchSourceRegisterTeams(authFetch),
+          ]);
+          if (!cancelled) {
+            setPlatformOptions(platforms);
+            setRegisterPlatformIds(registers.find((r) => r.id === detail.source_register_id)?.platform_ids ?? []);
+          }
         } else if (template === "MANAGED_SERVICES") {
           const [products, deploymentTypes] = await Promise.all([
             fetchLookupOptions(authFetch, "products", "ALL"),
@@ -310,7 +327,7 @@ export default function EditRiskDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, mode, template, authFetch]);
+  }, [open, mode, template, authFetch, detail.source_register_id]);
 
   useEffect(() => {
     if (!open) return;
@@ -378,7 +395,7 @@ export default function EditRiskDialog({
           deploymentType: deploymentTypeId,
           products: productIds,
           environments,
-        }),
+        }, platformPickerChoices),
       );
     }
     if (implementationDate && implementationDate < today) {
@@ -741,11 +758,8 @@ export default function EditRiskDialog({
                       it is part of the risk code, so a wrong one is fixed by
                       cancelling this risk and raising it again. */}
                   {template === "AGGREGATED" && (
-                    <PillMultiSelect
-                      label="Platform"
-                      required
-                      ariaLabel="Platforms"
-                      options={optionsForEdit(platformOptions, currentPlatformIds)}
+                    <PlatformPicker
+                      choices={platformPickerChoices}
                       value={platformIds}
                       onChange={(next) => {
                         setPlatformIds(next);

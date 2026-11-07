@@ -368,7 +368,7 @@ export default function BasicInformationStep({
           </Box>
 
           {/* Fields the register's template adds — nothing for Standard */}
-          <TemplateFields template={template} lookups={lookups} />
+          <TemplateFields template={template} lookups={lookups} offeredPlatformIds={selectedTeam?.platform_ids ?? []} />
         </Stack>
 
         {/* ── Risk Details ───────────────────────────────────── */}

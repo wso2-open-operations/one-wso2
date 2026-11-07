@@ -181,3 +181,120 @@ describe("RiskTeamsPage dialog — Register Template lock", () => {
     expect(writes("PUT")[0].body).toMatchObject({ register_template: "AGGREGATED" });
   });
 });
+
+describe("RiskTeamsPage dialog — Aggregated register platforms", () => {
+  // Integration Platform (7) has Ballerina (9) and Micro Integrator (10).
+  const lookups = [
+    { id: 4, name: "Core Platform", status: "ACTIVE", in_use: false },
+    { id: 7, name: "Integration Platform", status: "ACTIVE", in_use: false },
+    { id: 9, name: "Ballerina", parent_id: 7, status: "ACTIVE", in_use: false },
+    { id: 10, name: "Micro Integrator", parent_id: 7, status: "ACTIVE", in_use: false },
+  ];
+
+  beforeEach(() => {
+    authFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return new Response(JSON.stringify({ id: 99 }), { status: 201 });
+      if (init?.method === "PUT") return new Response(null, { status: 204 });
+      return new Response(JSON.stringify(String(url).endsWith("/platforms") ? lookups : teams), { status: 200 });
+    });
+  });
+
+  const chooseAggregated = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole("combobox", { name: "Register Template" }));
+    await user.click(await screen.findByRole("option", { name: "Aggregated" }));
+  };
+
+  it("offers platforms only for the Aggregated template", async () => {
+    teams = [];
+    const user = userEvent.setup();
+    render(<RiskTeamsPage />);
+    await openAdd(user);
+    expect(screen.queryByRole("checkbox", { name: "Integration Platform" })).not.toBeInTheDocument();
+    await chooseAggregated(user);
+    expect(await screen.findByRole("checkbox", { name: "Integration Platform" })).toBeInTheDocument();
+  });
+
+  it("reveals a platform's sub-platforms once it is ticked, and saves the picks", async () => {
+    teams = [];
+    const user = userEvent.setup();
+    render(<RiskTeamsPage />);
+    await openAdd(user);
+    await user.type(screen.getByLabelText("Name"), "Integration Platform");
+    await user.type(screen.getByLabelText("Code *"), "int");
+    await chooseAggregated(user);
+
+    expect(screen.queryByRole("checkbox", { name: "Ballerina" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("checkbox", { name: "Integration Platform" }));
+    await user.click(screen.getByRole("checkbox", { name: "Ballerina" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(writes("POST")).toHaveLength(1));
+    expect(writes("POST")[0].body).toMatchObject({ register_template: "AGGREGATED", platform_ids: [7, 9] });
+  });
+
+  it("sends no platform list for a Standard register", async () => {
+    teams = [];
+    const user = userEvent.setup();
+    render(<RiskTeamsPage />);
+    await openAdd(user);
+    await user.type(screen.getByLabelText("Name"), "Choreo");
+    await user.type(screen.getByLabelText("Code *"), "cho");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(writes("POST")).toHaveLength(1));
+    expect(writes("POST")[0].body).not.toHaveProperty("platform_ids");
+  });
+
+  it("preselects an existing register's list, and unticking everything sends an empty list", async () => {
+    teams = [
+      {
+        id: 5,
+        name: "WSO2 Cloud",
+        code: "CLOUD",
+        description: null,
+        team_type: "BOTH",
+        register_template: "AGGREGATED",
+        has_risks: true,
+        platform_ids: [4],
+        status: "ACTIVE",
+      },
+    ];
+    const user = userEvent.setup();
+    render(<RiskTeamsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const core = await screen.findByRole("checkbox", { name: "Core Platform" });
+    expect(core).toBeChecked();
+
+    await user.click(core);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(writes("PUT")).toHaveLength(1));
+    expect(writes("PUT")[0].body).toMatchObject({ platform_ids: [] });
+  });
+
+  it("leaves the stored list alone when the platforms could not be loaded", async () => {
+    teams = [
+      {
+        id: 5,
+        name: "WSO2 Cloud",
+        code: "CLOUD",
+        description: null,
+        team_type: "BOTH",
+        register_template: "AGGREGATED",
+        has_risks: true,
+        platform_ids: [4],
+        status: "ACTIVE",
+      },
+    ];
+    authFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") return new Response(null, { status: 204 });
+      if (String(url).endsWith("/platforms")) return new Response(JSON.stringify({ message: "boom" }), { status: 500 });
+      return new Response(JSON.stringify(teams), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<RiskTeamsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(await screen.findByText(/Couldn't load the platforms/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(writes("PUT")).toHaveLength(1));
+    expect(writes("PUT")[0].body).not.toHaveProperty("platform_ids");
+  });
+});

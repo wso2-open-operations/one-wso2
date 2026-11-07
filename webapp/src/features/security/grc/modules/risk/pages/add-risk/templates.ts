@@ -45,10 +45,16 @@ export type TemplateField = "platforms" | "customer" | "deploymentType" | "produ
 export function missingTemplateFields(
   template: RegisterTemplate,
   values: Pick<AddRiskFormValues, TemplateField>,
+  // The platforms the register offers, to require a sub-platform where it
+  // lists some. Left out, only "at least one platform" is checked.
+  platforms?: PlatformChoices,
 ): Partial<Record<TemplateField, string>> {
   const missing: Partial<Record<TemplateField, string>> = {};
   if (template === "AGGREGATED" && values.platforms.length === 0) {
     missing.platforms = "Select at least one platform";
+  } else if (template === "AGGREGATED" && platforms) {
+    const needsSub = platformMissingSub(platforms, values.platforms);
+    if (needsSub) missing.platforms = `Select at least one ${needsSub.name} sub-platform`;
   }
   if (template === "MANAGED_SERVICES") {
     if (values.customer === "") missing.customer = "Customer is required";
@@ -128,4 +134,54 @@ export function templateInView(
   if (templates.size !== 1) return null;
   const [only] = [...templates];
   return only === "STANDARD" ? null : only;
+}
+
+// ── Platforms and sub-platforms (Aggregated registers) ───────────────────────
+// A sub-platform (Ballerina) is a platform row with a parent (Integration
+// Platform). A risk carries both: the platform, and the sub-platforms picked
+// under it. A register may list which of them it offers; an empty list offers
+// every active one, as every register did before the list existed.
+
+export interface PlatformChoices {
+  // Top-level platforms the picker offers.
+  platforms: LookupOption[];
+  // Sub-platforms the picker offers, by the platform they sit under.
+  subsByParent: Map<number, LookupOption[]>;
+  // True when the register lists its platforms. The server then requires a
+  // sub-platform whenever the register offers any under a chosen platform.
+  restricted: boolean;
+}
+
+// What the platform picker offers for a register. `all` is every platform and
+// sub-platform; `offeredIds` is the register's list. `keepIds` are values the
+// risk already carries (the edit form): they stay offered even if inactive or
+// since removed from the register, so editing something else never forces a
+// change to historical data. Nothing else inactive is offered.
+export function platformChoices(all: LookupOption[], offeredIds: number[], keepIds: number[] = []): PlatformChoices {
+  const restricted = offeredIds.length > 0;
+  const offered = (o: LookupOption): boolean =>
+    keepIds.includes(o.id) || (o.status === "ACTIVE" && (!restricted || offeredIds.includes(o.id)));
+  const subsByParent = new Map<number, LookupOption[]>();
+  for (const o of all) {
+    if (o.parent_id === undefined || o.parent_id === null || !offered(o)) continue;
+    subsByParent.set(o.parent_id, [...(subsByParent.get(o.parent_id) ?? []), o]);
+  }
+  return {
+    platforms: all.filter((o) => (o.parent_id === undefined || o.parent_id === null) && offered(o)),
+    subsByParent,
+    restricted,
+  };
+}
+
+// The first platform the user picked whose offered sub-platforms none of the
+// picks include, or null. Only a restricted register requires one: it lists
+// sub-platforms on purpose. The server checks the same rule.
+export function platformMissingSub(choices: PlatformChoices, selected: number[]): LookupOption | null {
+  if (!choices.restricted) return null;
+  return (
+    choices.platforms.find((p) => {
+      const subs = choices.subsByParent.get(p.id) ?? [];
+      return selected.includes(p.id) && subs.length > 0 && !subs.some((s) => selected.includes(s.id));
+    }) ?? null
+  );
 }
