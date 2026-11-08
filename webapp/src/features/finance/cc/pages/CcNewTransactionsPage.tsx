@@ -94,6 +94,7 @@ type PendingAction =
   // way out and the reader is never offered the choice.
   | { type: "cardChange"; ccNumber: string };
 
+/** The reader's pending transactions on one card, beside the panel that categorises and submits them. */
 function NewTxnBody() {
   const userInfo = useCcUserInfo();
   const cards = useCreditCards();

@@ -67,6 +67,7 @@ function EmailDetails({ billingEmailRef }: { billingEmailRef: CcBillingEmailRef 
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
+  /** Copies the subject and shows it was copied for a moment. A failed copy shows a warning instead. */
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(billingEmailRef.subject);
