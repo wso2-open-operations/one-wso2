@@ -16,9 +16,9 @@
  * under the License.
  */
 
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { gmailSearchUrl } from "../ccBillingEmail";
 
 // A failed copy reports through the notifications context, rendered here without the provider.
@@ -28,6 +28,7 @@ vi.mock("@context/notifications/NotificationsContext", () => ({ useNotifications
 const { CcBillingEmailIcon } = await import("./CcBillingEmailIcon");
 
 beforeEach(() => notify.showWarning.mockClear());
+afterEach(() => vi.useRealTimers());
 
 const billingEmailRef = { messageId: "<a+b@example.com>", subject: "Your <Acme> invoice" };
 
@@ -71,7 +72,8 @@ describe("CcBillingEmailIcon", () => {
   });
 
   it("stays open when the tooltip is clicked after a copy", async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<CcBillingEmailIcon txnId={3} billingEmailRef={billingEmailRef} />);
     await user.hover(icon());
     const tip = await screen.findByRole("tooltip");
@@ -79,8 +81,8 @@ describe("CcBillingEmailIcon", () => {
     await user.click(within(tip).getByRole("button", { name: "Copy the subject" }));
     await user.click(within(tip).getByText("Your <Acme> invoice"));
 
-    // A closing tooltip stays in the document until its exit transition ends, so this waits that out first.
-    await new Promise((resolve) => setTimeout(resolve, TOOLTIP_EXIT_MS));
+    // A closing tooltip stays in the document until its exit transition ends, so this runs past it first.
+    act(() => vi.advanceTimersByTime(TOOLTIP_EXIT_MS));
     expect(screen.queryByRole("tooltip")).toBeInTheDocument();
   });
 
