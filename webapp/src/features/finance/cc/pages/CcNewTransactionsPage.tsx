@@ -14,7 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useRef, useState } from "react";
+import { isCcBackendConfigured } from "@config/apiConfig";
+import { FINANCE_EYEBROW } from "@constants/financeApps";
+import { useNotifications } from "@context/notifications/NotificationsContext";
 import {
   Alert,
   Box,
@@ -32,25 +34,23 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { CheckCircleIcon } from "@wso2/oxygen-ui-icons-react";
-import { FINANCE_GRID_SX } from "../../util/financeGridSx";
-import { useNotifications } from "@context/notifications/NotificationsContext";
-import { isCcBackendConfigured } from "@config/apiConfig";
+import { useMemo, useRef, useState } from "react";
 import FinanceShell from "../../components/FinanceShell";
 import { describeError } from "../../util/financeError";
 import { bareAmount, formatNice } from "../../util/financeFormat";
+import { FINANCE_GRID_SX } from "../../util/financeGridSx";
+import { CcBulkEditDialog } from "../CcBulkEditDialog";
+import { CcCategorisePanel, type CcCategorisePanelHandle } from "../CcCategorisePanel";
+import { ToolbarNoExport as NewTxnToolbar } from "../ccGridToolbar";
+import { sortByCompleteness } from "../ccPendingSubmissions";
+import { selectedIds } from "../ccSelection";
+import { type CcTransaction, ccTxnComplete } from "../ccTypes";
+import { CC_SNACK } from "../ccUiText";
 import { CardMenu } from "../components/CardMenu";
 import { CcAutoTaggedIcon } from "../components/CcAutoTaggedIcon";
 import { CcBillingEmailIcon } from "../components/CcBillingEmailIcon";
-import { CcCategorisePanel, type CcCategorisePanelHandle } from "../CcCategorisePanel";
-import { CcBulkEditDialog } from "../CcBulkEditDialog";
-import { sortByCompleteness } from "../ccPendingSubmissions";
-import { ToolbarNoExport as NewTxnToolbar } from "../ccGridToolbar";
-import { selectedIds } from "../ccSelection";
-import { CC_SNACK } from "../ccUiText";
-import { useCcCardLabel, useCcEmployeeSubmit, useCcSaveDraft } from "../useCcMutations";
 import { useCcTransactions, useCcUserInfo, useCreditCards } from "../useCc";
-import { ccTxnComplete, type CcTransaction } from "../ccTypes";
-import { FINANCE_EYEBROW } from "@constants/financeApps";
+import { useCcCardLabel, useCcEmployeeSubmit, useCcSaveDraft } from "../useCcMutations";
 
 /**
  * One line, and no dashes. Which extra field a category asks for is something
@@ -227,7 +227,7 @@ function NewTxnBody() {
         setChecked(new Set());
         setEdits((prev) => {
           const next = { ...prev };
-          submittedIds.forEach((id) => delete next[id]);
+          for (const id of submittedIds) delete next[id];
           return next;
         });
       },
