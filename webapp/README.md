@@ -45,7 +45,7 @@ host injects a fresh `config.js` per environment.
 | `npm run check:prod-pdf` | check that the NDA PDF downloads under the production CSP (`vite build` + `vite preview` + Chrome) |
 | `npm test` | run the test suite once (`vitest run`) |
 | `npm run test:watch` | tests in watch mode |
-| `npm run lint` | ESLint |
+| `npm run lint` | ESLint (cached in `.eslintcache`) |
 
 Before opening a PR: `npx tsc -b && npm test && npm run lint`.
 

@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "check:prod-pdf": "node scripts/check-prod-pdf.mjs",
-    "lint": "eslint .",
+    "lint": "eslint --cache .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
