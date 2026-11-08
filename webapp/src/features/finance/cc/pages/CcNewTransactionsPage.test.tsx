@@ -73,6 +73,7 @@ const complete: CcTransaction = {
   productUnit: "Integration",
   businessUnit: "Platform",
 };
+const billingEmailRef = { messageId: "<bill-1@example.com>", subject: "Your Acme invoice" };
 /** On the other card, so switching cards has something to switch to. */
 const onSecondCard: CcTransaction = {
   ...base,
@@ -225,6 +226,19 @@ describe("the list", () => {
   it("keeps the mark out of the tab order until its cell has focus", async () => {
     show();
     expect(await screen.findByLabelText("Transaction 1 was filled by a rule")).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("marks the rows with a billing email", async () => {
+    transactions = [{ ...incomplete, billingEmailRef }, complete, onSecondCard];
+    show();
+    expect(await screen.findByLabelText("Transaction 1 has a billing email")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Transaction 2 has a billing email")).toBeNull();
+  });
+
+  it("keeps the mail icon out of the tab order until its cell has focus", async () => {
+    transactions = [{ ...incomplete, billingEmailRef }, complete, onSecondCard];
+    show();
+    expect(await screen.findByLabelText("Transaction 1 has a billing email")).toHaveAttribute("tabindex", "-1");
   });
 
   it("offers search, columns and filters", async () => {

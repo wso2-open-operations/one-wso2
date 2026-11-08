@@ -40,6 +40,7 @@ import { describeError } from "../../util/financeError";
 import { bareAmount, formatNice } from "../../util/financeFormat";
 import { CardMenu } from "../components/CardMenu";
 import { CcAutoTaggedIcon } from "../components/CcAutoTaggedIcon";
+import { CcBillingEmailIcon } from "../components/CcBillingEmailIcon";
 import { CcCategorisePanel, type CcCategorisePanelHandle } from "../CcCategorisePanel";
 import { CcBulkEditDialog } from "../CcBulkEditDialog";
 import { sortByCompleteness } from "../ccPendingSubmissions";
@@ -59,8 +60,8 @@ import { FINANCE_EYEBROW } from "@constants/financeApps";
  */
 const SUBTITLE = "Categorise your unsubmitted card transactions and submit them for lead approval.";
 
-/** The status column: room for the autofill mark and the ready tick, side by side. */
-const STATUS_COLUMN_WIDTH = 64;
+/** The status column: room for the mail icon, the autofill mark and the ready tick, side by side. */
+const STATUS_COLUMN_WIDTH = 88;
 /** One icon's slot in the status column, kept when it's empty. */
 const STATUS_SLOT_SX = { width: 16, display: "flex", alignItems: "center" } as const;
 
@@ -252,9 +253,9 @@ function NewTxnBody() {
         renderCell: (p) => bareAmount(p.value as number),
       },
       {
-        // Only a ready tick, and a mark on rows an autofill rule filled in,
-        // ready or not. What was chosen is the panel's job. Each has its own
-        // slot, so neither shifts the other.
+        // Only a mail icon on rows matched with a billing email, a mark on rows
+        // an autofill rule filled in, and a ready tick. What was chosen is the
+        // panel's job. Each has its own slot, so none shifts the others.
         field: "complete",
         headerName: "",
         width: STATUS_COLUMN_WIDTH,
@@ -262,6 +263,11 @@ function NewTxnBody() {
         filterable: false,
         renderCell: (p) => (
           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ height: "100%" }}>
+            <Box sx={STATUS_SLOT_SX}>
+              {p.row.billingEmailRef && (
+                <CcBillingEmailIcon txnId={p.row.id} billingEmailRef={p.row.billingEmailRef} tabIndex={p.tabIndex} />
+              )}
+            </Box>
             <Box sx={STATUS_SLOT_SX}>
               {p.row.taggingRuleId != null && (
                 <CcAutoTaggedIcon txnId={p.row.id} ruleId={p.row.taggingRuleId} tabIndex={p.tabIndex} />

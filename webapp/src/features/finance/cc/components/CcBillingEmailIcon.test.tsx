@@ -31,6 +31,9 @@ beforeEach(() => notify.showWarning.mockClear());
 
 const billingEmailRef = { messageId: "<a+b@example.com>", subject: "Your <Acme> invoice" };
 
+/** Longer than the tooltip's exit transition. */
+const TOOLTIP_EXIT_MS = 600;
+
 const icon = () => screen.getByLabelText("Transaction 3 has a billing email");
 
 async function openTooltip() {
@@ -48,8 +51,9 @@ describe("gmailSearchUrl", () => {
 });
 
 describe("CcBillingEmailIcon", () => {
-  it("shows the subject in the tooltip, not as a link", async () => {
+  it("shows the subject in the tooltip under a heading, not as a link", async () => {
     const tip = await openTooltip();
+    expect(within(tip).getByText("Billing email subject")).toBeInTheDocument();
     const subject = within(tip).getByText("Your <Acme> invoice");
     expect(subject.closest("a")).toBeNull();
   });
@@ -64,6 +68,20 @@ describe("CcBillingEmailIcon", () => {
 
     expect(await navigator.clipboard.readText()).toBe("Your <Acme> invoice");
     expect(within(tip).getByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
+  it("stays open when the tooltip is clicked after a copy", async () => {
+    const user = userEvent.setup();
+    render(<CcBillingEmailIcon txnId={3} billingEmailRef={billingEmailRef} />);
+    await user.hover(icon());
+    const tip = await screen.findByRole("tooltip");
+
+    await user.click(within(tip).getByRole("button", { name: "Copy the subject" }));
+    await user.click(within(tip).getByText("Your <Acme> invoice"));
+
+    // A closing tooltip stays in the document until its exit transition ends, so this waits that out first.
+    await new Promise((resolve) => setTimeout(resolve, TOOLTIP_EXIT_MS));
+    expect(screen.queryByRole("tooltip")).toBeInTheDocument();
   });
 
   it("warns when the subject can't be copied", async () => {

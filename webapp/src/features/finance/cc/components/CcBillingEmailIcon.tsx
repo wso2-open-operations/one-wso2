@@ -19,12 +19,13 @@
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { Box, IconButton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { CheckIcon, CopyIcon, ExternalLinkIcon, MailIcon } from "@wso2/oxygen-ui-icons-react";
-import { useEffect, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { gmailSearchUrl } from "../ccBillingEmail";
 import type { CcBillingEmailRef } from "../ccTypes";
 
 /** How long the copy button shows it copied. */
 const COPIED_MS = 1500;
+const TEXT_SX = { fontSize: 12 } as const;
 
 /** Marks a transaction matched with a billing email. Its tooltip shows the subject, to copy or open in Gmail. */
 export function CcBillingEmailIcon({
@@ -54,7 +55,12 @@ export function CcBillingEmailIcon({
   );
 }
 
-/** The tooltip's content: the subject, a button that copies it and a link that opens the email in Gmail. */
+/** Stops a mouse press from moving focus to the pressed element. Its click still fires. */
+function preventMouseFocus(event: MouseEvent) {
+  event.preventDefault();
+}
+
+/** The tooltip's content: a heading, the subject, a button that copies it and a link that opens it in Gmail. */
 function EmailDetails({ billingEmailRef }: { billingEmailRef: CcBillingEmailRef }) {
   const { showWarning } = useNotifications();
   const [copied, setCopied] = useState(false);
@@ -74,27 +80,33 @@ function EmailDetails({ billingEmailRef }: { billingEmailRef: CcBillingEmailRef 
   };
 
   return (
-    <Stack direction="row" spacing={0.5} alignItems="center">
-      <Typography sx={{ fontSize: 12, overflowWrap: "anywhere" }}>{billingEmailRef.subject}</Typography>
-      <IconButton
-        size="small"
-        color="inherit"
-        aria-label={copied ? "Copied" : "Copy the subject"}
-        onClick={() => void copy()}
-      >
-        {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
-      </IconButton>
-      <IconButton
-        size="small"
-        color="inherit"
-        component="a"
-        href={gmailSearchUrl(billingEmailRef.messageId)}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Open the email in Gmail"
-      >
-        <ExternalLinkIcon size={14} />
-      </IconButton>
-    </Stack>
+    <Box>
+      <Typography sx={{ ...TEXT_SX, fontWeight: 700 }}>Billing email subject</Typography>
+      {/* The tooltip closes when anything in it loses focus, so its buttons don't take focus from a click. */}
+      <Stack direction="row" spacing={0.5} alignItems="center">
+        <Typography sx={{ ...TEXT_SX, overflowWrap: "anywhere" }}>{billingEmailRef.subject}</Typography>
+        <IconButton
+          size="small"
+          color="inherit"
+          aria-label={copied ? "Copied" : "Copy the subject"}
+          onMouseDown={preventMouseFocus}
+          onClick={() => void copy()}
+        >
+          {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+        </IconButton>
+        <IconButton
+          size="small"
+          color="inherit"
+          component="a"
+          href={gmailSearchUrl(billingEmailRef.messageId)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open the email in Gmail"
+          onMouseDown={preventMouseFocus}
+        >
+          <ExternalLinkIcon size={14} />
+        </IconButton>
+      </Stack>
+    </Box>
   );
 }
