@@ -90,6 +90,16 @@ export interface CcTransaction {
   reportSequenceNumber: string | null;
   /** The autofill rule that filled in this transaction, if any. */
   taggingRuleId?: number | null;
+  /** The billing email the transaction was matched with, if any. */
+  billingEmailRef?: CcBillingEmailRef | null;
+}
+
+/** A billing email, found in Gmail by its Message-ID. */
+export interface CcBillingEmailRef {
+  /** The email's Message-ID header, angle brackets included. */
+  messageId: string;
+  /** The email's subject, as received. */
+  subject: string;
 }
 
 export interface CcCreditCard {
