@@ -19,7 +19,7 @@ import type { DashboardOperations } from "../../api/amplifyTypes";
 import { useDashboardOperations } from "../../api/useAmplifyDashboards";
 import AmplifyShell from "../../components/AmplifyShell";
 import { Block, BoardState, Empty, PriorityPill, StackedBar, StatCard, StateChip } from "../../components/DashboardParts";
-import { announcementLabel, commentedReposts, plainReposts, updatedStamp, deltaText, num, percentOf, windowText } from "../../util/dashboardFormat";
+import { announcementLabel, commentedReposts, plainReposts, seenText, seenTitle, updatedStamp, deltaText, num, percentOf, windowText } from "../../util/dashboardFormat";
 
 const ANNOUNCEMENT_TONE = { SENT: "info", QUEUED: "warning", FAILED: "error", NONE: "default" } as const;
 
@@ -169,6 +169,16 @@ export function OperationsBoard({ data }: { data: DashboardOperations }) {
                     <TableCell align="right">{num(commentedReposts(p))}</TableCell>
                     <TableCell>
                       <StateChip label={announcementLabel(p.announcement)} tone={ANNOUNCEMENT_TONE[p.announcement?.status ?? "NONE"]} />
+                      {seenText(p.announcement) && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          title={seenTitle(p.announcement)}
+                          sx={{ display: "block", mt: 0.5, whiteSpace: "nowrap" }}
+                        >
+                          {seenText(p.announcement)}
+                        </Typography>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

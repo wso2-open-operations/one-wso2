@@ -73,6 +73,35 @@ export function announcementLabel(a: DashboardAnnouncement | undefined): string 
   return a.attempts && a.attempts > 0 ? `Retrying · attempt ${a.attempts}` : "Queued";
 }
 
+/**
+ * How many people saw a sent card: "Seen 312 / 900 (35%)". Null when there is nothing to show: not sent, or Novera
+ * hasn't reported a seen count or a recipient count yet (never a misleading "Seen 0").
+ */
+export function seenText(a: DashboardAnnouncement | undefined): string | null {
+  if (!a || a.status !== "SENT" || typeof a.seen !== "number" || typeof a.recipients !== "number" || a.recipients <= 0) {
+    return null;
+  }
+  return `Seen ${num(a.seen)} / ${num(a.recipients)} (${percentOf(a.seen, a.recipients)})`;
+}
+
+/** "just now", "5 min ago", "3 h ago", "2 d ago" for an ISO timestamp; "" when it doesn't parse. */
+export function agoText(iso: string, now: Date = new Date()): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const minutes = Math.max(0, Math.floor((now.getTime() - t) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours} h ago` : `${Math.floor(hours / 24)} d ago`;
+}
+
+/** The tooltip for the seen count: what "seen" means and when it was last checked. */
+export function seenTitle(a: DashboardAnnouncement | undefined, now: Date = new Date()): string {
+  const base = "Opened the Novera chat after the card arrived";
+  const ago = a?.seenCheckedAt ? agoText(a.seenCheckedAt, now) : "";
+  return ago ? `${base} · checked ${ago}` : base;
+}
+
 /** A scorecard value with its unit, e.g. "18%" or "187". */
 export function measureValue(m: Pick<ScorecardMeasure, "unit" | "value">): string {
   const v = Math.round(m.value * 10) / 10;

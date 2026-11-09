@@ -213,6 +213,12 @@ export interface DashboardAnnouncement {
   /** Outbox attempts so far while QUEUED. */
   attempts?: number | null;
   sentAt?: string | null;
+  /** People Novera sent the card to; null until Novera has reported it (older backends omit it). */
+  recipients?: number | null;
+  /** Of those, how many opened the Novera chat after the card arrived; null until first checked. */
+  seen?: number | null;
+  /** When Amplify last asked Novera for the seen count. */
+  seenCheckedAt?: string | null;
 }
 
 export interface DashboardCampaignRow {

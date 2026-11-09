@@ -140,6 +140,39 @@ describe("OperationsBoard", () => {
     render(<OperationsBoard data={{ ...operations, campaigns: [] }} />);
     expect(screen.getByText(/No posts are live/)).toBeTruthy();
   });
+
+  // Novera reports how many people opened its chat after the card arrived; Amplify passes it through.
+  const withAnnouncement = (announcement: DashboardOperations["campaigns"][number]["announcement"]): DashboardOperations => ({
+    ...operations,
+    campaigns: [{ ...operations.campaigns[0], announcement }],
+  });
+
+  it("shows who saw a sent card under the Novera chip, with what seen means", () => {
+    render(
+      <OperationsBoard
+        data={withAnnouncement({ status: "SENT", sentAt: "2026-10-21T08:00:00Z", recipients: 900, seen: 312, seenCheckedAt: "2026-10-22T09:00:00Z" })}
+      />,
+    );
+    expect(screen.getByText("Sent")).toBeTruthy();
+    const seen = screen.getByText("Seen 312 / 900 (35%)");
+    expect(seen.getAttribute("title")).toMatch(/^Opened the Novera chat after the card arrived/);
+  });
+
+  it.each([
+    ["no seen count yet", { status: "SENT" as const, recipients: 900, seen: null }],
+    ["an older backend without the fields", { status: "SENT" as const }],
+    ["no recipients", { status: "SENT" as const, recipients: 0, seen: 0 }],
+  ])("adds nothing to a sent card with %s", (_case, announcement) => {
+    render(<OperationsBoard data={withAnnouncement(announcement)} />);
+    expect(screen.getByText("Sent")).toBeTruthy();
+    expect(screen.queryByText(/^Seen /)).toBeNull();
+  });
+
+  it("leaves a failed card as it was, whatever the counts", () => {
+    render(<OperationsBoard data={withAnnouncement({ status: "FAILED", recipients: 900, seen: 12 })} />);
+    expect(screen.getByText("Failed after retries")).toBeTruthy();
+    expect(screen.queryByText(/^Seen /)).toBeNull();
+  });
 });
 
 const campaigns: DashboardCampaigns = {
