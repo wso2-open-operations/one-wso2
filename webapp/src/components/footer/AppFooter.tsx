@@ -15,11 +15,14 @@
 // under the License.
 
 import { Box, Stack } from "@wso2/oxygen-ui";
+import { legalLinks } from "@config/legalLinksConfig";
 
 // App-wide footer. Same shape as cs-tools/apps/customer-portal — copyright
 // on the left, legal links on the right. Rendered inside the content
 // column below <Outlet /> so it sits under the page content, aligned
-// with the sidebar's bottom.
+// with the sidebar's bottom. The legal links come from config.js
+// (ONE_WSO2_TERMS_OF_USE_URL, ONE_WSO2_PRIVACY_POLICY_URL); see
+// @config/legalLinksConfig.
 export default function AppFooter() {
   return (
     <Box
@@ -40,8 +43,12 @@ export default function AppFooter() {
     >
       <span>© 2026 WSO2 LLC. All rights reserved.</span>
       <Stack direction="row" spacing={3}>
-        <FooterLink href="https://wso2.com/terms-of-use/">Terms &amp; Conditions</FooterLink>
-        <FooterLink href="https://wso2.com/privacy-policy/">Privacy Policy</FooterLink>
+        {legalLinks.termsOfUseUrl && (
+          <FooterLink href={legalLinks.termsOfUseUrl}>Terms &amp; Conditions</FooterLink>
+        )}
+        {legalLinks.privacyPolicyUrl && (
+          <FooterLink href={legalLinks.privacyPolicyUrl}>Privacy Policy</FooterLink>
+        )}
       </Stack>
     </Box>
   );

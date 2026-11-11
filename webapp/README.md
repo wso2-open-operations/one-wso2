@@ -71,6 +71,7 @@ env vars use the `ONE_WSO2_` prefix (`vite.config.ts`).
 | `ONE_WSO2_AUTH_SIGN_OUT_REDIRECT_URL` | sign-out callback | `http://localhost:3000` |
 | `ONE_WSO2_ASGARDEO_MYACCOUNT_URL` | optional; defaults to the auth base URL with `api.` swapped for `myaccount.` | |
 | `ONE_WSO2_THEME` | `wso2` (default), `acrylicOrange`, `acrylicPurple`, `classic`, `highContrast`, `paleIndigo`, `paleGray` | `wso2` |
+| `ONE_WSO2_TERMS_OF_USE_URL`, `ONE_WSO2_PRIVACY_POLICY_URL` | optional; the footer's Terms & Conditions and Privacy Policy links. Unset keeps `https://wso2.com/terms-of-use/` and `https://wso2.com/privacy-policy/`; `""` hides the link | `https://wso2.com/privacy-policy/` |
 | `ONE_WSO2_IDLE_AUTO_SIGN_OUT` | optional; `true` signs out 30 minutes after inactivity instead of waiting at the idle prompt | `false` |
 | `ONE_WSO2_PREVIEW_FEATURES` | features built but not released; absent or `false` hides them | `{ cado2: false }` |
 

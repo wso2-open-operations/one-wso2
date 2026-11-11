@@ -187,6 +187,11 @@ declare global {
       // https://wso2.lightning.force.com, correct for every WSO2
       // environment today. Set it only for a sandbox org.
       ONE_WSO2_SALESFORCE_BASE_URL?: string;
+      // Footer legal links. Optional; unset keeps WSO2's public pages
+      // (https://wso2.com/terms-of-use/, https://wso2.com/privacy-policy/),
+      // "" hides that link. Read by @config/legalLinksConfig.
+      ONE_WSO2_TERMS_OF_USE_URL?: string;
+      ONE_WSO2_PRIVACY_POLICY_URL?: string;
       // Override for the Asgardeo My Account portal URL that the top-bar
       // "Profile" menu item opens. Only set this on non-standard tenants
       // (self-hosted / custom domain); on Asgardeo Cloud we derive it from
