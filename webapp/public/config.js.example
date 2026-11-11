@@ -199,6 +199,11 @@ window.config = {
   // sandbox org.
   // ONE_WSO2_SALESFORCE_BASE_URL: "https://wso2.lightning.force.com",
 
+  // Footer legal links. Unset keeps WSO2's public pages (shown here); an
+  // empty string hides that link. Only http(s) URLs are accepted.
+  // ONE_WSO2_TERMS_OF_USE_URL: "https://wso2.com/terms-of-use/",
+  // ONE_WSO2_PRIVACY_POLICY_URL: "https://wso2.com/privacy-policy/",
+
   // Idle handling. Defaults to false. The "Are you still there?" dialog
   // appears after 25 minutes of inactivity either way; this decides only what
   // happens if it is ignored. False leaves it waiting and the session alive;
