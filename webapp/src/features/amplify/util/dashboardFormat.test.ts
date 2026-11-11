@@ -16,8 +16,11 @@
 import { describe, expect, it } from "vitest";
 import type { ScorecardMeasure } from "../api/amplifyTypes";
 import {
+  agoText,
   announcementLabel,
   commentedReposts,
+  seenText,
+  seenTitle,
   plainReposts,
   updatedStamp,
   changePercent,
@@ -69,6 +72,30 @@ describe("dashboardFormat", () => {
     expect(announcementLabel({ status: "FAILED" })).toBe("Failed after retries");
     expect(announcementLabel({ status: "QUEUED", attempts: 3 })).toBe("Retrying · attempt 3");
     expect(announcementLabel({ status: "QUEUED", attempts: 0 })).toBe("Queued");
+  });
+
+  it("counts who saw a sent card, and only a sent card with both numbers", () => {
+    expect(seenText({ status: "SENT", recipients: 900, seen: 312 })).toBe("Seen 312 / 900 (35%)");
+    expect(seenText({ status: "SENT", recipients: 1200, seen: 0 })).toBe("Seen 0 / 1,200 (0%)");
+    expect(seenText({ status: "SENT", recipients: 900, seen: null })).toBeNull();
+    expect(seenText({ status: "SENT", recipients: null, seen: 3 })).toBeNull();
+    expect(seenText({ status: "SENT", recipients: 0, seen: 0 })).toBeNull();
+    expect(seenText({ status: "SENT" })).toBeNull();
+    expect(seenText({ status: "FAILED", recipients: 900, seen: 1 })).toBeNull();
+    expect(seenText(undefined)).toBeNull();
+  });
+
+  it("says when the seen count was checked", () => {
+    const now = new Date("2026-10-22T12:00:00Z");
+    expect(agoText("2026-10-22T11:59:40Z", now)).toBe("just now");
+    expect(agoText("2026-10-22T11:15:00Z", now)).toBe("45 min ago");
+    expect(agoText("2026-10-22T09:00:00Z", now)).toBe("3 h ago");
+    expect(agoText("2026-10-20T11:00:00Z", now)).toBe("2 d ago");
+    expect(agoText("not a date", now)).toBe("");
+    expect(seenTitle({ status: "SENT", seenCheckedAt: "2026-10-22T09:00:00Z" }, now)).toBe(
+      "Opened the Novera chat after the card arrived · checked 3 h ago",
+    );
+    expect(seenTitle({ status: "SENT" }, now)).toBe("Opened the Novera chat after the card arrived");
   });
 
   it("shows a scorecard value against its target and the API's own counts", () => {
