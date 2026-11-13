@@ -39,6 +39,7 @@ import {
 import { useOffices, useProduct } from "../api/useShopData";
 import { useAddToCart } from "../api/useShopMutations";
 import AlternativesRow from "../components/AlternativesRow";
+import NotifyMeButton from "../components/NotifyMeButton";
 import OptionPicker from "../components/OptionPicker";
 import ProductGallery from "../components/ProductGallery";
 
@@ -216,6 +217,10 @@ function BuyBox({ product, variant, missing, hasCombination }: BuyBoxProps): JSX
         <Typography variant="body2" color="text.secondary">
           {hint}
         </Typography>
+      )}
+      {variant?.availability === "OUT_OF_STOCK" && (
+        // Keyed by variant, so another choice starts with its own alert state.
+        <NotifyMeButton key={variant.id} variantId={variant.id} productSlug={product.slug} />
       )}
       {outcomeShown && add.isSuccess && (
         <Alert

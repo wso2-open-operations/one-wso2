@@ -19,9 +19,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { hoodie, office, powerbank, productCard } from "../../testing/fixtures";
+import { hoodie, office, powerbank, productCard, stockAlert } from "../../testing/fixtures";
 
-const http = vi.hoisted(() => ({ authedGet: vi.fn(), authedPost: vi.fn() }));
+const http = vi.hoisted(() => ({ authedGet: vi.fn(), authedPost: vi.fn(), authedDelete: vi.fn() }));
 
 vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
 vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "token" }));
@@ -37,6 +37,7 @@ vi.mock("@api/http", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@api/http")>()),
   authedGet: http.authedGet,
   authedPost: http.authedPost,
+  authedDelete: http.authedDelete,
 }));
 
 import { HttpError } from "@api/http";
@@ -44,7 +45,7 @@ import ProductPage from "./ProductPage";
 
 const originalConfig = window.config;
 
-type Answers = { product?: unknown; offices?: unknown };
+type Answers = { product?: unknown; offices?: unknown; alerts?: unknown };
 
 function backend(answers: Answers = {}) {
   http.authedGet.mockImplementation(async (url: string) => {
@@ -52,7 +53,9 @@ function backend(answers: Answers = {}) {
       ? (answers.product ?? hoodie())
       : url === "/pickup-offices"
         ? (answers.offices ?? { items: [office()], defaultOfficeId: "office-colombo" })
-        : new Error(`unexpected ${url}`);
+        : url === "/stock-alerts"
+          ? (answers.alerts ?? { items: [] })
+          : new Error(`unexpected ${url}`);
     if (answer instanceof Error) throw answer;
     return answer;
   });
@@ -90,6 +93,7 @@ beforeEach(() => {
   window.config = { ...(originalConfig ?? {}), ONE_WSO2_PREVIEW_FEATURES: { swagStore: true } } as Window["config"];
   http.authedGet.mockReset();
   http.authedPost.mockReset();
+  http.authedDelete.mockReset();
 });
 
 afterEach(() => {
@@ -188,6 +192,52 @@ describe("the product page", () => {
     expect(screen.getByText(/Paid orders are final/)).toBeInTheDocument();
   });
 
+  it("offers Notify me on an out-of-stock choice, and confirms the alert", async () => {
+    backend();
+    http.authedPost.mockResolvedValue({ id: "alert-1" });
+    renderPage("/store/p/wso2-hoodie?colour=Heather%20grey&size=S");
+    await userEvent.click(await screen.findByRole("button", { name: "Notify me" }));
+    expect(http.authedPost).toHaveBeenCalledWith("/stock-alerts", "token", { variantId: "v-grey-s" });
+    expect(await screen.findByText("We'll email you when it's back in stock.")).toBeInTheDocument();
+  });
+
+  it("shows an alert the shopper already set, and lets them stop it", async () => {
+    backend({ alerts: { items: [stockAlert()] } });
+    http.authedDelete.mockResolvedValue(undefined);
+    renderPage("/store/p/wso2-hoodie?colour=Heather%20grey&size=S");
+    expect(await screen.findByText("We'll email you when it's back in stock.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Notify me" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Stop notifying me" }));
+    expect(http.authedDelete).toHaveBeenCalledWith("/stock-alerts/alert-1", "token");
+  });
+
+  it("ignores alerts that already went out or were closed", async () => {
+    backend({ alerts: { items: [stockAlert({ status: "NOTIFIED" }), stockAlert({ id: "a2", status: "CLOSED" })] } });
+    renderPage("/store/p/wso2-hoodie?colour=Heather%20grey&size=S");
+    expect(await screen.findByRole("button", { name: "Notify me" })).toBeInTheDocument();
+  });
+
+  it("explains a refused alert", async () => {
+    backend();
+    http.authedPost.mockRejectedValue(
+      new HttpError(
+        "/stock-alerts",
+        409,
+        JSON.stringify({ message: "Alerts are for items that are out of stock and will come back.", errorCode: "not_available" }),
+      ),
+    );
+    renderPage("/store/p/wso2-hoodie?colour=Heather%20grey&size=S");
+    await userEvent.click(await screen.findByRole("button", { name: "Notify me" }));
+    expect(await screen.findByText("Alerts are for items that are out of stock and will come back.")).toBeInTheDocument();
+  });
+
+  it("offers no Notify me while a choice is in stock", async () => {
+    backend();
+    renderPage("/store/p/wso2-hoodie?colour=Black&size=M");
+    await screen.findByRole("heading", { level: 1, name: "WSO2 Hoodie" });
+    expect(screen.queryByRole("button", { name: "Notify me" })).toBeNull();
+  });
+
   it("offers alternatives for a sold-out choice, with no waiting list", async () => {
     const limited = hoodie({
       restockPolicy: "LIMITED",
@@ -198,6 +248,7 @@ describe("the product page", () => {
     renderPage("/store/p/wso2-hoodie?colour=Black&size=M");
     expect(await screen.findByText(/Sold out. It won't be restocked/)).toBeInTheDocument();
     expect(addButton()).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Notify me" })).toBeNull();
     expect(screen.getByRole("heading", { level: 2, name: "You might also like" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /WSO2 Tumbler/ })).toHaveAttribute("href", "/store/p/wso2-tumbler");
   });

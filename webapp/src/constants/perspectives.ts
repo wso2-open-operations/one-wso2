@@ -64,6 +64,7 @@ import {
   ShoppingBagIcon,
   ShoppingCartIcon,
   PackageIcon,
+  BellIcon,
   type LucideIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import type { ComponentType } from "react";
@@ -567,6 +568,7 @@ const SWAG_STORE_SHOP_SECTIONS: PerspectiveSection[] = [
   { id: "swag-store-shop", label: "Shop", icon: ShoppingBagIcon, path: swagStorePaths.shop },
   { id: "swag-store-cart", label: "Cart", icon: ShoppingCartIcon, path: swagStorePaths.cart },
   { id: "swag-store-orders", label: "Orders", icon: PackageIcon, path: swagStorePaths.orders },
+  { id: "swag-store-alerts", label: "Alerts", icon: BellIcon, path: swagStorePaths.alerts },
 ];
 
 // Knowledge's one item so far. Its own perspective (not nested under Me)

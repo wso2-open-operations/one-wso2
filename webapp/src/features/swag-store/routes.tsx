@@ -26,6 +26,7 @@ const CartPage = lazy(() => import("./shop/pages/CartPage"));
 const CheckoutPage = lazy(() => import("./shop/pages/CheckoutPage"));
 const OrdersPage = lazy(() => import("./shop/pages/OrdersPage"));
 const OrderPage = lazy(() => import("./shop/pages/OrderPage"));
+const AlertsPage = lazy(() => import("./shop/pages/AlertsPage"));
 
 const deferred = (page: ReactNode) => (
   <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>{page}</Suspense>
@@ -44,5 +45,6 @@ export const swagStoreShopRoutes = (
     <Route path="cart/checkout" element={deferred(<CheckoutPage />)} />
     <Route path="orders" element={deferred(<OrdersPage />)} />
     <Route path="orders/:orderNo" element={deferred(<OrderPage />)} />
+    <Route path="alerts" element={deferred(<AlertsPage />)} />
   </Route>
 );

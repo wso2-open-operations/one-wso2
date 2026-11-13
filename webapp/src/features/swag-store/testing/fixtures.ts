@@ -18,6 +18,7 @@
 // that a test overrides only where it matters.
 
 import type {
+  SwagStoreAlert,
   SwagStoreCart,
   SwagStoreCartLine,
   SwagStoreMe,
@@ -240,6 +241,23 @@ export function orderDetail(overrides: Partial<SwagStoreOrderDetail> = {}): Swag
     confirmedAt: "2026-11-13T04:30:02Z",
     readyAt: null,
     collectedAt: null,
+    ...overrides,
+  };
+}
+
+/** A waiting alert on the grey hoodie in S, which is out of stock. */
+export function stockAlert(overrides: Partial<SwagStoreAlert> = {}): SwagStoreAlert {
+  return {
+    id: "alert-1",
+    variantId: "v-grey-s",
+    sku: "HOODIE-GRY-S",
+    productSlug: "wso2-hoodie",
+    productName: "WSO2 Hoodie",
+    options: "Heather grey · S",
+    status: "PENDING",
+    createdAt: "2026-11-10T08:00:00Z",
+    notifiedAt: null,
+    closedAt: null,
     ...overrides,
   };
 }
