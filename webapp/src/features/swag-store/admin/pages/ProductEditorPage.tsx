@@ -56,6 +56,7 @@ import { messageFor } from "../../util/swagStoreError";
 import { useAdminCategories, useAdminProduct, useAdminProducts } from "../api/useAdminData";
 import { useCreateProduct, useDeleteDraft, useSetProductStatus, useUpdateProduct } from "../api/useAdminMutations";
 import OptionsEditor from "../components/OptionsEditor";
+import PhotosField from "../components/PhotosField";
 import RemoveProductDialog from "../components/RemoveProductDialog";
 import StockDialog from "../components/StockDialog";
 import VariantEditDialog from "../components/VariantEditDialog";
@@ -287,6 +288,12 @@ function BasicsForm({ product }: { product: SwagStoreAdminProduct | undefined })
         error={Boolean(shown("description"))}
         helperText={shown("description") ?? "Plain text."}
         slotProps={{ htmlInput: { maxLength: 2000 } }}
+      />
+      <PhotosField
+        productId={product?.id}
+        productName={form.name.trim() || "This product"}
+        images={form.images}
+        onChange={(update) => setForm((f) => ({ ...f, images: update(f.images) }))}
       />
       <FormControl size="small">
         <InputLabel id="swag-store-product-alternatives">Alternatives</InputLabel>

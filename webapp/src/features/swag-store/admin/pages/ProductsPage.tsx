@@ -36,6 +36,7 @@ import { PlusIcon } from "@wso2/oxygen-ui-icons-react";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useDocumentTitle } from "@hooks/useDocumentTitle";
 import type { SwagStoreProductStatus } from "../../api/swagStoreTypes";
+import ProductImage from "../../components/ProductImage";
 import { formatCoins } from "../../util/coins";
 import { ADMIN_PRODUCTS_PAGE_SIZE, useAdminProducts } from "../api/useAdminData";
 import { swagStoreAdminPaths } from "../swagStoreAdminItems";
@@ -108,9 +109,14 @@ function ProductsTable({ status, empty }: { status: SwagStoreProductStatus; empt
             {items.map((p) => (
               <TableRow key={p.id} hover>
                 <TableCell>
-                  <Link component={RouterLink} to={swagStoreAdminPaths.product(p.id)} sx={{ fontWeight: 600 }}>
-                    {p.name}
-                  </Link>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Box sx={{ width: 40, flexShrink: 0 }}>
+                      <ProductImage src={p.image} alt="" height={40} />
+                    </Box>
+                    <Link component={RouterLink} to={swagStoreAdminPaths.product(p.id)} sx={{ fontWeight: 600 }}>
+                      {p.name}
+                    </Link>
+                  </Box>
                 </TableCell>
                 <TableCell align="right">{formatCoins(p.price)}</TableCell>
                 <TableCell align="right">{p.freeStock.toLocaleString()}</TableCell>

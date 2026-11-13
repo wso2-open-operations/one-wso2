@@ -92,6 +92,16 @@ describe("the admin products list", () => {
     expect(screen.getByRole("tab", { name: "Active", selected: true })).toBeInTheDocument();
   });
 
+  it("shows each product's main photo, or the placeholder without one", async () => {
+    const url = "https://acc.blob.core.windows.net/c/products/p/front-3f9a2c1d.jpg?sig=x";
+    http.authedGet.mockResolvedValueOnce({ items: [adminProductRow({ image: url }), adminProductRow({ id: "p-2", name: "WSO2 Mug", image: null })], total: 2 });
+    const { container } = renderPage();
+    const hoodie = await screen.findByRole("row", { name: /WSO2 Hoodie/ });
+    expect(hoodie.querySelector("img")).toHaveAttribute("src", url);
+    expect(screen.getByRole("row", { name: /WSO2 Mug/ }).querySelector("img")).toBeNull();
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+  });
+
   it("has a tab per status, as routes", async () => {
     renderPage();
     await screen.findByRole("row", { name: /WSO2 Hoodie/ });
