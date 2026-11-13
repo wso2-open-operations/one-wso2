@@ -127,6 +127,33 @@ describe("a new product", () => {
 });
 
 describe("an existing product", () => {
+  it("waits for photos still uploading before it saves", async () => {
+    backend();
+    let finish!: (r: Response) => void;
+    http.fetchWithReauth.mockReturnValue(new Promise<Response>((r) => (finish = r)));
+    renderPage();
+    const input = (await screen.findByLabelText("Back photo file")) as HTMLInputElement;
+    await userEvent.upload(input, new File(["png"], "back.png", { type: "image/png" }));
+    expect(await screen.findByRole("button", { name: "Waiting for photos…" })).toBeDisabled();
+    finish(new Response(JSON.stringify({ view: "back", path: "products/p-hoodie/back-0a1b2c3d.png", url: null }), { status: 201 }));
+    expect(await screen.findByRole("button", { name: "Save changes" })).toBeEnabled();
+  });
+
+  it("says Saved. only while nothing has changed since", async () => {
+    backend();
+    http.authedPatch.mockResolvedValue(adminProduct());
+    http.fetchWithReauth.mockResolvedValue(
+      new Response(JSON.stringify({ view: "back", path: "products/p-hoodie/back-0a1b2c3d.png", url: null }), { status: 201 }),
+    );
+    renderPage();
+    await screen.findByRole("textbox", { name: "Price (O2C)" });
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+    await userEvent.upload(screen.getByLabelText("Back photo file"), new File(["png"], "back.png", { type: "image/png" }));
+    await screen.findByRole("button", { name: "Replace Back photo" });
+    expect(screen.queryByText("Saved.")).toBeNull();
+  });
+
   it("saves uploaded photos with the rest of the form", async () => {
     backend();
     http.authedPatch.mockResolvedValue(adminProduct());

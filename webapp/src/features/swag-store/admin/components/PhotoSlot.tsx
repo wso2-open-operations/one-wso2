@@ -35,6 +35,7 @@ interface PhotoSlotProps {
   readonly onRemove: () => void;
   readonly onAltChange: (alt: string) => void;
   readonly onNotConfigured: () => void;
+  readonly onBusyChange: (busy: boolean) => void;
 }
 
 /** One view's photo: pick a file, scale it down if it's large, upload it, and describe it. */
@@ -48,6 +49,7 @@ export default function PhotoSlot({
   onRemove,
   onAltChange,
   onNotConfigured,
+  onBusyChange,
 }: PhotoSlotProps): JSX.Element {
   const upload = useUploadProductPhoto(productId);
   const input = useRef<HTMLInputElement>(null);
@@ -69,11 +71,13 @@ export default function PhotoSlot({
       return;
     }
     setPhase("preparing");
+    onBusyChange(true);
     let ready: File;
     try {
       ready = await preparePhoto(file);
     } catch (err) {
       setPhase("idle");
+      onBusyChange(false);
       setError(err instanceof PhotoPrepError ? err.message : "This photo couldn't be read. Try another file.");
       return;
     }
@@ -86,7 +90,10 @@ export default function PhotoSlot({
           if (errorCodeOf(err) === "assets_not_configured") onNotConfigured();
           else setError(messageFor(err));
         },
-        onSettled: () => setPhase("idle"),
+        onSettled: () => {
+          setPhase("idle");
+          onBusyChange(false);
+        },
       },
     );
   };

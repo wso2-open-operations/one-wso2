@@ -32,12 +32,14 @@ interface PhotosFieldProps {
    * each must apply to the latest list.
    */
   readonly onChange: (update: (images: Photos) => Photos) => void;
+  /** A slot started or finished scaling and uploading a photo. */
+  readonly onBusyChange?: (view: SwagStorePhotoView, busy: boolean) => void;
 }
 
 const byView = (a: SwagStoreProductImage, b: SwagStoreProductImage) => PHOTO_VIEWS.indexOf(a.view) - PHOTO_VIEWS.indexOf(b.view);
 
 /** The product's photos, one slot per view. Changes are saved with the rest of the form. */
-export default function PhotosField({ productId, productName, images, onChange }: PhotosFieldProps): JSX.Element {
+export default function PhotosField({ productId, productName, images, onChange, onBusyChange }: PhotosFieldProps): JSX.Element {
   const [notConfigured, setNotConfigured] = useState(false);
   const off = !productId || notConfigured;
 
@@ -71,6 +73,7 @@ export default function PhotosField({ productId, productName, images, onChange }
             onRemove={() => put(view, () => null)}
             onAltChange={(alt) => put(view, (current) => (current ? { ...current, alt } : null))}
             onNotConfigured={() => setNotConfigured(true)}
+            onBusyChange={(busy) => onBusyChange?.(view, busy)}
           />
         ))}
       </Box>
