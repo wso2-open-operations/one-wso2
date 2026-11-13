@@ -178,6 +178,18 @@ describe("the Shop grid", () => {
     await waitFor(() => expect(productCalls()).toContain("/products?q=tote&sort=popular&limit=24&offset=0"));
   });
 
+  it("keeps the search box focused after a search, so the shopper can keep typing", async () => {
+    backend();
+    renderPage();
+    await screen.findByRole("link", { name: /WSO2 Hoodie/ });
+    const box = screen.getByRole("searchbox", { name: "Search the store" });
+    await userEvent.type(box, "tote{Enter}");
+    await waitFor(() => expect(productCalls()).toContain("/products?q=tote&sort=popular&limit=24&offset=0"));
+    expect(screen.getByRole("searchbox", { name: "Search the store" })).toHaveFocus();
+    await userEvent.keyboard(" bag{Enter}");
+    await waitFor(() => expect(productCalls()).toContain("/products?q=tote+bag&sort=popular&limit=24&offset=0"));
+  });
+
   it("filters by a category chip, and marks the chosen one", async () => {
     backend({ categories: [{ id: "c1", slug: "apparel", name: "Apparel" }] });
     renderPage();
@@ -200,8 +212,10 @@ describe("the Shop grid", () => {
     backend({ products: { items: [], total: 0 } });
     renderPage("/store?q=kayak&inStock=1");
     expect(await screen.findByText("No items match your filters.")).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search the store" })).toHaveValue("kayak");
     await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     await waitFor(() => expect(productCalls()).toContain("/products?sort=popular&limit=24&offset=0"));
+    expect(screen.getByRole("searchbox", { name: "Search the store" })).toHaveValue("");
   });
 
   it("says the store is empty only when nothing was filtered", async () => {
