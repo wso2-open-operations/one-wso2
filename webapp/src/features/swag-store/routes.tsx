@@ -21,6 +21,7 @@ import SwagStoreShell from "./components/SwagStoreShell";
 
 // Every page loads on first use, so none of the store is downloaded until it is opened.
 const ShopPage = lazy(() => import("./shop/pages/ShopPage"));
+const ProductPage = lazy(() => import("./shop/pages/ProductPage"));
 
 const deferred = (page: ReactNode) => (
   <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>{page}</Suspense>
@@ -34,5 +35,6 @@ const deferred = (page: ReactNode) => (
 export const swagStoreShopRoutes = (
   <Route path="store" element={<SwagStoreShell />}>
     <Route index element={deferred(<ShopPage />)} />
+    <Route path="p/:slug" element={deferred(<ProductPage />)} />
   </Route>
 );
