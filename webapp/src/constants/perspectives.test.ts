@@ -388,6 +388,20 @@ describe("the Swag Store perspective", () => {
     expect(store?.sections?.[0]).toMatchObject({ id: "swag-store-shop", label: "Shop", path: "/store" });
   });
 
+  it("puts the store's admin group in People Ops only while the flag is on", async () => {
+    const off = await loadWithStore(false);
+    expect(off.findPerspectiveByKey("people")?.sections?.some((s) => s.id === "swag-store-admin")).toBe(false);
+
+    const on = await loadWithStore(true);
+    const people = on.findPerspectiveByKey("people");
+    const group = people?.sections?.find((s) => s.id === "swag-store-admin");
+    expect(group).toMatchObject({ label: "Swag Store", alwaysGroup: true });
+    expect(group?.children?.map((c) => [c.id, c.label, c.path])).toEqual([
+      ["swag-store-admin-dashboard", "Dashboard", "/people-ops/swag-store/dashboard"],
+    ]);
+    expect(on.findPerspectiveByPath("/people-ops/swag-store/dashboard")?.key).toBe("people");
+  });
+
   it("owns every store page, so product pages keep the store rail", async () => {
     const perspectives = await loadWithStore(true);
     expect(perspectives.findPerspectiveByPath("/store/p/hoodie")?.key).toBe("store");

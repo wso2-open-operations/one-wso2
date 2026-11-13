@@ -2506,4 +2506,9 @@ export const swagStoreServiceUrls = {
     `${swagStoreBackendUrl}/orders/${encodeURIComponent(orderNo)}/payments`,
   stockAlerts: `${swagStoreBackendUrl}/stock-alerts`,
   stockAlert: (id: string): string => `${swagStoreBackendUrl}/stock-alerts/${encodeURIComponent(id)}`,
+  /** The store team's endpoints. The backend checks the caller's store role on every one. */
+  admin: {
+    /** Counts per role: catalog for catalog managers, orders for fulfilment ops. */
+    dashboard: `${swagStoreBackendUrl}/admin/dashboard`,
+  },
 };
