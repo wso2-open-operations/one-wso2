@@ -24,9 +24,8 @@ import QuantityStepper from "../../components/QuantityStepper";
 import TintedChip from "../../components/TintedChip";
 import { swagStorePaths } from "../../swagStorePaths";
 import { formatCoins } from "../../util/coins";
+import { MAX_LINE_QUANTITY } from "../cartLimits";
 
-/** The cart refuses more than this on one line. */
-const MAX_LINE_QUANTITY = 99;
 
 const STATE_LABEL: Record<Exclude<SwagStoreLineState, "OK">, string> = {
   OUT_OF_STOCK: "Out of stock",
