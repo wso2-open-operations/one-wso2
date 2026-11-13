@@ -18,21 +18,22 @@ import { useState, type JSX } from "react";
 import { Box, ButtonBase } from "@wso2/oxygen-ui";
 import type { SwagStoreProductImage } from "../../api/swagStoreTypes";
 import ProductImage from "../../components/ProductImage";
+import { photoAlt, photoLabel } from "../../util/photos";
 
-/** The product's photos: one large, with thumbnails to switch between them when there are several. */
+/** The product's photos, in view order: one large, with thumbnails to switch between them when there are several. */
 export default function ProductGallery({ images, name }: { images: readonly SwagStoreProductImage[]; name: string }): JSX.Element {
   const [shown, setShown] = useState(0);
   const current = images[Math.min(shown, images.length - 1)];
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      <ProductImage src={current?.url ?? null} alt={current?.alt || name} height={{ xs: 260, md: 380 }} />
+      <ProductImage src={current?.url ?? null} alt={current ? photoAlt(current, name) : name} height={{ xs: 260, md: 380 }} />
       {images.length > 1 && (
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
           {images.map((image, i) => (
             <ButtonBase
-              key={`${image.url}-${i}`}
+              key={image.path}
               onClick={() => setShown(i)}
-              aria-label={`Show image ${i + 1} of ${images.length}`}
+              aria-label={`Show ${photoLabel(image.view)}`}
               aria-pressed={i === shown}
               sx={{
                 width: 64,

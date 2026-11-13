@@ -109,9 +109,40 @@ export interface SwagStoreVariant {
   readonly restockEta: string | null;
 }
 
+/** A photo slot, in gallery order (util/photos PHOTO_VIEWS). */
+export type SwagStorePhotoView =
+  | "front"
+  | "back"
+  | "left"
+  | "right"
+  | "top"
+  | "bottom"
+  | "detail-1"
+  | "detail-2"
+  | "detail-3"
+  | "detail-4";
+
+/** One product photo. `url` is signed for reading and lasts at least a day; null when it can't be shown. */
 export interface SwagStoreProductImage {
-  readonly url: string;
+  readonly view: SwagStorePhotoView;
+  /** The blob path, which the editor sends back on Save. */
+  readonly path: string;
+  readonly url: string | null;
   readonly alt: string;
+}
+
+/** A photo as the product PATCH body carries it. */
+export interface SwagStorePhotoInput {
+  readonly view: SwagStorePhotoView;
+  readonly path: string;
+  readonly alt: string;
+}
+
+/** POST /admin/products/{id}/images: the stored photo. The product changes only when it is saved. */
+export interface SwagStorePhotoUpload {
+  readonly view: SwagStorePhotoView;
+  readonly path: string;
+  readonly url: string | null;
 }
 
 /**
@@ -475,7 +506,7 @@ export interface SwagStoreProductInput {
   readonly price: number;
   readonly restockPolicy: "RESTOCKABLE" | "LIMITED";
   readonly maxPerUser: number | null;
-  readonly images: readonly SwagStoreProductImage[];
+  readonly images: readonly SwagStorePhotoInput[];
   readonly alternatives: readonly string[];
 }
 

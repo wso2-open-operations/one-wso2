@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type { SwagStoreAdminProduct, SwagStoreProductInput } from "../api/swagStoreTypes";
+import type { SwagStoreAdminProduct, SwagStoreProductImage, SwagStoreProductInput } from "../api/swagStoreTypes";
+import { PHOTO_VIEWS } from "./photos";
 
 /** The product editor's basics, as the inputs hold them: numbers stay text until saved. */
 export interface ProductForm {
@@ -27,7 +28,8 @@ export interface ProductForm {
   readonly restockPolicy: "RESTOCKABLE" | "LIMITED";
   /** Empty for no limit. */
   readonly maxPerUser: string;
-  readonly images: readonly { readonly url: string; readonly alt: string }[];
+  /** One per view; uploads land here and are saved with the rest of the form. */
+  readonly images: readonly SwagStoreProductImage[];
   readonly alternatives: readonly string[];
 }
 
@@ -43,7 +45,7 @@ export const EMPTY_PRODUCT_FORM: ProductForm = {
   alternatives: [],
 };
 
-export type ProductFormErrors = Partial<Record<"name" | "slug" | "description" | "price" | "maxPerUser" | "images", string>>;
+export type ProductFormErrors = Partial<Record<"name" | "slug" | "description" | "price" | "maxPerUser", string>>;
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const WHOLE = /^\d+$/;
@@ -51,8 +53,6 @@ const HEX = /^#[0-9A-Fa-f]{6}$/;
 
 const wholeIn = (text: string, min: number, max: number) =>
   WHOLE.test(text.trim()) && Number(text) >= min && Number(text) <= max;
-
-const filledImages = (form: ProductForm) => form.images.filter((i) => i.url.trim() !== "");
 
 /** What is wrong with the basics, by field. Empty when the form can be saved. The backend checks again. */
 export function checkProductForm(form: ProductForm): ProductFormErrors {
@@ -64,9 +64,6 @@ export function checkProductForm(form: ProductForm): ProductFormErrors {
   if (!wholeIn(form.price, 1, 1_000_000)) errors.price = "A whole number from 1 to 1,000,000.";
   if (form.maxPerUser.trim() && !wholeIn(form.maxPerUser, 1, 99)) {
     errors.maxPerUser = "A whole number from 1 to 99, or empty for no limit.";
-  }
-  if (filledImages(form).some((i) => !i.url.trim().startsWith("https://"))) {
-    errors.images = "Image links must start with https://.";
   }
   return errors;
 }
@@ -82,7 +79,10 @@ export function productInputOf(form: ProductForm): SwagStoreProductInput {
     price: Number(form.price),
     restockPolicy: form.restockPolicy,
     maxPerUser: form.maxPerUser.trim() ? Number(form.maxPerUser) : null,
-    images: filledImages(form).map((i) => ({ url: i.url.trim(), alt: i.alt.trim() })),
+    // Paths are sent even when a photo has no url right now (it can't be signed), so nothing is lost.
+    images: [...form.images]
+      .sort((a, b) => PHOTO_VIEWS.indexOf(a.view) - PHOTO_VIEWS.indexOf(b.view))
+      .map((i) => ({ view: i.view, path: i.path, alt: i.alt.trim() })),
     alternatives: [...form.alternatives],
   };
 }
@@ -97,7 +97,7 @@ export function productFormOf(product: SwagStoreAdminProduct): ProductForm {
     price: String(product.price),
     restockPolicy: product.restockPolicy,
     maxPerUser: product.maxPerUser === null ? "" : String(product.maxPerUser),
-    images: product.images.map((i) => ({ url: i.url, alt: i.alt })),
+    images: [...product.images],
     alternatives: [...product.alternatives],
   };
 }

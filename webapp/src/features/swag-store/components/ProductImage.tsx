@@ -26,13 +26,27 @@ interface ProductImageProps {
   readonly height?: number | string | Partial<Record<"xs" | "sm" | "md" | "lg", number | string>>;
 }
 
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/** https only; a dev build also takes http from this machine (the local Blob emulator). */
+function loadable(src: string | null): boolean {
+  if (!src) return false;
+  try {
+    const u = new URL(src);
+    return u.protocol === "https:" || (import.meta.env.DEV && u.protocol === "http:" && LOOPBACK.has(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A product photo, or a plain placeholder when there is none, it isn't https,
- * or it fails to load. Images sit on hosts the store's CSP already allows.
+ * or it fails to load (a signed URL can expire in a tab left open for days).
+ * Photos come from Blob storage, which the CSP's img-src already allows.
  */
 export default function ProductImage({ src, alt, height = 180 }: ProductImageProps): JSX.Element {
   const [broken, setBroken] = useState(false);
-  const usable = Boolean(src?.startsWith("https://")) && !broken;
+  const usable = loadable(src) && !broken;
   return (
     <Box
       sx={{

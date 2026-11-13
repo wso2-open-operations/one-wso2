@@ -24,7 +24,6 @@ import {
   CircularProgress,
   Divider,
   FormControl,
-  IconButton,
   InputLabel,
   MenuItem,
   Select,
@@ -37,7 +36,7 @@ import {
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ArrowLeftIcon, PlusIcon, Trash2Icon } from "@wso2/oxygen-ui-icons-react";
+import { ArrowLeftIcon } from "@wso2/oxygen-ui-icons-react";
 import { HttpError } from "@api/http";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useDocumentTitle } from "@hooks/useDocumentTitle";
@@ -289,7 +288,6 @@ function BasicsForm({ product }: { product: SwagStoreAdminProduct | undefined })
         helperText={shown("description") ?? "Plain text."}
         slotProps={{ htmlInput: { maxLength: 2000 } }}
       />
-      <ImagesField images={form.images} error={shown("images")} onChange={(images) => set("images", images)} />
       <FormControl size="small">
         <InputLabel id="swag-store-product-alternatives">Alternatives</InputLabel>
         <Select
@@ -319,60 +317,6 @@ function BasicsForm({ product }: { product: SwagStoreAdminProduct | undefined })
         </Button>
       </Box>
     </Card>
-  );
-}
-
-function ImagesField({
-  images,
-  error,
-  onChange,
-}: {
-  images: ProductForm["images"];
-  error: string | undefined;
-  onChange: (images: ProductForm["images"]) => void;
-}): JSX.Element {
-  return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      <Typography variant="subtitle2" component="h3">
-        Images
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        https links on the store&apos;s allowed image hosts. The first is the main photo.
-      </Typography>
-      {images.map((img, i) => (
-        <Box key={i} sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-          <TextField
-            size="small"
-            value={img.url}
-            placeholder="https://"
-            onChange={(e) => onChange(images.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
-            slotProps={{ htmlInput: { "aria-label": `Image ${i + 1} link` } }}
-            sx={{ flex: "2 1 260px" }}
-          />
-          <TextField
-            size="small"
-            value={img.alt}
-            placeholder="What it shows"
-            onChange={(e) => onChange(images.map((x, j) => (j === i ? { ...x, alt: e.target.value } : x)))}
-            slotProps={{ htmlInput: { "aria-label": `Image ${i + 1} description`, maxLength: 200 } }}
-            sx={{ flex: "1 1 180px" }}
-          />
-          <IconButton aria-label={`Remove image ${i + 1}`} onClick={() => onChange(images.filter((_, j) => j !== i))}>
-            <Trash2Icon size={16} />
-          </IconButton>
-        </Box>
-      ))}
-      {error && (
-        <Typography variant="body2" color="error">
-          {error}
-        </Typography>
-      )}
-      <Box>
-        <Button size="small" startIcon={<PlusIcon size={14} />} onClick={() => onChange([...images, { url: "", alt: "" }])}>
-          Add image
-        </Button>
-      </Box>
-    </Box>
   );
 }
 

@@ -19,7 +19,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { hoodie, office, powerbank, productCard, stockAlert } from "../../testing/fixtures";
+import { hoodie, office, photo, powerbank, productCard, stockAlert } from "../../testing/fixtures";
 
 const http = vi.hoisted(() => ({ authedGet: vi.fn(), authedPost: vi.fn(), authedDelete: vi.fn() }));
 
@@ -101,6 +101,17 @@ afterEach(() => {
 });
 
 describe("the product page", () => {
+  it("labels gallery thumbnails by view and falls back to the product name for alt text", async () => {
+    backend({ product: hoodie({ images: [photo("front"), photo("back", { alt: "Logo print" })] }) });
+    renderPage();
+    const front = await screen.findByRole("button", { name: "Show Front" });
+    expect(screen.getByRole("button", { name: "Show Back" })).toBeInTheDocument();
+    expect(front).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("img", { name: "WSO2 Hoodie, Front" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show Back" }));
+    expect(screen.getByRole("img", { name: "Logo print" })).toBeInTheDocument();
+  });
+
   it("names the product in the h1 and the tab, with its price range and plain-text description", async () => {
     backend({ product: hoodie({ description: "<b>Warm</b> hoodie." }) });
     renderPage();
