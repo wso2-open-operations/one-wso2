@@ -123,8 +123,24 @@ describe("the order page", () => {
     expect(orderReads()).toHaveLength(reads);
   });
 
-  it("retries the payment of a pending order", async () => {
-    http.authedGet.mockResolvedValue(orderDetail({ status: "PENDING_PAYMENT", confirmedAt: null }));
+  it("doesn't offer Retry payment while the first payment may still confirm", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    http.authedGet.mockResolvedValue(
+      orderDetail({ status: "PENDING_PAYMENT", confirmedAt: null, placedAt: new Date().toISOString() }),
+    );
+    renderPage();
+    await screen.findByText(/Confirming your payment/);
+    expect(screen.queryByRole("button", { name: "Retry payment" })).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000 + 100);
+    });
+    expect(await screen.findByRole("button", { name: "Retry payment" })).toBeInTheDocument();
+  });
+
+  it("offers Retry payment at once for an order placed more than two minutes ago", async () => {
+    http.authedGet.mockResolvedValue(
+      orderDetail({ status: "PENDING_PAYMENT", confirmedAt: null, placedAt: "2026-01-01T00:00:00Z" }),
+    );
     http.authedPost.mockResolvedValue(placedOrder());
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: "Retry payment" }));

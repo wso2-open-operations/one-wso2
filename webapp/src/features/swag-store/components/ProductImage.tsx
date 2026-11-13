@@ -31,8 +31,9 @@ interface ProductImageProps {
  * or it fails to load. Images sit on hosts the store's CSP already allows.
  */
 export default function ProductImage({ src, alt, height = 180 }: ProductImageProps): JSX.Element {
-  const [broken, setBroken] = useState(false);
-  const usable = Boolean(src?.startsWith("https://")) && !broken;
+  // The URL that failed, not a flag: when the gallery shows another photo, that one gets its chance.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const usable = Boolean(src?.startsWith("https://")) && src !== failedSrc;
   return (
     <Box
       sx={{
@@ -51,7 +52,7 @@ export default function ProductImage({ src, alt, height = 180 }: ProductImagePro
           src={src ?? undefined}
           alt={alt}
           loading="lazy"
-          onError={() => setBroken(true)}
+          onError={() => setFailedSrc(src)}
           sx={{ width: "100%", height: "100%", objectFit: "contain" }}
         />
       ) : (

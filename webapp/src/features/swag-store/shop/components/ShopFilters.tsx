@@ -46,8 +46,7 @@ export default function ShopFilters({ view, onChange }: ShopFiltersProps): JSX.E
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
-        {/* Keyed by the applied search, so clearing the filters also clears the box. */}
-        <SearchBox key={view.q} applied={view.q} onSearch={(q) => apply({ q })} />
+        <SearchBox applied={view.q} onSearch={(q) => apply({ q })} />
         <FormControl size="small" sx={{ minWidth: 200 }}>
           <InputLabel id="swag-store-sort-label">Sort by</InputLabel>
           <Select
@@ -75,6 +74,13 @@ export default function ShopFilters({ view, onChange }: ShopFiltersProps): JSX.E
 
 function SearchBox({ applied, onSearch }: { applied: string; onSearch: (q: string) => void }): JSX.Element {
   const [draft, setDraft] = useState(applied);
+  // The box stays mounted, so it keeps focus after a search. When the applied
+  // search changes from outside (Clear filters, back button), the draft follows it.
+  const [synced, setSynced] = useState(applied);
+  if (applied !== synced) {
+    setSynced(applied);
+    setDraft(applied);
+  }
   const submit = (e: FormEvent) => {
     e.preventDefault();
     onSearch(draft.trim());
