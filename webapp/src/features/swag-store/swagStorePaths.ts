@@ -21,4 +21,9 @@ export const SWAG_STORE_PATH = "/store";
 export const swagStorePaths = {
   shop: SWAG_STORE_PATH,
   product: (slug: string): string => `${SWAG_STORE_PATH}/p/${encodeURIComponent(slug)}`,
+  cart: `${SWAG_STORE_PATH}/cart`,
+  // Under the cart, so the rail keeps Cart selected through checkout.
+  checkout: `${SWAG_STORE_PATH}/cart/checkout`,
+  orders: `${SWAG_STORE_PATH}/orders`,
+  order: (orderNo: string): string => `${SWAG_STORE_PATH}/orders/${encodeURIComponent(orderNo)}`,
 } as const;

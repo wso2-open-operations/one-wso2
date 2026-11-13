@@ -15,7 +15,7 @@
 // under the License.
 
 import { describe, expect, it } from "vitest";
-import { formatCivilDate } from "./civilDate";
+import { formatCivilDate, formatInstant } from "./civilDate";
 
 describe("formatCivilDate", () => {
   it("shows the date it was given, whatever the viewer's timezone", () => {
@@ -26,5 +26,16 @@ describe("formatCivilDate", () => {
   it("returns undefined for a value that isn't a date", () => {
     expect(formatCivilDate("soon", "en-GB")).toBeUndefined();
     expect(formatCivilDate("2026-13-40", "en-GB")).toBeUndefined();
+  });
+});
+
+describe("formatInstant", () => {
+  it("shows an instant with its date and time", () => {
+    // Midday UTC is 13 November in every timezone from UTC-11 to UTC+11.
+    expect(formatInstant("2026-11-13T12:00:00Z", "en-GB")).toMatch(/^13 Nov 2026, \d{2}:\d{2}$/);
+  });
+
+  it("shows a value it can't read as it came", () => {
+    expect(formatInstant("yesterday")).toBe("yesterday");
   });
 });

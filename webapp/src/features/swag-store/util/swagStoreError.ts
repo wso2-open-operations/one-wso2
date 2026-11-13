@@ -52,6 +52,27 @@ export function messageFor(err: unknown): string {
   return describeError(err);
 }
 
+/**
+ * Why a FAILED order failed, from its `failureCode`. A payment that couldn't be
+ * matched is the one case where coins may have moved, so it never says they didn't.
+ */
+export function orderFailureMessage(code: string | null): string {
+  switch (code) {
+    case "insufficient_funds":
+    case "wallet_not_owned":
+      return `${MESSAGES[code]} No coins were taken.`;
+    case "payment_mismatch":
+      return "We couldn't confirm this payment. The store team is checking it and will contact you.";
+    default:
+      return "The payment didn't go through. No coins were taken.";
+  }
+}
+
+/** A quote problem in the store's words when it has them, else the backend's own message. */
+export function problemMessage(problem: { code: string; message: string }): string {
+  return Object.prototype.hasOwnProperty.call(MESSAGES, problem.code) ? MESSAGES[problem.code] : problem.message;
+}
+
 /** True for the backend's refusal of someone outside WSO2 (403 `not_wso2`): a denial, not a failure. */
 export function isOutsideWso2(err: unknown): boolean {
   return err instanceof HttpError && err.status === 403 && errorCodeOf(err) === "not_wso2";

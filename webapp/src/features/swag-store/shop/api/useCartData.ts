@@ -18,7 +18,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { authedGet } from "@api/http";
 import { swagStoreServiceUrls } from "@config/apiConfig";
 import { useSwagStoreBasis } from "../../api/swagStoreBasis";
-import type { SwagStoreCartSummary } from "../../api/swagStoreTypes";
+import type { SwagStoreCart, SwagStoreCartSummary } from "../../api/swagStoreTypes";
 import { swagStoreRetry } from "../../util/swagStoreError";
 
 /** Cache-key parts of the cart and its summary, so a cart change can invalidate both. */
@@ -36,6 +36,19 @@ export function useCartSummary(): UseQueryResult<SwagStoreCartSummary, Error> {
     queryFn: async () => authedGet<SwagStoreCartSummary>(swagStoreServiceUrls.cartSummary, await getToken()),
     enabled: ready,
     staleTime: 60 * 1000,
+    retry: swagStoreRetry,
+  });
+}
+
+/** The cart with live prices and line states (GET /cart). Money and stock, so every mount asks again. */
+export function useCart(): UseQueryResult<SwagStoreCart, Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  return useQuery<SwagStoreCart, Error>({
+    queryKey: key(CART_KEY),
+    queryFn: async () => authedGet<SwagStoreCart>(swagStoreServiceUrls.cart, await getToken()),
+    enabled: ready,
+    staleTime: 0,
+    refetchOnMount: "always",
     retry: swagStoreRetry,
   });
 }

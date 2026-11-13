@@ -18,10 +18,16 @@
 // that a test overrides only where it matters.
 
 import type {
+  SwagStoreCart,
+  SwagStoreCartLine,
   SwagStoreMe,
   SwagStoreOffice,
+  SwagStoreOrderDetail,
+  SwagStoreOrderSummary,
+  SwagStorePlacedOrder,
   SwagStoreProductCard,
   SwagStoreProductDetail,
+  SwagStoreQuote,
   SwagStoreVariant,
   SwagStoreWallet,
 } from "../api/swagStoreTypes";
@@ -147,6 +153,93 @@ export function office(overrides: Partial<SwagStoreOffice> = {}): SwagStoreOffic
     collectionPoint: "Reception, level 2",
     hours: "Mon–Fri, 9:00–17:00",
     leadTimeDays: 2,
+    ...overrides,
+  };
+}
+
+/** A cart line for the hoodie, Black · M. */
+export function cartLine(overrides: Partial<SwagStoreCartLine> = {}): SwagStoreCartLine {
+  return {
+    id: "line-hoodie",
+    variantId: "v-black-m",
+    productSlug: "wso2-hoodie",
+    name: "WSO2 Hoodie",
+    options: "Black · M",
+    image: null,
+    unitPrice: 90,
+    quantity: 2,
+    lineTotal: 180,
+    state: "OK",
+    reason: null,
+    availability: "IN_STOCK",
+    ...overrides,
+  };
+}
+
+/** A cart whose total is the sum of its OK lines, as the backend computes it. */
+export function cart(lines: SwagStoreCartLine[] = [cartLine()]): SwagStoreCart {
+  return {
+    lines,
+    itemCount: lines.reduce((n, l) => n + l.quantity, 0),
+    total: lines.filter((l) => l.state === "OK").reduce((n, l) => n + l.lineTotal, 0),
+  };
+}
+
+/** A quote that can be placed: the hoodie line, at Colombo, from the default wallet. */
+export function quote(overrides: Partial<SwagStoreQuote> = {}): SwagStoreQuote {
+  return {
+    lines: [
+      { lineId: "line-hoodie", name: "WSO2 Hoodie", options: "Black · M", unitPrice: 90, quantity: 2, state: "OK", reason: null },
+    ],
+    total: 180,
+    pickupOffice: { id: "office-colombo", name: "Colombo", leadTimeDays: 2 },
+    wallet: { walletAddress: "0xWALLET", balance: "202.50" },
+    canPlace: true,
+    problems: [],
+    ...overrides,
+  };
+}
+
+/** What POST /orders answers for a paid order. */
+export function placedOrder(overrides: Partial<SwagStorePlacedOrder> = {}): SwagStorePlacedOrder {
+  return {
+    id: "order-1",
+    orderNo: "SS-10482",
+    status: "CONFIRMED",
+    total: 180,
+    pickupOffice: { name: "Colombo" },
+    placedAt: "2026-11-13T04:30:00Z",
+    ...overrides,
+  };
+}
+
+/** An order in the caller's list. */
+export function orderSummary(overrides: Partial<SwagStoreOrderSummary> = {}): SwagStoreOrderSummary {
+  return {
+    id: "order-1",
+    orderNo: "SS-10482",
+    status: "CONFIRMED",
+    total: 180,
+    officeName: "Colombo",
+    placedAt: "2026-11-13T04:30:00Z",
+    failureCode: null,
+    ...overrides,
+  };
+}
+
+/** A paid order for two hoodies, to collect at Colombo. */
+export function orderDetail(overrides: Partial<SwagStoreOrderDetail> = {}): SwagStoreOrderDetail {
+  return {
+    ...orderSummary(),
+    lines: [{ name: "WSO2 Hoodie", options: "Black · M", sku: "HOODIE-BLK-M", unitPrice: 90, quantity: 2 }],
+    timeline: [
+      { from: null, to: "PENDING_PAYMENT", note: null, at: "2026-11-13T04:30:00Z" },
+      { from: "PENDING_PAYMENT", to: "CONFIRMED", note: null, at: "2026-11-13T04:30:02Z" },
+    ],
+    pickupOffice: office(),
+    confirmedAt: "2026-11-13T04:30:02Z",
+    readyAt: null,
+    collectedAt: null,
     ...overrides,
   };
 }
