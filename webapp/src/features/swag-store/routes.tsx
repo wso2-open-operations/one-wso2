@@ -35,6 +35,7 @@ const AdminOrdersPage = lazy(() => import("./admin/pages/AdminOrdersPage"));
 const OfficesPage = lazy(() => import("./admin/pages/OfficesPage"));
 const ProductsPage = lazy(() => import("./admin/pages/ProductsPage"));
 const ProductEditorPage = lazy(() => import("./admin/pages/ProductEditorPage"));
+const DemandPage = lazy(() => import("./admin/pages/DemandPage"));
 
 const deferred = (page: ReactNode) => (
   <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>{page}</Suspense>
@@ -93,6 +94,13 @@ export const swagStoreAdminRoutes = (
       path="products/:productId"
       element={<SwagStoreAdminRequires need="CATALOG_MANAGER">{deferred(<ProductEditorPage />)}</SwagStoreAdminRequires>}
     />
+    {(["demand", "demand/:productId"] as const).map((path) => (
+      <Route
+        key={path}
+        path={path}
+        element={<SwagStoreAdminRequires need="CATALOG_MANAGER">{deferred(<DemandPage />)}</SwagStoreAdminRequires>}
+      />
+    ))}
     <Route
       path="settings/offices"
       element={<SwagStoreAdminRequires need="FULFILMENT_OPS">{deferred(<OfficesPage />)}</SwagStoreAdminRequires>}

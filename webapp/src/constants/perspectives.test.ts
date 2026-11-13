@@ -400,6 +400,7 @@ describe("the Swag Store perspective", () => {
       ["swag-store-admin-dashboard", "Dashboard", "/people-ops/swag-store/dashboard"],
       ["swag-store-admin-orders", "Orders", "/people-ops/swag-store/orders"],
       ["swag-store-admin-products", "Products", "/people-ops/swag-store/products"],
+      ["swag-store-admin-demand", "Demand", "/people-ops/swag-store/demand"],
       ["swag-store-admin-settings", "Settings", "/people-ops/swag-store/settings/offices"],
     ]);
     expect(on.findPerspectiveByPath("/people-ops/swag-store/dashboard")?.key).toBe("people");

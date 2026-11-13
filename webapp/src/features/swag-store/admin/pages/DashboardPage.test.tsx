@@ -102,6 +102,7 @@ describe("the admin dashboard", () => {
     expect(count("Low stock")).toHaveTextContent("3");
     expect(count("Out of stock")).toHaveTextContent("1");
     expect(count("Waiting alerts")).toHaveTextContent("5");
+    expect(screen.getByRole("link", { name: /Waiting alerts/ })).toHaveAttribute("href", "/people-ops/swag-store/demand");
   });
 
   it("shows only the parts the backend sent for the person's role", async () => {

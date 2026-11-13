@@ -2510,6 +2510,8 @@ export const swagStoreServiceUrls = {
     removalImpact: (id: string): string =>
       `${swagStoreBackendUrl}/admin/products/${encodeURIComponent(id)}/removal-impact`,
     productOptions: (id: string): string => `${swagStoreBackendUrl}/admin/products/${encodeURIComponent(id)}/options`,
+    /** Pending stock alerts per variant, most wanted first. */
+    demand: `${swagStoreBackendUrl}/admin/demand`,
     /** POST one photo as multipart/form-data (view + file). */
     productImages: (id: string): string => `${swagStoreBackendUrl}/admin/products/${encodeURIComponent(id)}/images`,
     productVariant: (id: string, variantId: string): string =>

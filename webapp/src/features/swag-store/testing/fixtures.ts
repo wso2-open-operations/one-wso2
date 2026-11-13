@@ -27,6 +27,7 @@ import type {
   SwagStoreCart,
   SwagStoreCartLine,
   SwagStoreDashboard,
+  SwagStoreDemandRow,
   SwagStoreMe,
   SwagStoreOffice,
   SwagStoreOrderDetail,
@@ -333,6 +334,22 @@ export function adminOffice(overrides: Partial<SwagStoreAdminOffice> = {}): Swag
     hrLocations: ["Colombo"],
     active: true,
     sort: 1,
+    ...overrides,
+  };
+}
+
+/** One variant on the demand board. */
+export function demandRow(overrides: Partial<SwagStoreDemandRow> = {}): SwagStoreDemandRow {
+  return {
+    productId: "p-hoodie",
+    productName: "WSO2 Hoodie",
+    variantId: "v-m",
+    sku: "HOODIE-M",
+    options: "M",
+    pendingAlerts: 3,
+    firstAlertAt: "2026-11-10T05:00:00Z",
+    restockEta: null,
+    free: 0,
     ...overrides,
   };
 }
