@@ -2510,5 +2510,12 @@ export const swagStoreServiceUrls = {
   admin: {
     /** Counts per role: catalog for catalog managers, orders for fulfilment ops. */
     dashboard: `${swagStoreBackendUrl}/admin/dashboard`,
+    /** POST with filters, so search text never goes into a URL. `Accept: text/csv` exports the same rows. */
+    ordersSearch: `${swagStoreBackendUrl}/admin/orders/search`,
+    order: (orderNo: string): string => `${swagStoreBackendUrl}/admin/orders/${encodeURIComponent(orderNo)}`,
+    orderNotes: (orderNo: string): string =>
+      `${swagStoreBackendUrl}/admin/orders/${encodeURIComponent(orderNo)}/notes`,
+    pickupOffices: `${swagStoreBackendUrl}/admin/pickup-offices`,
+    pickupOffice: (id: string): string => `${swagStoreBackendUrl}/admin/pickup-offices/${encodeURIComponent(id)}`,
   },
 };

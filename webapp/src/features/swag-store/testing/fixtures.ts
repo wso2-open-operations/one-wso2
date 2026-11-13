@@ -18,6 +18,9 @@
 // that a test overrides only where it matters.
 
 import type {
+  SwagStoreAdminOffice,
+  SwagStoreAdminOrder,
+  SwagStoreAdminOrderDetail,
   SwagStoreAlert,
   SwagStoreCart,
   SwagStoreCartLine,
@@ -281,6 +284,43 @@ export function dashboard(overrides: Partial<SwagStoreDashboard> = {}): SwagStor
         },
       ],
     },
+    ...overrides,
+  };
+}
+
+/** An order on the store team's board. */
+export function adminOrder(overrides: Partial<SwagStoreAdminOrder> = {}): SwagStoreAdminOrder {
+  return {
+    ...orderSummary(),
+    userEmail: "sam@wso2.com",
+    userName: "Sam Shopper",
+    attentionReason: null,
+    ...overrides,
+  };
+}
+
+/** A paid order as the store team opens it. */
+export function adminOrderDetail(overrides: Partial<SwagStoreAdminOrderDetail> = {}): SwagStoreAdminOrderDetail {
+  return {
+    ...orderDetail(),
+    userEmail: "sam@wso2.com",
+    userName: "Sam Shopper",
+    attentionReason: null,
+    paymentReference: "swag:ord:order-1",
+    collectedBy: null,
+    notes: [],
+    ...overrides,
+  };
+}
+
+/** A pickup office as the store team manages it. */
+export function adminOffice(overrides: Partial<SwagStoreAdminOffice> = {}): SwagStoreAdminOffice {
+  return {
+    ...office(),
+    country: "Sri Lanka",
+    hrLocations: ["Colombo"],
+    active: true,
+    sort: 1,
     ...overrides,
   };
 }

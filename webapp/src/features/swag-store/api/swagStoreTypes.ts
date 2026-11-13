@@ -344,3 +344,64 @@ export interface SwagStoreDashboard {
     readonly needsAttention: readonly SwagStoreAdminOrder[];
   };
 }
+
+/** POST /admin/orders/search body. */
+export interface SwagStoreOrderSearch {
+  readonly filters: {
+    readonly status?: SwagStoreOrderStatus;
+    readonly pickupOfficeId?: string;
+    /** An order number or an email address. */
+    readonly searchQuery?: string;
+  };
+  readonly pagination: { readonly limit: number; readonly offset: number };
+}
+
+/** POST /admin/orders/search. */
+export interface SwagStoreAdminOrderList {
+  readonly items: readonly SwagStoreAdminOrder[];
+  readonly total: number;
+}
+
+/** A fulfilment note, newest last. */
+export interface SwagStoreOrderNote {
+  readonly note: string;
+  /** Who wrote it. */
+  readonly actor: string;
+  readonly at: string;
+}
+
+/** GET /admin/orders/{orderNo}: the order with who placed it, the payment reference and the team's notes. */
+export interface SwagStoreAdminOrderDetail extends SwagStoreOrderDetail {
+  readonly userEmail: string;
+  readonly userName: string;
+  readonly attentionReason: string | null;
+  readonly paymentReference: string;
+  /** Who handed it over, once collected. */
+  readonly collectedBy: string | null;
+  readonly notes: readonly SwagStoreOrderNote[];
+}
+
+/** PATCH /admin/orders/{orderNo}: the next step only. COLLECTED needs `idChecked: true`. */
+export interface SwagStoreOrderPatch {
+  readonly status: "READY_FOR_PICKUP" | "COLLECTED";
+  readonly idChecked?: boolean;
+  readonly note?: string;
+}
+
+/** A pickup office as the store team manages it. */
+export interface SwagStoreAdminOffice {
+  readonly id: string;
+  readonly name: string;
+  readonly address: string;
+  readonly country: string;
+  readonly collectionPoint: string;
+  readonly hours: string;
+  readonly leadTimeDays: number;
+  /** HR location names whose people get this office by default. */
+  readonly hrLocations: readonly string[];
+  readonly active: boolean;
+  readonly sort: number;
+}
+
+/** POST /admin/pickup-offices and PATCH /admin/pickup-offices/{id} body. */
+export type SwagStoreOfficeInput = Omit<SwagStoreAdminOffice, "id">;
