@@ -115,7 +115,7 @@ export default function UmtAddManualFilesSection({
   const [deleteBundleTarget, setDeleteBundleTarget] = useState<string | null>(null);
   // Stable per-entry ids independent of `bundlesInfoPath`, so two entries
   // sharing a path never collapse into a single grid row or get deleted
-  // together; the collision itself is surfaced inline for the user to resolve.
+  // together.
   const bundleEntryIdsRef = useRef(new WeakMap<UmtBundleInfoChange, string>());
   const nextBundleEntryId = useRef(0);
   function bundleEntryId(row: UmtBundleInfoChange): string {
@@ -247,7 +247,18 @@ export default function UmtAddManualFilesSection({
         setFormError(errors[0] ?? "Bundle info fields are required for plugin JAR changes.");
         return;
       }
-      if (bundlesInfoChanges.some((row) => row.bundlesInfoPath === bundlesInfoPath.trim())) {
+      // One bundles.info file can hold several entries, so only an entry that
+      // matches on every field is a duplicate.
+      if (
+        bundlesInfoChanges.some(
+          (row) =>
+            row.bundlesInfoPath === bundlesInfoPath.trim() &&
+            row.jarName === jarName.trim() &&
+            row.jarVersion === jarVersion.trim() &&
+            row.relativeJarPath === relativeJarPath.trim() &&
+            row.entryType === entryType,
+        )
+      ) {
         setFormError("This Bundle Info has already been added.");
         return;
       }
@@ -466,7 +477,7 @@ export default function UmtAddManualFilesSection({
           getRowId={(row: UmtBundleInfoChange) => bundleEntryId(row)}
           hideFooter
           rows={bundlesInfoChanges}
-          sx={{ mt: 2 }}
+          sx={{ mt: 2, ...denseDataGridSx }}
           columns={[
             {
               field: "bundlesInfoPath",
@@ -487,6 +498,17 @@ export default function UmtAddManualFilesSection({
               renderCell: (params: { row: UmtBundleInfoChange }) => (
                 <Stack sx={{ justifyContent: "center", minHeight: "100%", py: 0.75, width: "100%" }}>
                   {params.row.jarName}
+                </Stack>
+              ),
+            },
+            {
+              field: "jarVersion",
+              headerName: "JAR Version",
+              flex: 1,
+              sortable: false,
+              renderCell: (params: { row: UmtBundleInfoChange }) => (
+                <Stack sx={{ justifyContent: "center", minHeight: "100%", py: 0.75, width: "100%" }}>
+                  {params.row.jarVersion}
                 </Stack>
               ),
             },

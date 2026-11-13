@@ -112,7 +112,7 @@ export default function UmtPrAnalysisResults({ result }: { result: UmtPullReques
         <ResultSection title="Bundles Info Changes">
           <DenseTable
             ariaLabel="Bundles info changes"
-            rowKey={(row, index) => row.bundlesInfoPath ?? String(index)}
+            rowKey={(row, index) => `${row.bundlesInfoPath ?? "bundle-info"}-${index}`}
             rows={bundlesInfoChanges}
             columns={[
               { key: "path", label: "Bundles Info Path", render: (row) => displayValue(row.bundlesInfoPath) },

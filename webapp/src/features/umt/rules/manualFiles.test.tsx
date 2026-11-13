@@ -22,7 +22,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import JSZip from "jszip";
-import type { UmtFileOperation } from "../api/umtUpdates";
+import type { UmtBundleInfoChange, UmtFileOperation } from "../api/umtUpdates";
 import type { UmtPendingManualUpload } from "../lib/umtPrAnalysis";
 
 vi.mock("@context/notifications/NotificationsContext", () => ({
@@ -33,7 +33,7 @@ const { default: UmtAddManualFilesSection } = await import(
   "../components/edit/pr-analysis/UmtAddManualFilesSection"
 );
 
-function renderSection(files: UmtFileOperation[] = []) {
+function renderSection(files: UmtFileOperation[] = [], bundlesInfoChanges: UmtBundleInfoChange[] = []) {
   const onFilesChange = vi.fn();
   const onBundlesInfoChanged = vi.fn();
   render(
@@ -42,7 +42,7 @@ function renderSection(files: UmtFileOperation[] = []) {
       disabled={false}
       files={files}
       onFilesChange={onFilesChange}
-      bundlesInfoChanges={[]}
+      bundlesInfoChanges={bundlesInfoChanges}
       onBundlesInfoChanged={onBundlesInfoChanged}
       onDirty={vi.fn()}
     />,
@@ -195,14 +195,14 @@ describe("zip of manual files", () => {
 describe("bundle info for a plugin JAR", () => {
   // Opens the dialog for a plugin JAR, which needs a bundle-info entry, and
   // fills that entry in; a blank jarVersion leaves the version field empty.
-  async function addPluginJar(jarVersion: string) {
-    const section = renderSection();
+  const bundlesInfoPath =
+    "repository/components/default/configuration/org.eclipse.equinox.simpleconfigurator/bundles.info";
+
+  async function addPluginJar(jarVersion: string, existing: UmtBundleInfoChange[] = []) {
+    const section = renderSection([], existing);
     await fillPathAndOperation("repository/components/plugins/foo_1.0.0.jar", "Added");
     pickFile(new File(["jar"], "foo_1.0.0.jar"));
-    await enter(
-      "Bundles Info Path",
-      "repository/components/default/configuration/org.eclipse.equinox.simpleconfigurator/bundles.info",
-    );
+    await enter("Bundles Info Path", bundlesInfoPath);
     await enter("JAR Name", "foo");
     if (jarVersion) await enter("JAR Version", jarVersion);
     await enter("Relative JAR Path", "../plugins/foo_1.0.0.jar");
@@ -233,5 +233,23 @@ describe("bundle info for a plugin JAR", () => {
     await waitFor(() => expect(onBundlesInfoChanged).toHaveBeenCalled());
     const [entry] = onBundlesInfoChanged.mock.calls[0][0] as { entryType: string }[];
     expect(["add", "remove"]).toContain(entry.entryType);
+  });
+
+  // One bundles.info file can hold entries for several JARs.
+  it("accepts an entry whose bundles.info path is already listed", async () => {
+    const existing: UmtBundleInfoChange = {
+      bundlesInfoPath,
+      jarName: "bar",
+      jarVersion: "2.0.0",
+      relativeJarPath: "../plugins/bar_2.0.0.jar",
+      entryType: "add",
+    };
+    const { onBundlesInfoChanged } = await addPluginJar("1.0.0", [existing]);
+
+    await waitFor(() => expect(onBundlesInfoChanged).toHaveBeenCalled());
+    expect(onBundlesInfoChanged.mock.calls[0][0]).toEqual([
+      existing,
+      expect.objectContaining({ bundlesInfoPath, jarName: "foo" }),
+    ]);
   });
 });
