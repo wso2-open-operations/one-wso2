@@ -84,6 +84,12 @@ describe("the admin dashboard", () => {
     const row = screen.getByRole("row", { name: /SS-10490/ });
     expect(within(row).getByText("Sam Shopper")).toBeInTheDocument();
     expect(within(row).getByText("Payment needs checking")).toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: "SS-10490" })).toHaveAttribute("href", "/people-ops/swag-store/orders/SS-10490");
+    expect(screen.getByRole("link", { name: /To prepare/ })).toHaveAttribute("href", "/people-ops/swag-store/orders?status=CONFIRMED");
+    expect(screen.getByRole("link", { name: /Ready for pickup/ })).toHaveAttribute(
+      "href",
+      "/people-ops/swag-store/orders?status=READY_FOR_PICKUP",
+    );
   });
 
   it("counts the catalog for catalog managers", async () => {

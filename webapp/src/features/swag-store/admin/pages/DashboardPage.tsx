@@ -15,9 +15,12 @@
 // under the License.
 
 import { useId, type JSX } from "react";
+import { Link as RouterLink } from "react-router";
 import {
   Box,
   Card,
+  CardActionArea,
+  Link,
   Skeleton,
   Table,
   TableBody,
@@ -32,6 +35,10 @@ import type { SwagStoreAdminOrder, SwagStoreDashboard } from "../../api/swagStor
 import OrderStatusChip from "../../components/OrderStatusChip";
 import { formatInstant } from "../../util/civilDate";
 import { useAdminDashboard } from "../api/useAdminData";
+import { swagStoreAdminPaths } from "../swagStoreAdminItems";
+
+/** The orders board, filtered to one status. */
+const ordersWith = (status: string) => `${swagStoreAdminPaths.orders}?status=${status}`;
 
 const ATTENTION: Readonly<Record<string, string>> = {
   payment_mismatch: "Payment needs checking",
@@ -87,9 +94,9 @@ function OrdersPart({ orders }: { orders: NonNullable<SwagStoreDashboard["orders
         Orders
       </Typography>
       <Box sx={COUNTS_SX}>
-        <Count label="To prepare" value={orders.toPrepare} />
-        <Count label="Ready for pickup" value={orders.readyForPickup} />
-        <Count label="Payment not confirmed" value={orders.pendingPayment} />
+        <Count label="To prepare" value={orders.toPrepare} to={ordersWith("CONFIRMED")} />
+        <Count label="Ready for pickup" value={orders.readyForPickup} to={ordersWith("READY_FOR_PICKUP")} />
+        <Count label="Payment not confirmed" value={orders.pendingPayment} to={ordersWith("PENDING_PAYMENT")} />
         <Count label="Collected today" value={orders.collectedToday} />
       </Box>
       <Typography component="h3" variant="subtitle1" sx={{ fontWeight: 600, mt: 3, mb: 1 }}>
@@ -122,7 +129,11 @@ function AttentionTable({ orders }: { orders: readonly SwagStoreAdminOrder[] }):
         <TableBody>
           {orders.map((o) => (
             <TableRow key={o.id}>
-              <TableCell sx={{ fontWeight: 600 }}>{o.orderNo}</TableCell>
+              <TableCell>
+                <Link component={RouterLink} to={swagStoreAdminPaths.order(o.orderNo)} sx={{ fontWeight: 600 }}>
+                  {o.orderNo}
+                </Link>
+              </TableCell>
               <TableCell>{o.userName}</TableCell>
               <TableCell>{formatInstant(o.placedAt)}</TableCell>
               <TableCell>
@@ -155,11 +166,11 @@ function CatalogPart({ catalog }: { catalog: NonNullable<SwagStoreDashboard["cat
   );
 }
 
-/** One count, named by its label so a screen reader hears "To prepare, 4". */
-function Count({ label, value, hint }: { label: string; value: number; hint?: string }): JSX.Element {
+/** One count, named by its label so a screen reader hears "To prepare, 4". With `to`, it opens that filtered list. */
+function Count({ label, value, hint, to }: { label: string; value: number; hint?: string; to?: string }): JSX.Element {
   const labelId = useId();
-  return (
-    <Card variant="outlined" role="group" aria-labelledby={labelId} sx={{ p: 1.5, borderRadius: 1.5 }}>
+  const content = (
+    <Box sx={{ p: 1.5 }}>
       <Typography id={labelId} variant="body2" color="text.secondary">
         {label}
       </Typography>
@@ -170,6 +181,17 @@ function Count({ label, value, hint }: { label: string; value: number; hint?: st
         <Typography variant="caption" color="text.secondary">
           {hint}
         </Typography>
+      )}
+    </Box>
+  );
+  return (
+    <Card variant="outlined" role="group" aria-labelledby={labelId} sx={{ borderRadius: 1.5 }}>
+      {to ? (
+        <CardActionArea component={RouterLink} to={to} sx={{ height: "100%" }}>
+          {content}
+        </CardActionArea>
+      ) : (
+        content
       )}
     </Card>
   );

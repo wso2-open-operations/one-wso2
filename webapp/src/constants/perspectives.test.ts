@@ -398,6 +398,8 @@ describe("the Swag Store perspective", () => {
     expect(group).toMatchObject({ label: "Swag Store", alwaysGroup: true });
     expect(group?.children?.map((c) => [c.id, c.label, c.path])).toEqual([
       ["swag-store-admin-dashboard", "Dashboard", "/people-ops/swag-store/dashboard"],
+      ["swag-store-admin-orders", "Orders", "/people-ops/swag-store/orders"],
+      ["swag-store-admin-settings", "Settings", "/people-ops/swag-store/settings/offices"],
     ]);
     expect(on.findPerspectiveByPath("/people-ops/swag-store/dashboard")?.key).toBe("people");
   });

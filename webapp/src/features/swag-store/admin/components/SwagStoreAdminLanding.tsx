@@ -24,6 +24,8 @@ import { swagStoreAdminPaths } from "../swagStoreAdminItems";
 /** The admin screens in rail order, with who each is for. Each phase adds its screens here. */
 const SCREENS: readonly { readonly need: SwagStoreAdminNeed; readonly path: string }[] = [
   { need: "ANY", path: swagStoreAdminPaths.dashboard },
+  { need: "FULFILMENT_OPS", path: swagStoreAdminPaths.orders },
+  { need: "FULFILMENT_OPS", path: swagStoreAdminPaths.offices },
 ];
 
 /**

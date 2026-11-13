@@ -47,6 +47,9 @@ describe("the Swag Store backend", () => {
     expect(c.swagStoreServiceUrls.wallets).toBe(`${BASE}/wallets`);
     expect(c.swagStoreServiceUrls.cartSummary).toBe(`${BASE}/cart/summary`);
     expect(c.swagStoreServiceUrls.admin.dashboard).toBe(`${BASE}/admin/dashboard`);
+    expect(c.swagStoreServiceUrls.admin.order("SS-1/2")).toBe(`${BASE}/admin/orders/SS-1%2F2`);
+    expect(c.swagStoreServiceUrls.admin.orderNotes("SS-10482")).toBe(`${BASE}/admin/orders/SS-10482/notes`);
+    expect(c.swagStoreServiceUrls.admin.pickupOffice("a b")).toBe(`${BASE}/admin/pickup-offices/a%20b`);
   });
 
   it("encodes every path segment it is given", async () => {

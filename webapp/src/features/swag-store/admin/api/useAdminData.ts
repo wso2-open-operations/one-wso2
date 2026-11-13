@@ -14,11 +14,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { authedGet } from "@api/http";
+import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { authedGet, authedPost, HttpError } from "@api/http";
 import { swagStoreServiceUrls } from "@config/apiConfig";
 import { useSwagStoreBasis } from "../../api/swagStoreBasis";
-import type { SwagStoreDashboard } from "../../api/swagStoreTypes";
+import type {
+  SwagStoreAdminOffice,
+  SwagStoreAdminOrderDetail,
+  SwagStoreAdminOrderList,
+  SwagStoreDashboard,
+} from "../../api/swagStoreTypes";
+import { orderSearchBody, type AdminOrdersView } from "../../util/adminOrdersViewState";
 import { swagStoreRetry } from "../../util/swagStoreError";
 
 /** Cache-key prefix of every admin read, so an admin change can refresh them together. */
@@ -33,6 +39,63 @@ export function useAdminDashboard(): UseQueryResult<SwagStoreDashboard, Error> {
   return useQuery<SwagStoreDashboard, Error>({
     queryKey: key(ADMIN_KEY, "dashboard"),
     queryFn: async () => authedGet<SwagStoreDashboard>(swagStoreServiceUrls.admin.dashboard, await getToken()),
+    enabled: ready,
+    staleTime: ADMIN_STALE_MS,
+    retry: swagStoreRetry,
+  });
+}
+
+/**
+ * A short stand-in for search text in a cache key. The text can be an email
+ * address, and nothing personal goes into a query key beyond the subject.
+ */
+function searchKey(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+/** One page of the orders board (POST /admin/orders/search). The previous page stays while a filter loads. */
+export function useAdminOrders(view: AdminOrdersView): UseQueryResult<SwagStoreAdminOrderList, Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  return useQuery<SwagStoreAdminOrderList, Error>({
+    queryKey: key(ADMIN_KEY, "orders", view.status, view.office, view.page, view.q ? searchKey(view.q) : ""),
+    queryFn: async () => {
+      const url = swagStoreServiceUrls.admin.ordersSearch;
+      const list = await authedPost<SwagStoreAdminOrderList>(url, await getToken(), orderSearchBody(view));
+      if (!list) throw new HttpError(url, 204, "");
+      return list;
+    },
+    enabled: ready,
+    staleTime: ADMIN_STALE_MS,
+    placeholderData: keepPreviousData,
+    retry: swagStoreRetry,
+  });
+}
+
+/** One order with who placed it, the payment reference and notes (GET /admin/orders/{orderNo}). */
+export function useAdminOrder(orderNo: string): UseQueryResult<SwagStoreAdminOrderDetail, Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  return useQuery<SwagStoreAdminOrderDetail, Error>({
+    queryKey: key(ADMIN_KEY, "order", orderNo),
+    queryFn: async () => authedGet<SwagStoreAdminOrderDetail>(swagStoreServiceUrls.admin.order(orderNo), await getToken()),
+    enabled: ready && Boolean(orderNo),
+    staleTime: ADMIN_STALE_MS,
+    retry: swagStoreRetry,
+  });
+}
+
+/** Every pickup office, open or not (GET /admin/pickup-offices). */
+export function useAdminOffices(): UseQueryResult<readonly SwagStoreAdminOffice[], Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  return useQuery<readonly SwagStoreAdminOffice[], Error>({
+    queryKey: key(ADMIN_KEY, "offices"),
+    queryFn: async () =>
+      (await authedGet<{ items: SwagStoreAdminOffice[] }>(swagStoreServiceUrls.admin.pickupOffices, await getToken()))
+        .items,
     enabled: ready,
     staleTime: ADMIN_STALE_MS,
     retry: swagStoreRetry,

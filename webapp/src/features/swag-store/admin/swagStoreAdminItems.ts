@@ -21,6 +21,9 @@ export const SWAG_STORE_ADMIN_PATH = "/people-ops/swag-store";
 export const swagStoreAdminPaths = {
   root: SWAG_STORE_ADMIN_PATH,
   dashboard: `${SWAG_STORE_ADMIN_PATH}/dashboard`,
+  orders: `${SWAG_STORE_ADMIN_PATH}/orders`,
+  order: (orderNo: string): string => `${SWAG_STORE_ADMIN_PATH}/orders/${encodeURIComponent(orderNo)}`,
+  offices: `${SWAG_STORE_ADMIN_PATH}/settings/offices`,
 } as const;
 
 /** The People Ops rail group that holds the admin screens. */
