@@ -15,7 +15,7 @@
 // under the License.
 
 import { lazy, Suspense, type ReactNode } from "react";
-import { Route } from "react-router";
+import { Navigate, Route } from "react-router";
 import { Skeleton } from "@wso2/oxygen-ui";
 import SwagStoreShell from "./components/SwagStoreShell";
 import SwagStoreAdminLanding from "./admin/components/SwagStoreAdminLanding";
@@ -33,6 +33,8 @@ const AlertsPage = lazy(() => import("./shop/pages/AlertsPage"));
 const DashboardPage = lazy(() => import("./admin/pages/DashboardPage"));
 const AdminOrdersPage = lazy(() => import("./admin/pages/AdminOrdersPage"));
 const OfficesPage = lazy(() => import("./admin/pages/OfficesPage"));
+const ProductsPage = lazy(() => import("./admin/pages/ProductsPage"));
+const ProductEditorPage = lazy(() => import("./admin/pages/ProductEditorPage"));
 
 const deferred = (page: ReactNode) => (
   <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>{page}</Suspense>
@@ -74,6 +76,22 @@ export const swagStoreAdminRoutes = (
     <Route
       path="orders/:orderNo"
       element={<SwagStoreAdminRequires need="FULFILMENT_OPS">{deferred(<AdminOrdersPage />)}</SwagStoreAdminRequires>}
+    />
+    <Route path="products" element={<Navigate to="active" replace />} />
+    {(["active", "draft", "removed"] as const).map((tab) => (
+      <Route
+        key={tab}
+        path={`products/${tab}`}
+        element={<SwagStoreAdminRequires need="CATALOG_MANAGER">{deferred(<ProductsPage />)}</SwagStoreAdminRequires>}
+      />
+    ))}
+    <Route
+      path="products/new"
+      element={<SwagStoreAdminRequires need="CATALOG_MANAGER">{deferred(<ProductEditorPage />)}</SwagStoreAdminRequires>}
+    />
+    <Route
+      path="products/:productId"
+      element={<SwagStoreAdminRequires need="CATALOG_MANAGER">{deferred(<ProductEditorPage />)}</SwagStoreAdminRequires>}
     />
     <Route
       path="settings/offices"

@@ -50,6 +50,9 @@ describe("the Swag Store backend", () => {
     expect(c.swagStoreServiceUrls.admin.order("SS-1/2")).toBe(`${BASE}/admin/orders/SS-1%2F2`);
     expect(c.swagStoreServiceUrls.admin.orderNotes("SS-10482")).toBe(`${BASE}/admin/orders/SS-10482/notes`);
     expect(c.swagStoreServiceUrls.admin.pickupOffice("a b")).toBe(`${BASE}/admin/pickup-offices/a%20b`);
+    expect(c.swagStoreServiceUrls.admin.productVariant("p/1", "v 2")).toBe(`${BASE}/admin/products/p%2F1/variants/v%202`);
+    expect(c.swagStoreServiceUrls.admin.stockMovements("v-1")).toBe(`${BASE}/admin/variants/v-1/stock-movements`);
+    expect(c.swagStoreServiceUrls.admin.removalImpact("p-1")).toBe(`${BASE}/admin/products/p-1/removal-impact`);
   });
 
   it("encodes every path segment it is given", async () => {

@@ -405,3 +405,128 @@ export interface SwagStoreAdminOffice {
 
 /** POST /admin/pickup-offices and PATCH /admin/pickup-offices/{id} body. */
 export type SwagStoreOfficeInput = Omit<SwagStoreAdminOffice, "id">;
+
+export type SwagStoreProductStatus = "DRAFT" | "ACTIVE" | "REMOVED";
+
+/** A row of GET /admin/products. */
+export interface SwagStoreAdminProductRow {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly status: SwagStoreProductStatus;
+  readonly price: number;
+  readonly image: string | null;
+  /** Units on hand and not reserved, over every variant. */
+  readonly freeStock: number;
+  readonly unitsSold30d: number;
+}
+
+export interface SwagStoreAdminProductList {
+  readonly items: readonly SwagStoreAdminProductRow[];
+  readonly total: number;
+}
+
+/** A variant as the catalog manager sees it, with its stock. */
+export interface SwagStoreAdminVariant {
+  readonly id: string;
+  readonly sku: string;
+  /** Its option values as one label, such as "Black · M". */
+  readonly options: string;
+  readonly optionValueIds: readonly string[];
+  /** Added to the product's price. */
+  readonly priceDelta: number;
+  readonly onHand: number;
+  /** Held by orders waiting for payment or handover. */
+  readonly reserved: number;
+  readonly free: number;
+  /** A civil date, or null. */
+  readonly restockEta: string | null;
+  readonly active: boolean;
+}
+
+/** GET /admin/products/{id}. */
+export interface SwagStoreAdminProduct {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly description: string;
+  readonly categoryId: string | null;
+  readonly price: number;
+  readonly restockPolicy: "RESTOCKABLE" | "LIMITED";
+  readonly maxPerUser: number | null;
+  readonly limitWindowDays: number | null;
+  readonly status: SwagStoreProductStatus;
+  readonly publishedAt: string | null;
+  readonly removedAt: string | null;
+  readonly removalNote: string | null;
+  readonly options: readonly SwagStoreOption[];
+  readonly variants: readonly SwagStoreAdminVariant[];
+  readonly images: readonly SwagStoreProductImage[];
+  /** Product ids offered when this one can't be bought. */
+  readonly alternatives: readonly string[];
+}
+
+/** POST /admin/products and PATCH /admin/products/{id} body (not a status change). */
+export interface SwagStoreProductInput {
+  readonly name: string;
+  readonly slug?: string;
+  readonly description: string;
+  readonly categoryId: string | null;
+  readonly price: number;
+  readonly restockPolicy: "RESTOCKABLE" | "LIMITED";
+  readonly maxPerUser: number | null;
+  readonly images: readonly SwagStoreProductImage[];
+  readonly alternatives: readonly string[];
+}
+
+/** GET /admin/products/{id}/removal-impact: what removing a product touches. */
+export interface SwagStoreRemovalImpact {
+  /** Still served after removal. */
+  readonly openOrders: readonly { readonly orderNo: string; readonly status: string; readonly units: number }[];
+  readonly openUnits: number;
+  readonly carts: number;
+  readonly cartUnits: number;
+  readonly pendingAlerts: number;
+  readonly freeStock: number;
+}
+
+/** PUT /admin/products/{id}/options body. Variants are rebuilt from the options. */
+export interface SwagStoreOptionsInput {
+  readonly options: readonly {
+    readonly name: string;
+    readonly values: readonly { readonly value: string; readonly swatchHex?: string }[];
+  }[];
+}
+
+/** PATCH /admin/products/{id}/variants/{variantId} body. */
+export interface SwagStoreVariantPatch {
+  readonly sku?: string;
+  readonly priceDelta?: number;
+  readonly active?: boolean;
+  readonly restockEta?: string | null;
+}
+
+export type SwagStoreStockReason = "RECEIVE" | "ADJUST" | "WRITE_OFF";
+
+/** POST /admin/variants/{id}/stock-movements body. RECEIVE and WRITE_OFF take a positive delta. */
+export interface SwagStoreStockMovement {
+  readonly delta: number;
+  readonly reason: SwagStoreStockReason;
+  readonly note?: string;
+}
+
+/** The variant's stock after a movement, and how many alerts it set off. */
+export interface SwagStoreStockResult {
+  readonly onHand: number;
+  readonly reserved: number;
+  readonly free: number;
+  readonly notified: number;
+}
+
+/** GET /admin/categories row. */
+export interface SwagStoreAdminCategory {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly sort: number;
+}

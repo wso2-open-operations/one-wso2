@@ -2517,5 +2517,15 @@ export const swagStoreServiceUrls = {
       `${swagStoreBackendUrl}/admin/orders/${encodeURIComponent(orderNo)}/notes`,
     pickupOffices: `${swagStoreBackendUrl}/admin/pickup-offices`,
     pickupOffice: (id: string): string => `${swagStoreBackendUrl}/admin/pickup-offices/${encodeURIComponent(id)}`,
+    products: `${swagStoreBackendUrl}/admin/products`,
+    product: (id: string): string => `${swagStoreBackendUrl}/admin/products/${encodeURIComponent(id)}`,
+    removalImpact: (id: string): string =>
+      `${swagStoreBackendUrl}/admin/products/${encodeURIComponent(id)}/removal-impact`,
+    productOptions: (id: string): string => `${swagStoreBackendUrl}/admin/products/${encodeURIComponent(id)}/options`,
+    productVariant: (id: string, variantId: string): string =>
+      `${swagStoreBackendUrl}/admin/products/${encodeURIComponent(id)}/variants/${encodeURIComponent(variantId)}`,
+    stockMovements: (variantId: string): string =>
+      `${swagStoreBackendUrl}/admin/variants/${encodeURIComponent(variantId)}/stock-movements`,
+    categories: `${swagStoreBackendUrl}/admin/categories`,
   },
 };

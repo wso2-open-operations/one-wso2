@@ -25,6 +25,7 @@ import { swagStoreAdminPaths } from "../swagStoreAdminItems";
 const SCREENS: readonly { readonly need: SwagStoreAdminNeed; readonly path: string }[] = [
   { need: "ANY", path: swagStoreAdminPaths.dashboard },
   { need: "FULFILMENT_OPS", path: swagStoreAdminPaths.orders },
+  { need: "CATALOG_MANAGER", path: swagStoreAdminPaths.products },
   { need: "FULFILMENT_OPS", path: swagStoreAdminPaths.offices },
 ];
 
