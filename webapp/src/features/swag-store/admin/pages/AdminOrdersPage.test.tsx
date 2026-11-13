@@ -113,6 +113,13 @@ describe("the admin orders list", () => {
     expect(searches()[0]).toEqual({ filters: {}, pagination: { limit: 25, offset: 0 } });
   });
 
+  it("names who placed an order by email when the backend has no name for them", async () => {
+    backend();
+    http.authedPost.mockResolvedValue({ items: [adminOrder({ userName: "", userEmail: "kim@wso2.com" })], total: 1 });
+    renderPage();
+    expect(await screen.findByRole("row", { name: /SS-10482.*kim@wso2\.com/ })).toBeInTheDocument();
+  });
+
   it("filters by status chip and by search, keeping both in the address", async () => {
     backend();
     renderPage();

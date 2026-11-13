@@ -97,10 +97,12 @@ function OrderDetails({ order }: { order: SwagStoreAdminOrderDetail }): JSX.Elem
       </Typography>
 
       <Label>Who collects</Label>
-      <Typography sx={{ fontWeight: 600 }}>{order.userName}</Typography>
-      <Typography variant="body2" color="text.secondary">
-        {order.userEmail}
-      </Typography>
+      <Typography sx={{ fontWeight: 600 }}>{order.userName || order.userEmail}</Typography>
+      {order.userName && (
+        <Typography variant="body2" color="text.secondary">
+          {order.userEmail}
+        </Typography>
+      )}
 
       <Label>Hand over</Label>
       <Box component="ul" sx={{ m: 0, p: 0 }}>

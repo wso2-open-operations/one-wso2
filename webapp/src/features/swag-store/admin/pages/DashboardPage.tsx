@@ -134,7 +134,7 @@ function AttentionTable({ orders }: { orders: readonly SwagStoreAdminOrder[] }):
                   {o.orderNo}
                 </Link>
               </TableCell>
-              <TableCell>{o.userName}</TableCell>
+              <TableCell>{o.userName || o.userEmail}</TableCell>
               <TableCell>{formatInstant(o.placedAt)}</TableCell>
               <TableCell>
                 <OrderStatusChip status={o.status} />

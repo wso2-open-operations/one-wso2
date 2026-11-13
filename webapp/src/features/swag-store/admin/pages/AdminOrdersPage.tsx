@@ -29,6 +29,7 @@ import {
   InputLabel,
   Link,
   MenuItem,
+  OutlinedInput,
   Pagination,
   Select,
   Skeleton,
@@ -120,10 +121,13 @@ function Filters({ view, onApply }: { view: AdminOrdersView; onApply: (patch: Pa
         <SearchBox applied={view.q} onSearch={(q) => onApply({ q })} />
         {offices.data && offices.data.length > 0 && (
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="swag-store-orders-office">Pick up at</InputLabel>
+            <InputLabel id="swag-store-orders-office" shrink>
+              Pick up at
+            </InputLabel>
             <Select
               labelId="swag-store-orders-office"
-              label="Pick up at"
+              displayEmpty
+              input={<OutlinedInput notched label="Pick up at" />}
               value={view.office}
               onChange={(e) => onApply({ office: e.target.value })}
             >
@@ -232,7 +236,7 @@ function OrdersTable({ view, onPage, search }: { view: AdminOrdersView; onPage: 
                     {o.orderNo}
                   </Link>
                 </TableCell>
-                <TableCell>{o.userName}</TableCell>
+                <TableCell>{o.userName || o.userEmail}</TableCell>
                 <TableCell>{formatInstant(o.placedAt)}</TableCell>
                 <TableCell>{o.officeName}</TableCell>
                 <TableCell align="right">{formatCoins(o.total)}</TableCell>
