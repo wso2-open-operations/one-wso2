@@ -289,3 +289,29 @@ export interface SwagStoreOrderDetail extends SwagStoreOrderSummary {
   readonly readyAt: string | null;
   readonly collectedAt: string | null;
 }
+
+/**
+ * A "Notify me" alert. PENDING waits for stock; NOTIFIED means the back-in-stock
+ * email went out; CLOSED means it was cancelled or the item stopped being sold.
+ */
+export type SwagStoreAlertStatus = "PENDING" | "NOTIFIED" | "CLOSED";
+
+/** One of the caller's alerts, from GET /stock-alerts. */
+export interface SwagStoreAlert {
+  readonly id: string;
+  readonly variantId: string;
+  readonly sku: string;
+  readonly productSlug: string;
+  readonly productName: string;
+  /** The variant's option values, such as "Heather grey · S". Empty for a product with no options. */
+  readonly options: string;
+  readonly status: SwagStoreAlertStatus;
+  readonly createdAt: string;
+  readonly notifiedAt: string | null;
+  readonly closedAt: string | null;
+}
+
+/** GET /stock-alerts, newest first. */
+export interface SwagStoreAlertList {
+  readonly items: readonly SwagStoreAlert[];
+}

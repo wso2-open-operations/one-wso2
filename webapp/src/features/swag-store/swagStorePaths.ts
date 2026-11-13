@@ -26,4 +26,5 @@ export const swagStorePaths = {
   checkout: `${SWAG_STORE_PATH}/cart/checkout`,
   orders: `${SWAG_STORE_PATH}/orders`,
   order: (orderNo: string): string => `${SWAG_STORE_PATH}/orders/${encodeURIComponent(orderNo)}`,
+  alerts: `${SWAG_STORE_PATH}/alerts`,
 } as const;
