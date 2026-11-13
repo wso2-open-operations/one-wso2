@@ -15,7 +15,7 @@
 // under the License.
 
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
-import { authedDelete, authedPatch, authedPost, authedPostText, authedPut, HttpError } from "@api/http";
+import { authedDelete, authedPatch, authedPost, authedPostText, authedPut, fetchWithReauth, HttpError } from "@api/http";
 import { swagStoreServiceUrls } from "@config/apiConfig";
 import { useSwagStoreBasis } from "../../api/swagStoreBasis";
 import type {
@@ -24,6 +24,8 @@ import type {
   SwagStoreOfficeInput,
   SwagStoreOptionsInput,
   SwagStoreOrderPatch,
+  SwagStorePhotoUpload,
+  SwagStorePhotoView,
   SwagStoreProductInput,
   SwagStoreStockMovement,
   SwagStoreStockResult,
@@ -223,5 +225,27 @@ export function useStockMovement(): UseMutationResult<
       return required(url, authedPost<SwagStoreStockResult>(url, await getToken(), movement));
     },
     onSuccess: () => saved(null),
+  });
+}
+
+/**
+ * Upload one photo for a view (POST /admin/products/{id}/images). The form has
+ * no Content-Type header, so the browser adds the multipart boundary. Nothing
+ * is invalidated: the product changes only when the editor saves its photo list.
+ */
+export function useUploadProductPhoto(
+  productId: string,
+): UseMutationResult<SwagStorePhotoUpload, Error, { view: SwagStorePhotoView; file: File }> {
+  const { getToken } = useSwagStoreBasis();
+  return useMutation<SwagStorePhotoUpload, Error, { view: SwagStorePhotoView; file: File }>({
+    mutationFn: async ({ view, file }) => {
+      const url = swagStoreServiceUrls.admin.productImages(productId);
+      const form = new FormData();
+      form.append("view", view);
+      form.append("file", file, file.name);
+      const res = await fetchWithReauth(url, { method: "POST", body: form }, await getToken());
+      if (!res.ok) throw new HttpError(url, res.status, await res.text().catch(() => ""));
+      return (await res.json()) as SwagStorePhotoUpload;
+    },
   });
 }

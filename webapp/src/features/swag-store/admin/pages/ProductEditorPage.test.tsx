@@ -19,7 +19,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { adminProduct } from "../../testing/fixtures";
+import { adminProduct, photo } from "../../testing/fixtures";
 
 const http = vi.hoisted(() => ({
   authedGet: vi.fn(),
@@ -27,6 +27,7 @@ const http = vi.hoisted(() => ({
   authedPatch: vi.fn(),
   authedPut: vi.fn(),
   authedDelete: vi.fn(),
+  fetchWithReauth: vi.fn(),
 }));
 
 vi.mock("@asgardeo/react", () => ({ useAsgardeo: () => ({ isSignedIn: true }) }));
@@ -46,6 +47,11 @@ vi.mock("@api/http", async (importOriginal) => ({
   authedPatch: http.authedPatch,
   authedPut: http.authedPut,
   authedDelete: http.authedDelete,
+  fetchWithReauth: http.fetchWithReauth,
+}));
+vi.mock("../../util/photoResize", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../util/photoResize")>()),
+  preparePhoto: async (file: File) => file,
 }));
 
 import ProductEditorPage from "./ProductEditorPage";
@@ -98,6 +104,7 @@ describe("a new product", () => {
     http.authedPost.mockResolvedValue(adminProduct({ id: "p-new", status: "DRAFT", name: "WSO2 Mug" }));
     renderPage("/people-ops/swag-store/products/new");
     expect(screen.getByRole("heading", { level: 1, name: "New product" })).toBeInTheDocument();
+    expect(screen.getByText("Save the draft to add photos.")).toBeInTheDocument();
     await userEvent.type(field("Name"), "WSO2 Mug");
     await userEvent.type(field("Price (O2C)"), "45");
     await userEvent.click(screen.getByRole("button", { name: "Create draft" }));
@@ -120,6 +127,56 @@ describe("a new product", () => {
 });
 
 describe("an existing product", () => {
+  it("waits for photos still uploading before it saves", async () => {
+    backend();
+    let finish!: (r: Response) => void;
+    http.fetchWithReauth.mockReturnValue(new Promise<Response>((r) => (finish = r)));
+    renderPage();
+    const input = (await screen.findByLabelText("Back photo file")) as HTMLInputElement;
+    await userEvent.upload(input, new File(["png"], "back.png", { type: "image/png" }));
+    expect(await screen.findByRole("button", { name: "Waiting for photos…" })).toBeDisabled();
+    finish(new Response(JSON.stringify({ view: "back", path: "products/p-hoodie/back-0a1b2c3d.png", url: null }), { status: 201 }));
+    expect(await screen.findByRole("button", { name: "Save changes" })).toBeEnabled();
+  });
+
+  it("says Saved. only while nothing has changed since", async () => {
+    backend();
+    http.authedPatch.mockResolvedValue(adminProduct());
+    http.fetchWithReauth.mockResolvedValue(
+      new Response(JSON.stringify({ view: "back", path: "products/p-hoodie/back-0a1b2c3d.png", url: null }), { status: 201 }),
+    );
+    renderPage();
+    await screen.findByRole("textbox", { name: "Price (O2C)" });
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+    await userEvent.upload(screen.getByLabelText("Back photo file"), new File(["png"], "back.png", { type: "image/png" }));
+    await screen.findByRole("button", { name: "Replace Back photo" });
+    expect(screen.queryByText("Saved.")).toBeNull();
+  });
+
+  it("saves uploaded photos with the rest of the form", async () => {
+    backend();
+    http.authedPatch.mockResolvedValue(adminProduct());
+    const path = "products/p-hoodie/back-0a1b2c3d.png";
+    http.fetchWithReauth.mockResolvedValue(new Response(JSON.stringify({ view: "back", path, url: null }), { status: 201 }));
+    renderPage();
+    const input = (await screen.findByLabelText("Back photo file")) as HTMLInputElement;
+    await userEvent.upload(input, new File(["png"], "back.png", { type: "image/png" }));
+    await screen.findByRole("button", { name: "Replace Back photo" });
+    expect(http.authedPatch).not.toHaveBeenCalled(); // an upload alone changes nothing
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(http.authedPatch).toHaveBeenCalledWith(
+      "/admin/products/p-hoodie",
+      "token",
+      expect.objectContaining({
+        images: [
+          { view: "front", path: photo("front").path, alt: "Front" },
+          { view: "back", path, alt: "" },
+        ],
+      }),
+    );
+  });
+
   it("saves the basics with a PATCH", async () => {
     backend();
     http.authedPatch.mockResolvedValue(adminProduct({ price: 95 }));

@@ -23,13 +23,14 @@ import {
   productInputOf,
   type ProductForm,
 } from "./productForm";
+import { photo } from "../testing/fixtures";
 
 const valid: ProductForm = {
   ...EMPTY_PRODUCT_FORM,
   name: "WSO2 Hoodie",
   slug: "wso2-hoodie",
   price: "90",
-  images: [{ url: "https://wso2.cachefly.net/swag/hoodie.png", alt: "Front" }],
+  images: [photo("front", { alt: "Front" })],
 };
 
 describe("checkProductForm", () => {
@@ -45,14 +46,12 @@ describe("checkProductForm", () => {
         slug: "Bad Slug",
         price: "0",
         maxPerUser: "100",
-        images: [{ url: "http://example.com/a.png", alt: "" }],
       }),
     ).toEqual({
       name: "Enter a name.",
       slug: "Use lower-case letters, numbers and single hyphens.",
       price: "A whole number from 1 to 1,000,000.",
       maxPerUser: "A whole number from 1 to 99, or empty for no limit.",
-      images: "Image links must start with https://.",
     });
   });
 
@@ -63,13 +62,13 @@ describe("checkProductForm", () => {
 });
 
 describe("productInputOf and productFormOf", () => {
-  it("turns the form into the request body, trimming text and dropping empty images", () => {
+  it("turns the form into the request body, trimming text and sending photos as view, path and alt", () => {
     expect(
       productInputOf({
         ...valid,
         name: " WSO2 Hoodie ",
         maxPerUser: "2",
-        images: [...valid.images, { url: " ", alt: "" }],
+        images: [photo("front", { alt: " Front " })],
       }),
     ).toEqual({
       name: "WSO2 Hoodie",
@@ -79,9 +78,18 @@ describe("productInputOf and productFormOf", () => {
       price: 90,
       restockPolicy: "RESTOCKABLE",
       maxPerUser: 2,
-      images: [{ url: "https://wso2.cachefly.net/swag/hoodie.png", alt: "Front" }],
+      images: [{ view: "front", path: photo("front").path, alt: "Front" }],
       alternatives: [],
     });
+  });
+
+  it("keeps photos whose url is null and sends them in view order", () => {
+    const images = [photo("detail-1", { url: null }), photo("back", { url: null }), photo("front", { url: null })];
+    expect(productInputOf({ ...valid, images }).images).toEqual([
+      { view: "front", path: photo("front").path, alt: "" },
+      { view: "back", path: photo("back").path, alt: "" },
+      { view: "detail-1", path: photo("detail-1").path, alt: "" },
+    ]);
   });
 
   it("leaves the slug out when it is empty, so the backend makes one", () => {

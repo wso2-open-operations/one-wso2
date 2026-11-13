@@ -17,7 +17,7 @@
 import { HttpError } from "@api/http";
 import { describeError, httpRetry } from "@api/errors";
 
-/** The store's wording for the backend error codes a shopper can meet. None names a balance or a person. */
+/** The store's wording for the backend error codes a shopper or a store admin can meet. None names a balance or a person. */
 const MESSAGES: Readonly<Record<string, string>> = {
   insufficient_funds: "This wallet doesn't have enough O2C for this order.",
   limit_reached: "You've reached the limit for this item.",
@@ -28,6 +28,9 @@ const MESSAGES: Readonly<Record<string, string>> = {
   quote_changed: "Your cart changed. Check the updated total and try again.",
   wallet_not_owned: "That wallet isn't one of yours. Pick another and try again.",
   payment_failed: "The payment was refused. No coins were taken.",
+  unsupported_image: "Use a JPEG, PNG or WebP photo.",
+  assets_not_configured: "Photos aren't set up in this environment.",
+  assets_unavailable: "Photo storage can't be reached right now. Try again in a minute.",
 };
 
 /** The `errorCode` of a failed store request, or undefined when the body carries none. */
