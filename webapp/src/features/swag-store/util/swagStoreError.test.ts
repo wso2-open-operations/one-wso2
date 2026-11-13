@@ -47,6 +47,16 @@ describe("messageFor", () => {
     );
   });
 
+  it("words the photo upload failures", () => {
+    expect(messageFor(failure(415, { message: "m", errorCode: "unsupported_image" }))).toBe("Use a JPEG, PNG or WebP photo.");
+    expect(messageFor(failure(503, { message: "m", errorCode: "assets_not_configured" }))).toBe(
+      "Photos aren't set up in this environment.",
+    );
+    expect(messageFor(failure(503, { message: "m", errorCode: "assets_unavailable" }))).toBe(
+      "Photo storage can't be reached right now. Try again in a minute.",
+    );
+  });
+
   it("falls back to the server's message for a code it does not know", () => {
     expect(messageFor(failure(409, { message: "Not enough stock left.", errorCode: "out_of_stock" }))).toBe(
       "Not enough stock left.",
