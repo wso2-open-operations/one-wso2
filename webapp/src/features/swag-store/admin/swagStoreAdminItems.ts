@@ -24,6 +24,10 @@ export const swagStoreAdminPaths = {
   orders: `${SWAG_STORE_ADMIN_PATH}/orders`,
   order: (orderNo: string): string => `${SWAG_STORE_ADMIN_PATH}/orders/${encodeURIComponent(orderNo)}`,
   offices: `${SWAG_STORE_ADMIN_PATH}/settings/offices`,
+  products: `${SWAG_STORE_ADMIN_PATH}/products`,
+  productsTab: (tab: "active" | "draft" | "removed"): string => `${SWAG_STORE_ADMIN_PATH}/products/${tab}`,
+  newProduct: `${SWAG_STORE_ADMIN_PATH}/products/new`,
+  product: (productId: string): string => `${SWAG_STORE_ADMIN_PATH}/products/${encodeURIComponent(productId)}`,
 } as const;
 
 /** The People Ops rail group that holds the admin screens. */

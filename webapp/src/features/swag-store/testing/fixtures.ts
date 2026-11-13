@@ -19,6 +19,8 @@
 
 import type {
   SwagStoreAdminOffice,
+  SwagStoreAdminProduct,
+  SwagStoreAdminProductRow,
   SwagStoreAdminOrder,
   SwagStoreAdminOrderDetail,
   SwagStoreAlert,
@@ -321,6 +323,48 @@ export function adminOffice(overrides: Partial<SwagStoreAdminOffice> = {}): Swag
     hrLocations: ["Colombo"],
     active: true,
     sort: 1,
+    ...overrides,
+  };
+}
+
+/** A row of the admin products list. */
+export function adminProductRow(overrides: Partial<SwagStoreAdminProductRow> = {}): SwagStoreAdminProductRow {
+  return {
+    id: "p-hoodie",
+    slug: "wso2-hoodie",
+    name: "WSO2 Hoodie",
+    status: "ACTIVE",
+    price: 90,
+    image: null,
+    freeStock: 23,
+    unitsSold30d: 12,
+    ...overrides,
+  };
+}
+
+/** The hoodie as the catalog manager opens it: Size S and M, M is out of stock. */
+export function adminProduct(overrides: Partial<SwagStoreAdminProduct> = {}): SwagStoreAdminProduct {
+  return {
+    id: "p-hoodie",
+    slug: "wso2-hoodie",
+    name: "WSO2 Hoodie",
+    description: "Warm.",
+    categoryId: "c-apparel",
+    price: 90,
+    restockPolicy: "RESTOCKABLE",
+    maxPerUser: 2,
+    limitWindowDays: null,
+    status: "ACTIVE",
+    publishedAt: "2026-11-01T00:00:00Z",
+    removedAt: null,
+    removalNote: null,
+    options: [{ name: "Size", values: [{ id: "s", value: "S", swatchHex: null }, { id: "m", value: "M", swatchHex: null }] }],
+    variants: [
+      { id: "v-s", sku: "HOODIE-S", options: "S", optionValueIds: ["s"], priceDelta: 0, onHand: 10, reserved: 2, free: 8, restockEta: null, active: true },
+      { id: "v-m", sku: "HOODIE-M", options: "M", optionValueIds: ["m"], priceDelta: 5, onHand: 0, reserved: 0, free: 0, restockEta: null, active: true },
+    ],
+    images: [{ url: "https://wso2.cachefly.net/swag/hoodie.png", alt: "Front" }],
+    alternatives: [],
     ...overrides,
   };
 }

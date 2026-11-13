@@ -19,6 +19,11 @@ import { authedGet, authedPost, HttpError } from "@api/http";
 import { swagStoreServiceUrls } from "@config/apiConfig";
 import { useSwagStoreBasis } from "../../api/swagStoreBasis";
 import type {
+  SwagStoreAdminCategory,
+  SwagStoreAdminProduct,
+  SwagStoreAdminProductList,
+  SwagStoreProductStatus,
+  SwagStoreRemovalImpact,
   SwagStoreAdminOffice,
   SwagStoreAdminOrderDetail,
   SwagStoreAdminOrderList,
@@ -98,6 +103,61 @@ export function useAdminOffices(): UseQueryResult<readonly SwagStoreAdminOffice[
         .items,
     enabled: ready,
     staleTime: ADMIN_STALE_MS,
+    retry: swagStoreRetry,
+  });
+}
+
+/** Products per page of the admin products list. */
+export const ADMIN_PRODUCTS_PAGE_SIZE = 50;
+
+/** One tab of the products list (GET /admin/products?status=). */
+export function useAdminProducts(status: SwagStoreProductStatus, page = 1): UseQueryResult<SwagStoreAdminProductList, Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  const query = `status=${status}&limit=${ADMIN_PRODUCTS_PAGE_SIZE}&offset=${(page - 1) * ADMIN_PRODUCTS_PAGE_SIZE}`;
+  return useQuery<SwagStoreAdminProductList, Error>({
+    queryKey: key(ADMIN_KEY, "products", status, page),
+    queryFn: async () => authedGet<SwagStoreAdminProductList>(`${swagStoreServiceUrls.admin.products}?${query}`, await getToken()),
+    enabled: ready,
+    staleTime: ADMIN_STALE_MS,
+    placeholderData: keepPreviousData,
+    retry: swagStoreRetry,
+  });
+}
+
+/** One product with its options, variants and stock (GET /admin/products/{id}). */
+export function useAdminProduct(productId: string): UseQueryResult<SwagStoreAdminProduct, Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  return useQuery<SwagStoreAdminProduct, Error>({
+    queryKey: key(ADMIN_KEY, "product", productId),
+    queryFn: async () => authedGet<SwagStoreAdminProduct>(swagStoreServiceUrls.admin.product(productId), await getToken()),
+    enabled: ready && Boolean(productId),
+    staleTime: ADMIN_STALE_MS,
+    retry: swagStoreRetry,
+  });
+}
+
+/** The catalog's categories (GET /admin/categories). */
+export function useAdminCategories(): UseQueryResult<readonly SwagStoreAdminCategory[], Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  return useQuery<readonly SwagStoreAdminCategory[], Error>({
+    queryKey: key(ADMIN_KEY, "categories"),
+    queryFn: async () =>
+      (await authedGet<{ items: SwagStoreAdminCategory[] }>(swagStoreServiceUrls.admin.categories, await getToken())).items,
+    enabled: ready,
+    staleTime: ADMIN_STALE_MS,
+    retry: swagStoreRetry,
+  });
+}
+
+/** What removing a product would touch, read fresh each time the dialog opens. */
+export function useRemovalImpact(productId: string, enabled: boolean): UseQueryResult<SwagStoreRemovalImpact, Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  return useQuery<SwagStoreRemovalImpact, Error>({
+    queryKey: key(ADMIN_KEY, "removal-impact", productId),
+    queryFn: async () => authedGet<SwagStoreRemovalImpact>(swagStoreServiceUrls.admin.removalImpact(productId), await getToken()),
+    enabled: ready && enabled,
+    staleTime: 0,
+    refetchOnMount: "always",
     retry: swagStoreRetry,
   });
 }

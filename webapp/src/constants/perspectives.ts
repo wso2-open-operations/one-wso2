@@ -212,6 +212,7 @@ const SWAG_STORE_ADMIN_SECTION: PerspectiveSection = {
   children: [
     { id: SWAG_STORE_ADMIN_ITEM.dashboard, label: "Dashboard", path: swagStoreAdminPaths.dashboard },
     { id: SWAG_STORE_ADMIN_ITEM.orders, label: "Orders", path: swagStoreAdminPaths.orders },
+    { id: SWAG_STORE_ADMIN_ITEM.products, label: "Products", path: swagStoreAdminPaths.products },
     { id: SWAG_STORE_ADMIN_ITEM.settings, label: "Settings", path: swagStoreAdminPaths.offices },
   ],
 };
