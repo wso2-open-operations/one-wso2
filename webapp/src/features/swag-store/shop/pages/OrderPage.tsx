@@ -87,12 +87,17 @@ function OrderBody({ orderNo }: { orderNo: string }): JSX.Element {
   const [pollExpired, setPollExpired] = useState(false);
   const order = useOrder(orderNo, !pollExpired);
   const pending = order.data?.status === "PENDING_PAYMENT";
+  const placedAt = order.data?.placedAt;
 
   useEffect(() => {
     if (!pending || pollExpired) return undefined;
-    const timer = setTimeout(() => setPollExpired(true), PAYMENT_POLL_WINDOW_MS);
+    // The window runs from when the order was placed, so an order that has
+    // been pending for a while ends it at once. Capped, in case the clocks disagree.
+    const elapsed = placedAt ? Date.now() - Date.parse(placedAt) : 0;
+    const remaining = Math.min(PAYMENT_POLL_WINDOW_MS, Math.max(0, PAYMENT_POLL_WINDOW_MS - (elapsed || 0)));
+    const timer = setTimeout(() => setPollExpired(true), remaining);
     return () => clearTimeout(timer);
-  }, [pending, pollExpired]);
+  }, [pending, pollExpired, placedAt]);
 
   if (order.isPending) return <Skeleton variant="rounded" height={320} aria-label="Loading the order" />;
   if (order.isError) {
@@ -175,15 +180,19 @@ function PendingPayment({ orderNo, slow, onRetried }: { orderNo: string; slow: b
     <Alert
       severity="info"
       icon={slow ? undefined : <CircularProgress size={18} />}
+      // Only once the first payment has had its two minutes: a retry before
+      // then would race a payment that is about to confirm.
       action={
-        <Button
-          color="inherit"
-          size="small"
-          disabled={retry.isPending}
-          onClick={() => retry.mutate(undefined, { onSuccess: onRetried })}
-        >
-          {retry.isPending ? "Retrying…" : "Retry payment"}
-        </Button>
+        slow ? (
+          <Button
+            color="inherit"
+            size="small"
+            disabled={retry.isPending}
+            onClick={() => retry.mutate(undefined, { onSuccess: onRetried })}
+          >
+            {retry.isPending ? "Retrying…" : "Retry payment"}
+          </Button>
+        ) : undefined
       }
     >
       {slow

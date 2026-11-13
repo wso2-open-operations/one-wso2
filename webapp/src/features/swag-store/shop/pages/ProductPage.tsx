@@ -41,9 +41,8 @@ import { useAddToCart } from "../api/useShopMutations";
 import AlternativesRow from "../components/AlternativesRow";
 import OptionPicker from "../components/OptionPicker";
 import ProductGallery from "../components/ProductGallery";
+import { MAX_LINE_QUANTITY } from "../cartLimits";
 
-/** The cart refuses more than this on one line. */
-const MAX_LINE_QUANTITY = 99;
 
 /** `/store/p/:slug`: one product, its options, and Add to cart. The chosen options live in the address. */
 export default function ProductPage(): JSX.Element {
