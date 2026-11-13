@@ -63,6 +63,7 @@ describe("the Swag Store backend", () => {
     expect(c.swagStoreServiceUrls.orderPayments("SS-1/2")).toBe(`${BASE}/orders/SS-1%2F2/payments`);
     expect(c.swagStoreServiceUrls.stockAlert("a&b")).toBe(`${BASE}/stock-alerts/a%26b`);
     expect(c.swagStoreServiceUrls.admin.productImages("p/1")).toBe(`${BASE}/admin/products/p%2F1/images`);
+    expect(c.swagStoreServiceUrls.admin.demand).toBe(`${BASE}/admin/demand`);
   });
 
   it("works against the local dev proxy, which has no host", async () => {

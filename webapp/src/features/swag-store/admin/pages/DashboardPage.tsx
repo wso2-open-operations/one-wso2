@@ -160,7 +160,7 @@ function CatalogPart({ catalog }: { catalog: NonNullable<SwagStoreDashboard["cat
         <Count label="Removed" value={catalog.removed} />
         <Count label="Low stock" value={catalog.lowStockVariants} hint="variants" />
         <Count label="Out of stock" value={catalog.outOfStockVariants} hint="variants" />
-        <Count label="Waiting alerts" value={catalog.pendingAlerts} />
+        <Count label="Waiting alerts" value={catalog.pendingAlerts} to={swagStoreAdminPaths.demand} />
       </Box>
     </Box>
   );

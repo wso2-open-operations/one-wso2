@@ -26,6 +26,7 @@ const SCREENS: readonly { readonly need: SwagStoreAdminNeed; readonly path: stri
   { need: "ANY", path: swagStoreAdminPaths.dashboard },
   { need: "FULFILMENT_OPS", path: swagStoreAdminPaths.orders },
   { need: "CATALOG_MANAGER", path: swagStoreAdminPaths.products },
+  { need: "CATALOG_MANAGER", path: swagStoreAdminPaths.demand },
   { need: "FULFILMENT_OPS", path: swagStoreAdminPaths.offices },
 ];
 

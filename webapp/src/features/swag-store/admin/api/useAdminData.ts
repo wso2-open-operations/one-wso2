@@ -28,6 +28,7 @@ import type {
   SwagStoreAdminOrderDetail,
   SwagStoreAdminOrderList,
   SwagStoreDashboard,
+  SwagStoreDemandRow,
 } from "../../api/swagStoreTypes";
 import { orderSearchBody, type AdminOrdersView } from "../../util/adminOrdersViewState";
 import { swagStoreRetry } from "../../util/swagStoreError";
@@ -143,6 +144,18 @@ export function useAdminCategories(): UseQueryResult<readonly SwagStoreAdminCate
     queryKey: key(ADMIN_KEY, "categories"),
     queryFn: async () =>
       (await authedGet<{ items: SwagStoreAdminCategory[] }>(swagStoreServiceUrls.admin.categories, await getToken())).items,
+    enabled: ready,
+    staleTime: ADMIN_STALE_MS,
+    retry: swagStoreRetry,
+  });
+}
+
+/** The demand board: variants people are waiting for (GET /admin/demand). */
+export function useAdminDemand(): UseQueryResult<readonly SwagStoreDemandRow[], Error> {
+  const { getToken, ready, key } = useSwagStoreBasis();
+  return useQuery<readonly SwagStoreDemandRow[], Error>({
+    queryKey: key(ADMIN_KEY, "demand"),
+    queryFn: async () => (await authedGet<{ items: SwagStoreDemandRow[] }>(swagStoreServiceUrls.admin.demand, await getToken())).items,
     enabled: ready,
     staleTime: ADMIN_STALE_MS,
     retry: swagStoreRetry,
