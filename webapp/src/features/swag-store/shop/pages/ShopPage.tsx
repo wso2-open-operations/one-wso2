@@ -17,21 +17,30 @@
 import type { JSX } from "react";
 import { Box, Typography } from "@wso2/oxygen-ui";
 import { useDocumentTitle } from "@hooks/useDocumentTitle";
+import { useUrlViewState } from "@hooks/useUrlViewState";
+import { shopViewCodec } from "../../util/shopViewState";
+import ProductGrid from "../components/ProductGrid";
+import ShopFilters from "../components/ShopFilters";
 import WalletBalance from "../components/WalletBalance";
 
-/** `/store`: the shop's front page, with the shopper's coin balance. */
+/** `/store`: the shopper's balance, then every item for sale, filtered and sorted from the address. */
 export default function ShopPage(): JSX.Element {
   useDocumentTitle("Swag Store");
+  const { view, setView } = useUrlViewState(shopViewCodec);
 
   return (
-    <Box>
-      <Typography component="h1" variant="h5" sx={{ mb: 0.5, mt: 0 }}>
-        Swag Store
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "70ch", mb: 2 }}>
-        Spend your O2C coins on WSO2 swag, and pick your order up at your office.
-      </Typography>
-      <WalletBalance />
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <Box>
+        <Typography component="h1" variant="h5" sx={{ mb: 0.5, mt: 0 }}>
+          Swag Store
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "70ch", mb: 2 }}>
+          Spend your O2C coins on WSO2 swag, and pick your order up at your office.
+        </Typography>
+        <WalletBalance />
+      </Box>
+      <ShopFilters view={view} onChange={setView} />
+      <ProductGrid view={view} onChange={setView} />
     </Box>
   );
 }

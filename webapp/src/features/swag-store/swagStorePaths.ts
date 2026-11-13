@@ -20,4 +20,5 @@ export const SWAG_STORE_PATH = "/store";
 /** Every Swag Store shop path, and builders for the ones that take a parameter. */
 export const swagStorePaths = {
   shop: SWAG_STORE_PATH,
+  product: (slug: string): string => `${SWAG_STORE_PATH}/p/${encodeURIComponent(slug)}`,
 } as const;

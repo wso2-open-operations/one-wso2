@@ -21,7 +21,8 @@ import { useSwagStoreBasis } from "../../api/swagStoreBasis";
 import type { SwagStoreCartSummary } from "../../api/swagStoreTypes";
 import { swagStoreRetry } from "../../util/swagStoreError";
 
-/** Cache-key part of the cart summary, so a cart change can invalidate it. */
+/** Cache-key parts of the cart and its summary, so a cart change can invalidate both. */
+export const CART_KEY = "cart";
 export const CART_SUMMARY_KEY = "cart-summary";
 
 /**
