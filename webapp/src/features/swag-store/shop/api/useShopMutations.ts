@@ -15,7 +15,7 @@
 // under the License.
 
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
-import { authedPost } from "@api/http";
+import { authedDelete, authedPatch, authedPost } from "@api/http";
 import { swagStoreServiceUrls } from "@config/apiConfig";
 import { useSwagStoreBasis } from "../../api/swagStoreBasis";
 import type { SwagStoreCartLineInput } from "../../api/swagStoreTypes";
@@ -26,17 +26,46 @@ import { CART_KEY, CART_SUMMARY_KEY } from "./useCartData";
  * the quantity added to its line. Never retried; the caller words any failure.
  */
 export function useAddToCart(): UseMutationResult<void, Error, SwagStoreCartLineInput> {
-  const { getToken, key } = useSwagStoreBasis();
-  const queryClient = useQueryClient();
+  const { getToken } = useSwagStoreBasis();
+  const refreshCart = useRefreshCart();
   return useMutation<void, Error, SwagStoreCartLineInput>({
     mutationFn: async (line) => {
       await authedPost(swagStoreServiceUrls.cartLines, await getToken(), line);
     },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: key(CART_KEY) }),
-        queryClient.invalidateQueries({ queryKey: key(CART_SUMMARY_KEY) }),
-      ]);
-    },
+    onSuccess: refreshCart,
   });
+}
+
+/** Change a line's quantity (PATCH /cart/lines/{id}). */
+export function useUpdateCartLine(): UseMutationResult<void, Error, { lineId: string; quantity: number }> {
+  const { getToken } = useSwagStoreBasis();
+  const refreshCart = useRefreshCart();
+  return useMutation<void, Error, { lineId: string; quantity: number }>({
+    mutationFn: async ({ lineId, quantity }) => {
+      await authedPatch(swagStoreServiceUrls.cartLine(lineId), await getToken(), { quantity });
+    },
+    onSettled: refreshCart,
+  });
+}
+
+/** Take a line out of the cart (DELETE /cart/lines/{id}). */
+export function useRemoveCartLine(): UseMutationResult<void, Error, string> {
+  const { getToken } = useSwagStoreBasis();
+  const refreshCart = useRefreshCart();
+  return useMutation<void, Error, string>({
+    mutationFn: async (lineId) => authedDelete(swagStoreServiceUrls.cartLine(lineId), await getToken()),
+    onSettled: refreshCart,
+  });
+}
+
+/** A cart change makes both the cart and the top-bar count stale. */
+function useRefreshCart(): () => Promise<void> {
+  const { key } = useSwagStoreBasis();
+  const queryClient = useQueryClient();
+  return async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: key(CART_KEY) }),
+      queryClient.invalidateQueries({ queryKey: key(CART_SUMMARY_KEY) }),
+    ]);
+  };
 }

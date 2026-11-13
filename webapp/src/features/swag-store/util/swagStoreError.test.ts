@@ -16,7 +16,14 @@
 
 import { describe, expect, it } from "vitest";
 import { HttpError } from "@api/http";
-import { errorCodeOf, isOutsideWso2, messageFor, swagStoreRetry } from "./swagStoreError";
+import {
+  errorCodeOf,
+  isOutsideWso2,
+  messageFor,
+  orderFailureMessage,
+  problemMessage,
+  swagStoreRetry,
+} from "./swagStoreError";
 
 const failure = (status: number, body: unknown) =>
   new HttpError("https://store.example/x", status, typeof body === "string" ? body : JSON.stringify(body));
@@ -65,5 +72,30 @@ describe("swagStoreRetry", () => {
     expect(swagStoreRetry(0, failure(404, {}))).toBe(false);
     expect(swagStoreRetry(0, failure(503, {}))).toBe(true);
     expect(swagStoreRetry(1, failure(503, {}))).toBe(false);
+  });
+});
+
+describe("problemMessage", () => {
+  it("uses the store's wording for a known code, else the backend's message", () => {
+    expect(problemMessage({ code: "insufficient_funds", message: "balance below total" })).toBe(
+      "This wallet doesn't have enough O2C for this order.",
+    );
+    expect(problemMessage({ code: "office_unavailable", message: "Choose an open pickup office." })).toBe(
+      "Choose an open pickup office.",
+    );
+  });
+});
+
+describe("orderFailureMessage", () => {
+  it("says no coins were taken for a refused payment", () => {
+    expect(orderFailureMessage("insufficient_funds")).toBe(
+      "This wallet doesn't have enough O2C for this order. No coins were taken.",
+    );
+    expect(orderFailureMessage("payment_failed")).toBe("The payment didn't go through. No coins were taken.");
+    expect(orderFailureMessage(null)).toBe("The payment didn't go through. No coins were taken.");
+  });
+
+  it("never says so for a payment that couldn't be matched", () => {
+    expect(orderFailureMessage("payment_mismatch")).not.toMatch(/No coins were taken/);
   });
 });

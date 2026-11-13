@@ -218,7 +218,15 @@ function BuyBox({ product, variant, missing, hasCombination }: BuyBoxProps): JSX
         </Typography>
       )}
       {outcomeShown && add.isSuccess && (
-        <Alert severity="success" role="status">
+        <Alert
+          severity="success"
+          role="status"
+          action={
+            <Button component={RouterLink} to={swagStorePaths.cart} color="inherit" size="small">
+              View cart
+            </Button>
+          }
+        >
           Added to your cart.
         </Alert>
       )}

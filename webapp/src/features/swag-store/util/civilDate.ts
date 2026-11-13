@@ -29,3 +29,10 @@ export function formatCivilDate(value: string, locale?: string): string | undefi
   if (instant.getUTCMonth() !== month - 1 || instant.getUTCDate() !== day) return undefined;
   return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" }).format(instant);
 }
+
+/** An instant from the backend ("2026-11-13T04:30:00Z") in the viewer's own timezone, such as "13 Nov 2026, 10:00". */
+export function formatInstant(value: string, locale?: string): string {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(instant);
+}

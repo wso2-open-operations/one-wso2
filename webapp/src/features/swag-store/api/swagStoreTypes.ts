@@ -162,3 +162,130 @@ export interface SwagStoreOfficeList {
   /** The caller's office from their HR location, or null when none matches. */
   readonly defaultOfficeId: string | null;
 }
+
+/**
+ * Whether a cart or quote line can be ordered: OK, OUT_OF_STOCK, REMOVED
+ * (taken off the store), or LIMIT (over the per-person limit).
+ */
+export type SwagStoreLineState = "OK" | "OUT_OF_STOCK" | "REMOVED" | "LIMIT";
+
+/** One line of the cart, priced live. */
+export interface SwagStoreCartLine {
+  readonly id: string;
+  readonly variantId: string;
+  readonly productSlug: string;
+  readonly name: string;
+  /** The variant's option values, such as "Black · M". */
+  readonly options: string;
+  readonly image: string | null;
+  readonly unitPrice: number;
+  readonly quantity: number;
+  readonly lineTotal: number;
+  readonly state: SwagStoreLineState;
+  /** Why the line can't be ordered, in the backend's words. Null for an OK line. */
+  readonly reason: string | null;
+  readonly availability: SwagStoreAvailability;
+}
+
+/** GET /cart. */
+export interface SwagStoreCart {
+  readonly lines: readonly SwagStoreCartLine[];
+  /** Units over every line, including lines that can't be ordered. */
+  readonly itemCount: number;
+  /** Whole O2C over the OK lines only. */
+  readonly total: number;
+}
+
+/** POST /quotes and POST /orders body. There is no payee: the store always pays its own treasury. */
+export interface SwagStoreCheckoutInput {
+  readonly pickupOfficeId: string;
+  readonly walletAddress: string;
+  /** The total the shopper confirmed. A different total answers 409 quote_changed instead of charging it. */
+  readonly expectedTotal?: number;
+}
+
+/** Something that stops an order, such as `insufficient_funds` or `lines_unavailable`. */
+export interface SwagStoreProblem {
+  readonly code: string;
+  readonly message: string;
+}
+
+export interface SwagStoreQuoteLine {
+  readonly lineId: string;
+  readonly name: string;
+  readonly options: string;
+  readonly unitPrice: number;
+  readonly quantity: number;
+  readonly state: SwagStoreLineState;
+  readonly reason: string | null;
+}
+
+/** POST /quotes: the cart priced for one office and wallet. Nothing is stored. */
+export interface SwagStoreQuote {
+  readonly lines: readonly SwagStoreQuoteLine[];
+  /** Whole O2C over the OK lines. */
+  readonly total: number;
+  readonly pickupOffice: { readonly id: string; readonly name: string; readonly leadTimeDays: number } | null;
+  readonly wallet: { readonly walletAddress: string; readonly balance: string } | null;
+  /** The backend's verdict. The UI never decides this itself. */
+  readonly canPlace: boolean;
+  readonly problems: readonly SwagStoreProblem[];
+}
+
+export type SwagStoreOrderStatus = "PENDING_PAYMENT" | "CONFIRMED" | "FAILED" | "READY_FOR_PICKUP" | "COLLECTED";
+
+/** POST /orders and POST /orders/{orderNo}/payments. */
+export interface SwagStorePlacedOrder {
+  readonly id: string;
+  /** Such as "SS-10482". */
+  readonly orderNo: string;
+  /** CONFIRMED when paid (201), PENDING_PAYMENT while the payment is being confirmed (202). */
+  readonly status: SwagStoreOrderStatus;
+  readonly total: number;
+  readonly pickupOffice: { readonly name: string };
+  readonly placedAt: string;
+}
+
+/** One of the caller's orders in a list. */
+export interface SwagStoreOrderSummary {
+  readonly id: string;
+  readonly orderNo: string;
+  readonly status: SwagStoreOrderStatus;
+  readonly total: number;
+  readonly officeName: string;
+  readonly placedAt: string;
+  /** Why a FAILED order failed, as an error code. */
+  readonly failureCode: string | null;
+}
+
+/** GET /orders. */
+export interface SwagStoreOrderList {
+  readonly items: readonly SwagStoreOrderSummary[];
+  readonly total: number;
+}
+
+export interface SwagStoreOrderLine {
+  readonly name: string;
+  readonly options: string;
+  readonly sku: string;
+  readonly unitPrice: number;
+  readonly quantity: number;
+}
+
+/** One status change. `from` is null for the first. */
+export interface SwagStoreOrderEvent {
+  readonly from: string | null;
+  readonly to: string;
+  readonly note: string | null;
+  readonly at: string;
+}
+
+/** GET /orders/{orderNo}. */
+export interface SwagStoreOrderDetail extends SwagStoreOrderSummary {
+  readonly lines: readonly SwagStoreOrderLine[];
+  readonly timeline: readonly SwagStoreOrderEvent[];
+  readonly pickupOffice: SwagStoreOffice;
+  readonly confirmedAt: string | null;
+  readonly readyAt: string | null;
+  readonly collectedAt: string | null;
+}

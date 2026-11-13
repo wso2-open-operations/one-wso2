@@ -37,3 +37,24 @@ export function formatBalance(balance: string): string {
   const [, sign, whole, fraction = ""] = match;
   return `${sign}${groupThousands(whole)}${fraction} ${COIN_SYMBOL}`;
 }
+
+/**
+ * How far a wallet balance falls short of a whole-coin total, as "29.50 O2C",
+ * or undefined when it covers it. Worked out on the decimal digits, so a
+ * balance is never rounded into one that looks like enough. A balance that
+ * isn't a decimal counts as nothing. The backend decides for real; this only
+ * explains why Checkout is off.
+ */
+export function coinsShort(total: number, balance: string): string | undefined {
+  const match = DECIMAL.exec(balance);
+  const [, sign = "", whole = "0", fraction = ""] = match ?? [];
+  const places = fraction.length > 0 ? fraction.length - 1 : 0;
+  const scale = 10n ** BigInt(places);
+  const have = (sign === "-" ? -1n : 1n) * BigInt(whole + fraction.slice(1));
+  const missing = BigInt(Math.trunc(total)) * scale - (match ? have : 0n);
+  if (missing <= 0n) return undefined;
+  const digits = missing.toString().padStart(places + 1, "0");
+  const wholePart = digits.slice(0, digits.length - places);
+  const fractionPart = places > 0 ? `.${digits.slice(-places)}` : "";
+  return `${groupThousands(wholePart)}${fractionPart} ${COIN_SYMBOL}`;
+}

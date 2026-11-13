@@ -148,6 +148,7 @@ describe("the product page", () => {
     await userEvent.click(addButton());
     expect(http.authedPost).toHaveBeenCalledWith("/cart/lines", "token", { variantId: "v-black-m", quantity: 2 });
     expect(await screen.findByText("Added to your cart.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View cart" })).toHaveAttribute("href", "/store/cart");
   });
 
   it("stops the quantity at the per-person limit", async () => {

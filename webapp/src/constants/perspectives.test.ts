@@ -392,4 +392,16 @@ describe("the Swag Store perspective", () => {
     const perspectives = await loadWithStore(true);
     expect(perspectives.findPerspectiveByPath("/store/p/hoodie")?.key).toBe("store");
   });
+
+  it("lists Shop, Cart and Orders as flat rows, with checkout under Cart", async () => {
+    const perspectives = await loadWithStore(true);
+    const rows = perspectives.findPerspectiveByKey("store")?.sections ?? [];
+    expect(rows.map((r) => [r.label, r.path])).toEqual([
+      ["Shop", "/store"],
+      ["Cart", "/store/cart"],
+      ["Orders", "/store/orders"],
+    ]);
+    expect(rows.every((r) => !r.children)).toBe(true);
+    expect(perspectives.findPerspectiveByPath("/store/cart/checkout")?.key).toBe("store");
+  });
 });

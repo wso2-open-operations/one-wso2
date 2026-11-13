@@ -22,6 +22,10 @@ import SwagStoreShell from "./components/SwagStoreShell";
 // Every page loads on first use, so none of the store is downloaded until it is opened.
 const ShopPage = lazy(() => import("./shop/pages/ShopPage"));
 const ProductPage = lazy(() => import("./shop/pages/ProductPage"));
+const CartPage = lazy(() => import("./shop/pages/CartPage"));
+const CheckoutPage = lazy(() => import("./shop/pages/CheckoutPage"));
+const OrdersPage = lazy(() => import("./shop/pages/OrdersPage"));
+const OrderPage = lazy(() => import("./shop/pages/OrderPage"));
 
 const deferred = (page: ReactNode) => (
   <Suspense fallback={<Skeleton variant="rectangular" height={260} sx={{ borderRadius: 1.5 }} />}>{page}</Suspense>
@@ -36,5 +40,9 @@ export const swagStoreShopRoutes = (
   <Route path="store" element={<SwagStoreShell />}>
     <Route index element={deferred(<ShopPage />)} />
     <Route path="p/:slug" element={deferred(<ProductPage />)} />
+    <Route path="cart" element={deferred(<CartPage />)} />
+    <Route path="cart/checkout" element={deferred(<CheckoutPage />)} />
+    <Route path="orders" element={deferred(<OrdersPage />)} />
+    <Route path="orders/:orderNo" element={deferred(<OrderPage />)} />
   </Route>
 );

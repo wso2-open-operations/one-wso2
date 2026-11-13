@@ -15,7 +15,7 @@
 // under the License.
 
 import { describe, expect, it } from "vitest";
-import { formatBalance, formatCoins } from "./coins";
+import { coinsShort, formatBalance, formatCoins } from "./coins";
 
 describe("formatCoins", () => {
   it("names the currency and groups thousands", () => {
@@ -41,5 +41,24 @@ describe("formatBalance", () => {
 
   it("shows a value it cannot read as it came, rather than as a number it is not", () => {
     expect(formatBalance("n/a")).toBe("n/a O2C");
+  });
+});
+
+describe("coinsShort", () => {
+  it("is undefined when the balance covers the total, to the last decimal", () => {
+    expect(coinsShort(180, "202.50")).toBeUndefined();
+    expect(coinsShort(180, "180")).toBeUndefined();
+    expect(coinsShort(180, "180.000")).toBeUndefined();
+    expect(coinsShort(0, "0")).toBeUndefined();
+  });
+
+  it("says how much is missing, keeping the balance's decimals", () => {
+    expect(coinsShort(180, "150.50")).toBe("29.50 O2C");
+    expect(coinsShort(40, "39.999")).toBe("0.001 O2C");
+    expect(coinsShort(1500, "0")).toBe("1,500 O2C");
+  });
+
+  it("treats a balance it cannot read as not enough, and shows the whole total", () => {
+    expect(coinsShort(90, "n/a")).toBe("90 O2C");
   });
 });
