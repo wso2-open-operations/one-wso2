@@ -91,6 +91,11 @@ import { UMT_DOCUMENTATION_ITEM_ID, openUmtDocumentation } from "@features/umt/l
 import { SMART_SEARCH_LIBRARY_PATH } from "@features/sales/smartSearch/smartSearchPaths";
 import { swagStorePaths } from "@features/swag-store/swagStorePaths";
 import {
+  SWAG_STORE_ADMIN_GROUP_ID,
+  SWAG_STORE_ADMIN_ITEM,
+  swagStoreAdminPaths,
+} from "@features/swag-store/admin/swagStoreAdminItems";
+import {
   Cado2LogoIcon,
   EchoLogoIcon,
   SalesPitstopLogoIcon,
@@ -193,6 +198,18 @@ const BANKING_ADMIN_SECTION: PerspectiveSection = {
   label: "Banking",
   icon: LandmarkIcon,
   path: "/banking/admin",
+};
+
+// Swag Store's admin screens, for the store team. Not a People Ops admin
+// screen: who sees each row is the store's own roles (catalog_manager,
+// fulfilment_ops) from its GET /users/me, decided by the swag-store-admin
+// rail gate, never by people-app capabilities. Each phase adds its rows.
+const SWAG_STORE_ADMIN_SECTION: PerspectiveSection = {
+  id: SWAG_STORE_ADMIN_GROUP_ID,
+  label: "Swag Store",
+  icon: ShoppingBagIcon,
+  alwaysGroup: true,
+  children: [{ id: SWAG_STORE_ADMIN_ITEM.dashboard, label: "Dashboard", path: swagStoreAdminPaths.dashboard }],
 };
 
 export const PEOPLE_OPS_SECTIONS: PerspectiveSection[] = [
@@ -360,6 +377,7 @@ export const PEOPLE_OPS_SECTIONS: PerspectiveSection[] = [
     ],
   },
   BANKING_ADMIN_SECTION,
+  ...(isPreviewEnabled("swagStore") ? [SWAG_STORE_ADMIN_SECTION] : []),
 ];
 
 /**

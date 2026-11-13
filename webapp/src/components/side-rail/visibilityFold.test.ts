@@ -327,6 +327,24 @@ describe("claimsForPerspective", () => {
     window.config = previous;
   });
 
+  it("asks the Swag Store admin gate on People Ops only while the store is switched on", () => {
+    const previous = window.config;
+    window.config = { ...(previous ?? {}), ONE_WSO2_PREVIEW_FEATURES: { swagStore: true } } as Window["config"];
+    expect(claimsForPerspective("people")).toContain("swag-store-admin");
+    expect(claimsForPerspective("me")).not.toContain("swag-store-admin");
+    window.config = { ...(previous ?? {}), ONE_WSO2_PREVIEW_FEATURES: {} } as Window["config"];
+    expect(claimsForPerspective("people")).not.toContain("swag-store-admin");
+    window.config = previous;
+  });
+
+  it("claims the Swag Store admin group and every one of its rows", () => {
+    const claim = claimOf("swag-store-admin");
+    expect(claim.kind).toBe("sections");
+    if (claim.kind === "sections") {
+      expect([...claim.ids]).toEqual(expect.arrayContaining(["swag-store-admin", "swag-store-admin-dashboard"]));
+    }
+  });
+
   it("includes promotion on People Ops and Me", () => {
     expect(claimsForPerspective("people")).toContain("promotion");
     expect(claimsForPerspective("me")).toContain("promotion");
@@ -349,6 +367,7 @@ describe("claimsForPerspective", () => {
       "security",
       "umt",
       "subscriptions",
+      "swag-store-admin",
     ] as const;
     for (const perspective of PERSPECTIVES) {
       const sectionIds = sectionIdsIn(perspective.sections ?? []);

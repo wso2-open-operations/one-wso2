@@ -32,6 +32,10 @@ import { dueDiligenceVisibility, useDueDiligenceGate } from "@features/due-dilig
 import { securityVisibility, useSecurityGate } from "@features/security/api/useSecurityGate";
 import { salesVisibility, useSalesRailGate } from "@features/sales/api/useSalesGate";
 import { cado2Visibility, useCado2RailGate } from "@features/sales/cado2/api/useCado2RailGate";
+import {
+  swagStoreAdminVisibility,
+  useSwagStoreAdminRailGate,
+} from "@features/swag-store/admin/api/useSwagStoreAdminGate";
 import { subscriptionVisibility, useSubscriptionGate } from "@features/subscriptions/api/useSubscriptionGate";
 import { parVisibility } from "@features/par/api/parVisibility";
 import { useParCanSeeLeadPortal, useParEmployeeItemVisible } from "@features/par/api/useParData";
@@ -206,6 +210,9 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   // CadO2, also under Sales: rows decided by CadO2's own /me, and only while
   // its preview flag is on -- see useCado2RailGate.
   const cado2Gate = useCado2RailGate(active.key === "sales" && isPreviewEnabled("quickquote"));
+  // The Swag Store admin rows sit in People Ops only while the store's flag is
+  // on; its /users/me is asked only then -- see useSwagStoreAdminGate.
+  const swagStoreAdminGate = useSwagStoreAdminRailGate(active.key === "people" && isPreviewEnabled("swagStore"));
 
   // Subscriptions (PickMe Commute / LaaS) is the same shape of problem once
   // more, with one extra wrinkle worth naming: its backend publishes the
@@ -329,6 +336,8 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
         return salesVisibility(salesGate);
       case "cado2":
         return cado2Visibility(cado2Gate);
+      case "swag-store-admin":
+        return swagStoreAdminVisibility(swagStoreAdminGate);
       case "promotion":
         return promotionVisibility(promotionLeadPortalGate, promotionEmployeeGate, meProfile.isError);
       case "security":

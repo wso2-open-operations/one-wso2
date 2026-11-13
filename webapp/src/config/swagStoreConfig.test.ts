@@ -46,6 +46,7 @@ describe("the Swag Store backend", () => {
     expect(c.swagStoreServiceUrls.me).toBe(`${BASE}/users/me`);
     expect(c.swagStoreServiceUrls.wallets).toBe(`${BASE}/wallets`);
     expect(c.swagStoreServiceUrls.cartSummary).toBe(`${BASE}/cart/summary`);
+    expect(c.swagStoreServiceUrls.admin.dashboard).toBe(`${BASE}/admin/dashboard`);
   });
 
   it("encodes every path segment it is given", async () => {

@@ -21,6 +21,7 @@ import type {
   SwagStoreAlert,
   SwagStoreCart,
   SwagStoreCartLine,
+  SwagStoreDashboard,
   SwagStoreMe,
   SwagStoreOffice,
   SwagStoreOrderDetail,
@@ -258,6 +259,28 @@ export function stockAlert(overrides: Partial<SwagStoreAlert> = {}): SwagStoreAl
     createdAt: "2026-11-10T08:00:00Z",
     notifiedAt: null,
     closedAt: null,
+    ...overrides,
+  };
+}
+
+/** The dashboard for someone with both store roles. */
+export function dashboard(overrides: Partial<SwagStoreDashboard> = {}): SwagStoreDashboard {
+  return {
+    catalog: { active: 7, draft: 1, removed: 2, lowStockVariants: 3, outOfStockVariants: 1, pendingAlerts: 5 },
+    orders: {
+      pendingPayment: 1,
+      toPrepare: 4,
+      readyForPickup: 2,
+      collectedToday: 6,
+      needsAttention: [
+        {
+          ...orderSummary({ orderNo: "SS-10490", status: "FAILED", failureCode: "payment_mismatch" }),
+          userEmail: "sam@wso2.com",
+          userName: "Sam Shopper",
+          attentionReason: "payment_mismatch",
+        },
+      ],
+    },
     ...overrides,
   };
 }

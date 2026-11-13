@@ -25,13 +25,15 @@ import type { SwagStoreMe } from "./swagStoreTypes";
 /**
  * The caller as the store's backend sees them (GET /users/me). Decides whether
  * the store opens at all; the backend re-checks every call on its own.
+ *
+ * @param enabled - Off where nothing needs the answer, such as the rail outside People Ops
  */
-export function useSwagStoreUserInfo(): UseQueryResult<SwagStoreMe, Error> {
+export function useSwagStoreUserInfo(enabled = true): UseQueryResult<SwagStoreMe, Error> {
   const { getToken, ready, key, subState, retryIdentity } = useSwagStoreBasis();
   const query = useQuery<SwagStoreMe, Error>({
     queryKey: key("me"),
     queryFn: async () => authedGet<SwagStoreMe>(swagStoreServiceUrls.me, await getToken()),
-    enabled: ready,
+    enabled: ready && enabled,
     staleTime: 5 * 60 * 1000,
     retry: swagStoreRetry,
   });

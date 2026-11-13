@@ -315,3 +315,32 @@ export interface SwagStoreAlert {
 export interface SwagStoreAlertList {
   readonly items: readonly SwagStoreAlert[];
 }
+
+/** An order as the store team sees it, with who placed it. */
+export interface SwagStoreAdminOrder extends SwagStoreOrderSummary {
+  readonly userEmail: string;
+  readonly userName: string;
+  /** Why it needs a person, such as `payment_mismatch` or `uncollected`. Null otherwise. */
+  readonly attentionReason: string | null;
+}
+
+/** GET /admin/dashboard. Each part is present only for the role that may see it. */
+export interface SwagStoreDashboard {
+  /** For catalog managers. */
+  readonly catalog?: {
+    readonly active: number;
+    readonly draft: number;
+    readonly removed: number;
+    readonly lowStockVariants: number;
+    readonly outOfStockVariants: number;
+    readonly pendingAlerts: number;
+  };
+  /** For fulfilment ops. */
+  readonly orders?: {
+    readonly pendingPayment: number;
+    readonly toPrepare: number;
+    readonly readyForPickup: number;
+    readonly collectedToday: number;
+    readonly needsAttention: readonly SwagStoreAdminOrder[];
+  };
+}
