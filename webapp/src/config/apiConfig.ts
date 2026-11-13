@@ -735,7 +735,7 @@ export const umtServiceUrls = {
   // GET — the admin-only Product Management screen's base product catalog,
   // distinct from the per-update product lists above.
   baseProducts: `${umtBackendUrl}/update/base-product`,
-  // POST — adds a base product (name/version/lead+ED email/FTP connection details).
+  // POST — queues a product for onboarding (name/version/lead+ED email/platform/FTP connection details); answers 202.
   createBaseProduct: `${umtBackendUrl}/update/product`,
   // PUT — deprecates an existing base product by name+version.
   deprecateBaseProduct: `${umtBackendUrl}/update/product/deprecate`,

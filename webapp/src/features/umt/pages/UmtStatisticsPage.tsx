@@ -40,16 +40,9 @@ import type {
   UmtPlatformStatsRequest,
 } from "../api/umtStatisticsTypes";
 import UmtShell from "../components/UmtShell";
+import { PLATFORM_OPTIONS } from "../lib/umtPlatforms";
 
 const { DatePicker, LocalizationProvider } = DatePickers;
-
-const PLATFORM_OPTIONS = [
-  { label: "APIM Platform", value: "APIM" },
-  { label: "IAM Platform", value: "IAM" },
-  { label: "Integration Platform", value: "Integration" },
-  { label: "Financial Service Platform", value: "Financial_Services" },
-  { label: "Healthcare Platform", value: "Healthcare" },
-];
 
 const FILTER_OPTIONS: Array<{
   label: string;

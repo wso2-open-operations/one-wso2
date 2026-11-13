@@ -27,18 +27,22 @@ export interface UmtBaseProduct {
   deprecatedOn?: string | null;
 }
 
-// POST /update/product. Legacy typed this payload as `any`; `version` is the
-// already-suffixed value built by lib/umtProducts.ts, not the raw form input.
+// POST /update/product. The backend saves this as a pending onboarding request
+// and answers 202; a scheduled job later downloads the pack from FTP and adds
+// the product. `version` is the already-suffixed value built by
+// lib/umtProducts.ts, not the raw form input. The FTP keys are upper-case on
+// the wire, and `platform` is left out when none is picked.
 export interface UmtCreateProductRequest {
   name: string;
   version: string;
   leadMail: string;
   edMail: string;
-  ftpHost: string;
-  ftpPort: string;
-  ftpUsername: string;
-  ftpPassword: string;
-  ftpAbsolutePath: string;
+  platform?: string;
+  FTPHost: string;
+  FTPPort: string;
+  FTPUsername: string;
+  FTPPassword: string;
+  FTPPath: string;
 }
 
 // PUT /update/product/deprecate. Legacy allows any BaseProductResource field

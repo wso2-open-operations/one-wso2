@@ -11,7 +11,9 @@ import {
   EMPTY_CREATE_PRODUCT_FORM,
   buildUmtCreateProductRequest,
   isCreateProductFormValid,
+  isValidFtpPort,
   productRowId,
+  unwrapUmtErrorMessage,
   type UmtCreateProductFormValues,
 } from "./umtProducts";
 
@@ -21,6 +23,7 @@ function form(overrides: Partial<UmtCreateProductFormValues> = {}): UmtCreatePro
     version: "4.0.0",
     leadMail: "lead@wso2.com",
     edMail: "ed@wso2.com",
+    platform: "",
     ftpHost: "ftp.wso2.com",
     ftpPort: "21",
     ftpUsername: "ftpuser",
@@ -66,6 +69,24 @@ describe("isCreateProductFormValid", () => {
     expect(isCreateProductFormValid(form({ name: "" }))).toBe(false);
     expect(isCreateProductFormValid(form({ ftpPassword: "   " }))).toBe(false);
   });
+
+  it("accepts a form with no platform picked", () => {
+    expect(isCreateProductFormValid(form({ platform: "" }))).toBe(true);
+  });
+
+  it("rejects a form whose FTP port is not a port number", () => {
+    expect(isCreateProductFormValid(form({ ftpPort: "ftp" }))).toBe(false);
+  });
+});
+
+describe("isValidFtpPort", () => {
+  it.each(["1", "21", " 22 ", "65535"])("accepts %j", (port) => {
+    expect(isValidFtpPort(port)).toBe(true);
+  });
+
+  it.each(["", "0", "65536", "-21", "+21", "21.0", "21/tcp", "ftp"])("rejects %j", (port) => {
+    expect(isValidFtpPort(port)).toBe(false);
+  });
 });
 
 describe("buildUmtCreateProductRequest", () => {
@@ -83,11 +104,35 @@ describe("buildUmtCreateProductRequest", () => {
       version: "4.0.0.0.full",
       leadMail: "lead@wso2.com",
       edMail: "ed@wso2.com",
-      ftpHost: "ftp.wso2.com",
-      ftpPort: "21",
-      ftpUsername: "ftpuser",
-      ftpPassword: "  secret  ",
-      ftpAbsolutePath: "/updates",
+      FTPHost: "ftp.wso2.com",
+      FTPPort: "21",
+      FTPUsername: "ftpuser",
+      FTPPassword: "  secret  ",
+      FTPPath: "/updates",
     });
+  });
+
+  it("leaves the platform out when none is picked", () => {
+    expect(buildUmtCreateProductRequest(form())).not.toHaveProperty("platform");
+  });
+
+  it("sends the picked platform", () => {
+    expect(buildUmtCreateProductRequest(form({ platform: "APIM" }))).toEqual(
+      expect.objectContaining({ platform: "APIM" }),
+    );
+  });
+});
+
+describe("unwrapUmtErrorMessage", () => {
+  it("returns the message inside a JSON-wrapped error", () => {
+    expect(unwrapUmtErrorMessage('{"message":"Product already exists"}')).toBe("Product already exists");
+  });
+
+  it("returns plain text unchanged", () => {
+    expect(unwrapUmtErrorMessage("Base product not found")).toBe("Base product not found");
+  });
+
+  it("returns JSON without a message unchanged", () => {
+    expect(unwrapUmtErrorMessage('{"code":400}')).toBe('{"code":400}');
   });
 });

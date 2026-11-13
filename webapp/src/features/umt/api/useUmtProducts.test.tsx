@@ -68,10 +68,22 @@ describe("useUmtBaseProducts", () => {
 
     expect(authedGet).toHaveBeenCalledWith(umtServiceUrls.baseProducts, "token");
   });
+
+  it("fetches the catalog again when the page opens again, even with a cached copy", async () => {
+    // The app turns automatic refetching off; this override must win over it.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnMount: false } } });
+    const first = renderHook(() => useUmtBaseProducts(), { wrapper: wrapper(client) });
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+
+    renderHook(() => useUmtBaseProducts(), { wrapper: wrapper(client) });
+
+    await waitFor(() => expect(authedGet).toHaveBeenCalledTimes(2));
+  });
 });
 
 describe("useUmtCreateProduct", () => {
-  it("POSTs the create request and invalidates the base product catalog", async () => {
+  it("POSTs the create request and leaves the base product catalog alone", async () => {
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const invalidateQueries = vi.spyOn(client, "invalidateQueries");
     const { result } = renderHook(() => useUmtCreateProduct(), { wrapper: wrapper(client) });
@@ -81,11 +93,12 @@ describe("useUmtCreateProduct", () => {
       version: "4.0.0.0.full",
       leadMail: "lead@wso2.com",
       edMail: "ed@wso2.com",
-      ftpHost: "ftp.wso2.com",
-      ftpPort: "21",
-      ftpUsername: "ftpuser",
-      ftpPassword: "secret",
-      ftpAbsolutePath: "/updates",
+      platform: "APIM",
+      FTPHost: "ftp.wso2.com",
+      FTPPort: "21",
+      FTPUsername: "ftpuser",
+      FTPPassword: "secret",
+      FTPPath: "/updates",
     };
 
     await act(async () => {
@@ -93,8 +106,7 @@ describe("useUmtCreateProduct", () => {
     });
 
     expect(authedPost).toHaveBeenCalledWith(umtServiceUrls.createBaseProduct, "token", request);
-    const invalidatedKeys = invalidateQueries.mock.calls.map((call) => call[0]?.queryKey?.[0]);
-    expect(invalidatedKeys).toEqual(expect.arrayContaining(["umt-base-products"]));
+    expect(invalidateQueries).not.toHaveBeenCalled();
   });
 });
 

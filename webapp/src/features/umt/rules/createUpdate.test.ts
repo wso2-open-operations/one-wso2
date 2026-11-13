@@ -168,6 +168,7 @@ const PRODUCT: UmtCreateProductFormValues = {
   version: "4.2.0",
   leadMail: "lead@wso2.com",
   edMail: "ed@wso2.com",
+  platform: "",
   ftpHost: "ftp.wso2.com",
   ftpPort: "22",
   ftpUsername: "uploader",
