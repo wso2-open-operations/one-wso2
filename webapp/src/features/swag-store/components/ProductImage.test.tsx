@@ -15,8 +15,11 @@
 // under the License.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import ProductImage from "./ProductImage";
+
+const FRONT = "https://acc.blob.core.windows.net/c/products/x/front-3f9a2c1d.jpg?sig=x";
+const BACK = "https://acc.blob.core.windows.net/c/products/x/back-0a1b2c3d.jpg?sig=y";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -28,8 +31,21 @@ describe("ProductImage", () => {
   });
 
   it("shows an https photo", () => {
-    render(<ProductImage src="https://acc.blob.core.windows.net/c/products/x/front-3f9a2c1d.jpg?sig=x" alt="Hoodie" />);
-    expect(screen.getByRole("img", { name: "Hoodie" })).toHaveAttribute("src", expect.stringContaining("?sig=x"));
+    render(<ProductImage src={FRONT} alt="Hoodie" />);
+    expect(screen.getByRole("img", { name: "Hoodie" })).toHaveAttribute("src", FRONT);
+  });
+
+  it("shows a placeholder for a photo that fails to load", () => {
+    render(<ProductImage src={FRONT} alt="Front" />);
+    fireEvent.error(screen.getByRole("img", { name: "Front" }));
+    expect(screen.queryByRole("img", { name: "Front" })).toBeNull();
+  });
+
+  it("shows the next photo after an earlier one failed", () => {
+    const { rerender } = render(<ProductImage src={FRONT} alt="Front" />);
+    fireEvent.error(screen.getByRole("img", { name: "Front" }));
+    rerender(<ProductImage src={BACK} alt="Back" />);
+    expect(screen.getByRole("img", { name: "Back" })).toHaveAttribute("src", BACK);
   });
 
   it("allows the local emulator over http only in a dev build", () => {
@@ -45,7 +61,7 @@ describe("ProductImage", () => {
 
   it("never loads plain http from another host", () => {
     vi.stubEnv("DEV", true);
-    render(<ProductImage src="http://evil.example/x.png" alt="Hoodie" />);
+    render(<ProductImage src="http://wso2.cachefly.net/swag/hoodie.png" alt="Plain" />);
     expect(screen.queryByRole("img")).toBeNull();
   });
 });

@@ -45,8 +45,9 @@ function loadable(src: string | null): boolean {
  * Photos come from Blob storage, which the CSP's img-src already allows.
  */
 export default function ProductImage({ src, alt, height = 180 }: ProductImageProps): JSX.Element {
-  const [broken, setBroken] = useState(false);
-  const usable = loadable(src) && !broken;
+  // The URL that failed, not a flag: when the gallery shows another photo, that one gets its chance.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const usable = loadable(src) && src !== failedSrc;
   return (
     <Box
       sx={{
@@ -65,7 +66,7 @@ export default function ProductImage({ src, alt, height = 180 }: ProductImagePro
           src={src ?? undefined}
           alt={alt}
           loading="lazy"
-          onError={() => setBroken(true)}
+          onError={() => setFailedSrc(src)}
           sx={{ width: "100%", height: "100%", objectFit: "contain" }}
         />
       ) : (
