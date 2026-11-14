@@ -35,7 +35,7 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { FINANCE_EYEBROW } from "@constants/financeApps";
 import FinanceShell from "../../components/FinanceShell";
 import { money } from "../../util/financeFormat";
-import { useExpenseAppData } from "../useExpense";
+import { useExpenseAppData, useExpenseEmployees } from "../useExpense";
 import { useExpenseClaimsReport, useExpenseDashboardTypes, useExpenseSubsidiaries } from "./useExpenseDashboard";
 import { DashboardPanel } from "../../components/DashboardPanel";
 import { expenseStatusMeta } from "../../components/FinanceChips";
@@ -47,11 +47,15 @@ import { ExpenseEmployeeBreakdownTable } from "./ExpenseEmployeeBreakdownTable";
 import { downloadExpenseReportCsv } from "./exportExpenseReportCsv";
 import {
   ALL_CATEGORIES,
+  ALL_EMPLOYEES,
   ALL_ENTITIES,
   ALL_REGIONS,
   ALL_STATUSES,
+  getCategoryOptions,
+  getEmployeeOptions,
   getEntityCodeForLabel,
   getEntityLabel,
+  getExpenseTypeIdsForCategory,
   getPeriodRange,
 } from "./expenseDashboardUtils";
 import { EXPENSE_FILTERABLE_STATUSES } from "../expenseTypes";
@@ -73,6 +77,7 @@ const DEFAULT_FILTERS: ExpenseDashboardDraftFilters = {
   entity: ALL_ENTITIES,
   region: ALL_REGIONS,
   category: ALL_CATEGORIES,
+  employee: ALL_EMPLOYEES,
   status: ALL_STATUSES,
   startDate: DEFAULT_CUSTOM_RANGE.startDate ?? "",
   endDate: DEFAULT_CUSTOM_RANGE.endDate,
@@ -133,6 +138,7 @@ function DashboardBody() {
   const hasFinanceView = appData.data?.enableFinanceView === true;
   const subsidiaries = useExpenseSubsidiaries(hasFinanceView);
   const expenseTypes = useExpenseDashboardTypes(hasFinanceView);
+  const employees = useExpenseEmployees(hasFinanceView);
 
   // `draft` is what the filter bar shows; `applied` is what the current
   // report was fetched with. Keeping them apart is what lets the bar require
@@ -150,11 +156,8 @@ function DashboardBody() {
       applied.entity === ALL_ENTITIES ? undefined : getEntityCodeForLabel(applied.entity, subsidiaries.data ?? []),
     [applied.entity, subsidiaries.data],
   );
-  const expenseTypeId = useMemo(
-    () =>
-      applied.category === ALL_CATEGORIES
-        ? undefined
-        : expenseTypes.data?.find((t) => t.type === applied.category)?.id,
+  const expenseTypeIds = useMemo(
+    () => getExpenseTypeIdsForCategory(applied.category, expenseTypes.data ?? []),
     [applied.category, expenseTypes.data],
   );
   const { startDate, endDate } = getPeriodRange(applied.period, {
@@ -167,9 +170,10 @@ function DashboardBody() {
       startDate,
       endDate,
       businessEntity,
-      expenseTypeId,
+      expenseTypeIds,
       status: applied.status === ALL_STATUSES ? undefined : applied.status,
       salesRegion: applied.region === ALL_REGIONS ? undefined : applied.region,
+      employeeEmail: applied.employee === ALL_EMPLOYEES ? undefined : applied.employee,
     },
     hasFinanceView,
   );
@@ -225,9 +229,21 @@ function DashboardBody() {
   }
 
   const currency = report.data?.reportingCurrency ?? appData.data?.currencyCode ?? "USD";
-  const categoryOptions = (expenseTypes.data ?? []).map((t) => t.type);
+  const categoryOptions = getCategoryOptions(expenseTypes.data ?? []);
   const entityOptions = (subsidiaries.data ?? []).map((s) => getEntityLabel(s, subsidiaries.data ?? []));
   const regionOptions = report.data?.availableSalesRegions ?? [];
+  // Filtered on by email, which is unique, and shown by name, which is not. The list
+  // is the active directory rather than the report's own employees, so every name is
+  // there to pick from before a period has been applied.
+  const selectableEmployees = getEmployeeOptions(employees.data ?? [], report.data?.availableEmployees ?? []);
+  const employeeNamesByEmail = new Map(selectableEmployees.map((e) => [e.employeeEmail, e.employeeName]));
+  const draftedEmployee = draft.employee;
+  const employeeOptions = selectableEmployees.map((employee) => employee.employeeEmail);
+  // A selected value missing from the options renders the field blank, so an employee
+  // the directory no longer offers is carried anyway, labelled by their email.
+  if (draftedEmployee !== ALL_EMPLOYEES && !employeeNamesByEmail.has(draftedEmployee)) {
+    employeeOptions.push(draftedEmployee);
+  }
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -241,6 +257,8 @@ function DashboardBody() {
         entityOptions={entityOptions}
         regionOptions={regionOptions}
         categoryOptions={categoryOptions}
+        employeeOptions={employeeOptions}
+        employeeLabel={(email) => employeeNamesByEmail.get(email) ?? email}
         statusOptions={EXPENSE_FILTERABLE_STATUSES}
         statusLabel={(status) => expenseStatusMeta(status).label}
         onApply={() => setApplied(draft)}
