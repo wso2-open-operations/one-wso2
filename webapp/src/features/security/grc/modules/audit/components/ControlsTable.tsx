@@ -34,6 +34,13 @@ import ControlStatusChip from "@features/security/grc/modules/audit/components/C
 import UserAvatar from "@features/security/grc/modules/audit/components/UserAvatar";
 import { formatAuditDate } from "@features/security/grc/modules/audit/utils/format";
 import { CONTROL_STATUS_LABELS, isPopulationOverdue } from "@features/security/grc/modules/audit/utils/controlStatus";
+import { HandlerChip, DelayedBadge } from "@features/security/grc/modules/audit/components/DeadlineBadges";
+import {
+  formatDelayLogEntry,
+  hasDelayLog,
+  isCurrentDeadlineOverdue,
+} from "@features/security/grc/modules/audit/utils/deadlines";
+import { todayUtcDateOnlyString } from "@features/security/grc/utils/dateTime";
 import type { AuditControl, ControlStatus } from "@features/security/grc/modules/audit/types/audit";
 
 // ── Column filter dropdown ──────────────────────────────────────────────────
@@ -348,6 +355,38 @@ function dateCell(date: string | null | undefined, overdue = false): JSX.Element
   );
 }
 
+// Current deadline + the holder chip. A control that is not tracked, or is
+// finished (no holder), has nothing to show and gets a dash, never an error.
+function currentDeadlineCell(c: AuditControl, today: string): JSX.Element {
+  if (!c.deadlineTracked || !c.currentHandler || !c.currentDueDate) {
+    return <Typography variant="body2" color="text.secondary">—</Typography>;
+  }
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+      {dateCell(c.currentDueDate, isCurrentDeadlineOverdue(c, today))}
+      <HandlerChip handler={c.currentHandler} />
+    </Box>
+  );
+}
+
+// Delay log: the first entries inline, the full list on hover. Only reached when
+// the server sent a delay log at all (see the column filter below).
+function delayLogCell(c: AuditControl): JSX.Element {
+  const entries = (c.delayLog ?? []).map(formatDelayLogEntry);
+  if (entries.length === 0) return <Typography variant="body2" color="text.secondary">—</Typography>;
+  const shown = entries.slice(0, 2).join(", ");
+  const more = entries.length > 2 ? ` +${entries.length - 2}` : "";
+  return (
+    <Tooltip
+      title={<Box sx={{ whiteSpace: "pre-line" }}>{entries.join("\n")}</Box>}
+      arrow
+      placement="top-start"
+    >
+      <Typography variant="body2" noWrap>{shown}{more}</Typography>
+    </Tooltip>
+  );
+}
+
 // ── Column definitions ────────────────────────────────────────────────────────
 
 interface ColumnDef {
@@ -406,6 +445,7 @@ export default function ControlsTable({
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<ListingTableSortDirection>("asc");
+  const today = todayUtcDateOnlyString();
 
   // Derive unique options for the filter dropdowns from the full (unfiltered) list.
   const auditorOptions = [
@@ -458,6 +498,21 @@ export default function ControlsTable({
       render: (c) => <Typography variant="body2" noWrap>{SCOPE_LABELS[c.scope]}</Typography> },
     { id: "dueDate", label: "Due Date", minWidth: 110, sortField: "dueDate",
       render: (c) => dateCell(c.dueDate, c.isOverdue) },
+    { id: "currentDueDate", label: "Current Deadline", minWidth: 170, sortField: "currentDueDate",
+      render: (c) => currentDeadlineCell(c, today) },
+    { id: "delayed", label: "Delayed", minWidth: 100, sortField: "delayed",
+      render: (c) => <DelayedBadge delayed={c.delayed} /> },
+    // ── Original plan, per group (hidden by default) ──
+    { id: "plannedOwnerDate", label: "Planned (Owner)", minWidth: 150, sortField: "plannedOwnerDate", defaultHidden: true,
+      render: (c) => dateCell(c.plannedOwnerDate) },
+    { id: "plannedComplianceDate", label: "Planned (Compliance)", minWidth: 140, sortField: "plannedComplianceDate", defaultHidden: true,
+      render: (c) => dateCell(c.plannedComplianceDate) },
+    { id: "plannedAuditorDate", label: "Planned (Auditor)", minWidth: 130, sortField: "plannedAuditorDate", defaultHidden: true,
+      render: (c) => dateCell(c.plannedAuditorDate) },
+    // Delay log is sent to org-wide GRC viewers only: the column exists only when
+    // at least one control carries it. Sorts by "delayed" (a list has no order).
+    { id: "delayLog", label: "Delay Log", minWidth: 180, sortField: "delayed", defaultHidden: true,
+      render: (c) => delayLogCell(c) },
     // ── New population-phase columns (hidden by default) ──
     { id: "populationDueDate", label: "Population Due Date", minWidth: 150, sortField: "populationDueDate", defaultHidden: true,
       render: (c) => dateCell(c.populationDueDate, isPopulationOverdue(c)) },
@@ -469,7 +524,10 @@ export default function ControlsTable({
 
   // Visible columns, in catalogue order (alwaysVisible ones can't be hidden).
   // Visibility is controlled by the parent (AuditDetailPage owns the picker).
-  const visibleColumns = columns.filter((c) => c.alwaysVisible || visibleColumnIds.includes(c.id));
+  const showDelayLog = hasDelayLog(allControls);
+  const visibleColumns = columns.filter(
+    (c) => (c.alwaysVisible || visibleColumnIds.includes(c.id)) && (c.id !== "delayLog" || showDelayLog),
+  );
 
   const sorted = sortField ? applySorting(controls, sortField, sortDirection) : controls;
   const totalPages = Math.ceil(sorted.length / rowsPerPage);

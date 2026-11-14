@@ -105,6 +105,19 @@ export interface Audit {
   updatedAt: string;
 }
 
+// The three groups that hold a control in turn: the owning team (Internal),
+// Compliance (GRC) and the external auditor (EY).
+export type DeadlineHandler = "OWNER" | "COMPLIANCE" | "AUDITOR";
+
+// INITIAL is a group's first turn; REVISION is its shorter turn after a rejection.
+export type DeadlineCycleType = "INITIAL" | "REVISION";
+
+// One late day for one group. `date` is "YYYY-MM-DD".
+export interface DelayLogEntry {
+  handledBy: DeadlineHandler;
+  date: string;
+}
+
 export interface PopulationSample {
   id: number;
   reference: string;
@@ -150,6 +163,19 @@ export interface AuditControl {
   statusOverridden?: boolean;
   overriddenBy?: string | null;
   overriddenAt?: string | null;
+  // Workflow-aware deadlines. All absent/null for a control that is not tracked
+  // (OE controls, controls that predate the feature) — render a dash, never fail.
+  deadlineTracked?: boolean;
+  /** Group holding the control now; null once it is complete. */
+  currentHandler?: DeadlineHandler | null;
+  /** "YYYY-MM-DD" — the current holder's deadline. */
+  currentDueDate?: string | null;
+  plannedOwnerDate?: string | null;
+  plannedComplianceDate?: string | null;
+  plannedAuditorDate?: string | null;
+  delayed?: boolean | null;
+  /** Org-wide GRC viewers only; omitted for everyone else. Never assume it exists. */
+  delayLog?: DelayLogEntry[];
 }
 
 export interface AuditListResponse {
@@ -160,6 +186,19 @@ export interface AuditListResponse {
 export interface ControlListResponse {
   items: AuditControl[];
   total: number;
+}
+
+export interface DeadlineDayRow {
+  cycleType: DeadlineCycleType;
+  handledBy: DeadlineHandler;
+  allowedDays: number;
+  isDefault: boolean;
+}
+
+export interface DeadlineDaysResponse {
+  auditId: number;
+  phase: "EVIDENCE";
+  days: DeadlineDayRow[];
 }
 
 // ── Request types (sent to backend) ──────────────────────────────────────────
@@ -225,4 +264,8 @@ export interface UpdateControlRequest {
   clearAuditor?: boolean;
   /** OE controls only; omit/null to leave population details unchanged. */
   population?: PopulationDetails | null;
+}
+
+export interface UpdateDeadlineDaysRequest {
+  days: { cycleType: DeadlineCycleType; handledBy: DeadlineHandler; allowedDays: number }[];
 }

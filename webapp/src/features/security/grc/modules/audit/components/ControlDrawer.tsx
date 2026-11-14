@@ -81,6 +81,13 @@ import { useOverrideControlStatus } from "@features/security/grc/modules/audit/a
 import { isAssignedAuditor } from "@features/security/grc/modules/audit/utils/auditor";
 import type { AuditControl, ControlStatus } from "@features/security/grc/modules/audit/types/audit";
 import { useAuditPrivileges } from "@features/security/grc/modules/audit/hooks/useAuditPrivileges";
+import { HandlerChip, DelayedBadge } from "@features/security/grc/modules/audit/components/DeadlineBadges";
+import {
+  formatDelayLogEntry,
+  isCurrentDeadlineOverdue,
+  isDeadlineTracked,
+} from "@features/security/grc/modules/audit/utils/deadlines";
+import { todayUtcDateOnlyString } from "@features/security/grc/utils/dateTime";
 import { AuditPrivilege } from "@features/security/grc/modules/audit/privileges";
 import { CONTROL_STATUS_LABELS, isPopulationOverdue } from "@features/security/grc/modules/audit/utils/controlStatus";
 
@@ -1818,6 +1825,61 @@ export default function ControlDrawer({ control, open, onClose }: ControlDrawerP
 
               </Box>
             </SectionCard>
+
+            {/* Deadlines — workflow-aware due dates. Only for a control the server
+                tracks; the old Due Date tile above is unchanged. The delay log is
+                sent to org-wide GRC viewers only, so its list is shown only when
+                the field is present. */}
+            {isDeadlineTracked(control) && (
+              <SectionCard
+                icon={<CalendarDays size={16} />}
+                iconBg="transparent"
+                title="Deadlines"
+              >
+                <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+                  <InfoTile label="Currently With">
+                    {control.currentHandler ? (
+                      <Box>
+                        <HandlerChip handler={control.currentHandler} />
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.disabled" fontSize="0.8rem">—</Typography>
+                    )}
+                  </InfoTile>
+                  <DueDateTile
+                    label="Current Deadline"
+                    date={control.currentHandler ? control.currentDueDate ?? null : null}
+                    overdue={isCurrentDeadlineOverdue(control, todayUtcDateOnlyString())}
+                  />
+                  <InfoTile label="Delayed">
+                    <Box>
+                      <DelayedBadge delayed={control.delayed} />
+                    </Box>
+                  </InfoTile>
+                  <DueDateTile label="Planned (Owner)" date={control.plannedOwnerDate ?? null} />
+                  <DueDateTile label="Planned (Compliance)" date={control.plannedComplianceDate ?? null} />
+                  <DueDateTile label="Planned (Auditor)" date={control.plannedAuditorDate ?? null} />
+                </Box>
+                {control.delayLog && (
+                  <Box sx={{ mt: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      Delay Log
+                    </Typography>
+                    {control.delayLog.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary" fontSize="0.8rem">No delays.</Typography>
+                    ) : (
+                      <Box component="ul" aria-label="Delay log" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
+                        {control.delayLog.map((entry, i) => (
+                          <Typography key={`${entry.handledBy}-${entry.date}-${i}`} component="li" variant="body2" fontSize="0.8rem">
+                            {formatDelayLogEntry(entry)}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+              </SectionCard>
+            )}
 
             {/* Population Details — OE only, its own box separate from Control
                 Details above, same fixed-grid style. Population Comments is

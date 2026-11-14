@@ -37,6 +37,13 @@ export const CONTROL_COLUMNS: ControlColumnMeta[] = [
   { id: "teamName", label: "Team" },
   { id: "scope", label: "Scope" },
   { id: "dueDate", label: "Due Date" },
+  { id: "currentDueDate", label: "Current Deadline" },
+  { id: "delayed", label: "Delayed" },
+  { id: "plannedOwnerDate", label: "Planned (Owner)", defaultHidden: true },
+  { id: "plannedComplianceDate", label: "Planned (Compliance)", defaultHidden: true },
+  { id: "plannedAuditorDate", label: "Planned (Auditor)", defaultHidden: true },
+  // Only offered when the server sends a delay log (org-wide GRC viewers).
+  { id: "delayLog", label: "Delay Log", defaultHidden: true },
   { id: "populationDueDate", label: "Population Due Date", defaultHidden: true },
   { id: "populationOwnerName", label: "Population Owner", defaultHidden: true },
   { id: "populationTeamName", label: "Population Team", defaultHidden: true },

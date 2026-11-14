@@ -31,6 +31,7 @@ import {
 } from "@wso2/oxygen-ui";
 import {
   AlertTriangle,
+  CalendarClock,
   CalendarDays,
   ChevronLeft,
   Download,
@@ -49,6 +50,7 @@ import {
 } from "@features/security/grc/modules/audit/components/controlColumns";
 import ControlDrawer from "@features/security/grc/modules/audit/components/ControlDrawer";
 import ControlSettingsPanel from "@features/security/grc/modules/audit/components/ControlSettingsPanel";
+import DeadlineDaysDialog from "@features/security/grc/modules/audit/components/DeadlineDaysDialog";
 import { useAuditPrivileges } from "@features/security/grc/modules/audit/hooks/useAuditPrivileges";
 import { AuditPrivilege } from "@features/security/grc/modules/audit/privileges";
 import { useGetAudit } from "@features/security/grc/modules/audit/api/useGetAudit";
@@ -64,7 +66,14 @@ import {
   activeFilterCount,
 } from "@features/security/grc/modules/audit/utils/controlFilters";
 import { CONTROL_STATUS_LABELS } from "@features/security/grc/modules/audit/utils/controlStatus";
-import type { AuditControl, ControlStatus } from "@features/security/grc/modules/audit/types/audit";
+import {
+  controlsTableKey,
+  hasDelayLog,
+  myDeadlineHandlers,
+  myDeadlines,
+  showMyDeadlines,
+} from "@features/security/grc/modules/audit/utils/deadlines";
+import type { AuditControl, ControlStatus, DeadlineHandler } from "@features/security/grc/modules/audit/types/audit";
 import { auditPaths } from "@features/security/grc/modules/audit/paths";
 
 // ── Active filter chip helpers ────────────────────────────────────────────────
@@ -95,10 +104,17 @@ function getFilterValueLabel(key: string, value: string): string {
 
 // ── Quick filter (tab) helpers ────────────────────────────────────────────────
 
-type QuickFilter = "allPending" | "approved" | "inProgress" | "overdue";
-const QUICK_FILTERS: QuickFilter[] = ["allPending", "approved", "inProgress", "overdue"];
+type QuickFilter = "allPending" | "approved" | "inProgress" | "overdue" | "myDeadlines";
+const QUICK_FILTERS: QuickFilter[] = ["allPending", "approved", "inProgress", "overdue", "myDeadlines"];
 
-function applyQuickFilter(controls: AuditControl[], qf: QuickFilter): AuditControl[] {
+// myDeadlines is the controls currently with the signed-in user's side, soonest
+// deadline first (see utils/deadlines); the rest are status views.
+function applyQuickFilter(
+  controls: AuditControl[],
+  qf: QuickFilter,
+  myHandlers: DeadlineHandler[],
+): AuditControl[] {
+  if (qf === "myDeadlines") return myDeadlines(controls, myHandlers);
   if (qf === "approved") return controls.filter((c) => c.status === "COMPLETE");
   if (qf === "overdue") return controls.filter((c) => c.isOverdue);
   // allPending mirrors the Work Queue's All Pending tab: every non-terminal
@@ -130,6 +146,7 @@ export default function AuditDetailPage(): JSX.Element {
   const [search, setSearch] = useState("");
   const [selectedControl, setSelectedControl] = useState<AuditControl | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [deadlineDaysOpen, setDeadlineDaysOpen] = useState(false);
   const authFetch = useAuthApiClient();
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
@@ -141,6 +158,16 @@ export default function AuditDetailPage(): JSX.Element {
   // roles only they hold ReviewEvidence — the same privilege the server checks
   // on the export endpoint, so the button never shows for a caller it would 403.
   const canExport = can(AuditPrivilege.ReviewEvidence);
+  // "Which side am I" for My Deadlines comes from the privileges that gate each
+  // group's own action — submitting evidence (Owner) and validating it (Auditor) —
+  // not from a new privilege. Org-wide viewers already see everything.
+  const canViewAll = can(AuditPrivilege.ViewAllAudits);
+  const deadlineSide = {
+    canSubmit: can(AuditPrivilege.SubmitEvidence),
+    canValidate: can(AuditPrivilege.ValidateEvidence),
+  };
+  const myHandlers = myDeadlineHandlers(deadlineSide);
+  const myDeadlinesAvailable = showMyDeadlines(canViewAll, deadlineSide);
 
   const controls = useMemo(() => controlsData?.items ?? [], [controlsData]);
 
@@ -150,7 +177,10 @@ export default function AuditDetailPage(): JSX.Element {
   // dashboard and shared links can open a pre-filtered view.
   const filterParam = searchParams.get("filter");
   const activeQuickFilter: QuickFilter | null =
-    QUICK_FILTERS.includes(filterParam as QuickFilter) ? (filterParam as QuickFilter) : null;
+    QUICK_FILTERS.includes(filterParam as QuickFilter) &&
+    (filterParam !== "myDeadlines" || myDeadlinesAvailable)
+      ? (filterParam as QuickFilter)
+      : null;
 
   function setQuickFilter(qf: QuickFilter | null) {
     const next = new URLSearchParams(searchParams);
@@ -210,14 +240,25 @@ export default function AuditDetailPage(): JSX.Element {
   // Quick filter (tab) takes precedence over panel filters
   const filteredControls =
     activeQuickFilter !== null
-      ? applyQuickFilter(controls, activeQuickFilter)
+      ? applyQuickFilter(controls, activeQuickFilter, myHandlers)
       : applyControlFilters(controls, filters, search);
+
+  // The picker only offers Delay Log when the server sent one (org-wide GRC viewers).
+  const pickerColumns = hasDelayLog(controls)
+    ? CONTROL_COLUMNS
+    : CONTROL_COLUMNS.filter((c) => c.id !== "delayLog");
+  // My Deadlines is about the deadline, so its column is shown even if hidden in the picker.
+  const tableColumnIds =
+    activeQuickFilter === "myDeadlines" && !visibleColumnIds.includes("currentDueDate")
+      ? [...visibleColumnIds, "currentDueDate"]
+      : visibleColumnIds;
 
   const approvedCount = controls.filter((c) => c.status === "COMPLETE").length;
   const inProgressCount = controls.filter(
     (c) => c.status !== "COMPLETE" && !c.isOverdue,
   ).length;
   const overdueCount = controls.filter((c) => c.isOverdue).length;
+  const myDeadlinesCount = myDeadlinesAvailable ? myDeadlines(controls, myHandlers).length : 0;
   const allPendingCount = controls.filter((c) => c.status !== "COMPLETE").length;
   const approvedPct = controls.length > 0 ? Math.round((approvedCount / controls.length) * 100) : 0;
 
@@ -310,7 +351,8 @@ export default function AuditDetailPage(): JSX.Element {
           <Button
             variant="outlined"
             startIcon={exporting ? <CircularProgress size={14} /> : <Download size={16} />}
-            disabled={exporting || controlsLoading || filteredControls.length === 0}
+            // The server's export has no My Deadlines view, so it would export a different set.
+            disabled={exporting || controlsLoading || filteredControls.length === 0 || activeQuickFilter === "myDeadlines"}
             onClick={() => void handleExport()}
             sx={{ textTransform: "none" }}
           >
@@ -381,6 +423,16 @@ export default function AuditDetailPage(): JSX.Element {
                 {canManageControls && (
                   <Button
                     variant="outlined"
+                    startIcon={<CalendarClock size={16} />}
+                    onClick={() => setDeadlineDaysOpen(true)}
+                    sx={{ textTransform: "none" }}
+                  >
+                    Deadline Days
+                  </Button>
+                )}
+                {canManageControls && (
+                  <Button
+                    variant="outlined"
                     startIcon={<Settings size={16} />}
                     onClick={() => setSettingsOpen(true)}
                     sx={{ textTransform: "none" }}
@@ -439,6 +491,9 @@ export default function AuditDetailPage(): JSX.Element {
           }}
         >
           <Tab value="all" label={`All (${controls.length})`} />
+          {myDeadlinesAvailable && (
+            <Tab value="myDeadlines" label={`My Deadlines (${myDeadlinesCount})`} />
+          )}
           <Tab value="allPending" label={`All Pending (${allPendingCount})`} />
           <Tab value="approved" label={`Approved (${approvedCount})`} />
           <Tab value="inProgress" label={`In Progress (${inProgressCount})`} />
@@ -491,7 +546,7 @@ export default function AuditDetailPage(): JSX.Element {
           )}
           <Box sx={{ ml: "auto" }}>
             <ColumnPicker
-              columns={CONTROL_COLUMNS}
+              columns={pickerColumns}
               visible={visibleColumnIds}
               onChange={setVisibleColumnIds}
               onReset={() => setVisibleColumnIds(DEFAULT_VISIBLE_CONTROL_COLUMNS)}
@@ -502,13 +557,14 @@ export default function AuditDetailPage(): JSX.Element {
 
       {/* Controls table */}
       <ControlsTable
+        key={controlsTableKey(activeQuickFilter)}
         controls={filteredControls}
         allControls={controls}
         filters={filters}
         onFiltersChange={handleFilterChange}
         isLoading={controlsLoading}
         onRowClick={(control) => setSelectedControl(control)}
-        visibleColumnIds={visibleColumnIds}
+        visibleColumnIds={tableColumnIds}
       />
 
       {/* Control detail drawer */}
@@ -516,6 +572,13 @@ export default function AuditDetailPage(): JSX.Element {
         control={selectedControl}
         open={selectedControl !== null}
         onClose={() => setSelectedControl(null)}
+      />
+
+      {/* Allowed-days settings (manage-controls holders only; the dialog re-checks) */}
+      <DeadlineDaysDialog
+        auditId={auditId}
+        open={deadlineDaysOpen}
+        onClose={() => setDeadlineDaysOpen(false)}
       />
 
       {/* Control settings panel */}
