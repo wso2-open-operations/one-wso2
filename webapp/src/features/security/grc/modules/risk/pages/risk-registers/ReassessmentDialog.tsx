@@ -24,6 +24,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  CircularProgress,
   DatePickers,
   Dialog,
   DialogActions,
@@ -46,6 +47,7 @@ import {
   fetchRiskOwnerCandidates,
   resolveUserByEmail,
   searchEmployees,
+  suggestLikelihood,
 } from "../../api/riskApi";
 import type {
   CreateAssessmentPayload,
@@ -115,6 +117,7 @@ export default function ReassessmentDialog({
   onClose,
   onSubmit,
 }: ReassessmentDialogProps): JSX.Element {
+  const authFetch = useAuthApiClient();
   const [likelihood, setLikelihood] = useState(0);
   const [impact, setImpact] = useState(0);
   const [progress, setProgress] = useState("");
@@ -123,7 +126,6 @@ export default function ReassessmentDialog({
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState("");
 
-  const authFetch = useAuthApiClient();
   const [ownerId, setOwnerId] = useState(detail.owner_id);
   const [managementApproverId, setManagementApproverId] = useState(detail.management_approver_id);
   const [assignerId, setAssignerId] = useState(detail.assigner_id);
@@ -235,6 +237,51 @@ export default function ReassessmentDialog({
     riskScores.find((sc) => sc.likelihood === likelihood && sc.impact === impact)?.risk_level === "HIGH";
   const approverMissing = becomesHigh && !managementApproverId;
 
+  // ── Suggest Likelihood ─────────────────────────────────────────────────
+  // Explicit button only — same reasoning as every other "Suggest" button in
+  // this feature (Category, the Add Risk flow's Likelihood suggestion).
+  const [suggestion, setSuggestion] = useState<{
+    score: number;
+    reason: string;
+    confidence: "high" | "medium" | "low";
+  } | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  // A risk whose category was later archived/deleted has an empty
+  // risk_categories array — suggestLikelihood needs a real category id, so
+  // the button stays disabled rather than silently sending category_id: 0.
+  const canSuggestLikelihood = detail.risk_categories.length > 0;
+
+  const handleSuggestLikelihood = useCallback(async () => {
+    const categoryId = detail.risk_categories[0]?.id;
+    if (categoryId == null) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    try {
+      const result = await suggestLikelihood(
+        authFetch,
+        detail.risk_title,
+        detail.risk_description,
+        detail.impact_description ?? "",
+        detail.compliance_references.map((r) => r.id),
+        categoryId,
+        detail.source_register_id,
+      );
+      setSuggestion(result);
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : undefined;
+      setSuggestError(
+        status === 404
+          ? "AI likelihood suggestions aren't enabled yet."
+          : `Couldn't get a suggestion${message ? `: ${message}` : ""} — please pick a score manually.`,
+      );
+    } finally {
+      setSuggesting(false);
+    }
+  }, [authFetch, detail]);
+
   const handleClose = () => {
     if (submitting) return;
     setLikelihood(0);
@@ -253,6 +300,8 @@ export default function ReassessmentDialog({
     setActionOwnerResolving(false);
     setErrors({});
     setApiError("");
+    setSuggestion(null);
+    setSuggestError(null);
     onClose();
   };
 
@@ -303,6 +352,9 @@ export default function ReassessmentDialog({
         progress: progress.trim(),
         reassessment_date: toDateOnlyString(reassessmentDate)!,
       };
+      // Only when the user asked for a suggestion — the key is otherwise left
+      // out of the request entirely.
+      if (suggestion) payload.ai_likelihood_suggestion = suggestion;
       // Only what changed, and only from the assigner — the backend refuses
       // anyone else who sends them.
       if (canEditRiskDetails) {
@@ -347,13 +399,40 @@ export default function ReassessmentDialog({
               <Typography variant="body2" fontWeight={600}>
                 Residual Risk Score <span style={{ color: "red" }}>*</span>
               </Typography>
-              {previousScore && (
-                <Typography variant="caption" color="text.secondary">
-                  {previousIsInitial ? "Initial" : "Previous"}:{" "}
-                  <strong>{previousScore.risk_level}</strong> · Score {previousScore.risk_rating}
-                </Typography>
-              )}
+              <Stack direction="row" alignItems="center" gap={1.5} flexWrap="wrap">
+                {previousScore && (
+                  <Typography variant="caption" color="text.secondary">
+                    {previousIsInitial ? "Initial" : "Previous"}:{" "}
+                    <strong>{previousScore.risk_level}</strong> · Score {previousScore.risk_rating}
+                  </Typography>
+                )}
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleSuggestLikelihood}
+                  disabled={suggesting || submitting || !canSuggestLikelihood}
+                  startIcon={suggesting ? <CircularProgress size={14} /> : undefined}
+                >
+                  {suggesting ? "Suggesting…" : "Suggest Likelihood"}
+                </Button>
+              </Stack>
             </Stack>
+
+            {suggestError && (
+              <Alert severity="warning" sx={{ mb: 1.5 }}>
+                {suggestError}
+              </Alert>
+            )}
+            {!suggestError && suggestion && (
+              <Alert severity="info" sx={{ mb: 1.5 }}>
+                <Typography variant="body2">
+                  <strong>Suggested Likelihood: {suggestion.score}</strong> ({suggestion.confidence}{" "}
+                  confidence): {suggestion.reason}. The highlighted row below is the suggestion — pick
+                  the cell in that row matching this risk's Impact.
+                </Typography>
+              </Alert>
+            )}
+
             <RiskScoreGrid
               riskScores={riskScores}
               likelihood={likelihood}
@@ -364,6 +443,7 @@ export default function ReassessmentDialog({
                 if (errors.grid) setErrors((prev) => ({ ...prev, grid: "" }));
               }}
               error={errors.grid}
+              suggestedLikelihood={suggestion?.score}
               previousLikelihood={previousScore?.likelihood}
               previousImpact={previousScore?.impact}
             />

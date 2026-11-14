@@ -14,14 +14,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import { useCallback, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import {
   AdapterDateFns,
+  Alert,
   Box,
+  Button,
   Chip,
+  CircularProgress,
   DatePickers,
   Divider,
-  FormHelperText,
   Paper,
   Stack,
   TextField,
@@ -31,7 +34,9 @@ import { Info } from "@wso2/oxygen-ui-icons-react";
 import type { JSX, ReactNode } from "react";
 import type { AddRiskFormValues, ImpactLevel, LikelihoodLevel } from "./types";
 import type { RiskScore } from "../../api/riskApi";
-import { IMPACT_COLS, LIKELIHOOD_ROWS } from "../../riskMatrix";
+import { suggestLikelihood } from "../../api/riskApi";
+import RiskScoreGrid from "../risk-registers/RiskScoreGrid";
+import { useAuthApiClient } from "@features/security/grc/shim/useAuthApiClient";
 
 const { DatePicker, LocalizationProvider } = DatePickers;
 
@@ -77,6 +82,7 @@ interface RiskAssessmentStepProps {
 
 export default function RiskAssessmentStep({ riskScores }: RiskAssessmentStepProps): JSX.Element {
   const { control, setValue, clearErrors } = useFormContext<AddRiskFormValues>();
+  const authFetch = useAuthApiClient();
 
   const likelihood = useWatch({ control, name: "likelihood" });
   const impact     = useWatch({ control, name: "impact" });
@@ -92,6 +98,57 @@ export default function RiskAssessmentStep({ riskScores }: RiskAssessmentStepPro
     setValue("impact",     i, { shouldValidate: true, shouldDirty: true });
     clearErrors("likelihood");
   };
+
+  // ── Suggest Likelihood ───────────────────────────────────────────────────
+  // Explicit button only — same reasoning as Category's button (avoids
+  // burning AI Gateway usage on abandoned/half-finished forms). All six
+  // inputs the suggestion needs span both this step and Basic Information;
+  // react-hook-form's shared context (useFormContext) means they're all
+  // already here regardless of which step is currently showing.
+  const riskTitle = useWatch({ control, name: "riskTitle" });
+  const riskDescription = useWatch({ control, name: "riskDescription" });
+  const impactDescription = useWatch({ control, name: "impactDescription" });
+  const complianceReferences = useWatch({ control, name: "complianceReferences" });
+  const riskCategory = useWatch({ control, name: "riskCategory" });
+  const sourceRegister = useWatch({ control, name: "sourceRegister" });
+  const aiLikelihoodSuggestion = useWatch({ control, name: "aiLikelihoodSuggestion" });
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  const canSuggestLikelihood =
+    !!riskTitle && !!riskDescription && !!impactDescription && riskCategory !== "" && sourceRegister !== "";
+
+  const handleSuggestLikelihood = useCallback(async () => {
+    if (riskCategory === "" || sourceRegister === "") return;
+    setSuggesting(true);
+    setSuggestError(null);
+    try {
+      const result = await suggestLikelihood(
+        authFetch,
+        riskTitle,
+        riskDescription,
+        impactDescription,
+        complianceReferences ?? [],
+        riskCategory,
+        sourceRegister,
+      );
+      setValue("aiLikelihoodSuggestion", {
+        score: result.score,
+        reason: result.reason,
+        confidence: result.confidence,
+      });
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : undefined;
+      setSuggestError(
+        status === 404
+          ? "AI likelihood suggestions aren't enabled yet."
+          : `Couldn't get a suggestion${message ? `: ${message}` : ""} — please pick a score manually.`,
+      );
+    } finally {
+      setSuggesting(false);
+    }
+  }, [authFetch, riskTitle, riskDescription, impactDescription, complianceReferences, riskCategory, sourceRegister, setValue]);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -220,151 +277,67 @@ export default function RiskAssessmentStep({ riskScores }: RiskAssessmentStepPro
 
         {/* ── Gross Risk Score Matrix ───────────────────────────────────────── */}
         <Stack gap={3}>
-          <SectionHeader title="Gross Risk Score" />
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flexWrap: "wrap", gap: 1 }}>
+            <SectionHeader title="Gross Risk Score" />
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={handleSuggestLikelihood}
+              disabled={suggesting || !canSuggestLikelihood}
+              startIcon={suggesting ? <CircularProgress size={14} /> : undefined}
+            >
+              {suggesting ? "Suggesting…" : "Suggest Likelihood"}
+            </Button>
+          </Stack>
+
+          {/* Impact Description — moved above the chart: it's one of the
+              "Suggest Likelihood" button's required inputs, so it needs to be
+              filled in before that button does anything useful. */}
+          <Controller
+            name="impactDescription"
+            control={control}
+            rules={{ required: "Impact description is required" }}
+            render={({ field, fieldState }) => (
+              <TextField
+                {...field}
+                onChange={(e) => {
+                  field.onChange(e);
+                  if (e.target.value) clearErrors("impactDescription");
+                }}
+                label="Impact Description"
+                required
+                fullWidth
+                multiline
+                rows={3}
+                placeholder="Describe the specific consequences this risk could have on systems, data, or operations…"
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message}
+              />
+            )}
+          />
 
           <Typography variant="body2" color="text.secondary">
             Click the cell that best represents the likelihood and impact of this risk.
-            The score equals <strong>Likelihood × Impact</strong>.
+            The score equals <strong>Likelihood × Impact</strong>. Only Likelihood can be
+            AI-suggested — Impact is always your own judgement call.
           </Typography>
 
-          {/* Matrix layout: rotated Y-label | grid */}
-          <Box sx={{ display: "flex", gap: 1.5, alignItems: "stretch" }}>
-            {/* Rotated LIKELIHOOD axis label */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 20,
-              }}
-            >
-              <Typography
-                variant="caption"
-                fontWeight={700}
-                color="text.secondary"
-                sx={{
-                  writingMode: "vertical-rl",
-                  transform: "rotate(180deg)",
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  userSelect: "none",
-                }}
-              >
-                Likelihood
+          {suggestError && <Alert severity="warning">{suggestError}</Alert>}
+          {!suggestError && aiLikelihoodSuggestion && (
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>Suggested Likelihood: {aiLikelihoodSuggestion.score}</strong>{" "}
+                ({aiLikelihoodSuggestion.confidence} confidence): {aiLikelihoodSuggestion.reason}.
+                The highlighted row below is the suggestion — pick the cell in that row matching
+                this risk's Impact.
               </Typography>
-            </Box>
+            </Alert>
+          )}
 
-            {/* Grid area */}
-            <Box sx={{ flex: 1 }}>
-              {/* Column headers */}
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "90px repeat(3, 1fr)",
-                  gap: 1.5,
-                  mb: 1.5,
-                }}
-              >
-                <Box />
-                {IMPACT_COLS.map((col) => (
-                  <Typography
-                    key={col.value}
-                    variant="caption"
-                    fontWeight={600}
-                    color="text.secondary"
-                    align="center"
-                    sx={{ userSelect: "none" }}
-                  >
-                    {col.label}
-                  </Typography>
-                ))}
-              </Box>
-
-              {/* Data rows */}
-              {LIKELIHOOD_ROWS.map((row) => (
-                <Box
-                  key={row.value}
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "90px repeat(3, 1fr)",
-                    gap: 0.75,
-                    mb: 0.75,
-                  }}
-                >
-                  {/* Row label */}
-                  <Typography
-                    variant="caption"
-                    fontWeight={600}
-                    color="text.secondary"
-                    sx={{ display: "flex", alignItems: "center", userSelect: "none" }}
-                  >
-                    {row.label}
-                  </Typography>
-
-                  {/* Cells */}
-                  {IMPACT_COLS.map((col) => {
-                    const entry = findScore(row.value, col.value);
-                    const isSelected = likelihood === row.value && impact === col.value;
-
-                    return (
-                      <Box
-                        key={`${row.value}-${col.value}`}
-                        component="button"
-                        type="button"
-                        onClick={() => handleCellClick(row.value, col.value)}
-                        sx={{
-                          height: 48,
-                          borderRadius: 1.5,
-                          bgcolor: entry?.color_code ?? "#ccc",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: "1rem",
-                          cursor: "pointer",
-                          border: "none",
-                          outline: isSelected
-                            ? "3px solid rgba(0,0,0,0.5)"
-                            : "2px solid transparent",
-                          boxShadow: isSelected
-                            ? `inset 0 0 0 3px #fff, 0 2px 10px ${entry?.color_code ?? "#aaa"}88`
-                            : "none",
-                          transition: "filter 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease",
-                          "&:hover": {
-                            filter: "brightness(0.85)",
-                            transform: "scale(1.04)",
-                          },
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        {entry?.risk_rating}
-                      </Box>
-                    );
-                  })}
-                </Box>
-              ))}
-
-              {/* IMPACT axis label */}
-              <Typography
-                variant="caption"
-                fontWeight={700}
-                color="text.secondary"
-                align="center"
-                sx={{
-                  display: "block",
-                  mt: 0.5,
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  userSelect: "none",
-                  pl: "90px",
-                }}
-              >
-                Impact
-              </Typography>
-            </Box>
-          </Box>
-
-          {/* Validation error — fieldState.error ensures the Controller re-renders on trigger */}
+          {/* Grid + row-highlight + validation — shared with the Reassess
+              dialog's matrix (RiskScoreGrid.tsx) rather than duplicated here;
+              this step keeps its own richer Chip-based selected-score summary
+              below instead of the grid's built-in one. */}
           <Controller
             name="likelihood"
             control={control}
@@ -372,11 +345,17 @@ export default function RiskAssessmentStep({ riskScores }: RiskAssessmentStepPro
               validate: (val) =>
                 val != null ? true : "Please select a cell in the risk matrix to continue",
             }}
-            render={({ fieldState }) =>
-              fieldState.error ? (
-                <FormHelperText error>{fieldState.error.message}</FormHelperText>
-              ) : <></>
-            }
+            render={({ fieldState }) => (
+              <RiskScoreGrid
+                riskScores={riskScores}
+                likelihood={likelihood ?? 0}
+                impact={impact ?? 0}
+                onChange={(l, i) => handleCellClick(l as LikelihoodLevel, i as ImpactLevel)}
+                error={fieldState.error?.message}
+                suggestedLikelihood={aiLikelihoodSuggestion?.score}
+                showSelectedSummary={false}
+              />
+            )}
           />
 
           {/* Risk level chip — shown when a cell is selected */}
@@ -402,30 +381,6 @@ export default function RiskAssessmentStep({ riskScores }: RiskAssessmentStepPro
             </Stack>
           )}
         </Stack>
-
-        {/* ── Impact Description ────────────────────────────────────────────── */}
-        <Controller
-          name="impactDescription"
-          control={control}
-          rules={{ required: "Impact description is required" }}
-          render={({ field, fieldState }) => (
-            <TextField
-              {...field}
-              onChange={(e) => {
-                field.onChange(e);
-                if (e.target.value) clearErrors("impactDescription");
-              }}
-              label="Impact Description"
-              required
-              fullWidth
-              multiline
-              rows={3}
-              placeholder="Describe the specific consequences this risk could have on systems, data, or operations…"
-              error={!!fieldState.error}
-              helperText={fieldState.error?.message}
-            />
-          )}
-        />
 
         {/* ── Timeline ─────────────────────────────────────────────────────── */}
         <Stack gap={3}>
