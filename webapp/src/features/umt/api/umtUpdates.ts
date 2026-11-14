@@ -249,6 +249,8 @@ export interface UmtStagingTestResultRecord {
   automatedTestResult?: string | null;
   // The product's channel; the save looks the record up by it.
   channel?: string | null;
+  // Link to this product's staging build; blank or missing when there is none.
+  buildUrlWithBuildId?: string | null;
 }
 
 // Body for one PUT /update/{id}/integrationTest/staging call — the endpoint

@@ -22,19 +22,6 @@ export const UMT_DOCUMENTATION_ITEM_ID = "umt-documentation";
 /** React Query key for the link useUmtDocumentationUrl fetches. */
 export const UMT_DOCUMENTATION_URL_KEY = ["umt-documentation-url"] as const;
 
-// The address the backend sent, if it is one worth opening: an http(s) URL.
-// Anything else — a javascript: or data: value, a bare hostname, a blank — is
-// no link at all, which keeps the Documentation row hidden rather than broken.
-export function toWebAddress(value: string | null | undefined): string {
-  const trimmed = value?.trim() ?? "";
-  try {
-    const { protocol } = new URL(trimmed);
-    return protocol === "https:" || protocol === "http:" ? trimmed : "";
-  } catch {
-    return "";
-  }
-}
-
 // Opens the documentation in a new tab; does nothing until the link is known.
 // It reads the link useUmtDocumentationUrl already fetched out of the cache. The
 // row is only shown once that fetch has finished, so the tab opens straight

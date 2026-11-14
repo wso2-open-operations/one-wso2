@@ -16,33 +16,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { UMT_DOCUMENTATION_URL_KEY, openUmtDocumentation, toWebAddress } from "./umtDocumentation";
-
-describe("toWebAddress", () => {
-  it.each([
-    ["https://docs.example.com/umt", "https://docs.example.com/umt"],
-    ["http://docs.example.com", "http://docs.example.com"],
-    ["  https://docs.example.com/umt \n", "https://docs.example.com/umt"],
-  ])("keeps the web address %j", (value, expected) => {
-    expect(toWebAddress(value)).toBe(expected);
-  });
-
-  it.each([
-    ["a javascript: value", "javascript:alert(1)"],
-    ["a data: value", "data:text/html,<script>alert(1)</script>"],
-    ["a different scheme", "ftp://docs.example.com"],
-    ["a bare hostname", "docs.example.com"],
-    ["a blank", "   "],
-    ["an empty string", ""],
-  ])("treats %s as no link", (_label, value) => {
-    expect(toWebAddress(value)).toBe("");
-  });
-
-  it("treats a missing value as no link", () => {
-    expect(toWebAddress(null)).toBe("");
-    expect(toWebAddress(undefined)).toBe("");
-  });
-});
+import { UMT_DOCUMENTATION_URL_KEY, openUmtDocumentation } from "./umtDocumentation";
 
 describe("openUmtDocumentation", () => {
   afterEach(() => {

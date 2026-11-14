@@ -20,7 +20,8 @@ import { authedGet } from "@api/http";
 import { httpRetry } from "@api/errors";
 import { umtServiceUrls, isUmtBackendConfigured } from "@config/apiConfig";
 import { useAccessToken } from "@hooks/useAccessToken";
-import { UMT_DOCUMENTATION_URL_KEY, toWebAddress } from "../lib/umtDocumentation";
+import { UMT_DOCUMENTATION_URL_KEY } from "../lib/umtDocumentation";
+import { toWebAddress } from "../lib/umtWebAddress";
 import type { UmtDocumentation } from "./umtTypes";
 
 // GET /update/documentation — the Update Manager documentation link configured

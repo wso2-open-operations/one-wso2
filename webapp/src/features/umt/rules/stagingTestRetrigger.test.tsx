@@ -221,6 +221,29 @@ describe("Retrigger on the Testing step", () => {
   });
 });
 
+describe("the product heading on the Testing step", () => {
+  it("links to the staging build when the record has a build URL", async () => {
+    state.records = [{ ...SUCCEEDED, buildUrlWithBuildId: "https://jenkins.example.com/job/wso2si/12/" }];
+    renderStep();
+
+    const link = await screen.findByRole("link", { name: "wso2si - 4.3.1 (staging build, opens in a new tab)" });
+    expect(link).toHaveAttribute("href", "https://jenkins.example.com/job/wso2si/12/");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it.each([undefined, null, " ", "javascript:alert(1)", "https://jenkins.example.com:bad-port/job/12/"])(
+    "is plain text when the build URL is %j",
+    async (buildUrlWithBuildId) => {
+      state.records = [{ ...SUCCEEDED, buildUrlWithBuildId }];
+      renderStep();
+
+      await screen.findByText("wso2si - 4.3.1");
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    },
+  );
+});
+
 describe("which automated results can be retriggered", () => {
   it("is every result except a success and a run in progress", () => {
     for (const result of ["failure", "unstable", "pending", "error", "", null, undefined]) {
