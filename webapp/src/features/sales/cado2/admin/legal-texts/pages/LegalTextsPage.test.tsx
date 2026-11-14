@@ -35,6 +35,10 @@ const admin = {
     placeholders: ["{CONTRACT_NAME}", "{PARTNER_NAME}", "{CONTRACT_DATE}"],
   },
 };
+const changes = { data: [] as unknown[], error: null as unknown, isFetching: false, refetch: vi.fn() };
+vi.mock("@features/sales/cado2/admin/components/useAdminChanges", () => ({
+  useAdminChanges: () => changes,
+}));
 vi.mock("@features/sales/cado2/admin/legal-texts/api/useLegalAdmin", () => ({
   useLegalAdmin: () => admin,
   useLegalAdminChange: () => change,
@@ -80,5 +84,26 @@ describe("LegalTextsPage", () => {
     );
     expect(textHint("TERMS_ONPREM_DIRECT", "2026-10-24T10:00:00Z", "seed", ph)).toBe("");
     expect(textHint("TERMS_SAAS_DIRECT", "2026-10-24T10:00:00Z", "priya@wso2.com", ph)).toBe("Changed 24 Oct 2026 by priya@wso2.com");
+  });
+
+  // D172: every change to a text or notice, with its wording before and after.
+  it("lists each change in the Change Log, with the wording before and after", async () => {
+    changes.data = [
+      {
+        id: 7, area: "LEGAL_TEXT", item: "TERMS_ONPREM_DIRECT", action: "CHANGED", changedByEmail: "legal@wso2.com", changedAt: "2026-11-14T09:00:00Z",
+        before: { body: "<p>Old terms.</p>" }, after: { body: "<p>New terms.</p>" },
+      },
+      {
+        id: 6, area: "LEGAL_NOTICE", item: "4", action: "DELETED", changedByEmail: "legal@wso2.com", changedAt: "2026-11-13T09:00:00Z",
+        before: { title: "Export control", body: "Export rules." }, after: null,
+      },
+    ];
+    render(<LegalTextsPage />);
+    const log = within(screen.getByRole("list", { name: "Legal text changes" }));
+    expect(log.getByText(/Notice: Export control/)).toBeInTheDocument();
+    await userEvent.setup().click(log.getAllByRole("button", { name: "Show before and after" })[0]);
+    expect(log.getByText("Old terms.")).toBeInTheDocument();
+    expect(log.getByText("New terms.")).toBeInTheDocument();
+    changes.data = [];
   });
 });

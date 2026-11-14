@@ -59,6 +59,7 @@ import {
   lineDatesProblem,
   newLineKey,
   parseDateString,
+  plainDecimal,
   salesPriceProblem,
   toDateString,
   type ContractYear,
@@ -382,7 +383,9 @@ export default function AddLineDialog({
   // The list price the sales price can't go below: the price book's (a kept
   // line's stored one); a formula line has no sales price.
   const listPrice = keepsExisting ? keptUnitPrice : (entry?.unitPrice ?? "");
-  const salesProblem = formula ? "" : salesPriceProblem(salesPrice, listPrice);
+  // Lower than the list price on Professional Services lines only (D171).
+  const services = group === "PROFESSIONAL_SERVICE";
+  const salesProblem = formula ? "" : salesPriceProblem(salesPrice, listPrice, services);
   const show = (k: string) => (tried ? problems[k] : undefined);
 
   const chooseProduct = (p: Product | null) => {
@@ -423,7 +426,8 @@ export default function AddLineDialog({
       discount: discount.trim() || "0",
       unitPrice: keepsExisting ? keptUnitPrice : base.unitPrice,
       useLatestPricing: keepsExisting && moved ? true : undefined,
-      salesPrice: formula || !salesPrice.trim() || Number(salesPrice) === Number(listPrice) ? "" : String(Number(salesPrice)),
+      // As typed, without trailing zeros: up to 8 decimals, never through a float (D171).
+      salesPrice: formula || !salesPrice.trim() || Number(salesPrice) === Number(listPrice) ? "" : plainDecimal(salesPrice),
       // A one-off line's real dates, kept when the term moves (D146).
       startDate: year && !recurring ? startDate : "",
       endDate: year && !recurring ? endDate : "",
@@ -554,8 +558,9 @@ export default function AddLineDialog({
           ) : null}
           </Stack>
           <Group icon={<PercentIcon size={14} />} title="Price, Quantity & Discount">
-            {/* The sales price: the list price unless raised; never
-                lower. A formula sets its own price, which can't be changed. */}
+            {/* The sales price: the list price unless changed; lower on
+                Professional Services lines only (D171), and Deal Desk is told
+                of any change. A formula sets its own price, which can't be changed. */}
             <TextField
               label="Sales price"
               value={formula ? "" : salesPrice}
@@ -569,7 +574,13 @@ export default function AddLineDialog({
                 formula
                   ? "Priced by formula: the price can't be changed"
                   : (tried && salesProblem) ||
-                    (listPrice ? `List price ${currency} ${formatMoney(listPrice)}. You can raise it, not lower it.` : undefined)
+                    (listPrice
+                      ? `List price ${currency} ${formatMoney(listPrice)}. ${
+                          services
+                            ? "Professional Services can be priced lower or higher, e.g. for a shorter period."
+                            : "You can raise it, not lower it."
+                        } Deal Desk is told if you change it.`
+                      : undefined)
               }
               slotProps={{ input: { startAdornment: <InputAdornment position="start">{currency}</InputAdornment> } }}
             />

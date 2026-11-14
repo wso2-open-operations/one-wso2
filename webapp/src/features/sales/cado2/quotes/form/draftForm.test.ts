@@ -436,12 +436,18 @@ describe("sales price", () => {
     expect((toPreviewBody({ ...v, lines: [{ ...v.lines[0], salesPrice: "400" }] }) as { lines: { salesPrice?: string }[] }).lines[0].salesPrice).toBe("400");
   });
 
-  it("allows the list price or more, with at most 2 decimals", () => {
+  it("allows the list price or more (lower on services), with at most 8 decimals", () => {
+    // D171: lower on Professional Services lines only; up to 8 decimals.
+    expect(salesPriceProblem("90", "360", true)).toBe("");
+    expect(salesPriceProblem("0", "360", true)).toBe("");
+    expect(salesPriceProblem("90", "360")).toMatch(/Only Professional Services can be priced lower/);
+    expect(salesPriceProblem("100.33333333", "90")).toBe("");
+    expect(salesPriceProblem("100.333333333", "90")).toMatch(/8 decimals/);
     expect(salesPriceProblem("", "360")).toBe("");
     expect(salesPriceProblem("360", "360")).toBe("");
     expect(salesPriceProblem("400.50", "360")).toBe("");
     expect(salesPriceProblem("359.99", "360")).toMatch(/below the list price \(360.00\)/);
-    expect(salesPriceProblem("400.123", "360")).toMatch(/2 decimals/);
+    expect(salesPriceProblem("400.123", "360")).toBe("");
   });
 });
 

@@ -25,6 +25,7 @@ export type Cado2AdminSection =
   | "approval-matrix"
   | "approval-slas"
   | "email-notifications"
+  | "quote-versions"
   | "legal-entities"
   | "currencies"
   | "product-classifications"

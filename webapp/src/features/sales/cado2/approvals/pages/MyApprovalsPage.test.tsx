@@ -88,7 +88,7 @@ describe("MyApprovalsPage", () => {
     const user = userEvent.setup();
     inbox.data = [
       item({ stepId: 1, accountName: "Overdue Co", dueAt: hoursFromNow(-6), slaState: "BREACHED" }),
-      item({ stepId: 2, accountName: "Soon Co", dueAt: hoursFromNow(4), slaState: "AT_RISK", submittedByEmail: "anna@wso2.com" }),
+      item({ stepId: 2, accountName: "Soon Co", dueAt: hoursFromNow(4), slaState: "AT_RISK", submittedByEmail: "anna@wso2.com", accountSalesRegion: "EU" }),
     ];
     renderPage();
     await user.type(screen.getByRole("textbox", { name: "Search approvals" }), "anna");
@@ -102,6 +102,17 @@ describe("MyApprovalsPage", () => {
     expect(bodyRows()[0]).toHaveTextContent("Overdue Co");
 
     await user.type(screen.getByRole("textbox", { name: "Search approvals" }), "Soon");
+    expect(screen.getByText("No approvals match")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(bodyRows()).toHaveLength(2);
+
+    // The customer's region, not the approval step's.
+    await user.click(screen.getByRole("combobox", { name: "Region" }));
+    await user.click(screen.getByRole("option", { name: "EU" }));
+    expect(bodyRows()).toHaveLength(1);
+    expect(bodyRows()[0]).toHaveTextContent("Soon Co");
+    await user.click(screen.getByRole("combobox", { name: "Region" }));
+    await user.click(screen.getByRole("option", { name: "APAC" }));
     expect(screen.getByText("No approvals match")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(bodyRows()).toHaveLength(2);

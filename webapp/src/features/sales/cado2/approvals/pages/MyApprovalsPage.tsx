@@ -49,12 +49,14 @@ import {
 import SlaChip from "@features/sales/cado2/approvals/components/SlaChip";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { Choice } from "@features/sales/cado2/insights/components/ReportFilterBar";
+import { REGIONS } from "@features/sales/cado2/insights/components/RegionSwitch";
 import { useApprovalInbox } from "@features/sales/cado2/approvals/api/useApprovalApi";
 import type { ApprovalInboxItem } from "@features/sales/cado2/approvals/api/approvalTypes";
 import {
   DEADLINE_FILTERS,
   DEFAULT_INBOX_SORT,
   filterByDeadline,
+  filterByRegion,
   groupInbox,
   searchInbox,
   sortInbox,
@@ -66,6 +68,9 @@ import { changedAgo } from "@features/sales/cado2/quotes/list/quoteListModel";
 import { cado2Paths } from "@features/sales/cado2/cado2Paths";
 import { useDocumentTitle } from "@hooks/useDocumentTitle";
 import { formatMoney } from "@features/sales/cado2/utils/money";
+
+/** The customer's region; the same choices as the Deal Desk board. */
+const REGION_FILTERS = [{ value: "", label: "All regions" }, ...REGIONS.map((r) => ({ value: r as string, label: r as string }))];
 
 /** The last layout chosen, for next time. */
 const LAYOUT_KEY = "cado2.approvals.layout";
@@ -238,7 +243,7 @@ function InboxTree({
  * submitted are left out, because they can't approve their own.
  *
  * Laid out like the Quotes list (D144): one card whose toolbar has the
- * count, the deadline filter, search and the List / Tree icons; every column
+ * count, the deadline and region filters, search and the List / Tree icons; every column
  * sorts, most urgent first by default. Searched, filtered, sorted and grouped
  * in the browser. The layout is in the URL and remembered.
  */
@@ -249,12 +254,13 @@ export default function MyApprovalsPage(): JSX.Element {
   const layout = layoutFrom(params.get("layout"), LAYOUT_KEY);
   const [search, setSearch] = useState("");
   const [deadline, setDeadline] = useState<DeadlineFilter>("ALL");
+  const [region, setRegion] = useState("");
   const [sort, setSort] = useState<InboxSort>(DEFAULT_INBOX_SORT);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const now = new Date();
 
   const items = inbox.data ?? [];
-  const shown = sortInbox(filterByDeadline(searchInbox(items, search), deadline), sort);
+  const shown = sortInbox(filterByRegion(filterByDeadline(searchInbox(items, search), deadline), region), sort);
   const searching = search.trim() !== "";
   const accountIds = [...new Set(shown.map((it) => it.sfAccountId))];
   const allCollapsed = accountIds.length > 0 && accountIds.every((id) => collapsed.has(id));
@@ -279,6 +285,7 @@ export default function MyApprovalsPage(): JSX.Element {
   const clearFilters = () => {
     setSearch("");
     setDeadline("ALL");
+    setRegion("");
   };
 
   return (
@@ -317,6 +324,7 @@ export default function MyApprovalsPage(): JSX.Element {
               <Chip size="small" color="primary" label={items.length} sx={{ height: 20, fontWeight: 600 }} />
             </Stack>
             <Choice label="Deadline" value={deadline} options={DEADLINE_FILTERS} onChange={setDeadline} width={150} />
+            <Choice label="Region" value={region} options={REGION_FILTERS} onChange={setRegion} width={150} />
             {/* Wide: on the right. Narrow: its own line, full width. */}
             <TextField
               size="small"
@@ -351,7 +359,7 @@ export default function MyApprovalsPage(): JSX.Element {
               <EmptyState
                 icon={<SearchIcon size={28} />}
                 title="No approvals match"
-                body="Try another search or deadline."
+                body="Try another search, deadline or region."
                 action={<Button onClick={clearFilters}>Clear filters</Button>}
               />
             </Box>

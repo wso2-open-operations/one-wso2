@@ -47,6 +47,10 @@ import {
   type VolumeDiscountTable,
 } from "@features/sales/cado2/admin/volume-discounts/api/useVolumeDiscounts";
 import { below, ceilingOK, covers, startOf } from "@features/sales/cado2/admin/volume-discounts/model/tiers";
+import ChangeLogCard from "@features/sales/cado2/admin/components/ChangeLogCard";
+import { useAdminChanges } from "@features/sales/cado2/admin/components/useAdminChanges";
+import { volumeChangeLines, volumeTitle } from "@features/sales/cado2/admin/components/changeLog";
+import { cado2ServiceUrls } from "@config/apiConfig";
 
 const num = { fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" } as const;
 const pct = (v: string) => `${Number(v)}%`;
@@ -317,6 +321,8 @@ export default function VolumeDiscountsPage(): JSX.Element {
   const [deleting, setDeleting] = useState<VolumeDiscountTable | null>(null);
   const remove = useDeleteVolumeDiscount();
   const notify = useCado2Toast();
+  // Every change, with its before and after (D172); refreshed by this page's saves.
+  const changes = useAdminChanges(cado2ServiceUrls.adminVolumeDiscountChanges, "volume-discounts");
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 1000 }}>
@@ -415,6 +421,13 @@ export default function VolumeDiscountsPage(): JSX.Element {
           save; submitted quotes keep the ceiling they had.
         </LifecycleDialog>
       ) : null}
+
+      <ChangeLogCard
+        changes={changes}
+        describe={(c) => ({ title: volumeTitle(c), lines: volumeChangeLines(c) })}
+        label="Volume discount changes"
+        empty="Every change to a table will be listed here, with what it was before."
+      />
     </Stack>
   );
 }

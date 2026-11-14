@@ -2130,6 +2130,7 @@ export const cado2ServiceUrls = {
   adminSalesforceSync: `${cado2BackendUrl}/admin/salesforce-sync`,
   // Whether approval emails go out (D103; Admin).
   adminEmailNotifications: `${cado2BackendUrl}/admin/email-notifications`,
+  adminQuoteVersions: `${cado2BackendUrl}/admin/quote-versions`,
   // Insights (D106): Deal Desk and above, Admins.
   insightsApprovalOperations: `${cado2BackendUrl}/insights/approval-operations`,
   insightsQuotes: `${cado2BackendUrl}/insights/quotes`,
@@ -2145,6 +2146,11 @@ export const cado2ServiceUrls = {
   // What a sync would change on the opportunity (D138).
   quoteSyncPreview: (quoteId: number, version: number): string =>
     `${cado2BackendUrl}/quotes/${encodeSegment(quoteId)}/versions/${encodeSegment(version)}/sync/preview`,
+  // How Salesforce differs from a draft, and taking it (D173).
+  quoteSalesforceChanges: (quoteId: number, version: number): string =>
+    `${cado2BackendUrl}/quotes/${encodeSegment(quoteId)}/versions/${encodeSegment(version)}/salesforce-changes`,
+  quoteRefreshFromSalesforce: (quoteId: number, version: number): string =>
+    `${cado2BackendUrl}/quotes/${encodeSegment(quoteId)}/versions/${encodeSegment(version)}/refresh-from-salesforce`,
   quoteRecall: (quoteId: number, version: number): string =>
     `${cado2BackendUrl}/quotes/${encodeSegment(quoteId)}/versions/${encodeSegment(version)}/recall`,
   // A version's order form documents: GET lists them, POST issues the order form.
@@ -2188,6 +2194,7 @@ export const cado2ServiceUrls = {
   adminLegalText: (key: string): string => `${cado2BackendUrl}/admin/legal/texts/${encodeSegment(key)}`,
   adminLegalNotices: `${cado2BackendUrl}/admin/legal/notices`,
   adminLegalNotice: (id: number): string => `${cado2BackendUrl}/admin/legal/notices/${id}`,
+  adminLegalChanges: `${cado2BackendUrl}/admin/legal/changes`,
   legalTerms: (quoteId: number, versionNumber: number): string =>
     `${cado2BackendUrl}/quotes/${quoteId}/versions/${versionNumber}/legal-terms`,
   // Deal Desk writes the special terms during its approval (D128).
@@ -2211,6 +2218,7 @@ export const cado2ServiceUrls = {
   adminSupportPlans: `${cado2BackendUrl}/admin/support-plans`,
   // Volume discounts (D169): Admins set each product's quantity tiers and ceilings.
   adminVolumeDiscounts: `${cado2BackendUrl}/admin/volume-discounts`,
+  adminVolumeDiscountChanges: `${cado2BackendUrl}/admin/volume-discounts/changes`,
   adminVolumeDiscount: (id: number): string => `${cado2BackendUrl}/admin/volume-discounts/${encodeSegment(id)}`,
   // Particular products of the quote's price book, e.g. the support plans' (D155).
   productsByIds: (currency: string, pricebookId: string, ids: readonly string[]): string =>

@@ -38,6 +38,10 @@ vi.mock("@features/sales/cado2/admin/volume-discounts/api/useVolumeDiscounts", (
   useSaveVolumeDiscount: () => save,
   useDeleteVolumeDiscount: () => remove,
 }));
+const changes = { data: [] as unknown[], error: null as unknown, isFetching: false, refetch: vi.fn() };
+vi.mock("@features/sales/cado2/admin/components/useAdminChanges", () => ({
+  useAdminChanges: () => changes,
+}));
 vi.mock("@features/sales/cado2/admin/pricing-formulas/api/usePricingFormulaAdmin", () => ({
   useFormulaProducts: () => productList,
 }));
@@ -176,5 +180,25 @@ describe("VolumeDiscountsPage (D169)", () => {
     expect(screen.getByText(/Its products will have no volume discount ceiling/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete table" }));
     expect(remove.mutate).toHaveBeenCalledWith(5, expect.anything());
+  });
+
+  // D172: every change, with what it was before.
+  it("lists each change in the Change Log", () => {
+    Object.assign(data, { isPending: false, data: { tables: [], salesforceAvailable: true } });
+    changes.data = [
+      {
+        id: 2, area: "VOLUME_DISCOUNT_TABLE", item: "3", action: "CHANGED", changedByEmail: "admin@wso2.com", changedAt: "2026-11-14T10:42:00Z",
+        before: { name: "API Gateway", products: ["SH-API-GW"], tiers: [{ fromQuantity: 101, ceilingPercent: "27.34" }] },
+        after: { name: "API Gateway", products: ["SH-API-GW", "C-API-GW"], tiers: [{ fromQuantity: 101, ceilingPercent: "40.00" }] },
+      },
+    ];
+    render(<VolumeDiscountsPage />);
+    const log = within(screen.getByRole("list", { name: "Volume discount changes" }));
+    expect(log.getByText("Changed")).toBeInTheDocument();
+    expect(log.getByText(/API Gateway/)).toBeInTheDocument();
+    expect(log.getByText("Products added: C-API-GW")).toBeInTheDocument();
+    expect(log.getByText("From 101: 27.34% → 40.00%")).toBeInTheDocument();
+    expect(log.getByText(/14 Nov 2026 · admin@wso2.com/)).toBeInTheDocument();
+    changes.data = [];
   });
 });

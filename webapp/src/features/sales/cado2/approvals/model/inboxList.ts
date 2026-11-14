@@ -15,7 +15,7 @@
 // under the License.
 
 // My Approvals as a list like the Quotes page (D144): searched, filtered by
-// deadline, sorted and grouped in the browser. Pure functions, unit-tested.
+// deadline and the customer's region, sorted and grouped in the browser. Pure functions, unit-tested.
 // Groups only organise rows, with no totals (as D70).
 
 import type { ApprovalInboxItem, SlaState } from "@features/sales/cado2/approvals/api/approvalTypes";
@@ -42,6 +42,11 @@ export const DEADLINE_FILTERS: readonly { readonly value: DeadlineFilter; readon
 
 export function filterByDeadline(items: readonly ApprovalInboxItem[], deadline: DeadlineFilter): ApprovalInboxItem[] {
   return deadline === "ALL" ? [...items] : items.filter((it) => it.slaState === deadline);
+}
+
+/** The customer's region, or every row when none ("") is picked. */
+export function filterByRegion(items: readonly ApprovalInboxItem[], region: string): ApprovalInboxItem[] {
+  return region === "" ? [...items] : items.filter((it) => it.accountSalesRegion === region);
 }
 
 /** A column My Approvals sorts on. */

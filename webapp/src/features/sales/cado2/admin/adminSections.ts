@@ -67,6 +67,7 @@ export const ADMIN_SECTION_GROUPS: readonly AdminSectionGroup[] = [
       { id: "quote-access", label: "Quote Access" },
       { id: "salesforce-sync", label: "Salesforce Sync" },
       { id: "email-notifications", label: "Email Notifications" },
+      { id: "quote-versions", label: "Quote Versions" },
     ],
   },
 ];

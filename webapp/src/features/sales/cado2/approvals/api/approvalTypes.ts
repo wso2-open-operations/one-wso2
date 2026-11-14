@@ -158,6 +158,8 @@ export interface ApprovalInboxItem {
   readonly sfOpportunityId: string;
   readonly accountName: string | null;
   readonly opportunityName: string | null;
+  /** The customer's region, for the Region filter; `region` is the step's, null for a global role. */
+  readonly accountSalesRegion?: string | null;
   readonly currencyIsoCode: string | null;
   readonly tcv: string;
   readonly submittedByEmail: string | null;

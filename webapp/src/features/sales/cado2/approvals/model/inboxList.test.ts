@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { ApprovalInboxItem } from "@features/sales/cado2/approvals/api/approvalTypes";
-import { filterByDeadline, groupInbox, searchInbox, sortInbox } from "./inboxList";
+import { filterByDeadline, filterByRegion, groupInbox, searchInbox, sortInbox } from "./inboxList";
 
 const item = (o: Partial<ApprovalInboxItem> & { stepId: number }): ApprovalInboxItem => ({
   role: "DEAL_DESK", roleLabel: "Deal Desk", requestedAt: null, quoteId: o.stepId, quoteNumber: `Q-26-0000${o.stepId}`,
@@ -29,8 +29,8 @@ const ids = (rows: readonly ApprovalInboxItem[]) => rows.map((r) => r.stepId);
 // My Approvals as a list (D144).
 describe("inboxList", () => {
   const rows = [
-    item({ stepId: 1, accountName: "Pinecrest", submittedByEmail: "nimal@wso2.com", dueAt: "2026-11-07T10:00:00Z", slaState: "BREACHED", tcv: "127520.00" }),
-    item({ stepId: 2, accountName: "lakeshore", quoteNumber: "Q-26-00009", dueAt: "2026-11-08T10:00:00Z", slaState: "AT_RISK", tcv: "9000.00" }),
+    item({ stepId: 1, accountSalesRegion: "EU", accountName: "Pinecrest", submittedByEmail: "nimal@wso2.com", dueAt: "2026-11-07T10:00:00Z", slaState: "BREACHED", tcv: "127520.00" }),
+    item({ stepId: 2, accountSalesRegion: "NA", accountName: "lakeshore", quoteNumber: "Q-26-00009", dueAt: "2026-11-08T10:00:00Z", slaState: "AT_RISK", tcv: "9000.00" }),
     item({ stepId: 3, accountName: "Harborview", tcv: "48000.00" }),
   ];
 
@@ -43,6 +43,12 @@ describe("inboxList", () => {
   it("filters by deadline state", () => {
     expect(ids(filterByDeadline(rows, "BREACHED"))).toEqual([1]);
     expect(ids(filterByDeadline(rows, "ALL"))).toEqual([1, 2, 3]);
+  });
+
+  it("filters by the customer's region; one without a region shows only under all", () => {
+    expect(ids(filterByRegion(rows, "EU"))).toEqual([1]);
+    expect(ids(filterByRegion(rows, "APAC"))).toEqual([]);
+    expect(ids(filterByRegion(rows, ""))).toEqual([1, 2, 3]);
   });
 
   it("sorts each column either way; value as a number, a missing deadline last", () => {

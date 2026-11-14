@@ -86,7 +86,7 @@ describe("CadO2 Admin's section list", () => {
       ["Products & Pricing", ["Product Classifications", "Support Plans", "Volume Discounts", "Pricing Formulas"]],
       ["Approvals", ["Approval Matrix", "Approval SLAs"]],
       ["Order Form", ["Legal Entities", "Legal Texts", "Supporting Documents"]],
-      ["Settings", ["Quote Access", "Salesforce Sync", "Email Notifications"]],
+      ["Settings", ["Quote Access", "Salesforce Sync", "Email Notifications", "Quote Versions"]],
     ]);
   });
 });

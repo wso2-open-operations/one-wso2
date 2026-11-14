@@ -201,17 +201,43 @@ describe("AddLineDialog", () => {
     const user = await pick(/Enterprise Support Plan/); // list 25,000, mapped to Support
     const field = screen.getByRole("textbox", { name: "Sales price" });
     expect(field).toHaveAttribute("placeholder", "25000.00");
-    expect(screen.getByText("List price USD 25,000. You can raise it, not lower it.")).toBeInTheDocument();
+    expect(screen.getByText("List price USD 25,000. You can raise it, not lower it. Deal Desk is told if you change it.")).toBeInTheDocument();
 
     await user.type(field, "24000");
     await user.click(screen.getByRole("button", { name: "Add product" }));
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByText("The sales price can't be below the list price (25000.00)")).toBeInTheDocument();
+    expect(
+      screen.getByText("The sales price can't be below the list price (25000.00). Only Professional Services can be priced lower"),
+    ).toBeInTheDocument();
 
     await user.clear(field);
     await user.type(field, "27500.50");
     await user.click(screen.getByRole("button", { name: "Add product" }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ unitPrice: "25000", salesPrice: "27500.5" }));
+  });
+
+  // D171: a Professional Services line may be priced lower, up to 8 decimals.
+  it("lets the AM lower a services line's sales price", async () => {
+    const onSave = vi.fn();
+    const consultant: LineValue = {
+      ...savedSupportLine(),
+      productName: "Product Specialist (12 months on-site)",
+      keepPricing: undefined,
+      unitPrice: "287300",
+      category: "PROFESSIONAL_SERVICE",
+      recurring: false,
+      classification: "CO",
+    };
+    renderDialog(onSave, consultant);
+    expect(
+      screen.getByText(
+        "List price USD 287,300. Professional Services can be priced lower or higher, e.g. for a shorter period. Deal Desk is told if you change it.",
+      ),
+    ).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole("textbox", { name: "Sales price" }), "71825.12345678");
+    await user.click(screen.getByRole("button", { name: "Save product" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ salesPrice: "71825.12345678" }));
   });
 
   it("takes a product's category from its classification, with no choice to make", async () => {

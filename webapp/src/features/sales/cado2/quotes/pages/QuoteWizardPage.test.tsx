@@ -34,6 +34,9 @@ const sync = mutation();
 // What a sync would change (D138); set per test.
 const syncPreview = { ...idle(), data: undefined as unknown };
 const deleteDraft = { mutate: vi.fn(), reset: vi.fn(), isPending: false, error: null };
+// D173: refreshing from Salesforce, and the differences read from the menu.
+const refresh = mutation();
+const sfChanges = { ...idle(), data: undefined as unknown };
 
 // Mocked so the wizard is tested without Asgardeo, the network or window.config.
 // The drawing needs a real browser (layout, ResizeObserver); its text companion stands in.
@@ -86,6 +89,8 @@ vi.mock("@features/sales/cado2/quotes/api/useQuoteApi", () => {
     useSyncToSalesforce: () => sync,
     useSyncPreview: () => syncPreview,
     useDeleteDraft: () => deleteDraft,
+    useRefreshFromSalesforce: () => refresh,
+    useSalesforceChanges: () => sfChanges,
   };
 });
 
@@ -429,6 +434,46 @@ describe("QuoteWizardPage — review and submit", () => {
     expect(await screen.findByRole("button", { name: /Products & Pricing: The minimum quantity/ })).toBeInTheDocument();
   });
 
+  // D173: Salesforce changed since the draft took its details.
+  it("stops a submit when Salesforce changed, lists the changes, and refreshes after confirming", async () => {
+    Object.assign(version, { data: ready });
+    const region = { group: "ACCOUNT", subject: "", field: "Sales region", before: "NA", after: "EU", effect: "Changes the regional approvers" };
+    const body = { code: "SALESFORCE_CHANGED", message: "changed", salesforceChanges: { changes: [region], problems: [] } };
+    submit.mutateAsync.mockRejectedValue(new HttpError("u", 409, JSON.stringify(body)));
+    refresh.mutateAsync.mockResolvedValue({ ...(ready as object), changes: [region] });
+    renderWizard();
+    const user = await openReview();
+
+    await user.click(screen.getByRole("button", { name: "Submit version 1" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Submit" }));
+
+    const dialog = within(await screen.findByRole("dialog", { name: "Salesforce has changed since this quote was prepared" }));
+    expect(dialog.getByText(/Not submitted\./)).toBeInTheDocument();
+    expect(dialog.getByText("Sales region")).toBeInTheDocument();
+    expect(dialog.getByText("Changes the regional approvers")).toBeInTheDocument();
+    expect(refresh.mutateAsync).not.toHaveBeenCalled();
+
+    await user.click(dialog.getByRole("button", { name: "Refresh from Salesforce" }));
+    expect(refresh.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ expectedUpdatedAt: expect.any(String) }));
+    expect(await screen.findByText(/Refreshed from Salesforce · 1 change taken/)).toBeInTheDocument();
+    expect(screen.getByText("Sales region: NA → EU")).toBeInTheDocument();
+  });
+
+  it("refreshes from the Actions menu, and says when everything matches", async () => {
+    Object.assign(version, { data: ready });
+    Object.assign(sfChanges, { data: { changes: [], problems: [] } });
+    renderWizard();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Refresh from Salesforce/ }));
+
+    const dialog = within(await screen.findByRole("dialog", { name: "Everything matches Salesforce" }));
+    expect(dialog.getByText(/Nothing to refresh/)).toBeInTheDocument();
+    expect(dialog.queryByRole("button", { name: "Refresh from Salesforce" })).toBeNull();
+    Object.assign(sfChanges, { data: undefined });
+  });
+
   // The wizard only edits (2026-10-13): anything else is viewed on the quote page.
   it("sends a submitted version to the quote page", () => {
     Object.assign(version, { data: submitted });
@@ -499,7 +544,7 @@ describe("QuoteWizardPage — delete a draft", () => {
     // One main button; the rest under "⋯", Delete draft last (2026-10-13).
     expect(screen.getByRole("button", { name: "Save draft" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "More actions" }));
-    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Delete draft"]);
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Refresh from Salesforce", "Delete draft"]);
     await user.click(screen.getByRole("menuitem", { name: "Delete draft" }));
     expect(screen.getByRole("dialog", { name: "Delete this draft quote?" })).toBeInTheDocument();
   });

@@ -36,6 +36,7 @@ import VolumeDiscountsPage from "./admin/volume-discounts/pages/VolumeDiscountsP
 import QuoteAccessPage from "./admin/quote-access/pages/QuoteAccessPage";
 import SalesforceSyncPage from "./admin/salesforce-sync/pages/SalesforceSyncPage";
 import EmailNotificationsPage from "./admin/email-notifications/pages/EmailNotificationsPage";
+import QuoteVersionsPage from "./admin/quote-versions/pages/QuoteVersionsPage";
 import PricingFormulasPage from "./admin/pricing-formulas/pages/PricingFormulasPage";
 import PricingFormulaHistoryPage from "./admin/pricing-formulas/pages/PricingFormulaHistoryPage";
 import SupportingDocumentsPage from "./admin/supporting-documents/pages/SupportingDocumentsPage";
@@ -109,6 +110,7 @@ export const cado2Routes = (
       <Route path="quote-access" element={<QuoteAccessPage />} />
       <Route path="salesforce-sync" element={<SalesforceSyncPage />} />
       <Route path="email-notifications" element={<EmailNotificationsPage />} />
+      <Route path="quote-versions" element={<QuoteVersionsPage />} />
       <Route path="pricing-formulas" element={<PricingFormulasPage />} />
       <Route path="pricing-formulas/:productId" element={<PricingFormulaHistoryPage />} />
       <Route path="*" element={<Navigate to={cado2Paths.adminSection(FIRST_ADMIN_SECTION)} replace />} />

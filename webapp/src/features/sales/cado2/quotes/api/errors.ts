@@ -15,7 +15,7 @@
 // under the License.
 
 import { HttpError } from "@api/http";
-import type { ValidationProblem } from "./quoteTypes";
+import type { SalesforceChanges, ValidationProblem } from "./quoteTypes";
 
 /** The 422 body of a failed request, if it was one. */
 export function problemOf(err: unknown): ValidationProblem | null {
@@ -39,6 +39,17 @@ export function messageOf(err: unknown): string | null {
   try {
     const parsed = JSON.parse(err.responseBody) as { message?: unknown };
     return typeof parsed.message === "string" ? parsed.message : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A submit stopped because Salesforce differs from the draft (D173): the changes, or null. */
+export function salesforceChangesOf(err: unknown): SalesforceChanges | null {
+  if (!(err instanceof HttpError) || err.status !== 409 || !err.responseBody) return null;
+  try {
+    const parsed = JSON.parse(err.responseBody) as { code?: unknown; salesforceChanges?: SalesforceChanges };
+    return parsed.code === "SALESFORCE_CHANGED" && parsed.salesforceChanges ? parsed.salesforceChanges : null;
   } catch {
     return null;
   }

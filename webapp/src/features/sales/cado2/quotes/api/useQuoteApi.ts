@@ -55,6 +55,8 @@ import type {
   QuoteScope,
   QuoteSettings,
   QuoteView,
+  RefreshFromSalesforceResponse,
+  SalesforceChanges,
 } from "./quoteTypes";
 
 /** Account search needs at least this many characters (backend rule). */
@@ -472,6 +474,32 @@ export function useSyncPreview(quoteId: number | null, version: number | null, e
     enabled && quoteId !== null && version !== null ? cado2ServiceUrls.quoteSyncPreview(quoteId, version) : null,
     "live",
   );
+}
+
+/** How Salesforce differs from a saved draft (D173); read live, when enabled. */
+export function useSalesforceChanges(quoteId: number | null, version: number | null, enabled: boolean) {
+  return useAuthedQuery<SalesforceChanges>(
+    ["salesforce-changes", quoteId, version],
+    enabled && quoteId !== null && version !== null ? cado2ServiceUrls.quoteSalesforceChanges(quoteId, version) : null,
+    "live",
+  );
+}
+
+/** "Refresh from Salesforce" (D173): saves the draft with Salesforce's values. */
+export function useRefreshFromSalesforce() {
+  const { getToken, key } = useCado2Basis();
+  const queryClient = useQueryClient();
+  return useMutation<RefreshFromSalesforceResponse, Error, { quoteId: number; version: number; expectedUpdatedAt: string }>({
+    mutationFn: async ({ quoteId, version, expectedUpdatedAt }) =>
+      cado2Send<RefreshFromSalesforceResponse>("POST", cado2ServiceUrls.quoteRefreshFromSalesforce(quoteId, version), await getToken(), {
+        expectedUpdatedAt,
+      }),
+    onSuccess: (res) => {
+      queryClient.setQueryData(key("quote-version", res.quote.id, res.version.versionNumber), res);
+      void queryClient.invalidateQueries({ queryKey: key("quotes") });
+      void queryClient.invalidateQueries({ queryKey: key("salesforce-changes") });
+    },
+  });
 }
 
 /** "Sync to Salesforce" (D77): writes a saved draft of the primary quote to its opportunity. */

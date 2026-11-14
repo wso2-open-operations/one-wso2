@@ -54,6 +54,10 @@ import LegalRichTextField from "@features/sales/cado2/components/legal-rich-text
 import { cleanLegalText, isEmptyLegalText, legalPlainText, sameLegalText } from "@features/sales/cado2/utils/legalRichText";
 import { useLegalAdmin, useLegalAdminChange } from "@features/sales/cado2/admin/legal-texts/api/useLegalAdmin";
 import type { LegalNoticeInput, LegalNoticeRow } from "@features/sales/cado2/admin/legal-texts/api/legalAdminTypes";
+import ChangeLogCard from "@features/sales/cado2/admin/components/ChangeLogCard";
+import { useAdminChanges } from "@features/sales/cado2/admin/components/useAdminChanges";
+import { legalBodies, legalTitle } from "@features/sales/cado2/admin/components/changeLog";
+import { cado2ServiceUrls } from "@config/apiConfig";
 
 const TEXT_LABEL: Record<string, string> = {
   TERMS_ONPREM_DIRECT: "On-premises products · direct deals",
@@ -182,6 +186,8 @@ const conditionChips = (n: LegalNoticeRow) => [
 export default function LegalTextsPage(): JSX.Element {
   const admin = useLegalAdmin();
   const change = useLegalAdminChange();
+  // Every change to the texts and notices, with their wording before and after (D172).
+  const changes = useAdminChanges(cado2ServiceUrls.adminLegalChanges, "legal-admin");
   const notify = useCado2Toast();
   const [editing, setEditing] = useState<{ notice: LegalNoticeRow | null } | null>(null);
   // A notice is removed only after a confirmation: draft quotes use it.
@@ -321,6 +327,21 @@ export default function LegalTextsPage(): JSX.Element {
           Quotes submitted from now on won&apos;t include it. Submitted quotes keep the notices they were submitted with.
         </LifecycleDialog>
       ) : null}
+
+      <ChangeLogCard
+        changes={changes}
+        describe={(c) => {
+          const { before, after } = legalBodies(c);
+          return {
+            title: legalTitle(c, (k) => TEXT_LABEL[k] ?? k),
+            lines: [],
+            before: before === null ? null : legalPlainText(before),
+            after: after === null ? null : legalPlainText(after),
+          };
+        }}
+        label="Legal text changes"
+        empty="Every change to a text or notice will be listed here, with its wording before and after."
+      />
     </Stack>
   );
 }

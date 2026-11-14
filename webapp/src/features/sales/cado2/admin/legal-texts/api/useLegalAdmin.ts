@@ -61,6 +61,8 @@ export function useLegalAdminChange() {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(key(DOMAIN), data);
+      // The change log (D172).
+      void queryClient.invalidateQueries({ queryKey: key(DOMAIN, "changes") });
       // The wizard reads the same texts.
       void queryClient.invalidateQueries({ queryKey: key("legal-config") });
     },

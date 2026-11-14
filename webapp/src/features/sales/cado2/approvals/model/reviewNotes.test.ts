@@ -51,6 +51,13 @@ describe("noteText", () => {
       detail: support,
       who: "Only Deal Desk checks this",
     });
+    // D171: a line charged other than its list price.
+    const price = "Year 1 · line 3 · Product Specialist (12 months on-site): sales price USD 71825.00, below the list price USD 287300.00 (allowed on Professional Services lines). Check it's right.";
+    expect(noteText(note({ rule: "SALES_PRICE", lineNumber: 3, roles: [], reasons: [price] }), "DEAL_DESK")).toEqual({
+      title: "Sales price changed",
+      detail: price,
+      who: "Only Deal Desk checks this",
+    });
     const legacy = "Line 2 · WSO2 Premium Support (2019): a support product that isn't on Admin → Support Plans (legacy support). Check it's still right for this customer.";
     expect(noteText(note({ rule: "LEGACY_SUPPORT", lineNumber: 2, roles: [], reasons: [legacy] }), "DEAL_DESK")).toEqual({
       title: "Legacy support",

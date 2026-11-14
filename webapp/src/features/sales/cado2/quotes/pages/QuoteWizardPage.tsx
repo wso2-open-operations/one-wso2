@@ -34,7 +34,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { CloudUploadIcon, PencilIcon, ShieldCheckIcon, Trash2Icon } from "@wso2/oxygen-ui-icons-react";
+import { CloudUploadIcon, PencilIcon, RefreshCwIcon, ShieldCheckIcon, Trash2Icon } from "@wso2/oxygen-ui-icons-react";
 import OpportunityClosedNotice from "@features/sales/cado2/quotes/components/OpportunityClosedNotice";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useDebouncedValue } from "@hooks/useDebouncedValue";
@@ -49,9 +49,13 @@ import {
   useSyncPreview,
   useSyncToSalesforce,
   useSubmitVersion,
+  useRefreshFromSalesforce,
+  useSalesforceChanges,
 } from "@features/sales/cado2/quotes/api/useQuoteApi";
-import { isConflict, problemOf } from "@features/sales/cado2/quotes/api/errors";
-import type { DraftResponse, Issue, QuoteView } from "@features/sales/cado2/quotes/api/quoteTypes";
+import { isConflict, problemOf, salesforceChangesOf } from "@features/sales/cado2/quotes/api/errors";
+import type { DraftResponse, Issue, QuoteView, SalesforceChange, SalesforceChanges } from "@features/sales/cado2/quotes/api/quoteTypes";
+import SalesforceChangesDialog from "@features/sales/cado2/quotes/components/SalesforceChangesDialog";
+import { changeLine } from "@features/sales/cado2/quotes/salesforce/salesforceChanges";
 import {
   discountedLines,
   formatDateTime,
@@ -139,6 +143,7 @@ export default function QuoteWizardPage(): JSX.Element {
   const sync = useSyncToSalesforce();
   const notify = useCado2Toast();
   const submit = useSubmitVersion();
+  const refresh = useRefreshFromSalesforce();
   const settings = useQuoteSettings();
 
   const form = useForm<DraftFormValues>({ defaultValues: emptyDraftForm() });
@@ -176,6 +181,17 @@ export default function QuoteWizardPage(): JSX.Element {
   // The submit dialog's folded Salesforce changes (D138).
   const [submitChangesOpen, setSubmitChangesOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // D173: how Salesforce differs from the draft. From a submit it stopped
+  // (the changes come with the refusal), or the Actions menu (read live).
+  const [sfDialog, setSfDialog] = useState<{ stopped: SalesforceChanges | null } | null>(null);
+  const [refreshProblems, setRefreshProblems] = useState<readonly Issue[]>([]);
+  // The changes the last refresh took, shown until dismissed.
+  const [refreshed, setRefreshed] = useState<readonly SalesforceChange[] | null>(null);
+  const sfChanges = useSalesforceChanges(
+    saved?.quote.id ?? null,
+    saved?.version.versionNumber ?? null,
+    sfDialog !== null && sfDialog.stopped === null,
+  );
 
   // Load a saved version into the form (and again after a save or a reload).
   useEffect(() => {
@@ -350,12 +366,56 @@ export default function QuoteWizardPage(): JSX.Element {
       allowLeave();
       navigate(cado2Paths.quote(res.quote.id));
     } catch (err) {
-      handleRefusal(err, "submit");
+      // D173: Salesforce changed since the draft took its details: review, refresh.
+      const changes = salesforceChangesOf(err);
+      if (changes) {
+        submit.reset();
+        setRefreshProblems([]);
+        setSfDialog({ stopped: changes });
+      } else {
+        handleRefusal(err, "submit");
+      }
       leaveNewQuoteFor(current);
     } finally {
       setConfirmingSubmit(false);
     }
   });
+
+  // "Refresh from Salesforce" (D173): unsaved changes are saved first, then
+  // the differences are listed; the AM confirms in that dialog.
+  const openRefresh = async () => {
+    if (await savedForDialog()) {
+      refresh.reset();
+      setRefreshProblems([]);
+      setSfDialog({ stopped: null });
+    }
+  };
+  const onRefresh = async () => {
+    if (!saved) return;
+    setRefreshProblems([]);
+    try {
+      const res = await refresh.mutateAsync({
+        quoteId: saved.quote.id,
+        version: saved.version.versionNumber,
+        expectedUpdatedAt: saved.version.updatedAt,
+      });
+      if (isNew) setCreated(res);
+      form.reset(fromVersion(res));
+      setSfDialog(null);
+      if (res.changes.length > 0) {
+        setRefreshed(res.changes);
+        setStepChoice(REVIEW_STEP);
+        notify("Refreshed from Salesforce");
+      }
+    } catch (err) {
+      const problem = problemOf(err);
+      if (problem) setRefreshProblems(problem.issues);
+      else if (isConflict(err)) {
+        setSfDialog(null);
+        setConflict(true);
+      }
+    }
+  };
 
   // "Sync to Salesforce" (D77): saves first when there are changes, then
   // writes the saved draft to the opportunity.
@@ -533,7 +593,19 @@ export default function QuoteWizardPage(): JSX.Element {
                     {save.isPending ? "Saving…" : "Save draft"}
                   </Button>
                   <QuoteActionsMenu
-                    actions={[]}
+                    actions={
+                      // D173: take Salesforce's current details, after seeing them.
+                      saved && editable && saved.version.status === "DRAFT"
+                        ? [
+                            {
+                              label: "Refresh from Salesforce",
+                              icon: <RefreshCwIcon size={16} />,
+                              disabled: busy,
+                              onClick: () => void openRefresh(),
+                            },
+                          ]
+                        : []
+                    }
                     destructive={
                       saved && saved.version.status === "DRAFT" && saved.quote.actions.includes("CLOSE")
                         ? [
@@ -584,6 +656,20 @@ export default function QuoteWizardPage(): JSX.Element {
             {saveError ? <ErrorNotice error={saveError}>Couldn&apos;t save the draft.</ErrorNotice> : null}
             {submitError ? <ErrorNotice error={submitError}>Couldn&apos;t submit the version.</ErrorNotice> : null}
             {syncError ? <ErrorNotice error={syncError}>Couldn&apos;t sync to Salesforce.</ErrorNotice> : null}
+
+            {refreshed ? (
+              <Alert severity="info" onClose={() => setRefreshed(null)} aria-label="Refreshed from Salesforce">
+                <b>
+                  Refreshed from Salesforce · {refreshed.length} {refreshed.length === 1 ? "change" : "changes"} taken
+                </b>
+                <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
+                  {refreshed.map((c) => (
+                    <li key={`${c.group}|${c.subject}|${c.field}`}>{changeLine(c)}</li>
+                  ))}
+                </Box>
+                Check the totals and the approvals, then submit.
+              </Alert>
+            ) : null}
 
             <WizardStepper
               active={step}
@@ -792,6 +878,20 @@ export default function QuoteWizardPage(): JSX.Element {
               </Button>
             </DialogActions>
           </Dialog>
+
+          {sfDialog ? (
+            <SalesforceChangesDialog
+              open
+              data={sfDialog.stopped ?? sfChanges.data ?? null}
+              loadError={sfDialog.stopped ? undefined : sfChanges.error}
+              stoppedSubmit={sfDialog.stopped !== null}
+              refreshing={refresh.isPending}
+              refreshError={refresh.error && !problemOf(refresh.error) && !isConflict(refresh.error) ? refresh.error : undefined}
+              refreshProblems={refreshProblems}
+              onRefresh={() => void onRefresh()}
+              onClose={() => setSfDialog(null)}
+            />
+          ) : null}
 
           {/* D77, D138: the manual sync shows what changes in Salesforce first. */}
           <Dialog open={confirmingSync} onClose={() => !busy && setConfirmingSync(false)} maxWidth="md" fullWidth>

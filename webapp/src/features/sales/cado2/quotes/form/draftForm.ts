@@ -684,7 +684,7 @@ export function fromVersion(res: DraftResponse): DraftFormValues {
       // recurring line takes its year's.
       startDate: !l.recurring ? (l.startDate ?? "") : "",
       endDate: !l.recurring ? (l.endDate ?? "") : "",
-      salesPrice: l.salesPrice && Number(l.salesPrice) !== Number(l.unitPrice) ? String(Number(l.salesPrice)) : "",
+      salesPrice: l.salesPrice && Number(l.salesPrice) !== Number(l.unitPrice) ? plainDecimal(l.salesPrice) : "",
       key: `saved-${l.id}`,
     })),
     netTermsDays: (["30", "45", "60"] as const).find((n) => String(v.netTermsDays) === n) ?? "",
@@ -818,15 +818,21 @@ function linePlace(l: LineValue) {
   };
 }
 
+/** A decimal string without trailing zeros or a trailing point, never through a float: "27500.50" → "27500.5". */
+export const plainDecimal = (v: string): string => v.trim().replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+
 /**
- * Why a sales price is not allowed, or "": an amount with at
- * most 2 decimals, not below the list price. "" = the list price.
+ * Why a sales price is not allowed, or "": an amount of 0 or more with up to
+ * 8 decimals, as Salesforce keeps. Any line may be raised; only a
+ * Professional Services line may go below the list price (D171). "" = the
+ * list price.
  */
-export function salesPriceProblem(salesPrice: string, listPrice: string): string {
+export function salesPriceProblem(salesPrice: string, listPrice: string, services = false): string {
   const s = salesPrice.trim();
   if (!s) return "";
-  if (!/^\d+(\.\d{1,2})?$/.test(s)) return "Use an amount with at most 2 decimals";
-  if (Number(s) < Number(listPrice)) return `The sales price can't be below the list price (${Number(listPrice).toFixed(2)})`;
+  if (!/^\d+(\.\d{1,8})?$/.test(s)) return "Use an amount with at most 8 decimals";
+  if (!services && Number(s) < Number(listPrice))
+    return `The sales price can't be below the list price (${Number(listPrice).toFixed(2)}). Only Professional Services can be priced lower`;
   return "";
 }
 

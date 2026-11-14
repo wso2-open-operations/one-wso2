@@ -270,6 +270,17 @@ describe("QuoteDetailPage — lifecycle", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Version 1 recalled");
   });
 
+  // D174: at the Admin's version limit, Clone takes Revise's place.
+  it("offers Clone instead of Revise once the quote has all its versions", () => {
+    me.data.roles = ["SALES"]; // an AM, who may clone
+    const atLimit = { ...recalledV1.quote, actions: ["CLOSE"], atVersionLimit: true, maxVersions: 10 } as QuoteView;
+    show(atLimit, { ...recalledV1, quote: atLimit });
+
+    expect(screen.queryByRole("button", { name: "Revise" })).toBeNull();
+    expect(screen.getByText(/reached its limit of 10 versions, so it can.t be revised/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clone quote" })).toBeInTheDocument();
+  });
+
   it("revises a recalled version and opens the new draft", async () => {
     revise.mutate.mockImplementation((_vars, opts) => opts.onSuccess({ ...ready, version: { ...ready.version, versionNumber: 2 } }));
     show(recalledV1.quote, recalledV1);

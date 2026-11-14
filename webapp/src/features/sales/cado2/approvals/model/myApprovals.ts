@@ -60,6 +60,8 @@ const RULE: Record<string, { kind: ReasonKind; title: string }> = {
   RENEWAL_DOWNSELL_CEO: { kind: "downsell", title: "Renewal downsell" },
   PAYMENT_TERMS: { kind: "payment", title: "Payment terms" },
   BILLING_FREQUENCY: { kind: "payment", title: "Billing frequency" },
+  // D171: a line charged other than its list price; Deal Desk checks it.
+  SALES_PRICE: { kind: "discount", title: "Sales price changed" },
 };
 
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

@@ -363,6 +363,9 @@ export default function QuoteDetailPage(): JSX.Element {
     />
   );
   const reviseIsMain = can("REVISE") && (v.status === "RECALLED" || v.status === "RETURNED");
+  // D174: no more versions than the Admin allows; cloning starts a new quote.
+  const atVersionLimit =
+    !viewingOlder && q.canEdit && Boolean(q.atVersionLimit) && (v.status === "RECALLED" || v.status === "RETURNED");
   const mainAction = viewingOlder ? (
     // An older version is for reading: its actions belong to the latest.
     <Button variant="contained" component={RouterLink} to={cado2Paths.quote(q.id, TAB_SEGMENTS[tab] ?? "quote", fromApprovals)}>
@@ -386,6 +389,10 @@ export default function QuoteDetailPage(): JSX.Element {
     ) : reviseIsMain ? (
       <Button variant="contained" onClick={() => openDialog("revise")}>
         Revise
+      </Button>
+    ) : atVersionLimit && cloneAction.length ? (
+      <Button variant="contained" startIcon={<CopyIcon size={16} />} onClick={() => openDialog("clone")}>
+        Clone quote
       </Button>
     ) : null;
 
@@ -469,6 +476,12 @@ export default function QuoteDetailPage(): JSX.Element {
             opportunityId={q.sfOpportunityId}
             blocked={v.status === "DRAFT" ? "submitted or synced to Salesforce" : v.status === "APPROVED" ? "issued" : null}
           />
+        ) : null}
+        {atVersionLimit ? (
+          <Alert severity="info">
+            This quote has reached its limit of {q.maxVersions} versions, so it can&apos;t be revised. Clone it into a new quote
+            to continue.
+          </Alert>
         ) : null}
         {viewingOlder ? (
           <Alert severity="info">

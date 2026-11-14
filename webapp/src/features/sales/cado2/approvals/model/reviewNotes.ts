@@ -53,6 +53,11 @@ export function noteText(n: ReviewNote, role: LensRole): NoteText {
       title = "Legacy support";
       detail = first;
       break;
+    case "SALES_PRICE":
+      // D171: "Year 1 · line 3 · Product: sales price USD 71825.00, below the list price …"
+      title = "Sales price changed";
+      detail = first;
+      break;
     case "SPECIAL_TERMS":
       if (role === "DEAL_DESK") {
         // D139: the AM wrote them; Deal Desk checks them.
