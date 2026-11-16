@@ -104,7 +104,13 @@ export type PreviewFeature =
    * backend calls. Held back until the store's first release is ready for
    * the pilot.
    */
-  | "swagStore";
+  | "swagStore"
+  /**
+   * Marketing Ops → ISAC, the whole app — its rail group and every route under
+   * `/marketing-ops/isac`. Until this is on, the rail keeps its outbound ISAC
+   * link. Held back until the ISAC API accepts this app's callers in production.
+   */
+  | "isac";
 
 /**
  * Whether a preview feature should be shown.

@@ -153,6 +153,7 @@ import {
   EventsReviewPage,
 } from "@features/marketing-ops/events/pages/EventsPages";
 import { eventPlatformRoutes } from "@features/marketing-ops/event-platform/routes";
+import { isacRoutes } from "@features/marketing-ops/isac/routes";
 import {
   CrmUploadPipelinesPage,
   CrmUploadRecordsPage,
@@ -1017,6 +1018,9 @@ export default function App() {
               owns it, as the GRC modules own theirs. See
               event-platform/eventPlatformTabs.ts. */}
           {eventPlatformRoutes}
+          {/* ISAC — intent signals, scored accounts and leads. Held back by the
+              `isac` preview flag; until then the rail keeps its outbound link. */}
+          {isPreviewEnabled("isac") && isacRoutes}
           <Route
             path="marketing-ops/crm-upload/pipelines"
             element={<CrmUploadPipelinesPage />}

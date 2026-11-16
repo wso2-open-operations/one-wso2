@@ -89,6 +89,7 @@ import { INFRA_APPS } from "@constants/infraApps";
 import { UMT_PATH, umtPaths } from "@features/umt/lib/umtPaths";
 import { UMT_DOCUMENTATION_ITEM_ID, openUmtDocumentation } from "@features/umt/lib/umtDocumentation";
 import { SMART_SEARCH_LIBRARY_PATH } from "@features/sales/smartSearch/smartSearchPaths";
+import { ISAC_RAIL_GROUP_ID, ISAC_RAIL_ITEMS } from "@features/marketing-ops/isac/isacRail";
 import { swagStorePaths } from "@features/swag-store/swagStorePaths";
 import { SWAG_STORE_ADMIN_GROUP_ID, SWAG_STORE_ADMIN_SCREENS } from "@features/swag-store/admin/swagStoreAdminItems";
 import {
@@ -480,13 +481,30 @@ export const PROMOTION_CYCLE_HISTORY_ITEM_ID = "promotion-cycle-history";
 //
 // It is omitted entirely when its URL isn't configured. A rail item that goes
 // nowhere is worse than one that isn't there.
+//
+// With the `isac` preview flag on, ISAC's screens are part of this webapp and the
+// row becomes a group of them (ISAC_SECTION). Its children carry no `requires`:
+// the ISAC API decides what a caller may do, and its screens say so themselves.
+const ISAC_SECTION: PerspectiveSection = {
+  id: ISAC_RAIL_GROUP_ID,
+  label: "ISAC",
+  icon: SatelliteDishIcon,
+  alwaysGroup: true,
+  children: ISAC_RAIL_ITEMS.map((item) => ({ ...item })),
+};
+
+function isacSections(): PerspectiveSection[] {
+  if (isPreviewEnabled("isac")) return [ISAC_SECTION];
+  return isIsacConfigured()
+    ? [{ id: "mops-isac", label: "ISAC", icon: SatelliteDishIcon, externalUrl: isacUrl }]
+    : [];
+}
+
 const MARKETING_OPS_APP_SECTIONS = appsToSections(MARKETING_OPS_APPS);
 const isMarketingCalendar = (section: PerspectiveSection) => section.id === "sec-app-marketing-calendar";
 const MARKETING_OPS_SECTIONS: PerspectiveSection[] = [
   ...MARKETING_OPS_APP_SECTIONS.filter(isMarketingCalendar),
-  ...(isIsacConfigured()
-    ? [{ id: "mops-isac", label: "ISAC", icon: SatelliteDishIcon, externalUrl: isacUrl }]
-    : []),
+  ...isacSections(),
   ...MARKETING_OPS_APP_SECTIONS.filter((section) => !isMarketingCalendar(section)),
 ];
 

@@ -169,6 +169,10 @@ declare global {
       // Nothing here calls it as an API. Optional — when absent, the rail
       // item is omitted rather than rendered as a dead link.
       ONE_WSO2_MARKETINGOPS_ISAC_URL?: string;
+      // Base URL of ISAC's API, for the ISAC screens under Marketing Ops.
+      // Optional — when absent those screens show a "not connected" state
+      // and make no requests.
+      ONE_WSO2_MARKETINGOPS_ISAC_BACKEND_URL?: string;
       ONE_WSO2_CSM_URL?: string;
       // Base URL for the infra-portal Ballerina backend. Optional — when
       // absent, Infra Portal shows a "not connected" state and makes no

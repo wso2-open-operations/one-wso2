@@ -173,6 +173,14 @@ window.config = {
   // an API. When absent, the rail item is omitted entirely.
   // ONE_WSO2_MARKETINGOPS_ISAC_URL: "<your-isac-url>",
 
+  // ISAC API — powers the ISAC screens under Marketing Ops. Shown only while
+  // `isac` is on in ONE_WSO2_PREVIEW_FEATURES below; until then the rail keeps
+  // the outbound link above. Include the gateway's version segment and stop
+  // there: the client adds "/api/v1" itself. With the flag on and this unset,
+  // the ISAC screens say "not connected" and make no requests. Salesforce
+  // record links use ONE_WSO2_SALESFORCE_BASE_URL.
+  // ONE_WSO2_MARKETINGOPS_ISAC_BACKEND_URL: "<your-isac-backend-url>",
+
   // CSM base URL — a separate application, reached from its launcher tile and
   // opened in a new tab. There is no route for it, so it is never a landing
   // choice or a favourite. When absent, the tile stays in its unbuilt state.
@@ -230,6 +238,6 @@ window.config = {
   // Each entry is deleted when its feature ships — a list that only grows
   // stops describing anything.
   //
-  // ONE_WSO2_PREVIEW_FEATURES: { infra: false, quickquote: false, nda: false, amplify: false, marketingCalendar: false, eventsLeadImport: false, swagStore: false },
+  // ONE_WSO2_PREVIEW_FEATURES: { infra: false, quickquote: false, nda: false, amplify: false, marketingCalendar: false, eventsLeadImport: false, swagStore: false, isac: false },
 
 };
