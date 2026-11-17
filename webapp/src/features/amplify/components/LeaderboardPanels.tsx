@@ -28,7 +28,7 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "")).toUpperCase() || "?";
 }
 
-/** Name and photo from One WSO2's employee data when it has the person; amplify-api's name otherwise. */
+/** Name and photo from One WSO2' employee data when it has the person; amplify-api's name otherwise. */
 function PersonAvatar({
   email,
   fallbackName,

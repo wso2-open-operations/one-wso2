@@ -15,6 +15,7 @@
 // under the License.
 
 import { Box, Typography } from "@wso2/oxygen-ui";
+import { AMPLIFY_BAR } from "../../config/themeConfig";
 import type { DashboardGlance, GroupBoardEntry, LeaderboardEntry } from "../../api/amplifyTypes";
 import { useAmplifyLeaderboard } from "../../api/useAmplifyData";
 import { useAmplifyPeople, type PeopleByEmail } from "../../api/useAmplifyPeople";
@@ -44,12 +45,12 @@ function MonthlyLine({ monthly }: { monthly: DashboardGlance["monthly"] }) {
         <polyline
           points={pts.map(([x, y]) => `${x},${y}`).join(" ")}
           fill="none"
-          stroke="#60A5FA"
+          stroke={AMPLIFY_BAR.positive}
           strokeWidth="3"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
-        <circle cx={last[0]} cy={last[1]} r="6" fill="#FF7300" />
+        <circle cx={last[0]} cy={last[1]} r="6" fill={AMPLIFY_BAR.positive} />
       </svg>
       <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "text.secondary" }}>
         <span>{monthLabel(monthly[0].monthStart)}</span>

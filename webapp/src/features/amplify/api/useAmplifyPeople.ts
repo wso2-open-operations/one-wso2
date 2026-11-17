@@ -18,7 +18,7 @@ import { useMemo } from "react";
 import { useEmployeeDirectory } from "@features/org-chart/api/useOrgChart";
 import type { EmployeeDirectoryRecord } from "@features/org-chart/api/orgChartTypes";
 
-/** What a leaderboard row shows about a person, from One WSO2's employee data. */
+/** What a leaderboard row shows about a person, from One WSO2' employee data. */
 export interface AmplifyPerson {
   name: string;
   photoUrl: string | null;

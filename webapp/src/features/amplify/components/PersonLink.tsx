@@ -19,7 +19,7 @@ import { useState, type ReactNode } from "react";
 import { ButtonBase } from "@wso2/oxygen-ui";
 import { useAmplifyDashboardAccess } from "../api/useAmplifyEditorAccess";
 import type { PersonRef } from "../api/usePersonLookup";
-import PersonDetailDialog from "../pages/dashboards/PersonDetailDialog";
+import DashboardPopups, { type PopupView } from "../pages/dashboards/DashboardPopups";
 
 /**
  * A person's name. For anyone granted `CAN_DASHBOARD` it is a button that opens that person's Post Performance
@@ -36,18 +36,18 @@ export default function PersonLink({
   onSelect?: (p: PersonRef) => void;
 }) {
   const access = useAmplifyDashboardAccess();
-  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<PopupView>(null);
   if (!access.hasAccess) return <>{children}</>;
   return (
     <>
       <ButtonBase
-        onClick={() => (onSelect ? onSelect(person) : setOpen(true))}
+        onClick={() => (onSelect ? onSelect(person) : setView({ kind: "person", person }))}
         aria-haspopup="dialog"
         sx={{ font: "inherit", color: "inherit", textAlign: "left", "&:hover, &:focus-visible": { textDecoration: "underline" } }}
       >
         {children}
       </ButtonBase>
-      {open && <PersonDetailDialog person={person} onClose={() => setOpen(false)} />}
+      <DashboardPopups view={view} onView={setView} />
     </>
   );
 }

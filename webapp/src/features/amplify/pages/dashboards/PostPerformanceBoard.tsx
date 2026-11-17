@@ -103,7 +103,13 @@ export function PostPerformanceBoard({
           onClose={onClose}
         />
       )}
-      {person && <PersonDetailDialog person={person} onClose={onClose} />}
+      {person && (
+        // A post title in the person's list opens that post's popup: close the person popup, then select the post.
+        <PersonDetailDialog person={person} onClose={onClose} onPost={(id) => {
+          onClose();
+          onSelect(id);
+        }} />
+      )}
     </Box>
   );
 }

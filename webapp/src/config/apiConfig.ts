@@ -1913,6 +1913,8 @@ export const amplifyServiceUrls = {
   // Teams or BUs ranked against each other (open to every employee, ADR-035).
   leaderboardTop: `${amplifyBackendUrl}/leaderboard/top`,
   leaderboardGroups: `${amplifyBackendUrl}/leaderboard/groups`,
+  // The full team page: the whole roster from the people directory, paged, searched and sorted.
+  team: `${amplifyBackendUrl}/team`,
   // The boards under Dashboarding (CAN_DASHBOARD only, 403 for anyone else).
   dashboardOperations: `${amplifyBackendUrl}/dashboards/operations`,
   dashboardCampaigns: `${amplifyBackendUrl}/dashboards/campaigns`,

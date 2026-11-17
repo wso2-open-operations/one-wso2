@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 
 
-import { Avatar, Box, Button, Dialog, DialogContent, Divider, IconButton, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
+import { Avatar, Box, Button, ButtonBase, Dialog, DialogContent, Divider, IconButton, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
 import { XIcon } from "@wso2/oxygen-ui-icons-react";
 import { HttpError } from "@api/http";
 import { dialogPaperSx } from "@components/confirmation-dialog/dialogPaperSx";
@@ -36,7 +36,16 @@ function initials(name: string): string {
  * sends no id for (no points in the period yet, or never signed in) gets the header from the people directory
  * and a note, and no request.
  */
-export default function PersonDetailDialog({ person, onClose }: { person: PersonRef; onClose: () => void }) {
+export default function PersonDetailDialog({
+  person,
+  onClose,
+  onPost,
+}: {
+  person: PersonRef;
+  onClose: () => void;
+  /** Opens the post's own popup; the post title becomes a button when this is set. */
+  onPost?: (campaignId: string) => void;
+}) {
   const hasId = Boolean(person.employeeId?.trim());
   const q = useDashboardPerson(person.employeeId);
   const lookup = usePersonLookup();
@@ -117,7 +126,13 @@ export default function PersonDetailDialog({ person, onClose }: { person: Person
                         {posts.map((p) => (
                           <TableRow key={p.campaignId}>
                             <TableCell>
-                              {p.title}
+                              {onPost ? (
+                                <ButtonBase onClick={() => onPost(p.campaignId)} aria-haspopup="dialog" sx={{ textAlign: "left", font: "inherit", "&:hover, &:focus-visible": { color: "primary.main" } }}>
+                                  {p.title}
+                                </ButtonBase>
+                              ) : (
+                                p.title
+                              )}
                               {p.isPriority && <PriorityPill />}
                             </TableCell>
                             <TableCell>{p.categoryLabel}</TableCell>

@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 
 import type { ReactNode } from "react";
+import { AMPLIFY_BAR } from "../config/themeConfig";
 import { Box, Chip, Skeleton, Typography } from "@wso2/oxygen-ui";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { HttpError } from "@api/http";
@@ -128,13 +129,13 @@ export function Block({ title, action, children }: { title: string; action?: Rea
 }
 
 /** A horizontal bar, `fraction` of the track (0..1). */
-export function Bar({ fraction, label, color = "primary.main" }: { fraction: number; label: string; color?: string }) {
+export function Bar({ fraction, label, color = AMPLIFY_BAR.positive }: { fraction: number; label: string; color?: string }) {
   const w = Math.max(0, Math.min(1, fraction)) * 100;
   return (
     <Box
       role="img"
       aria-label={label}
-      sx={{ height: 10, borderRadius: 5, bgcolor: "action.hover", overflow: "hidden", minWidth: 60, flex: "1 1 120px" }}
+      sx={{ height: 12, borderRadius: 6, bgcolor: "action.hover", overflow: "hidden", minWidth: 60, flex: "1 1 120px" }}
     >
       <Box sx={{ width: `${w}%`, height: "100%", bgcolor: color }} />
     </Box>

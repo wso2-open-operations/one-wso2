@@ -315,6 +315,23 @@ describe("PostPerformanceBoard", () => {
     expect(within(categoryRow).getByText("25")).toBeTruthy();
   });
 
+  it("opens the post's popup from a post title in the person popup", () => {
+    const onSelect = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <PostPerformanceBoard
+        data={withPeople}
+        onSelect={onSelect}
+        onClose={onClose}
+        person={{ employeeId: "e1", displayName: "Ada Lovelace", email: "ada@example.com" }}
+      />,
+    );
+    const table = screen.getByRole("table", { name: "Posts reposted by this person" });
+    fireEvent.click(within(table).getByRole("button", { name: "Launch" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith(expect.any(String));
+  });
+
   it("says nobody yet when no one reposted", () => {
     render(<PostPerformanceBoard data={{ ...campaigns, selected: { ...campaigns.selected!, people: { reposts: [], withComments: [] } } }} onSelect={() => undefined} detailOpen />);
     expect(screen.getAllByText("Nobody yet.")).toHaveLength(2);

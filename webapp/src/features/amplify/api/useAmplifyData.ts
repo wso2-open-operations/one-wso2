@@ -19,7 +19,7 @@
 // Every key is scoped to the signed-in subject, same as TIL: a tab switching
 // accounts must not serve the previous user's grants or LinkedIn status from cache.
 
-import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
 import { authedGet } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
@@ -27,7 +27,16 @@ import { amplifyServiceUrls, isAmplifyBackendConfigured } from "@config/apiConfi
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
 import { amplifyRetry } from "../util/amplifyError";
 import { DEFAULT_POST_LINK_ORIGINS } from "../util/linkedinPost";
-import type { AmplifyAppConfig, AmplifyMe, CampaignPage, Category, Leaderboard, Share, TopBoard } from "./amplifyTypes";
+import type {
+  AmplifyAppConfig,
+  AmplifyMe,
+  CampaignPage,
+  Category,
+  Leaderboard,
+  Share,
+  TeamPage,
+  TopBoard,
+} from "./amplifyTypes";
 
 export { isAmplifyBackendConfigured };
 
@@ -154,6 +163,39 @@ export function useMyShares() {
     },
     staleTime: 30 * 1000,
     refetchInterval: (q) => pollWhileQueued(q.state.data?.items),
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** Search, sort and paging for the team page. */
+export interface TeamPageParams {
+  q: string;
+  sort: "rank" | "points" | "name";
+  page: number;
+  size: number;
+}
+
+/**
+ * The full team page (GET /team). `keepPreviousData` keeps the last page on screen while the next one loads, so
+ * paging and sorting don't flash an empty table.
+ */
+export function useAmplifyTeamPage(params: TeamPageParams) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<TeamPage>({
+    queryKey: amplifyKey("team", userSub, params.q, params.sort, params.page, params.size),
+    enabled: ready,
+    queryFn: async () => {
+      const search = new URLSearchParams({
+        sort: params.sort,
+        page: String(params.page),
+        size: String(params.size),
+      });
+      if (params.q) search.set("q", params.q);
+      return authedGet<TeamPage>(`${amplifyServiceUrls.team}?${search}`, await getAccessToken());
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
     retry: amplifyRetry,
   });
   return foldIdentityError(query, subState, retryIdentity);
