@@ -113,9 +113,7 @@ function EmployeeFilter({
       getOptionLabel={(option) => (option === ALL_EMPLOYEES ? option : optionLabel(option))}
       loading={isLoading}
       loadingText="Loading employees…"
-      // A directory that failed to load otherwise reads as a company with no
-      // employees in it, since MUI shows the same "No options" text for both.
-      noOptionsText={isError ? "Couldn't load employees" : "No employees found"}
+      noOptionsText="No employees found"
       // The sentinel stays visible whatever is typed, so there is always a way
       // back to the unfiltered report without clearing the box by hand.
       filterOptions={(all, { inputValue }) => {
@@ -152,8 +150,17 @@ function EmployeeFilter({
         );
       }}
       onChange={(_, next) => onChange(next ?? ALL_EMPLOYEES)}
+      // A failed directory fetch is reported on the field rather than through
+      // `noOptionsText`: the `ALL_EMPLOYEES` sentinel is never filtered out, so the
+      // list is never empty and that text would never render. On the field it is
+      // also readable without opening the dropdown.
       renderInput={(params) => (
-        <TextField {...withLoadingAdornment(params, isLoading)} label="Filter by Employee" />
+        <TextField
+          {...withLoadingAdornment(params, isLoading)}
+          label="Filter by Employee"
+          error={isError}
+          helperText={isError ? "Couldn't load employees" : undefined}
+        />
       )}
     />
   );
