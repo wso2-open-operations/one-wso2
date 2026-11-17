@@ -1483,6 +1483,26 @@ export function isIsacConfigured(): boolean {
   return Boolean(isacUrl);
 }
 
+// ISAC's API, for the ISAC screens under Marketing Ops. Its own service with its
+// own `/users/me` roles: nothing about a caller's Marketing Ops capabilities
+// carries over. Every route sits under `/api/v1`, which isacApiUrl() adds, so the
+// configured value stops at the gateway's own version segment.
+//
+// Empty string = not configured; the ISAC screens then render a "not connected"
+// state and make no requests.
+export const isacBackendUrl: string = stripTrailingSlashes(
+  window.config?.ONE_WSO2_MARKETINGOPS_ISAC_BACKEND_URL ?? "",
+);
+
+export function isIsacBackendConfigured(): boolean {
+  return Boolean(isacBackendUrl);
+}
+
+/** The URL of an ISAC API route, from its path under `/api/v1` (leading slash included). */
+export function isacApiUrl(path: string): string {
+  return `${isacBackendUrl}/api/v1${path}`;
+}
+
 // CSM — a separate application this webapp does not host. Its launcher tile
 // opens it in a new tab rather than routing anywhere, which is why it needs no
 // route of its own and never appears as a landing choice or a favourite: there
