@@ -16,13 +16,47 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ALL_CATEGORIES,
   formatPercentage,
+  getCategoryOptions,
+  getEmployeeOptions,
   getEntityCodeForLabel,
   getEntityLabel,
+  getExpenseTypeIdsForCategory,
   getPeriodRange,
   percentageColor,
 } from "./expenseDashboardUtils";
-import type { ExpenseSubsidiarySummary } from "../expenseTypes";
+import type {
+  ExpenseEmployee,
+  ExpenseReportEmployeeOption,
+  ExpenseSubsidiarySummary,
+  ExpenseTypeData,
+} from "../expenseTypes";
+
+// The live catalogue really does hold these names several times over, each row
+// under its own GL code, which is what made the filter list one name repeatedly.
+const AIR_TICKET = "Foreign Travel - Air Ticket";
+const TAXI = "Foreign Travel - Taxi/Bus Ticket/Train Ticket (Outside the country of domicile)";
+const CATALOGUE: ExpenseTypeData[] = [
+  { id: 11, type: AIR_TICKET },
+  { id: 12, type: TAXI },
+  { id: 13, type: AIR_TICKET },
+  { id: 14, type: TAXI },
+  { id: 15, type: AIR_TICKET },
+];
+
+const employee = (over: Partial<ExpenseEmployee> & { workEmail: string }): ExpenseEmployee => ({
+  firstName: "Ann",
+  lastName: "Silva",
+  employeeThumbnail: null,
+  employeeStatus: "Active",
+  ...over,
+});
+
+const withClaims = (employeeEmail: string, employeeName: string): ExpenseReportEmployeeOption => ({
+  employeeEmail,
+  employeeName,
+});
 
 const subsidiary = (over: Partial<ExpenseSubsidiarySummary>): ExpenseSubsidiarySummary => ({
   id: 1,
@@ -115,5 +149,115 @@ describe("entity labels", () => {
 
     expect(getEntityCodeForLabel("WSO2 (UK) LIMITED (WSO2-ES)", all)).toBe("WSO2-ES");
     expect(getEntityCodeForLabel("Nothing like this exists", all)).toBeUndefined();
+  });
+});
+
+describe("getCategoryOptions", () => {
+  it("lists a repeated expense type name once", () => {
+    expect(getCategoryOptions(CATALOGUE)).toEqual([AIR_TICKET, TAXI]);
+  });
+
+  it("keeps the order the catalogue first mentions each name in", () => {
+    expect(getCategoryOptions([...CATALOGUE].reverse())).toEqual([AIR_TICKET, TAXI]);
+  });
+
+  it("has nothing to offer for an empty catalogue", () => {
+    expect(getCategoryOptions([])).toEqual([]);
+  });
+});
+
+describe("getExpenseTypeIdsForCategory", () => {
+  it("returns every id filed under the name, not just the first", () => {
+    expect(getExpenseTypeIdsForCategory(AIR_TICKET, CATALOGUE)).toEqual([11, 13, 15]);
+    expect(getExpenseTypeIdsForCategory(TAXI, CATALOGUE)).toEqual([12, 14]);
+  });
+
+  it("filters on nothing for the All sentinel", () => {
+    expect(getExpenseTypeIdsForCategory(ALL_CATEGORIES, CATALOGUE)).toBeUndefined();
+  });
+
+  // An empty array would reach the query builder as "no expenseTypeIds set", which
+  // widens the report to every category while the dropdown still names one.
+  it("returns undefined rather than an empty list for an unknown name", () => {
+    expect(getExpenseTypeIdsForCategory("Nothing like this exists", CATALOGUE)).toBeUndefined();
+  });
+});
+
+describe("getEmployeeOptions", () => {
+  it("offers the directory by name, ordered by name", () => {
+    const directory = [
+      employee({ workEmail: "ben@wso2.com", firstName: "Ben", lastName: "Perera" }),
+      employee({ workEmail: "ann@wso2.com", firstName: "Ann", lastName: "Silva" }),
+    ];
+
+    expect(getEmployeeOptions(directory, [])).toEqual([
+      { employeeEmail: "ann@wso2.com", employeeName: "Ann Silva" },
+      { employeeEmail: "ben@wso2.com", employeeName: "Ben Perera" },
+    ]);
+  });
+
+  it("leaves out employees who have left", () => {
+    const directory = [
+      employee({ workEmail: "ann@wso2.com" }),
+      employee({ workEmail: "gone@wso2.com", firstName: "Gone", lastName: "Away", employeeStatus: "Left" }),
+      employee({ workEmail: "notice@wso2.com", firstName: "On", lastName: "Notice", employeeStatus: "Marked leaver" }),
+    ];
+
+    expect(getEmployeeOptions(directory, []).map((e) => e.employeeEmail)).toEqual([
+      "ann@wso2.com",
+      "notice@wso2.com",
+    ]);
+  });
+
+  // A status the directory does not set, or a value this app does not know, is
+  // not a reason to make someone impossible to filter on.
+  it("keeps an employee whose status is missing or unrecognised", () => {
+    const directory = [
+      employee({ workEmail: "ann@wso2.com", employeeStatus: null }),
+      employee({ workEmail: "ben@wso2.com", firstName: "Ben", lastName: "Perera", employeeStatus: "Something else" }),
+    ];
+
+    expect(getEmployeeOptions(directory, []).map((e) => e.employeeEmail)).toEqual([
+      "ann@wso2.com",
+      "ben@wso2.com",
+    ]);
+  });
+
+  it("adds an employee the report has claims for but the directory does not offer", () => {
+    const options = getEmployeeOptions(
+      [employee({ workEmail: "ann@wso2.com" })],
+      [withClaims("gone@wso2.com", "Gone Away"), withClaims("ann@wso2.com", "Ann From The Report")],
+    );
+
+    expect(options).toEqual([
+      { employeeEmail: "ann@wso2.com", employeeName: "Ann Silva" },
+      { employeeEmail: "gone@wso2.com", employeeName: "Gone Away" },
+    ]);
+  });
+
+  it("falls back to the work email when the directory holds no name", () => {
+    const directory = [employee({ workEmail: "nameless@wso2.com", firstName: null, lastName: null })];
+
+    expect(getEmployeeOptions(directory, [])).toEqual([
+      { employeeEmail: "nameless@wso2.com", employeeName: "nameless@wso2.com" },
+    ]);
+  });
+
+  it("qualifies a name two people share with the work email", () => {
+    const directory = [
+      employee({ workEmail: "ann.s@wso2.com", firstName: "Ann", lastName: "Silva" }),
+      employee({ workEmail: "ann.silva@wso2.com", firstName: "Ann", lastName: "Silva" }),
+      employee({ workEmail: "ben@wso2.com", firstName: "Ben", lastName: "Perera" }),
+    ];
+
+    expect(getEmployeeOptions(directory, [])).toEqual([
+      { employeeEmail: "ann.s@wso2.com", employeeName: "Ann Silva (ann.s@wso2.com)" },
+      { employeeEmail: "ann.silva@wso2.com", employeeName: "Ann Silva (ann.silva@wso2.com)" },
+      { employeeEmail: "ben@wso2.com", employeeName: "Ben Perera" },
+    ]);
+  });
+
+  it("has nothing to offer without a directory or a report", () => {
+    expect(getEmployeeOptions([], [])).toEqual([]);
   });
 });
