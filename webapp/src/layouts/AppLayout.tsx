@@ -20,7 +20,6 @@ import { Box, useAppShell } from "@wso2/oxygen-ui";
 import TopBar from "@components/top-bar/TopBar";
 import SideRail from "@components/side-rail/SideRail";
 import WaffleOverlay from "@components/waffle/WaffleOverlay";
-import AskNoveraPalette from "@components/ask-novera/AskNoveraPalette";
 import AppFooter from "@components/footer/AppFooter";
 import TourDriver from "@features/tour/TourDriver";
 import TourGuide from "@features/tour/TourGuide";
@@ -66,7 +65,6 @@ export default function AppLayout(): JSX.Element {
   // reads as a click away and would close a panel the next step points into.
   // TourDriver raises this while a step needs the launcher open.
   const tourHoldsLauncher = useRef(false);
-  const [askOpen, setAskOpen] = useState(false);
   const location = useLocation();
   const mainRef = useRef<HTMLDivElement>(null);
 
@@ -120,7 +118,6 @@ export default function AppLayout(): JSX.Element {
               onToggleSidebar={shellActions.toggleSidebar}
               onToggleWaffle={(el) => setWaffleAnchor((prev) => (prev ? null : el))}
               waffleOpen={waffleAnchor !== null}
-              onOpenAsk={() => setAskOpen(true)}
             />
           }
           sidebar={<SideRail collapsed={shellState.sidebarCollapsed} />}
@@ -162,7 +159,6 @@ export default function AppLayout(): JSX.Element {
             }}
           />
         )}
-        {askOpen && <AskNoveraPalette onClose={() => setAskOpen(false)} />}
         {/* The introductory tour. TourDriver applies what a step needs from the
             shell; the other two are the offer and the running tour itself. */}
         <TourDriver

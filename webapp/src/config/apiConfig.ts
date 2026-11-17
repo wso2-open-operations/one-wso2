@@ -2515,6 +2515,34 @@ export function buildDealsUrl(params: {
   return `${echoServiceUrls.deals}?${qs.toString()}`;
 }
 
+// ---------------------------------------------------------------------------
+// Agent Orchestrator backend (agent-orchestrator). Powers Ask Novera, the
+// conversational AI assistant in the top bar.
+//
+// Blank means "not connected", as for every other key in this file: the
+// palette shows a not-connected state and makes no requests. Gated as a whole
+// by the `novera` preview flag as well (previewFeatures.ts).
+export const agentOrchestratorBackendUrl: string = stripTrailingSlashes(
+  window.config?.ONE_WSO2_AGENT_ORCHESTRATOR_URL ?? "",
+);
+
+/**
+ * Whether the Agent Orchestrator backend URL is configured in runtime config.
+ */
+export function isAgentOrchestratorBackendConfigured(): boolean {
+  return Boolean(agentOrchestratorBackendUrl);
+}
+
+export const isAgentOrchestratorConfigured = isAgentOrchestratorBackendConfigured;
+export const agentOrchestratorUrl = agentOrchestratorBackendUrl;
+
+export const agentOrchestratorServiceUrls = {
+  // Multi-turn conversational chat JSON endpoint with orchestrator routing.
+  chat: `${agentOrchestratorBackendUrl}/chat`,
+  // Orchestrator readiness and health endpoint.
+  health: `${agentOrchestratorBackendUrl}/health`,
+};
+
 // Swag Store — employees spend O2C coins on WSO2 swag. Its own backend,
 // configured with the version segment included and no `/api` prefix after it.
 // Unset means "not connected": the store's pages say so and make no requests.

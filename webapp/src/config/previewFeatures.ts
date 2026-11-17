@@ -111,7 +111,14 @@ export type PreviewFeature =
    * its backend calls. Held back while the app is being built: submitting a
    * request is not connected to the backend yet.
    */
-  | "procurement";
+  | "procurement"
+  /**
+   * TopBar → Ask Novera, the conversational AI assistant in the top bar. Held
+   * back while it is built. With the flag on and
+   * `ONE_WSO2_AGENT_ORCHESTRATOR_URL` unset, the palette says "not connected"
+   * and makes no requests.
+   */
+  | "novera";
 
 /**
  * Whether a preview feature should be shown.
