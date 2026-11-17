@@ -33,33 +33,23 @@ export const ALL_STATUSES = "All statuses";
 export const ALL_REGIONS = "All regions";
 export const ALL_EMPLOYEES = "All employees";
 
-/**
- * The expense type catalogue holds several rows under the same name, each with
- * its own GL code, so mapping it straight to labels repeats a name as many times
- * as it has rows. One entry per distinct name, in the order the catalogue first
- * mentions it.
- */
+/** One entry per distinct expense type name, in the order the catalogue first
+ *  mentions it. The catalogue holds a name once per GL code, so the raw list
+ *  repeats a name as many times as it has rows. */
 export function getCategoryOptions(expenseTypes: readonly ExpenseTypeData[]): string[] {
   return [...new Set(expenseTypes.map((expenseType) => expenseType.type))];
 }
 
-const ACTIVE_EMPLOYEE_STATUS = "Active";
+/** The one status the Employee filter leaves out. Matched rather than matching
+ *  on "Active", so an employee whose status is missing or unrecognised is still
+ *  offered instead of silently disappearing from the filter. */
+const LEFT_EMPLOYEE_STATUS = "Left";
 
 /**
- * Who the Employee filter offers. The directory is taken as the source rather
- * than the report, so the whole list is there to choose from before any period
- * has been applied — deriving it from the report meant the names only appeared
- * once a period had been applied, and changed underneath whoever was reading it.
- *
- * Employees who have left are excluded, since they are most of the directory,
- * except where the report shows them filing claims in the period being viewed.
- * Leaving those out would make a name in the Employee table impossible to filter
- * on.
- *
- * A display name is not unique, so a repeated one is qualified with the work
- * email, the way `getEntityLabel` qualifies a repeated legal name. Without it two
- * different people offer the same choice and the reader cannot tell which they
- * are filtering on.
+ * Everyone the Employee filter offers: `employees` minus those who have left,
+ * plus anyone in `withClaims` the directory left out, each as the work email
+ * filtered on and the display name shown, ordered by name. A name two people
+ * share is qualified with the work email, so the two choices read apart.
  */
 export function getEmployeeOptions(
   employees: readonly ExpenseEmployee[],
@@ -67,7 +57,7 @@ export function getEmployeeOptions(
 ): { employeeEmail: string; employeeName: string }[] {
   const named = new Map<string, string>();
   for (const employee of employees) {
-    if (employee.employeeStatus !== ACTIVE_EMPLOYEE_STATUS) continue;
+    if (employee.employeeStatus === LEFT_EMPLOYEE_STATUS) continue;
     const name = [employee.firstName, employee.lastName].filter(Boolean).join(" ").trim();
     named.set(employee.workEmail, name.length > 0 ? name : employee.workEmail);
   }
@@ -87,19 +77,16 @@ export function getEmployeeOptions(
     .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 }
 
-/**
- * Every ID filed under the selected name, not just the first. Picking the first
- * would narrow the report to one of the duplicate rows and present that row's
- * share of the spend as the whole category's.
- */
+/** Every expense type ID filed under `category`, or undefined for the
+ *  `ALL_CATEGORIES` sentinel and for a name the catalogue does not hold. */
 export function getExpenseTypeIdsForCategory(
   category: string,
   expenseTypes: readonly ExpenseTypeData[],
 ): number[] | undefined {
   if (category === ALL_CATEGORIES) return undefined;
   const ids = expenseTypes.filter((expenseType) => expenseType.type === category).map((e) => e.id);
-  // An empty list would read as "no filter" to the query builder and quietly widen
-  // the report to every category, so an unmatched name stays undefined.
+  // An empty list reads as "no expense type filter" and widens the report to every
+  // category, so an unmatched name stays undefined.
   return ids.length > 0 ? ids : undefined;
 }
 

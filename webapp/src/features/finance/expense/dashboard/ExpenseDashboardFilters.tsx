@@ -15,8 +15,20 @@
 // under the License.
 
 import { useState } from "react";
-import { Autocomplete, Box, Button, IconButton, MenuItem, Popover, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import {
+  Autocomplete,
+  Box,
+  Button,
+  IconButton,
+  MenuItem,
+  Popover,
+  Stack,
+  TextField,
+  Typography,
+} from "@wso2/oxygen-ui";
 import { FilterIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
+import { withLoadingAdornment } from "@components/picker-loading/pickerLoading";
+import VirtualizedListbox from "@components/virtualized-listbox/VirtualizedListbox";
 import { EXPENSE_DASHBOARD_PERIODS, type ExpenseDashboardPeriod } from "../expenseTypes";
 import { ALL_CATEGORIES, ALL_EMPLOYEES, ALL_ENTITIES, ALL_REGIONS, ALL_STATUSES } from "./expenseDashboardUtils";
 
@@ -27,8 +39,7 @@ export interface ExpenseDashboardDraftFilters {
   entity: string;
   region: string;
   category: string;
-  /** The employee's work email, not their name: names repeat across the
-   *  company, emails don't. The panel shows the name. */
+  /** The selected employee's work email, or `ALL_EMPLOYEES`. */
   employee: string;
   status: string;
   /** Only read when the period is Custom; kept here so a half-typed range
@@ -75,22 +86,22 @@ function FilterSelect({
 }
 
 /**
- * The Employee filter, which is an Autocomplete rather than a plain select: it
- * offers every active employee, and several hundred names in a dropdown can only
- * be searched, not scrolled. Matches are capped so that opening it with an empty
- * box does not mount a row per employee.
+ * The Employee filter. An Autocomplete over work emails, labelled and searched
+ * by display name, with `ALL_EMPLOYEES` as its first option.
  */
-const EMPLOYEE_OPTIONS_SHOWN = 50;
-
 function EmployeeFilter({
   value,
   options,
   optionLabel,
+  isLoading,
+  isError,
   onChange,
 }: {
   value: string;
   options: readonly string[];
   optionLabel: (email: string) => string;
+  isLoading: boolean;
+  isError: boolean;
   onChange: (next: string) => void;
 }) {
   return (
@@ -100,20 +111,50 @@ function EmployeeFilter({
       value={value}
       options={[ALL_EMPLOYEES, ...options]}
       getOptionLabel={(option) => (option === ALL_EMPLOYEES ? option : optionLabel(option))}
+      loading={isLoading}
+      loadingText="Loading employees…"
+      // A directory that failed to load otherwise reads as a company with no
+      // employees in it, since MUI shows the same "No options" text for both.
+      noOptionsText={isError ? "Couldn't load employees" : "No employees found"}
       // The sentinel stays visible whatever is typed, so there is always a way
       // back to the unfiltered report without clearing the box by hand.
       filterOptions={(all, { inputValue }) => {
         const needle = inputValue.trim().toLowerCase();
-        const matches = all.filter(
+        return all.filter(
           (option) =>
             option === ALL_EMPLOYEES ||
             optionLabel(option).toLowerCase().includes(needle) ||
             option.toLowerCase().includes(needle),
         );
-        return matches.slice(0, EMPLOYEE_OPTIONS_SHOWN);
+      }}
+      // The directory runs to several hundred people, and every match otherwise
+      // mounts as a row in the DOM on each keystroke. `disableListWrap` belongs
+      // with it: MUI's keyboard wrap-around assumes a fully mounted list.
+      disableListWrap
+      ListboxComponent={VirtualizedListbox}
+      // Two lines per row, which is also the height the windowed listbox sizes
+      // its rows to. The address is the value being filtered on, so it is shown
+      // rather than left to the label alone.
+      renderOption={(props, option) => {
+        // React requires the key as a prop, not inside a spread.
+        const { key, ...liProps } = props as typeof props & { key: string };
+        return (
+          <Box component="li" key={key} {...liProps} sx={{ display: "block", py: 0.75 }}>
+            <Typography variant="body2" noWrap>
+              {optionLabel(option)}
+            </Typography>
+            {option !== ALL_EMPLOYEES && (
+              <Typography variant="caption" color="text.secondary" display="block" noWrap>
+                {option}
+              </Typography>
+            )}
+          </Box>
+        );
       }}
       onChange={(_, next) => onChange(next ?? ALL_EMPLOYEES)}
-      renderInput={(params) => <TextField {...params} label="Filter by Employee" />}
+      renderInput={(params) => (
+        <TextField {...withLoadingAdornment(params, isLoading)} label="Filter by Employee" />
+      )}
     />
   );
 }
@@ -129,6 +170,8 @@ export function ExpenseDashboardFilters({
   categoryOptions,
   employeeOptions,
   employeeLabel,
+  employeesLoading,
+  employeesError,
   statusOptions,
   statusLabel,
   onApply,
@@ -144,6 +187,8 @@ export function ExpenseDashboardFilters({
   categoryOptions: readonly string[];
   employeeOptions: readonly string[];
   employeeLabel: (email: string) => string;
+  employeesLoading: boolean;
+  employeesError: boolean;
   statusOptions: readonly string[];
   statusLabel: (status: string) => string;
   onApply: () => void;
@@ -217,6 +262,8 @@ export function ExpenseDashboardFilters({
             value={draft.employee}
             options={employeeOptions}
             optionLabel={employeeLabel}
+            isLoading={employeesLoading}
+            isError={employeesError}
             onChange={(v) => set("employee", v)}
           />
           <FilterSelect

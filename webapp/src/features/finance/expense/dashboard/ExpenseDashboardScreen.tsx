@@ -178,6 +178,18 @@ function DashboardBody() {
     hasFinanceView,
   );
 
+  // Filtered on by email, which is unique, and shown by name, which is not. The
+  // directory is the source rather than the report, so every name is there to pick
+  // from before a period has been applied.
+  const selectableEmployees = useMemo(
+    () => getEmployeeOptions(employees.data ?? [], report.data?.availableEmployees ?? []),
+    [employees.data, report.data?.availableEmployees],
+  );
+  const employeeNamesByEmail = useMemo(
+    () => new Map(selectableEmployees.map((employee) => [employee.employeeEmail, employee.employeeName])),
+    [selectableEmployees],
+  );
+
   const isDirty = (Object.keys(draft) as (keyof ExpenseDashboardDraftFilters)[]).some(
     (key) => draft[key] !== applied[key],
   );
@@ -232,11 +244,6 @@ function DashboardBody() {
   const categoryOptions = getCategoryOptions(expenseTypes.data ?? []);
   const entityOptions = (subsidiaries.data ?? []).map((s) => getEntityLabel(s, subsidiaries.data ?? []));
   const regionOptions = report.data?.availableSalesRegions ?? [];
-  // Filtered on by email, which is unique, and shown by name, which is not. The list
-  // is the active directory rather than the report's own employees, so every name is
-  // there to pick from before a period has been applied.
-  const selectableEmployees = getEmployeeOptions(employees.data ?? [], report.data?.availableEmployees ?? []);
-  const employeeNamesByEmail = new Map(selectableEmployees.map((e) => [e.employeeEmail, e.employeeName]));
   const draftedEmployee = draft.employee;
   const employeeOptions = selectableEmployees.map((employee) => employee.employeeEmail);
   // A selected value missing from the options renders the field blank, so an employee
@@ -259,6 +266,8 @@ function DashboardBody() {
         categoryOptions={categoryOptions}
         employeeOptions={employeeOptions}
         employeeLabel={(email) => employeeNamesByEmail.get(email) ?? email}
+        employeesLoading={employees.isLoading}
+        employeesError={employees.isError}
         statusOptions={EXPENSE_FILTERABLE_STATUSES}
         statusLabel={(status) => expenseStatusMeta(status).label}
         onApply={() => setApplied(draft)}

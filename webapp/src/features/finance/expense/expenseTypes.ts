@@ -42,8 +42,7 @@ export interface ExpenseEmployee {
   lastName: string | null;
   workEmail: string;
   employeeThumbnail: string | null;
-  /** "Active", "Left" or "Marked leaver". Most of the directory has left, so
-   *  the dashboard's employee filter offers the active ones by default. */
+  /** "Active", "Marked leaver" or "Left". */
   employeeStatus: string | null;
 }
 
@@ -240,9 +239,7 @@ export interface ExpenseReportEmployeeItem {
   totalValue: number;
 }
 
-/** One option in the Employee filter. The backend builds this list ignoring the
- *  employee filter itself, so picking someone doesn't collapse the dropdown to
- *  just them. */
+/** An employee the report offers for the Employee filter. */
 export interface ExpenseReportEmployeeOption {
   employeeEmail: string;
   employeeName: string;
@@ -274,10 +271,8 @@ export interface ExpenseClaimsReportFilter {
   endDate: string;
   status?: string;
   businessEntity?: string;
-  /** Every ID the selected expense type NAME maps to, not one. The catalogue
-   *  holds several rows under one name, each with its own GL code, so sending a
-   *  single ID would report one row's share of the total as if it were all of
-   *  it. Sent as a repeated `expenseTypeIds=` key, like `status` above. */
+  /** Every expense type ID the selected category name maps to. Sent as a
+   *  repeated `expenseTypeIds=` key. */
   expenseTypeIds?: number[];
   salesRegion?: string;
   employeeEmail?: string;
