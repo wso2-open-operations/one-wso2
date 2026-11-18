@@ -112,6 +112,7 @@ function EmployeeFilter({
       options={[ALL_EMPLOYEES, ...options]}
       getOptionLabel={(option) => (option === ALL_EMPLOYEES ? option : optionLabel(option))}
       loading={isLoading}
+      disabled={isLoading}
       loadingText="Loading employees…"
       noOptionsText="No employees found"
       // The sentinel stays visible whatever is typed, so there is always a way
@@ -136,10 +137,14 @@ function EmployeeFilter({
       renderOption={(props, option) => {
         // React requires the key as a prop, not inside a spread.
         const { key, ...liProps } = props as typeof props & { key: string };
+        const label = optionLabel(option);
+        // A shared name is qualified with the address, which the row's second line
+        // already carries, so the suffix is dropped here and kept for the input.
+        const name = option === ALL_EMPLOYEES ? label : label.replace(` (${option})`, "");
         return (
           <Box component="li" key={key} {...liProps} sx={{ display: "block", py: 0.75 }}>
             <Typography variant="body2" noWrap>
-              {optionLabel(option)}
+              {name}
             </Typography>
             {option !== ALL_EMPLOYEES && (
               <Typography variant="caption" color="text.secondary" display="block" noWrap>

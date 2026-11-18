@@ -209,6 +209,19 @@ describe("getEmployeeOptions", () => {
     ]);
   });
 
+  // The directory's own spelling and padding are not guaranteed, so a leaver has
+  // to be recognised however the status happens to be cased or padded.
+  it("leaves out a leaver whose status is cased or padded differently", () => {
+    const directory = [
+      employee({ workEmail: "ann@wso2.com" }),
+      employee({ workEmail: "lower@wso2.com", firstName: "Low", lastName: "Case", employeeStatus: "left" }),
+      employee({ workEmail: "padded@wso2.com", firstName: "Pad", lastName: "Ded", employeeStatus: " Left " }),
+      employee({ workEmail: "shouty@wso2.com", firstName: "All", lastName: "Caps", employeeStatus: "LEFT" }),
+    ];
+
+    expect(getEmployeeOptions(directory, []).map((e) => e.employeeEmail)).toEqual(["ann@wso2.com"]);
+  });
+
   // A status the directory does not set, or a value this app does not know, is
   // not a reason to make someone impossible to filter on.
   it("keeps an employee whose status is missing or unrecognised", () => {

@@ -40,35 +40,37 @@ export function getCategoryOptions(expenseTypes: readonly ExpenseTypeData[]): st
   return [...new Set(expenseTypes.map((expenseType) => expenseType.type))];
 }
 
-/** The one status the Employee filter leaves out. Matched rather than matching
- *  on "Active", so an employee whose status is missing or unrecognised is still
- *  offered instead of silently disappearing from the filter. */
-const LEFT_EMPLOYEE_STATUS = "Left";
+/** The directory status of someone who has left. */
+const LEFT_EMPLOYEE_STATUS = "left";
 
 /**
  * Everyone the Employee filter offers: `employees` minus those who have left,
- * plus anyone in `withClaims` the directory left out, each as the work email
- * filtered on and the display name shown, ordered by name. A name two people
- * share is qualified with the work email, so the two choices read apart.
+ * plus anyone in `employeesWithClaims` the directory left out, each as the work
+ * email filtered on and the display name shown, ordered by name. A name two
+ * people share is qualified with the work email, so the two choices read apart.
  */
 export function getEmployeeOptions(
   employees: readonly ExpenseEmployee[],
-  withClaims: readonly ExpenseReportEmployeeOption[],
-): { employeeEmail: string; employeeName: string }[] {
-  const named = new Map<string, string>();
+  employeesWithClaims: readonly ExpenseReportEmployeeOption[],
+): ExpenseReportEmployeeOption[] {
+  const namesByEmail = new Map<string, string>();
   for (const employee of employees) {
-    if (employee.employeeStatus === LEFT_EMPLOYEE_STATUS) continue;
+    // Only leavers are dropped, rather than keeping only "Active", so a missing or
+    // unrecognised status is still offered. Normalised as the status chip helper does.
+    if (employee.employeeStatus?.trim().toLowerCase() === LEFT_EMPLOYEE_STATUS) continue;
     const name = [employee.firstName, employee.lastName].filter(Boolean).join(" ").trim();
-    named.set(employee.workEmail, name.length > 0 ? name : employee.workEmail);
+    namesByEmail.set(employee.workEmail, name.length > 0 ? name : employee.workEmail);
   }
-  for (const employee of withClaims) {
-    if (!named.has(employee.employeeEmail)) named.set(employee.employeeEmail, employee.employeeName);
+  for (const employee of employeesWithClaims) {
+    if (!namesByEmail.has(employee.employeeEmail)) {
+      namesByEmail.set(employee.employeeEmail, employee.employeeName);
+    }
   }
 
   const timesNameUsed = new Map<string, number>();
-  for (const name of named.values()) timesNameUsed.set(name, (timesNameUsed.get(name) ?? 0) + 1);
+  for (const name of namesByEmail.values()) timesNameUsed.set(name, (timesNameUsed.get(name) ?? 0) + 1);
 
-  return [...named]
+  return [...namesByEmail]
     .map(([employeeEmail, employeeName]) => ({
       employeeEmail,
       employeeName:
