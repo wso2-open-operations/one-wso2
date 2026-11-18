@@ -99,7 +99,7 @@ export default function ExpenseDashboardScreen({ headerActions }: { headerAction
     <FinanceShell
       eyebrow={FINANCE_EYEBROW.expense}
       title="Expense Claims Dashboard"
-      subtitle="Claim volume and value across the company, filterable by period, entity, region, category and status."
+      subtitle="Claim volume and value across the company, filterable by period, entity, region, category, employee and status."
       configured={isExpenseBackendConfigured()}
       configKey="ONE_WSO2_EXPENSE_CLAIMS_BACKEND_URL"
       actions={headerActions}
