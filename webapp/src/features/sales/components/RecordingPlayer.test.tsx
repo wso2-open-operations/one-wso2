@@ -17,7 +17,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../api/useSalesData", () => ({
-  useRecordingPlayback: () => ({ data: { url: "https://stream.example/42" }, isLoading: false, error: null, refetch: vi.fn() }),
+  useRecordingPlayback: () => ({
+    data: { url: "https://stream.example/42" },
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(async () => ({ data: { url: "https://stream.example/42" } })),
+  }),
 }));
 
 import { fireEvent, render } from "@testing-library/react";
@@ -55,6 +60,16 @@ describe("RecordingPlayer opening position", () => {
     fireEvent.loadedMetadata(video);
     expect(video.currentTime).toBe(0);
     expect(play).not.toHaveBeenCalled();
+  });
+
+  it("keeps the opening position through a load that fails before any metadata", async () => {
+    const { container } = render(<RecordingPlayer meetingId={42} startAt={760} />);
+    const video = container.querySelector("video") as HTMLVideoElement;
+    // An expired URL fails at once: the time is still 0, and must not replace the 760.
+    fireEvent.error(video);
+    await Promise.resolve();
+    fireEvent.loadedMetadata(video);
+    expect(video.currentTime).toBe(760);
   });
 
   it("is not thrown off by a browser that refuses to play", async () => {

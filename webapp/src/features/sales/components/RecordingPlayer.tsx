@@ -109,7 +109,10 @@ const RecordingPlayer = forwardRef<RecordingPlayerHandle, {
     // videoRef.current.src here as well raced that render: whichever landed second won,
     // and the seek-restore attached to the losing load was silently dropped. The position
     // is parked here instead and applied by onLoadedMetadata, whichever load wins.
-    resumeAtRef.current = videoRef.current?.currentTime ?? 0;
+    // Only once playback has reached one: before the first metadata the time is still 0,
+    // and an opening position from the page is still parked here, waiting to be applied.
+    const at = videoRef.current?.currentTime ?? 0;
+    if (at > 0) resumeAtRef.current = at;
 
     const refreshed = await refetch();
     if (!refreshed.data?.url) {

@@ -41,7 +41,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import type { DealField, EvidenceQuote, EvidenceSourceType, FieldValue, NewContact } from "../types";
 import { newContactFromProposal, newContactProblem, type ApprovalDraft } from "../util/approval";
-import { formatFieldValue, isEmptyValue, isRoleProposal } from "../util/meddpiccFormat";
+import { formatFieldValue, isEmptyValue, isRoleProposal, sameValue } from "../util/meddpiccFormat";
 import { hasCustomerEvidence, leadQuote, newestFirst, sourceOf } from "../util/evidenceSource";
 import { groupBySource } from "../util/provenance";
 import EchoMarker, { EchoIcon } from "./EchoMarker";
@@ -249,9 +249,7 @@ export default function DealFieldRow({
   const lead = leadQuote(evidence);
   // Only when Salesforce holds the same value: an approved suggestion stays "not pending"
   // after Salesforce is changed, so not pending alone says nothing about agreement.
-  const callsAgree = Boolean(
-    proposal && (field.notInSalesforce || formatFieldValue(proposal.value) === formatFieldValue(field.salesforceValue)),
-  );
+  const callsAgree = Boolean(proposal && (field.notInSalesforce || sameValue(proposal.value, field.salesforceValue)));
   // "3 quotes, 2 sources": what the full account holds, on the control that opens it.
   const sourceCount = proposal ? groupBySource(proposal.evidence).length : 0;
   const quoteCount = proposal?.evidence.length ?? 0;
@@ -322,7 +320,7 @@ export default function DealFieldRow({
         )}
         {gateTag && <Chip label={gateTag} size="small" variant="outlined" sx={{ height: 18, fontSize: "0.65rem" }} />}
         {field.attest && (
-          <Tooltip title="Only the account manager confirms this. The AI never proposes Yes on it." arrow>
+          <Tooltip title="Only the account manager confirms this. Check a suggestion against the customer's own words." arrow>
             <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600, cursor: "default" }}>
               You confirm
             </Typography>

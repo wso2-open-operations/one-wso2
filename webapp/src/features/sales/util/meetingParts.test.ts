@@ -93,6 +93,13 @@ describe("placeSecond", () => {
     expect(placeSecond(25 * 60, [first, second], 1)).toBeNull();
   });
 
+  it("counts from the call's first recording even when that one cannot be opened", () => {
+    // The first part failed to attach, so only the second can be played: 35 minutes into
+    // the call is still 5 minutes into the second part.
+    const failed: MeetingPart = { ...first, state: "FAILED" };
+    expect(placeSecond(35 * 60, [second], 1, [failed, second])).toEqual({ recordingId: 2, offsetSeconds: 300 });
+  });
+
   it("keeps the second as it is on untimed parts, or on the default recording with none", () => {
     expect(placeSecond(760, [part(1, null), part(2, null)], -1)).toEqual({ recordingId: 1, offsetSeconds: 760 });
     expect(placeSecond(760, [], -1)).toEqual({ recordingId: -1, offsetSeconds: 760 });

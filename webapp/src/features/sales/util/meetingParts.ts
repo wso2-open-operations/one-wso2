@@ -76,17 +76,22 @@ export function placeLine(
  * recording starts. Untimed parts, or none, put it on the first (or default) recording at
  * that second, as placeLine does for lines. Null when the moment fell between timed parts,
  * while nothing was recording.
+ *
+ * `recordings` are the parts that can be opened. When the caller has filtered them down,
+ * `allParts` is every recording of the call in order, attached or not: the call starts
+ * where its first one starts, even one that failed to attach.
  */
 export function placeSecond(
   seconds: number,
   recordings: readonly MeetingPart[],
   defaultRecordingId: number,
+  allParts: readonly MeetingPart[] = recordings,
 ): LinePlace | null {
   if (!partsAreTimed(recordings)) {
     return { recordingId: recordings[0]?.id ?? defaultRecordingId, offsetSeconds: seconds };
   }
-  const first = parseUtc(recordings[0].startTime) as Date;
-  const moment = new Date(first.getTime() + seconds * 1000);
+  const origin = parseUtc(allParts[0]?.startTime) ?? (parseUtc(recordings[0].startTime) as Date);
+  const moment = new Date(origin.getTime() + seconds * 1000);
   for (const recording of recordings) {
     const start = parseUtc(recording.startTime) as Date;
     const end = parseUtc(recording.endTime);

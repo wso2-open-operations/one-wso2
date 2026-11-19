@@ -315,6 +315,15 @@ function approve(deal: MockDeal, request: ApproveRequest): ApproveResult {
     fail(path, 400, { message: `Match or clear every proposed contact role: ${unmatched.map((d) => d.label).join(", ")}.` });
   }
 
+  // Every Contact to create is checked before anything changes, as the backend does: a
+  // refused create leaves the deal untouched (ApproveRequest.newContacts).
+  for (const def of FIELDS) {
+    const toCreate = def.kind === "role" && isPending(deal, def) ? fresh[def.key] : undefined;
+    if (toCreate && (!toCreate.lastName.trim() || !toCreate.email.trim())) {
+      fail(path, 400, { message: `a new contact for ${def.key} needs a last name and an email` });
+    }
+  }
+
   const written: string[] = [];
   const skipped: ApproveResult["skipped"] = [];
   const createdContacts: NonNullable<ApproveResult["createdContacts"]> = [];
@@ -333,9 +342,6 @@ function approve(deal: MockDeal, request: ApproveRequest): ApproveResult {
       // A Contact the AM asked for: created on the Account (here: made up), then given the role.
       const toCreate = fresh[def.key];
       if (toCreate) {
-        if (!toCreate.lastName.trim() || !toCreate.email.trim()) {
-          fail(path, 400, { message: `a new contact for ${def.key} needs a last name and an email` });
-        }
         const contactId = `003NEW${String(createdContacts.length + 1).padStart(4, "0")}`;
         const name = [toCreate.firstName, toCreate.lastName].filter(Boolean).join(" ");
         deal.salesforce[def.key] = { contactId, name } satisfies RoleHolder;

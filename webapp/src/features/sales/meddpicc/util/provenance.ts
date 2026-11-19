@@ -21,7 +21,7 @@
 
 import type { DealCall, DealDetail, DealField, EvidenceQuote, EvidenceSource } from "../types";
 import { newestFirst, roleOf, sourceOf } from "./evidenceSource";
-import { confidenceWord, formatFieldValue, isEmptyValue, isRoleProposal } from "./meddpiccFormat";
+import { confidenceWord, formatFieldValue, isEmptyValue, isRoleProposal, sameValue } from "./meddpiccFormat";
 
 export interface QuoteGroup {
   source: EvidenceSource;
@@ -100,7 +100,7 @@ export function explainProposal(field: DealField, detail: DealDetail): string[] 
     facts.push("Salesforce has nothing for this field, so the suggestion would fill it.");
   } else if (proposal.pending) {
     facts.push(`It differs from what Salesforce has (${formatFieldValue(field.salesforceValue)}), so it waits for your approval.`);
-  } else if (formatFieldValue(proposal.value) === formatFieldValue(field.salesforceValue)) {
+  } else if (sameValue(proposal.value, field.salesforceValue)) {
     facts.push("It matches what Salesforce has, so there is nothing to approve.");
   } else {
     // Settled, then Salesforce changed: as on the card, not pending alone does not mean they agree.
@@ -125,7 +125,7 @@ export function explainProposal(field: DealField, detail: DealDetail): string[] 
   }
 
   if (field.attest) {
-    facts.push("Only you confirm this field. The AI never proposes Yes on it, so check a suggestion against the customer's words.");
+    facts.push("Only you confirm this field. Check a suggestion against the customer's own words before approving.");
   }
 
   const { contributed, silent } = callsBehind(field, detail);

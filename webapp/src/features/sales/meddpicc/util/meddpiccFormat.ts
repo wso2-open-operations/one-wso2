@@ -97,6 +97,22 @@ export function formatFieldValue(value: FieldValue | RoleProposalValue | undefin
 }
 
 /**
+ * Whether a suggestion and what Salesforce holds are the same. A role is the same person
+ * by Contact, not by wording: Salesforce holds the Contact's name alone, while the calls
+ * add the title heard, and two Contacts can share a name. Without a Contact to go by, the
+ * name decides. Anything else is the same when it reads the same.
+ */
+export function sameValue(proposed: FieldValue | RoleProposalValue | undefined, held: FieldValue): boolean {
+  if (isRoleProposal(proposed)) {
+    if (!isRoleHolder(held)) return false;
+    return proposed.suggestedContactId !== null
+      ? proposed.suggestedContactId === held.contactId
+      : proposed.name === held.name;
+  }
+  return formatFieldValue(proposed) === formatFieldValue(held);
+}
+
+/**
  * `120,000 USD`. The currency is shown as its code rather than a symbol: the
  * list mixes currencies, and "$" does not say which dollar.
  */

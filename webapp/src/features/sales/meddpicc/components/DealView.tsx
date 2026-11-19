@@ -79,6 +79,7 @@ import {
   hasSomethingToApprove,
   initialRoleMatches,
   newContactProblem,
+  pendingRoleFields,
   unmatchedRoles,
   type ApprovalDraft,
 } from "../util/approval";
@@ -100,6 +101,11 @@ import StageChip from "./StageChip";
  * stage path; and Activity, the deal's journey from start to close, its activity and the
  * products discussed. The page keeps the tab in the URL. Above them, the deal's facts.
  */
+
+/** `record` without the given keys. */
+function without<T>(record: Record<string, T>, keys: ReadonlySet<string>): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)));
+}
 
 export default function DealView({
   detail,
@@ -202,13 +208,21 @@ export default function DealView({
   const approveAll = async () => {
     setApproveError(null);
     setApproveResult(null);
+    const request = buildApproveRequest(fields, draft);
     try {
-      const result = await approve.mutateAsync(buildApproveRequest(fields, draft));
+      const result = await approve.mutateAsync(request);
       setApproveResult(result);
       if (!result.error) {
-        setEdits({});
-        setRoleChoices({});
-        setNewContacts({});
+        // Only what this request carried is cleared: an answer given while it was in
+        // flight was not sent, and stays for the next Approve all.
+        const sent = new Set([
+          ...Object.keys(request.edits),
+          ...Object.keys(request.roleMatches),
+          ...Object.keys(request.newContacts ?? {}),
+        ]);
+        setEdits((prev) => without(prev, sent));
+        setRoleChoices((prev) => without(prev, sent));
+        setNewContacts((prev) => without(prev, sent));
         const created = result.createdContacts ?? [];
         const said = [
           result.written.length ? `Written to Salesforce: ${result.written.map(labelOf).join(", ")}.` : "",
@@ -250,8 +264,11 @@ export default function DealView({
   const askNextByField = new Map(detail.askNext.map((item) => [item.fieldKey, item.question]));
   const scopeName = letter ? letterLabel(letter) : gate;
 
-  // A new contact the AM has not finished: Approve all waits for it.
+  // A new contact the AM has not finished: Approve all waits for it. Only for a role still
+  // waiting: a draft for one settled meanwhile is not sent, so it must not block the rest.
+  const pendingRoles = new Set(pendingRoleFields(fields).map((field) => field.key));
   const contactProblem = Object.entries(newContacts)
+    .filter(([key]) => pendingRoles.has(key))
     .map(([key, contact]) => ({ key, problem: newContactProblem(contact) }))
     .find((entry) => entry.problem !== null);
 

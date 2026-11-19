@@ -117,8 +117,8 @@ export default function MeetingDetailPage() {
   // start: the recording that moment falls in opens there, until a part is picked by hand.
   const openingSecond = startSecondOf(searchParams);
   const opening = useMemo(
-    () => (openingSecond === null ? null : placeSecond(openingSecond, recordings, DEFAULT_RECORDING)),
-    [openingSecond, recordings],
+    () => (openingSecond === null ? null : placeSecond(openingSecond, recordings, DEFAULT_RECORDING, meeting?.recordings)),
+    [openingSecond, recordings, meeting?.recordings],
   );
   const selected =
     recordings.find((r) => r.id === (chosenRecordingId ?? opening?.recordingId)) ?? recordings[0] ?? null;

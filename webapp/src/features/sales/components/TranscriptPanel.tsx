@@ -115,7 +115,9 @@ export default function TranscriptPanel({
     const above = line.offsetTop < list.scrollTop;
     const below = line.offsetTop + line.offsetHeight > list.scrollTop + list.clientHeight;
     if (above || below) list.scrollTop = line.offsetTop - (list.clientHeight - line.offsetHeight) / 2;
-  }, [activeKey]);
+    // On the query too: a search that matches nothing replaces the list, and clearing it
+    // gives a fresh one back at the top, with the line being spoken unchanged.
+  }, [activeKey, query]);
 
   // 404 means this meeting has no TIMED transcript — it predates the resource name being
   // stored, so only the Drive document exists. Said plainly rather than as an error,

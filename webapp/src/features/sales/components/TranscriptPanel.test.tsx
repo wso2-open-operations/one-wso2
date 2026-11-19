@@ -87,21 +87,32 @@ describe("TranscriptPanel", () => {
 });
 
 // jsdom lays nothing out, so the list and its lines are given a geometry: a 300px-tall
-// list, lines 40px apart, each line's position taken from a data-line index set on it.
+// list (the element holding the line buttons), lines 40px apart, each line's position
+// taken from a data-line index set on it, or from `placed` by its text for a line that is
+// rendered afresh and cannot be tagged in time.
 const geometry = (proto: object, name: string, get: (el: HTMLElement) => number) =>
   Object.defineProperty(proto, name, { configurable: true, get() { return get(this as HTMLElement); } });
-const lineIndex = (el: HTMLElement) => Number(el.dataset.line ?? -1);
+const placed = new Map<string, number>();
+const lineIndex = (el: HTMLElement) =>
+  Number(el.dataset.line ?? [...placed].find(([text]) => el.textContent?.includes(text))?.[1] ?? -1);
 
 describe("TranscriptPanel follows the recording", () => {
+  const mocked = ["clientHeight", "offsetHeight", "offsetTop"];
+  let originals: Array<PropertyDescriptor | undefined> = [];
   beforeEach(() => {
-    geometry(HTMLElement.prototype, "clientHeight", (el) => (el.getAttribute("data-list") ? 300 : 40));
+    originals = mocked.map((name) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, name));
+    geometry(HTMLElement.prototype, "clientHeight", (el) => (el.querySelector("button") ? 300 : 40));
     geometry(HTMLElement.prototype, "offsetHeight", () => 40);
     geometry(HTMLElement.prototype, "offsetTop", (el) => (lineIndex(el) >= 0 ? lineIndex(el) * 40 : 0));
   });
+  // jsdom's own accessors come back, so a later test reads its values and not undefined.
   afterEach(() => {
-    for (const name of ["clientHeight", "offsetHeight", "offsetTop"]) {
-      delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
-    }
+    mocked.forEach((name, i) => {
+      const original = originals[i];
+      if (original) Object.defineProperty(HTMLElement.prototype, name, original);
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+    });
+    placed.clear();
   });
 
   const spoken = [
@@ -112,13 +123,13 @@ describe("TranscriptPanel follows the recording", () => {
   const panel = (currentTime: number) => (
     <TranscriptPanel sections={[section(spoken)]} selectedRecordingId={1} currentTime={currentTime} onSeek={() => {}} />
   );
-  /** The scrolling list (the panel's second child, after the search box) and its lines, tagged by index. */
+  /** The scrolling list: the panel's second child, after the search box. */
+  const listOf = (container: HTMLElement) => container.firstElementChild?.lastElementChild as HTMLElement;
+  /** The list and its lines, tagged by index. */
   const tag = (container: HTMLElement) => {
     const lines = screen.getAllByRole("button");
     lines.forEach((line, i) => line.setAttribute("data-line", String(i)));
-    const list = container.firstElementChild?.lastElementChild as HTMLElement;
-    list.setAttribute("data-list", "1");
-    return { list, lines };
+    return { list: listOf(container), lines };
   };
 
   it("marks the line being spoken, and leaves the list alone while it is in view", () => {
@@ -139,5 +150,19 @@ describe("TranscriptPanel follows the recording", () => {
     rerender(panel(770));
     // 20 * 40 = 800px down; centred in a 300px window holding a 40px line.
     expect(list.scrollTop).toBe(800 - (300 - 40) / 2);
+  });
+
+  it("brings the line being spoken back into view once a search is cleared", async () => {
+    // The third line sits well below the window, wherever it is rendered.
+    placed.set("Great news.", 20);
+    const { container } = render(panel(770));
+    expect(listOf(container).scrollTop).toBe(800 - (300 - 40) / 2);
+
+    // A search matching nothing replaces the list; clearing it gives a fresh one, at the top.
+    const search = screen.getByRole("searchbox", { name: "Search in transcript" });
+    await userEvent.type(search, "zzz");
+    expect(screen.getByText(/Nothing matches/)).toBeInTheDocument();
+    await userEvent.clear(search);
+    expect(listOf(container).scrollTop).toBe(800 - (300 - 40) / 2);
   });
 });

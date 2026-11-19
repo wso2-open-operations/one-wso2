@@ -85,6 +85,34 @@ describe("explainProposal", () => {
       "Salesforce now holds Lars Haugen, changed since this was settled; the calls heard Ingrid Solberg, and there is nothing to approve.",
     );
     expect(explainProposal(movedOn, detail())).not.toContain("It matches what Salesforce has, so there is nothing to approve.");
+
+    // A role is the same person by Contact: Salesforce holds the name alone, the calls add a title.
+    const heldRole = field({
+      kind: "role",
+      salesforceValue: { contactId: "003A", name: "Ingrid Solberg" },
+      proposal: {
+        value: { name: "Ingrid Solberg", title: "CFO", suggestedContactId: "003A", candidates: [] },
+        rationale: null,
+        confidence: 0.9,
+        evidence: [email],
+        pending: false,
+      },
+    });
+    expect(explainProposal(heldRole, detail())).toContain("It matches what Salesforce has, so there is nothing to approve.");
+    const otherPerson = field({
+      kind: "role",
+      salesforceValue: { contactId: "003B", name: "Ingrid Solberg" },
+      proposal: {
+        value: { name: "Ingrid Solberg", title: "CFO", suggestedContactId: "003A", candidates: [] },
+        rationale: null,
+        confidence: 0.9,
+        evidence: [email],
+        pending: false,
+      },
+    });
+    expect(explainProposal(otherPerson, detail())).toContain(
+      "Salesforce now holds Ingrid Solberg, changed since this was settled; the calls heard Ingrid Solberg (CFO), and there is nothing to approve.",
+    );
   });
 
   it("explains a role's match, or why there is none", () => {
@@ -114,7 +142,7 @@ describe("explainProposal", () => {
       "No quote backs this. It comes from the AI's reading of the conversation as a whole.",
       "The AI's confidence is medium (70%).",
       "Salesforce has nothing for this field, so the suggestion would fill it.",
-      "Only you confirm this field. The AI never proposes Yes on it, so check a suggestion against the customer's words.",
+      "Only you confirm this field. Check a suggestion against the customer's own words before approving.",
     ]);
   });
 });
