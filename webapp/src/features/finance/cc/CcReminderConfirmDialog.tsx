@@ -21,19 +21,8 @@ import { useId } from "react";
 import type { CcCardLeadCompliance } from "./ccTypes";
 import { describeReminderConfirmation } from "./ccUiText";
 
-/**
- * Asks before a card lead's reminder email goes out.
- *
- * Shaped like the rule delete dialog beside it rather than like the shared
- * confirmation: the two sit one click apart in the same app, so they are built
- * the same way — sized to their text instead of the full width, and a plain
- * Cancel against a filled button naming the action.
- *
- * Unlike that delete, this closes as soon as it is confirmed rather than
- * holding while the request runs. The send reports itself on the row it came
- * from, which keeps its spinner and its sent count either way, and the lock
- * behind that row is what stops a second send — not this dialog staying up.
- */
+/** Asks before a card lead's reminder email goes out, calling `onConfirm` with
+ *  the lead when it is confirmed and closing either way. */
 export function CcReminderConfirmDialog({
   lead,
   dateFrom,

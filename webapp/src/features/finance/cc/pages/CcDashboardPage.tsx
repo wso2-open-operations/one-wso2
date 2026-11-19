@@ -803,9 +803,7 @@ function CardLeadComplianceTable({
   const items = query.data ?? [];
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (key: string) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
-  // The lead awaiting confirmation, or null for no dialog. The row is held here
-  // rather than re-read while the dialog renders, so a refetch behind it cannot
-  // change who the text names between opening it and confirming.
+  // Lead awaiting send confirmation; null when the dialog is closed.
   const [confirming, setConfirming] = useState<CcCardLeadCompliance | null>(null);
   const { showSuccess, showError } = useNotifications();
   const reminder = useCcCardLeadReminder();
@@ -1023,10 +1021,6 @@ function CardLeadComplianceTable({
         }}
         labelRowsPerPage="Rows per page"
       />
-      {/* Dismissing only clears the row held above, so nothing is left behind for
-          the next open. `emailReminder` is unchanged and still claims the in-flight
-          lock itself: the dialog governs whether a send is intended, the lock
-          whether one is already away. */}
       <CcReminderConfirmDialog
         lead={confirming}
         dateFrom={dateFrom}

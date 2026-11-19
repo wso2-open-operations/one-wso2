@@ -671,27 +671,30 @@ describe("the card-lead grouping", () => {
   // to, so the dialog's wording is checked against the request that follows it
   // rather than against the period dropdown.
   it("names the lead and the window, and both are what goes up", async () => {
-    await groupByCardLead();
-    await userEvent.click(screen.getByRole("combobox", { name: "Period" }));
-    await userEvent.click(screen.getByRole("option", { name: "Last 6 months" }));
+    // Pinned so the date can be asserted as a literal: six months back from
+    // here is 19 May 2026, which is both what the dialog says and what is sent.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 10, 19));
+    try {
+      await groupByCardLead();
+      await userEvent.click(screen.getByRole("combobox", { name: "Period" }));
+      await userEvent.click(screen.getByRole("option", { name: "Last 6 months" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+      await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
 
-    const dialogText = (await screen.findByRole("dialog")).textContent ?? "";
-    expect(dialogText).toContain("Lead Person (lead@wso2.com)");
-    expect(dialogText).toContain("copying the card holders with outstanding items");
+      const dialogText = (await screen.findByRole("dialog")).textContent ?? "";
+      expect(dialogText).toContain("Lead Person (lead@wso2.com)");
+      expect(dialogText).toContain("19 May 2026");
+      expect(dialogText).toContain("copying the card holders with outstanding items");
 
-    await confirmSend();
-    await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
+      await confirmSend();
+      await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
 
-    expect(reminderCalls[0].leadEmail).toBe("lead@wso2.com");
-    const sentFrom = reminderCalls[0].dateFrom as string;
-    const [year, month, day] = sentFrom.split("-").map(Number);
-    expect(dialogText).toContain(
-      new Intl.DateTimeFormat("en-UK", { day: "2-digit", month: "short", year: "numeric" }).format(
-        new Date(year, month - 1, day),
-      ),
-    );
+      expect(reminderCalls[0].leadEmail).toBe("lead@wso2.com");
+      expect(reminderCalls[0].dateFrom).toBe("2026-05-19");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reports a failed send rather than leaving the reader thinking it went", async () => {

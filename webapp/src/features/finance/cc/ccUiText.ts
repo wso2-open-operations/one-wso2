@@ -70,10 +70,10 @@ export function describeRuleError(error: unknown): string {
   return ruleWording(describeError(error));
 }
 
-/** A date as the reminder dialog spells it: "19 May 2026". Built from the three
- *  fields rather than `new Date(iso)`, which reads a bare ISO date as UTC midnight
- *  and so lands on the day before anywhere west of Greenwich. */
+/** An ISO date as the reminder dialog spells it: "19 May 2026". */
 function spellIsoDate(iso: string): string {
+  // Field by field, not `new Date(iso)`: that reads a bare ISO date as UTC
+  // midnight, which is the day before west of Greenwich.
   const [year, month, day] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("en-UK", { day: "2-digit", month: "short", year: "numeric" }).format(
     new Date(year, month - 1, day),
@@ -81,19 +81,12 @@ function spellIsoDate(iso: string): string {
 }
 
 /**
- * What the dialog asks before a card lead's reminder email goes out, as the two
- * halves of "An email goes to <recipient> <scope>" — the lead is emphasised in
- * the dialog, as the rule delete beside it emphasises the supplier, so the one
- * thing worth checking before sending is the one thing that stands out.
+ * The reminder confirmation's title, and its sentence as the two halves of
+ * "An email goes to <recipient> <scope>", the dialog emphasising the recipient
+ * between them.
  *
- * The period is taken from the `dateFrom` the request itself carries rather than
- * from the period dropdown's label, so the dialog cannot name a window the email
- * was not scoped to. No `dateFrom` is the "All time" case, which sends no lower
- * bound at all.
- *
- * The card holders copied on the email are named only as a group: the recipient
- * list is read from the backlog when the mail is composed, so this screen does not
- * hold it and cannot list them. One sentence, as the other confirmations are.
+ * @param lead - The card lead the reminder would go to.
+ * @param dateFrom - Start of the window the mail is scoped to; absent for all time.
  *
  * Pinned word for word by `ccUiText.test.ts`, so a change to any of it is deliberate.
  */
@@ -101,9 +94,13 @@ export function describeReminderConfirmation(
   lead: { leadName: string; leadEmail: string },
   dateFrom?: string,
 ): { title: string; recipient: string; scope: string } {
+  // `dateFrom` is what the request carries, so the window named here cannot be
+  // one the mail was not scoped to.
   const period = dateFrom
     ? `unsubmitted transactions from ${spellIsoDate(dateFrom)} onwards`
     : "every unsubmitted transaction on record";
+  // Copied card holders are named as a group: that list is resolved from the
+  // backlog at send time and never reaches this screen.
   return {
     title: "Send this reminder?",
     recipient: lead.leadName ? `${lead.leadName} (${lead.leadEmail})` : lead.leadEmail,
