@@ -40,7 +40,6 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ArrowUpRightIcon, ChevronDownIcon, ChevronUpIcon, MailIcon } from "@wso2/oxygen-ui-icons-react";
-import ConfirmationDialog, { type ConfirmationContent } from "@components/confirmation-dialog/ConfirmationDialog";
 import { isCcBackendConfigured } from "@config/apiConfig";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import FinanceShell from "../../components/FinanceShell";
@@ -59,7 +58,7 @@ import {
   type CcCardHolderCompliance,
   type CcCardLeadCompliance,
 } from "../ccTypes";
-import { describeReminderConfirmation } from "../ccUiText";
+import { CcReminderConfirmDialog } from "../CcReminderConfirmDialog";
 import {
   CC_BREAKDOWN_MONTHS,
   CC_GRANULARITIES,
@@ -861,16 +860,6 @@ function CardLeadComplianceTable({
     return <Note>No pending transactions for any card lead in this range.</Note>;
   }
 
-  // Dismissing only clears this, so nothing is left behind for the next open.
-  // `emailReminder` is unchanged and still claims the in-flight lock itself: the
-  // dialog governs whether a send is intended, the lock whether one is already away.
-  const confirmation: ConfirmationContent | null = confirming
-    ? {
-        ...describeReminderConfirmation(confirming, dateFrom),
-        confirmAction: () => void emailReminder(confirming),
-      }
-    : null;
-
   return (
     <Box sx={{ overflowX: "auto" }}>
       <Table size="small" sx={{ mt: 2 }}>
@@ -1034,7 +1023,16 @@ function CardLeadComplianceTable({
         }}
         labelRowsPerPage="Rows per page"
       />
-      <ConfirmationDialog content={confirmation} onClose={() => setConfirming(null)} />
+      {/* Dismissing only clears the row held above, so nothing is left behind for
+          the next open. `emailReminder` is unchanged and still claims the in-flight
+          lock itself: the dialog governs whether a send is intended, the lock
+          whether one is already away. */}
+      <CcReminderConfirmDialog
+        lead={confirming}
+        dateFrom={dateFrom}
+        onConfirm={(lead) => void emailReminder(lead)}
+        onClose={() => setConfirming(null)}
+      />
     </Box>
   );
 }

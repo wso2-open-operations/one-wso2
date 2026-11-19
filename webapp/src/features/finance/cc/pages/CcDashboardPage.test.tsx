@@ -436,7 +436,7 @@ describe("the card-lead grouping", () => {
 
   // The button only asks now; the send goes out when the dialog is confirmed.
   const confirmSend = async () => {
-    await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Send reminder" }));
   };
 
   it("swaps the card-holder rows for one row per card lead", async () => {
@@ -640,7 +640,7 @@ describe("the card-lead grouping", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
 
-    expect(await screen.findByRole("button", { name: "Confirm" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Send reminder" })).toBeInTheDocument();
     expect(sendReminder).not.toHaveBeenCalled();
   });
 
@@ -664,7 +664,7 @@ describe("the card-lead grouping", () => {
     await confirmSend();
 
     await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send reminder" })).not.toBeInTheDocument();
   });
 
   // The point of naming the window is that it is the window the mail is scoped
