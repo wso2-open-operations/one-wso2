@@ -42,14 +42,14 @@ export function CcReminderConfirmDialog({
 
   if (!lead) return null;
 
-  const { title, recipient, scope } = describeReminderConfirmation(lead, dateFrom);
+  const { title, before, recipient, after } = describeReminderConfirmation(lead, dateFrom);
 
   return (
     <Dialog open onClose={onClose} aria-labelledby={titleId}>
       <DialogTitle id={titleId}>{title}</DialogTitle>
       <DialogContent>
         <DialogContentText>
-          An email goes to <strong>{recipient}</strong> {scope}
+          {before} <strong>{recipient}</strong> {after}
         </DialogContentText>
       </DialogContent>
       <DialogActions>

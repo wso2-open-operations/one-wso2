@@ -77,9 +77,9 @@ describe("ruleWording", () => {
 // so what it says about the recipient and the window is pinned here.
 describe("describeReminderConfirmation", () => {
   const lead = { leadName: "Yukthi Hewagamage", leadEmail: "yukthi@wso2.com" };
-  // What the dialog renders, with the recipient emphasised between the two halves.
-  const sentence = (parts: { recipient: string; scope: string }) =>
-    `An email goes to ${parts.recipient} ${parts.scope}`;
+  // What the dialog renders, the recipient set apart between the other two parts.
+  const sentence = (parts: { before: string; recipient: string; after: string }) =>
+    `${parts.before} ${parts.recipient} ${parts.after}`;
 
   it("names the lead and the date the window starts", () => {
     const parts = describeReminderConfirmation(lead, "2026-05-19");
@@ -93,8 +93,8 @@ describe("describeReminderConfirmation", () => {
 
   it("says there is no lower bound when the period is All time", () => {
     const parts = describeReminderConfirmation(lead);
-    expect(parts.scope).toContain("every unsubmitted transaction on record");
-    expect(parts.scope).not.toContain("onwards");
+    expect(parts.after).toContain("every unsubmitted transaction on record");
+    expect(parts.after).not.toContain("onwards");
   });
 
   it("falls back to the email for a lead master data holds no name for", () => {
@@ -106,12 +106,12 @@ describe("describeReminderConfirmation", () => {
   it("reads the date as a local one, not as UTC", () => {
     // A bare ISO date through `new Date(iso)` is UTC midnight, which is the day
     // before in any negative offset — the dialog would name the wrong start date.
-    expect(describeReminderConfirmation(lead, "2026-01-01").scope).toContain("01 Jan 2026");
+    expect(describeReminderConfirmation(lead, "2026-01-01").after).toContain("01 Jan 2026");
   });
 
   it("always says the copied card holders are not listed here", () => {
     for (const dateFrom of ["2026-05-19", undefined]) {
-      expect(describeReminderConfirmation(lead, dateFrom).scope).toContain(
+      expect(describeReminderConfirmation(lead, dateFrom).after).toContain(
         "copying the card holders with outstanding items",
       );
     }

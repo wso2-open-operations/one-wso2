@@ -81,19 +81,17 @@ function spellIsoDate(iso: string): string {
 }
 
 /**
- * The reminder confirmation's title, and its sentence as the two halves of
- * "An email goes to <recipient> <scope>", the dialog emphasising the recipient
- * between them.
+ * The reminder confirmation's title, and its sentence as `before`, `recipient`
+ * and `after` — every word of it, split only so the recipient can be set apart
+ * from the rest when it is rendered.
  *
  * @param lead - The card lead the reminder would go to.
  * @param dateFrom - Start of the window the mail is scoped to; absent for all time.
- *
- * Pinned word for word by `ccUiText.test.ts`, so a change to any of it is deliberate.
  */
 export function describeReminderConfirmation(
   lead: { leadName: string; leadEmail: string },
   dateFrom?: string,
-): { title: string; recipient: string; scope: string } {
+): { title: string; before: string; recipient: string; after: string } {
   // `dateFrom` is what the request carries, so the window named here cannot be
   // one the mail was not scoped to.
   const period = dateFrom
@@ -103,7 +101,8 @@ export function describeReminderConfirmation(
   // backlog at send time and never reaches this screen.
   return {
     title: "Send this reminder?",
+    before: "An email goes to",
     recipient: lead.leadName ? `${lead.leadName} (${lead.leadEmail})` : lead.leadEmail,
-    scope: `about ${period}, copying the card holders with outstanding items.`,
+    after: `about ${period}, copying the card holders with outstanding items.`,
   };
 }
