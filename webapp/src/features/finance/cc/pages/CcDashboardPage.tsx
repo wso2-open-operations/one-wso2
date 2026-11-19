@@ -40,6 +40,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ArrowUpRightIcon, ChevronDownIcon, ChevronUpIcon, MailIcon } from "@wso2/oxygen-ui-icons-react";
+import ConfirmationDialog, { type ConfirmationContent } from "@components/confirmation-dialog/ConfirmationDialog";
 import { isCcBackendConfigured } from "@config/apiConfig";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import FinanceShell from "../../components/FinanceShell";
@@ -58,6 +59,7 @@ import {
   type CcCardHolderCompliance,
   type CcCardLeadCompliance,
 } from "../ccTypes";
+import { describeReminderConfirmation } from "../ccUiText";
 import {
   CC_BREAKDOWN_MONTHS,
   CC_GRANULARITIES,
@@ -802,6 +804,10 @@ function CardLeadComplianceTable({
   const items = query.data ?? [];
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (key: string) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  // The lead awaiting confirmation, or null for no dialog. The row is held here
+  // rather than re-read while the dialog renders, so a refetch behind it cannot
+  // change who the text names between opening it and confirming.
+  const [confirming, setConfirming] = useState<CcCardLeadCompliance | null>(null);
   const { showSuccess, showError } = useNotifications();
   const reminder = useCcCardLeadReminder();
   // In flight and already-sent counts both come from the module-scoped store,
@@ -854,6 +860,16 @@ function CardLeadComplianceTable({
   if (items.length === 0) {
     return <Note>No pending transactions for any card lead in this range.</Note>;
   }
+
+  // Dismissing only clears this, so nothing is left behind for the next open.
+  // `emailReminder` is unchanged and still claims the in-flight lock itself: the
+  // dialog governs whether a send is intended, the lock whether one is already away.
+  const confirmation: ConfirmationContent | null = confirming
+    ? {
+        ...describeReminderConfirmation(confirming, dateFrom),
+        confirmAction: () => void emailReminder(confirming),
+      }
+    : null;
 
   return (
     <Box sx={{ overflowX: "auto" }}>
@@ -934,7 +950,7 @@ function CardLeadComplianceTable({
                             // needs to be able to come back and chase the same lead
                             // again.
                             disabled={isUnassigned || sending}
-                            onClick={() => void emailReminder(lead)}
+                            onClick={() => setConfirming(lead)}
                             sx={{ p: 0.5 }}
                           >
                             {sending ? <CircularProgress size={14} /> : <MailIcon size={14} />}
@@ -1018,6 +1034,7 @@ function CardLeadComplianceTable({
         }}
         labelRowsPerPage="Rows per page"
       />
+      <ConfirmationDialog content={confirmation} onClose={() => setConfirming(null)} />
     </Box>
   );
 }

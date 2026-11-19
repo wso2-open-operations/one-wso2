@@ -69,3 +69,41 @@ export function ruleWording(message: string): string {
 export function describeRuleError(error: unknown): string {
   return ruleWording(describeError(error));
 }
+
+/** A date as the reminder dialog spells it: "19 May 2026". Built from the three
+ *  fields rather than `new Date(iso)`, which reads a bare ISO date as UTC midnight
+ *  and so lands on the day before anywhere west of Greenwich. */
+function spellIsoDate(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-UK", { day: "2-digit", month: "short", year: "numeric" }).format(
+    new Date(year, month - 1, day),
+  );
+}
+
+/**
+ * What the dialog asks before a card lead's reminder email goes out.
+ *
+ * The period is taken from the `dateFrom` the request itself carries rather than
+ * from the period dropdown's label, so the dialog cannot name a window the email
+ * was not scoped to. No `dateFrom` is the "All time" case, which sends no lower
+ * bound at all.
+ *
+ * The card holders copied on the email are named only as a group: the recipient
+ * list is read from the backlog when the mail is composed, so this screen does not
+ * hold it and cannot list them. One sentence, as the other confirmations are.
+ *
+ * Pinned word for word by `ccUiText.test.ts`, so a change to any of it is deliberate.
+ */
+export function describeReminderConfirmation(
+  lead: { leadName: string; leadEmail: string },
+  dateFrom?: string,
+): { title: string; text: string } {
+  const recipient = lead.leadName ? `${lead.leadName} (${lead.leadEmail})` : lead.leadEmail;
+  const period = dateFrom
+    ? `unsubmitted transactions from ${spellIsoDate(dateFrom)} onwards`
+    : "every unsubmitted transaction on record";
+  return {
+    title: "Send this reminder?",
+    text: `An email goes to ${recipient} about ${period}, copying the card holders with outstanding items.`,
+  };
+}

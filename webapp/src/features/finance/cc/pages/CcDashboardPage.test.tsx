@@ -434,6 +434,11 @@ describe("the card-lead grouping", () => {
     await userEvent.click(screen.getByRole("option", { name: "Group by: Card Lead" }));
   };
 
+  // The button only asks now; the send goes out when the dialog is confirmed.
+  const confirmSend = async () => {
+    await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+  };
+
   it("swaps the card-holder rows for one row per card lead", async () => {
     await groupByCardLead();
     const row = screen.getByText("Lead Person").closest("tr") as HTMLElement;
@@ -455,6 +460,7 @@ describe("the card-lead grouping", () => {
     await groupByCardLead();
 
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await confirmSend();
 
     await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
     expect(reminderCalls[0].leadEmail).toBe("lead@wso2.com");
@@ -465,6 +471,7 @@ describe("the card-lead grouping", () => {
     await groupByCardLead();
 
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await confirmSend();
 
     await waitFor(() =>
       expect(notify.showSuccess).toHaveBeenCalledWith("Reminder sent to Lead Person."),
@@ -477,11 +484,13 @@ describe("the card-lead grouping", () => {
     await groupByCardLead();
 
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await confirmSend();
     await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
 
     const again = await screen.findByRole("button", { name: "Email another reminder" });
     expect(again).toBeEnabled();
     await userEvent.click(again);
+    await confirmSend();
 
     await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(2));
     expect(reminderCalls.map((call) => call.leadEmail)).toEqual(["lead@wso2.com", "lead@wso2.com"]);
@@ -509,7 +518,9 @@ describe("the card-lead grouping", () => {
     await groupByCardLead();
 
     await userEvent.click(screen.getAllByRole("button", { name: "Email reminder" })[0]);
+    await confirmSend();
     await userEvent.click(screen.getAllByRole("button", { name: "Email reminder" })[1]);
+    await confirmSend();
     await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(2));
 
     // The second row's send has come back, so it offers a follow-up...
@@ -540,6 +551,7 @@ describe("the card-lead grouping", () => {
     await groupByCardLead();
 
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await confirmSend();
     await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
 
     // Away to Card Holder and back, with the request still open.
@@ -572,6 +584,7 @@ describe("the card-lead grouping", () => {
     );
     await groupByCardLead();
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await confirmSend();
     await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
 
     // Off the dashboard and back, with the request still open.
@@ -589,6 +602,7 @@ describe("the card-lead grouping", () => {
   it("remembers the follow-up count across a Group by switch", async () => {
     await groupByCardLead();
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await confirmSend();
     await screen.findByRole("button", { name: "Email another reminder" });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
@@ -617,11 +631,75 @@ describe("the card-lead grouping", () => {
     expect(row).not.toHaveTextContent("Unassigned");
   });
 
+  // The reminder goes to a card lead, who is outside the finance team, and it
+  // cannot be recalled once it is away. The in-flight lock below is no help
+  // here: it tells a double-click from a single click, not an intended click
+  // from an accidental one.
+  it("sends nothing on the click itself, only asks", async () => {
+    await groupByCardLead();
+
+    await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+
+    expect(await screen.findByRole("button", { name: "Confirm" })).toBeInTheDocument();
+    expect(sendReminder).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the dialog is dismissed, and leaves the row as it was", async () => {
+    await groupByCardLead();
+
+    await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(sendReminder).not.toHaveBeenCalled();
+    // Nothing is left behind: the row still offers a first reminder rather than
+    // a follow-up, and is still clickable.
+    expect(screen.getByRole("button", { name: "Email reminder" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Email another reminder" })).not.toBeInTheDocument();
+  });
+
+  it("sends exactly one reminder on confirming, and closes", async () => {
+    await groupByCardLead();
+
+    await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await confirmSend();
+
+    await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument();
+  });
+
+  // The point of naming the window is that it is the window the mail is scoped
+  // to, so the dialog's wording is checked against the request that follows it
+  // rather than against the period dropdown.
+  it("names the lead and the window, and both are what goes up", async () => {
+    await groupByCardLead();
+    await userEvent.click(screen.getByRole("combobox", { name: "Period" }));
+    await userEvent.click(screen.getByRole("option", { name: "Last 6 months" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+
+    const dialogText = (await screen.findByRole("dialog")).textContent ?? "";
+    expect(dialogText).toContain("Lead Person (lead@wso2.com)");
+    expect(dialogText).toContain("copying the card holders with outstanding items");
+
+    await confirmSend();
+    await waitFor(() => expect(sendReminder).toHaveBeenCalledTimes(1));
+
+    expect(reminderCalls[0].leadEmail).toBe("lead@wso2.com");
+    const sentFrom = reminderCalls[0].dateFrom as string;
+    const [year, month, day] = sentFrom.split("-").map(Number);
+    expect(dialogText).toContain(
+      new Intl.DateTimeFormat("en-UK", { day: "2-digit", month: "short", year: "numeric" }).format(
+        new Date(year, month - 1, day),
+      ),
+    );
+  });
+
   it("reports a failed send rather than leaving the reader thinking it went", async () => {
     sendReminder.mockRejectedValueOnce(new Error("boom"));
     await groupByCardLead();
 
     await userEvent.click(screen.getByRole("button", { name: "Email reminder" }));
+    await confirmSend();
 
     await waitFor(() => expect(notify.showError).toHaveBeenCalled());
     expect(notify.showSuccess).not.toHaveBeenCalled();
