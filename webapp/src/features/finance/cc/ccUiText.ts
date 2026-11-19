@@ -81,7 +81,10 @@ function spellIsoDate(iso: string): string {
 }
 
 /**
- * What the dialog asks before a card lead's reminder email goes out.
+ * What the dialog asks before a card lead's reminder email goes out, as the two
+ * halves of "An email goes to <recipient> <scope>" — the lead is emphasised in
+ * the dialog, as the rule delete beside it emphasises the supplier, so the one
+ * thing worth checking before sending is the one thing that stands out.
  *
  * The period is taken from the `dateFrom` the request itself carries rather than
  * from the period dropdown's label, so the dialog cannot name a window the email
@@ -97,13 +100,13 @@ function spellIsoDate(iso: string): string {
 export function describeReminderConfirmation(
   lead: { leadName: string; leadEmail: string },
   dateFrom?: string,
-): { title: string; text: string } {
-  const recipient = lead.leadName ? `${lead.leadName} (${lead.leadEmail})` : lead.leadEmail;
+): { title: string; recipient: string; scope: string } {
   const period = dateFrom
     ? `unsubmitted transactions from ${spellIsoDate(dateFrom)} onwards`
     : "every unsubmitted transaction on record";
   return {
     title: "Send this reminder?",
-    text: `An email goes to ${recipient} about ${period}, copying the card holders with outstanding items.`,
+    recipient: lead.leadName ? `${lead.leadName} (${lead.leadEmail})` : lead.leadEmail,
+    scope: `about ${period}, copying the card holders with outstanding items.`,
   };
 }

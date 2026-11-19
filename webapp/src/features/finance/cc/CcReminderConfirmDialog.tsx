@@ -53,13 +53,15 @@ export function CcReminderConfirmDialog({
 
   if (!lead) return null;
 
-  const { title, text } = describeReminderConfirmation(lead, dateFrom);
+  const { title, recipient, scope } = describeReminderConfirmation(lead, dateFrom);
 
   return (
     <Dialog open onClose={onClose} aria-labelledby={titleId}>
       <DialogTitle id={titleId}>{title}</DialogTitle>
       <DialogContent>
-        <DialogContentText>{text}</DialogContentText>
+        <DialogContentText>
+          An email goes to <strong>{recipient}</strong> {scope}
+        </DialogContentText>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} color="inherit">
