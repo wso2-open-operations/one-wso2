@@ -29,6 +29,8 @@ import { umtPaths } from "../lib/umtPaths";
 
 const state = vi.hoisted(() => ({
   uat: undefined as unknown,
+  // What a fresh UAT fetch returns; undefined means unchanged.
+  uatNow: undefined as unknown,
   create: vi.fn(async () => undefined),
 }));
 
@@ -65,7 +67,7 @@ vi.mock("../api/useUmtUpdates", () => ({
     isFetching: false,
     isPending: lifecycleState === "UATStaging" ? false : state.uat === undefined,
     error: null,
-    refetch: () => {},
+    refetch: async () => ({ isSuccess: true, data: state.uatNow ?? state.uat, dataUpdatedAt: Date.now() }),
   }),
 }));
 
@@ -101,6 +103,7 @@ const createButton = () => screen.getByRole("button", { name: /Create Release Ch
 describe("UmtCreateReleaseChunkPage", () => {
   beforeEach(() => {
     state.create.mockClear();
+    state.uatNow = undefined;
   });
 
   // Selecting the row is what makes the two cases differ: with a selection in
@@ -151,6 +154,23 @@ describe("UmtCreateReleaseChunkPage", () => {
 
     expect(await screen.findByText("Cannot Promote Updates")).toBeInTheDocument();
     expect(state.create).not.toHaveBeenCalled();
+  });
+
+  it("checks against UAT as it is when Create is clicked, not as the page loaded it", async () => {
+    state.uat = {
+      recordsTotal: 1,
+      recordsFiltered: 1,
+      data: [{ id: 99, products: [{ product: { name: "wso2am", version: "4.2.0" } }] }],
+    };
+    state.uatNow = { recordsTotal: 0, recordsFiltered: 0, data: [] };
+    renderPage();
+
+    await selectTheUpdate();
+    await userEvent.click(createButton());
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^Create$/ }));
+
+    expect(screen.queryByText("Cannot Promote Updates")).not.toBeInTheDocument();
+    expect(state.create).toHaveBeenCalledWith([11]);
   });
 
   it("restores the selection kept in its history entry", () => {

@@ -93,6 +93,23 @@ describe("useUmtUpdatesByLifecycleState", () => {
     await waitFor(() => expect(authedGet).toHaveBeenCalledTimes(2));
   });
 
+  it("fetches again on every mount, although the app's client sets refetchOnMount: false", async () => {
+    authedGet.mockResolvedValue({ recordsTotal: 0, recordsFiltered: 0, data: [] });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnMount: false } } });
+    const Wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const first = renderHook(() => useUmtUpdatesByLifecycleState("UAT"), { wrapper: Wrapper });
+    await waitFor(() => expect(first.result.current.data).toBeDefined());
+    first.unmount();
+    expect(authedGet).toHaveBeenCalledTimes(1);
+
+    renderHook(() => useUmtUpdatesByLifecycleState("UAT"), { wrapper: Wrapper });
+
+    await waitFor(() => expect(authedGet).toHaveBeenCalledTimes(2));
+  });
+
   it("keeps each lifecycle state's result separate", async () => {
     authedGet.mockResolvedValue({ recordsTotal: 0, recordsFiltered: 0, data: [] });
     const Wrapper = wrapper();

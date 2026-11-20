@@ -201,8 +201,16 @@ function UmtCreateReleaseChunkForm() {
     const ids = new Set(selectedIds);
     return rows.filter((row) => ids.has(row.id));
   }, [rows, selectedIds]);
-  const canCreate = selectedUpdates.length > 0 && uatUpdates !== undefined && !createChunk.isPending;
+  const [busy, setBusy] = useState(false);
+  const canCreate = selectedUpdates.length > 0 && uatUpdates !== undefined && !busy;
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // UAT as the backend has it now, or undefined if the fetch fails.
+  async function fetchCurrentUatUpdates(): Promise<UmtUpdateSummary[] | undefined> {
+    const requestedAt = Date.now();
+    const result = await uat.refetch();
+    return result.isSuccess && result.dataUpdatedAt >= requestedAt ? result.data.data : undefined;
+  }
 
   async function submitCreate(updateIds: number[]) {
     try {
@@ -225,21 +233,37 @@ function UmtCreateReleaseChunkForm() {
 
   // A selection that collides with an update already in UAT is refused before
   // the confirmation, so nobody confirms a chunk that cannot be created.
-  function handleCreateClick() {
-    if (!canCreate || uatUpdates === undefined || refuseCollisions(uatUpdates)) return;
-    setConfirmOpen(true);
+  async function handleCreateClick() {
+    if (!canCreate) return;
+    setBusy(true);
+    try {
+      const currentUatUpdates = await fetchCurrentUatUpdates();
+      if (currentUatUpdates === undefined || refuseCollisions(currentUatUpdates)) return;
+      setConfirmOpen(true);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  // The UATStaging and UAT lists can change while the confirmation is open,
-  // for example when a retry of a failed load finishes, so the selection is
-  // checked again before creating.
-  function handleConfirmCreate() {
-    if (!canCreate || uatUpdates === undefined) return;
-    if (refuseCollisions(uatUpdates)) {
-      setConfirmOpen(false);
-      return;
+  // UAT can change while the confirmation is open, so check again. The page's
+  // UAT error is hidden behind the dialog, so a failed fetch shows a banner.
+  async function handleConfirmCreate() {
+    if (!canCreate) return;
+    setBusy(true);
+    try {
+      const currentUatUpdates = await fetchCurrentUatUpdates();
+      if (currentUatUpdates === undefined) {
+        showError("Couldn't check the updates already in UAT. Try again.");
+        return;
+      }
+      if (refuseCollisions(currentUatUpdates)) {
+        setConfirmOpen(false);
+        return;
+      }
+      await submitCreate(selectedUpdates.map((row) => row.id));
+    } finally {
+      setBusy(false);
     }
-    void submitCreate(selectedUpdates.map((row) => row.id));
   }
 
   const columns: DataGrid.GridColDef<UmtUpdateSummary>[] = [
@@ -412,6 +436,9 @@ function UmtCreateReleaseChunkForm() {
             keepNonExistentRowsSelected
             disableRowSelectionExcludeModel
             rowSelectionModel={gridSelectionModel}
+            // Locked while Create checks the selection, so it cannot change
+            // under the check.
+            isRowSelectable={() => !busy}
             onRowSelectionModelChange={(model) => setSelectedIds([...model.ids].map(Number))}
           />
         </Box>
@@ -421,8 +448,8 @@ function UmtCreateReleaseChunkForm() {
         <Button
           variant="contained"
           disabled={!canCreate}
-          loading={createChunk.isPending}
-          onClick={handleCreateClick}
+          loading={busy}
+          onClick={() => void handleCreateClick()}
         >
           Create Release Chunk
         </Button>
@@ -438,9 +465,9 @@ function UmtCreateReleaseChunkForm() {
         open={confirmOpen}
         updates={selectedUpdates}
         columns={columns.filter((column) => column.field !== "action")}
-        busy={createChunk.isPending}
+        busy={busy}
         onCancel={() => setConfirmOpen(false)}
-        onConfirm={handleConfirmCreate}
+        onConfirm={() => void handleConfirmCreate()}
       />
     </Stack>
   );

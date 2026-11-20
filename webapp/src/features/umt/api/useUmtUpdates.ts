@@ -81,6 +81,9 @@ export function useUmtUpdatesByLifecycleState(lifecycleState: UmtLifecycleState)
         umtServiceUrls.updatesByLifecycleState(lifecycleState),
         await getAccessToken(),
       ),
+    // The app-wide client disables it. Releasing or removing a chunk changes
+    // these lists while this page is unmounted.
+    refetchOnMount: true,
     retry: httpRetry,
   });
 
