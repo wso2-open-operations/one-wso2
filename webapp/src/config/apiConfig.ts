@@ -1566,6 +1566,55 @@ export function isCsmConfigured(): boolean {
   return Boolean(csmUrl);
 }
 
+/**
+ * An address that starts with an explicit http:// or https://. Declared before
+ * otherAppUrls, whose initializer reads it through toLinkUrl.
+ */
+const ABSOLUTE_HTTP_URL = /^https?:\/\//i;
+
+/**
+ * Addresses of the WSO2 tools One WSO2 links to but does not host, keyed by the
+ * app ids in `@constants/otherApps`. Only http(s) addresses are kept; an app with
+ * no usable address is left out of the rail.
+ */
+export const otherAppUrls: Readonly<Record<string, string>> = readOtherAppUrls(
+  window.config?.ONE_WSO2_OTHER_APP_URLS,
+);
+
+/**
+ * Keeps the entries of `configured` whose value is an http(s) URL.
+ *
+ * @param configured - The raw `ONE_WSO2_OTHER_APP_URLS` value, if any.
+ * @returns App id → trimmed URL, for the usable entries only.
+ */
+export function readOtherAppUrls(configured: unknown): Record<string, string> {
+  if (!configured || typeof configured !== "object") return {};
+  const urls: Record<string, string> = {};
+  for (const [id, value] of Object.entries(configured)) {
+    const url = toLinkUrl(value);
+    if (url) urls[id] = url;
+  }
+  return urls;
+}
+
+/**
+ * A value that can be written into a link: a trimmed http(s) URL, or "" for
+ * anything else, including javascript: and data: values. The scheme must be
+ * followed by "//": `https:travel.example` parses as a URL, but the browser
+ * opens it as a path on One WSO2's own site.
+ */
+function toLinkUrl(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!ABSOLUTE_HTTP_URL.test(trimmed)) return "";
+  try {
+    const { protocol } = new URL(trimmed);
+    return protocol === "https:" || protocol === "http:" ? trimmed : "";
+  } catch {
+    return "";
+  }
+}
+
 // Infra Portal backend (infra-operations/apps/infra-portal/backend).
 // Same Choreo Bearer → x-jwt-assertion rewrite as leave. Empty string =
 // not configured; the placeholder (and later InfraShell) must not fire

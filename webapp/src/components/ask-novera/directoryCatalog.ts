@@ -59,7 +59,8 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import type { Capability } from "@constants/appMenu";
 import { isPreviewEnabled, type PreviewFeature } from "@config/previewFeatures";
-import { csmUrl, isacUrl, isCsmConfigured, isIsacConfigured } from "@config/apiConfig";
+import { csmUrl, isacUrl, isCsmConfigured, isIsacConfigured, otherAppUrls } from "@config/apiConfig";
+import { OTHER_APP_CATEGORY, OTHER_APPS, VPN_ONLY_SUFFIX } from "@constants/otherApps";
 
 /**
  * Represents a searchable app or portal entry within One App.
@@ -93,6 +94,14 @@ export interface DirectoryEntry {
   keywords: string[];
 }
 
+// Declared before DIRECTORY_CATALOG, whose initializer reads them through
+// otherAppDirectoryEntries.
+/** Text appended to an external tool's search hint. */
+const OPENS_IN_NEW_TAB_HINT = "Opens in a new tab";
+
+/** Text appended to the search hint of a tool reachable only on the VPN. */
+const VPN_ONLY_HINT = "needs the VPN";
+
 /**
  * Directory catalog containing all discoverable apps and portals in One App.
  */
@@ -119,6 +128,8 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "holiday",
       "apply",
       "balance",
+      // App Marketplace name
+      "leave app",
     ],
   },
   {
@@ -142,6 +153,10 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "eat",
       "canteen",
       "snack",
+      // App Marketplace name
+      "dinner on demand",
+      "menu and meals app",
+      "menu and meals",
     ],
   },
   {
@@ -204,6 +219,9 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "360",
       "cycle",
       "evaluation",
+      // App Marketplace name
+      "performance appraisal app",
+      "performance appraisal",
     ],
   },
   {
@@ -224,6 +242,8 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "band",
       "level",
       "ladder",
+      // App Marketplace name
+      "promotion app",
     ],
   },
   {
@@ -251,6 +271,8 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "leadership",
       "policies",
       "onboarding",
+      // App Marketplace name
+      "org chart app",
     ],
   },
   {
@@ -333,6 +355,8 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "bacs",
       "personal banking",
       "bank details",
+      // App Marketplace name
+      "banking app",
     ],
   },
   {
@@ -352,6 +376,8 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "dl",
       "groups",
       "email",
+      // App Marketplace name
+      "email group manager",
     ],
   },
   {
@@ -505,6 +531,8 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "card admin",
       "upload statement",
       "bank statements",
+      // App Marketplace name
+      "credit card expenses",
     ],
   },
   {
@@ -554,6 +582,8 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "new claim",
       "new expense",
       "submit claim",
+      // App Marketplace name
+      "expense claims app",
     ],
   },
   {
@@ -712,6 +742,8 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "sales library",
       "enablement",
       "competitors",
+      // App Marketplace name
+      "sales pitstop",
     ],
   },
   {
@@ -1123,6 +1155,9 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "engineering",
       "developer tools",
       "product engineering",
+      // App Marketplace name
+      "product download stats",
+      "product download stats - github",
     ],
   },
   {
@@ -1180,6 +1215,9 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "github connection",
       "infra portal",
       "github account",
+      // App Marketplace name
+      "github - repo creation request",
+      "repo creation request",
     ],
   },
   {
@@ -1458,7 +1496,45 @@ export const DIRECTORY_CATALOG: readonly DirectoryEntry[] = [
       "leaver",
     ],
   },
+  // Marketplace tools One WSO2 links to; only the ones with an address.
+  ...otherAppDirectoryEntries(),
 ];
+
+/**
+ * The Ask Novera entries for the marketplace tools One WSO2 links to: one per
+ * tool with an address in `urls`, opening it in a new tab. A tool is found by
+ * its One WSO2 label, its App Marketplace name and its keywords.
+ *
+ * @param urls - App id → address; defaults to `ONE_WSO2_OTHER_APP_URLS`.
+ * @returns The entries, in registry order; none for a tool with no address.
+ */
+export function otherAppDirectoryEntries(
+  urls: Readonly<Record<string, string>> = otherAppUrls,
+): DirectoryEntry[] {
+  return OTHER_APPS.flatMap((app) => {
+    const href = urls[app.id];
+    if (!href) return [];
+    const opens = app.vpnOnly ? `${OPENS_IN_NEW_TAB_HINT}; ${VPN_ONLY_HINT}` : OPENS_IN_NEW_TAB_HINT;
+    // A tool linked from its own rail group has a label worded for that group
+    // ("Open Sales Pitstop"); on its own, its marketplace name reads better.
+    const name = app.inOwnGroup ? app.marketplaceName : app.label;
+    return [
+      {
+        id: `other-app-${app.id}`,
+        title: app.vpnOnly ? `${name}${VPN_ONLY_SUFFIX}` : name,
+        label: `Open ${name}`,
+        hint: `${app.hint}. ${opens}.`,
+        href,
+        icon: app.icon,
+        category: OTHER_APP_CATEGORY[app.perspective],
+        tags: [app.marketplaceName, "App Marketplace"],
+        hasWebApp: true,
+        isExternal: true,
+        keywords: [...new Set([app.label.toLowerCase(), app.marketplaceName.toLowerCase(), ...app.keywords])],
+      },
+    ];
+  });
+}
 
 /**
  * Checks whether a given directory entry is permitted under the user's active capabilities and preview flags.

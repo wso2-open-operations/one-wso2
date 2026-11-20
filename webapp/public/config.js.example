@@ -184,6 +184,34 @@ window.config = {
   // choice or a favourite. When absent, the tile stays in its unbuilt state.
   // ONE_WSO2_CSM_URL: "<your-csm-url>",
 
+  // Addresses of WSO2 tools One WSO2 links to but does not host, keyed by app
+  // id (src/constants/otherApps.ts). Each one with an http(s) address gets a
+  // row, opened in a new tab, in an "Other apps" group at the end of its
+  // perspective's rail (Sales Pitstop's row goes in the Sales Pitstop group),
+  // and an Ask Novera search result found by its App Marketplace name.
+  // An app left out, or the whole key left out, shows nothing.
+  // ONE_WSO2_OTHER_APP_URLS: {
+  //   // People Ops
+  //   "people-app": "<url>",
+  //   // Finance
+  //   allocations: "<url>", netsuite: "<url>",
+  //   // Sales
+  //   salesforce: "<url>", "sales-pitstop": "<url>", "sales-insights-dashboard": "<url>",
+  //   // Knowledge
+  //   explorecs: "<url>", "cs-tools": "<url>", "cs-tooling-site": "<url>", "sa-site": "<url>",
+  //   // Engineering
+  //   "wso2-github": "<url>", "support-github": "<url>", nexus: "<url>",
+  //   "public-jenkins": "<url>", "support-jenkins": "<url>", "github-committership-form": "<url>",
+  //   "connector-store-docs": "<url>", "apim-site": "<url>", "support-portal-lite": "<url>",
+  //   // Infrastructure
+  //   "vpn-setup-guide": "<url>", "vpn-qr-code": "<url>", "guest-wifi": "<url>",
+  //   "network-printer-guide": "<url>", "diy-infra-portal": "<url>", "new-software-request": "<url>",
+  //   // Security and Compliance
+  //   "security-compliance-site": "<url>", "security-self-service-dashboard": "<url>",
+  //   // Me
+  //   travel: "<url>", "msl-payslip": "<url>", "hr-site": "<url>",
+  // },
+
   // Infra Portal backend. Privileges come from this backend's own /user-info
   // (987 employee / 762 approver / 123 admin), not from the People backend.
   // ONE_WSO2_INFRA_BACKEND_URL: "<your-infra-portal-backend-url>",

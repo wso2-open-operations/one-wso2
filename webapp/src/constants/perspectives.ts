@@ -21,6 +21,7 @@ import { csmUrl, isCsmConfigured, isIsacConfigured, isacUrl } from "@config/apiC
 import { isPreviewEnabled } from "@config/previewFeatures";
 import { CADO2_APPS } from "@constants/cado2Apps";
 import { ENGAGEMENT_APPS, MY_ENGAGEMENT_APPS } from "@constants/engagementApps";
+import { otherAppRow, otherAppsSections } from "@constants/otherApps";
 import {
   ArrowBigUpDash,
   AwardIcon,
@@ -536,6 +537,7 @@ const ME_SECTIONS: PerspectiveSection[] = [
   // Procurement: raising a purchase request is something any employee does.
   // With the flag off the group doesn't exist.
   ...(isPreviewEnabled("procurement") ? appsToSections(PROCUREMENT_APPS) : []),
+  ...otherAppsSections("me"),
 ];
 
 // Amplify — employees share official WSO2 LinkedIn posts and earn points;
@@ -684,7 +686,10 @@ const SALES_PITSTOP_SECTION: PerspectiveSection = {
   label: "Sales Pitstop",
   icon: SalesPitstopLogoIcon,
   alwaysGroup: true,
-  children: [{ id: "sales-library", label: "Ask Sales", icon: BookOpenIcon, path: SMART_SEARCH_LIBRARY_PATH }],
+  children: [
+    { id: "sales-library", label: "Ask Sales", icon: BookOpenIcon, path: SMART_SEARCH_LIBRARY_PATH },
+    ...otherAppRow("sales-pitstop"),
+  ],
 };
 
 const SALES_SECTIONS: PerspectiveSection[] = [
@@ -771,7 +776,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     access: true,
     path: "/people-ops",
     forwardsToFirstItem: true,
-    sections: PEOPLE_OPS_SECTIONS,
+    sections: [...PEOPLE_OPS_SECTIONS, ...otherAppsSections("people")],
   },
   // Submitting a claim and looking up your own stay under Me (see ME_SECTIONS)
   // — those are things you do for yourself. Deciding other people's claims is
@@ -824,6 +829,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
       // also the only group here that most readers never see at all, so
       // keeping it off the path to the screens they do use costs them nothing.
       ...appsToSections(FINANCE_MASTER_DATA_APPS),
+      ...otherAppsSections("finance"),
     ],
   },
   // Legal. Currently just a second entry point into Due Diligence (see the
@@ -911,7 +917,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     externallyGated: true,
     forwardsToFirstItem: true,
     path: "/sales",
-    sections: SALES_SECTIONS,
+    sections: [...SALES_SECTIONS, ...otherAppsSections("sales")],
   },
   // Knowledge, so far just Today I Learned's feed. Its own perspective rather
   // than nested under Me or People Ops: a company-wide feed is a destination
@@ -924,7 +930,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     access: true,
     path: "/knowledge",
     forwardsToFirstItem: true,
-    sections: KNOWLEDGE_SECTIONS,
+    sections: [...KNOWLEDGE_SECTIONS, ...otherAppsSections("knowledge")],
   },
   // Amplify, held behind its preview flag until the phase 1 pilot. Its landing
   // forwards to Celebrate, the first row everyone can see.
@@ -974,6 +980,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     sections: [
       ...appsToSections(DOWNLOAD_STATS_APPS),
       UMT_SECTION,
+      ...otherAppsSections("engineering"),
     ],
   },
   {
@@ -984,7 +991,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     path: "/infra",
     externallyGated: true,
     forwardsToFirstItem: true,
-    sections: appsToSections(INFRA_APPS),
+    sections: [...appsToSections(INFRA_APPS), ...otherAppsSections("infra")],
   },
   // Marketing Ops — UNLOCKED. Ported so far: Utilities (UTM + Asset Name
   // generators and their Marketing Admin panels) and Ad Campaigns → Analytics.
@@ -1044,7 +1051,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     // it belongs to neither one's group, and it's fetched from the GRC
     // backend (GET_USER_GUIDE_URL) rather than carried as registry data — see
     // useUserGuideUrl and SideRail's own pinned-to-bottom category.
-    sections: [...appsToSections(SECURITY_APPS)],
+    sections: [...appsToSections(SECURITY_APPS), ...otherAppsSections("security")],
   },
   // "Me" is the Home landing: the person's own profile plus everyday apps —
   // Leave, Menu, and the finance claims.
