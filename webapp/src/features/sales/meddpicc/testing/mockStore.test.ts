@@ -147,6 +147,15 @@ describe("the test double", () => {
     expect((await statusOf(client.approve(ASTERRA, { edits: {}, roleMatches: { procurementLegal: "003MOCKA3" } }))).status).toBe(403);
   });
 
+  it("drops a rejected suggestion, and refuses a second reject or one on a deal the caller can't edit", async () => {
+    const after = await client.rejectProposal(BRIGHTWATER, "decisionProcess", { reason: "WRONG_VALUE", note: null });
+    expect(after.fields.find((f) => f.key === "decisionProcess")?.proposal).toBeNull();
+    expect((await client.deal(BRIGHTWATER)).fields.find((f) => f.key === "decisionProcess")?.proposal).toBeNull();
+    expect((await statusOf(client.rejectProposal(BRIGHTWATER, "decisionProcess", { reason: "OTHER", note: null }))).status).toBe(409);
+    expect((await statusOf(client.rejectProposal(BRIGHTWATER, "nope", { reason: "OTHER", note: null }))).status).toBe(400);
+    expect((await statusOf(client.rejectProposal(ASTERRA, "procurementLegal", { reason: "OTHER", note: null }))).status).toBe(403);
+  });
+
   it("answers coverage for meetings it has never heard of, so a real meeting list still gets circles", async () => {
     const { items } = await client.meetingCoverage([123, 124, 91001]);
     expect(items.map((i) => i.meetingId)).toEqual([123, 124, 91001]);

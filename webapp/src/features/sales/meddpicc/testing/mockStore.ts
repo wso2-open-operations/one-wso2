@@ -16,7 +16,7 @@
 
 // TESTS ONLY: an in-memory stand-in for echo-backend that the page and panel
 // tests put behind the client interface; the app itself never imports it. Approve all fills the circles, Move
-// stage advances the stage, Include pulls a call in.
+// stage advances the stage, Include pulls a call in, Reject drops a suggestion.
 //
 // It follows the contract's DESCRIBED rules (§3.4 deal letter state, Gate
 // complete, Ask next, Missed; §3.6 Approve all) closely enough for a demo, and
@@ -38,6 +38,8 @@ import type {
   GateFieldDefinition,
   LetterKey,
   MeetingCoverage,
+  RejectProposalRequest,
+  RejectReason,
   RoleHolder,
 } from "../types";
 import { LETTER_KEYS, isEmptyValue, isRoleProposal } from "../util/meddpiccFormat";
@@ -180,7 +182,9 @@ function summary(deal: MockDeal): DealSummary {
 }
 
 function field(deal: MockDeal, def: GateFieldDefinition): DealField {
-  const proposal = deal.proposals[def.key];
+  // A rejected proposal is not shown at all, as the backend leaves it out.
+  const kept = deal.proposals[def.key];
+  const proposal = kept?.status === "REJECTED" ? undefined : kept;
   return {
     key: def.key,
     gate: def.gate,
@@ -382,6 +386,21 @@ function approve(deal: MockDeal, request: ApproveRequest): ApproveResult {
   return { written, skipped, createdContacts, error: null, deal: detail(deal) };
 }
 
+const REJECT_REASONS: readonly RejectReason[] = ["WRONG_VALUE", "WRONG_PERSON", "NOT_SUPPORTED", "OUTDATED", "OTHER"];
+
+function rejectProposal(deal: MockDeal, fieldKey: string, request: RejectProposalRequest): DealDetail {
+  const path = `/deals/${deal.summary.opportunityId}/proposals/${fieldKey}/reject`;
+  if (!deal.canEdit) fail(path, 403, { message: "Only the Opportunity owner can reject a suggestion." });
+  const def = FIELDS.find((d) => d.key === fieldKey);
+  if (!def) fail(path, 400, { message: `No such field: ${fieldKey}.` });
+  if (!REJECT_REASONS.includes(request.reason)) fail(path, 400, { message: `Not a reason: ${String(request.reason)}.` });
+  if (request.note && request.note.length > 1000) fail(path, 400, { message: "The note is longer than 1000 characters." });
+  const proposal = deal.proposals[fieldKey];
+  if (!proposal || !isPending(deal, def)) fail(path, 409, { message: `${def.label} has no pending suggestion.` });
+  proposal.status = "REJECTED";
+  return detail(deal);
+}
+
 function moveStage(deal: MockDeal, toStage: string): { stage: string } {
   const path = `/deals/${deal.summary.opportunityId}/move-stage`;
   if (!deal.canEdit) fail(path, 403, { message: "Only the Opportunity owner can move the stage." });
@@ -466,6 +485,10 @@ export const mockMeddpiccClient: MeddpiccClient = {
   approve: async (opportunityId, request) => {
     await wait();
     return approve(findDeal(opportunityId), request);
+  },
+  rejectProposal: async (opportunityId, fieldKey, request) => {
+    await wait();
+    return rejectProposal(findDeal(opportunityId), fieldKey, request);
   },
   moveStage: async (opportunityId, toStage) => {
     await wait();

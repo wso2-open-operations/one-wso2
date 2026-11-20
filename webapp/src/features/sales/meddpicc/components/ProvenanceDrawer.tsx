@@ -20,10 +20,10 @@ import { CheckIcon, ExternalLinkIcon, MailIcon, MinusIcon, NotebookPenIcon, Vide
 import { formatDateTime } from "../../util/salesTime";
 import { meetingPath } from "../../util/salesPaths";
 import type { DealDetail, DealField, EvidenceSourceType } from "../types";
-import { confidenceWord, formatFieldValue, isEmptyValue, isRoleProposal } from "../util/meddpiccFormat";
+import { confidenceWord, formatFieldValue, heardLabel, isEmptyValue, isRoleProposal } from "../util/meddpiccFormat";
 import { callsBehind, explainProposal, groupBySource } from "../util/provenance";
 import EvidenceItem from "./EvidenceItem";
-import { Compare } from "./DealFieldRow";
+import { Compare, FallbackNote } from "./DealFieldRow";
 import EchoMarker from "./EchoMarker";
 
 const SOURCE_ICON: Record<EvidenceSourceType, typeof VideoIcon> = { CALL: VideoIcon, EMAIL: MailIcon, ACTIVITY: NotebookPenIcon };
@@ -85,9 +85,10 @@ export default function ProvenanceDrawer({
             <Compare
               before={field.notInSalesforce ? null : isEmptyValue(field.salesforceValue) ? "Empty" : formatFieldValue(field.salesforceValue)}
               after={formatFieldValue(proposal.value)}
-              afterLabel={field.notInSalesforce ? "Heard on calls · kept in Echo" : "Heard on calls"}
+              afterLabel={heardLabel(field)}
               confidence={proposal.confidence}
             />
+            <FallbackNote proposal={proposal} />
             {proposal.rationale && (
               <Typography variant="body2" sx={{ mt: 1.25 }}>
                 {proposal.rationale}

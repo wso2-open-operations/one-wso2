@@ -208,6 +208,13 @@ export interface RoleProposalValue {
   candidates: ContactOption[];
 }
 
+/**
+ * How a Proposal's value was reached across the deal's calls. SINGLE: one call said it.
+ * MERGED: several calls, combined. FALLBACK: combining them failed, so the value is the
+ * newest call's alone, and must never be shown as a combined one.
+ */
+export type MergeStatus = "SINGLE" | "MERGED" | "FALLBACK";
+
 export interface FieldProposal {
   /** For role: RoleProposalValue. */
   value: FieldValue | RoleProposalValue;
@@ -216,6 +223,8 @@ export interface FieldProposal {
   evidence: EvidenceQuote[];
   /** Differs from Salesforce and not yet approved. */
   pending: boolean;
+  /** Absent from an older backend; read as SINGLE. */
+  mergeStatus?: MergeStatus;
 }
 
 export interface DealField {
@@ -350,6 +359,20 @@ export interface ApproveResult {
   /** A Salesforce 422; nothing partial is hidden. */
   error: { message: string; fields?: string[] } | null;
   deal: DealDetail;
+}
+
+// ---- POST /deals/{opportunityId}/proposals/{fieldKey}/reject ---------------
+//
+// Answers the refreshed DealDetail as the whole body. Nothing is written to Salesforce:
+// the field's proposal goes, and stays gone until new evidence changes the value.
+
+/** Why the AM turned a Proposal down. */
+export type RejectReason = "WRONG_VALUE" | "WRONG_PERSON" | "NOT_SUPPORTED" | "OUTDATED" | "OTHER";
+
+export interface RejectProposalRequest {
+  reason: RejectReason;
+  /** At most 1000 characters. */
+  note: string | null;
 }
 
 // ---- POST /deals/{opportunityId}/move-stage --------------------------------

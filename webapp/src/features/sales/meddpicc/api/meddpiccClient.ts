@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// The eight routes of contract §3.6, behind one interface: the backend over
+// The routes of contract §3.6, behind one interface: the backend over
 // HTTP here, and an in-memory test double in ../testing that the tests swap in,
 // so they exercise the same loading, error and cache paths the real screens do.
 
@@ -31,6 +31,7 @@ import type {
   MeetingCoverageRequest,
   MoveStageRequest,
   MoveStageResult,
+  RejectProposalRequest,
 } from "../types";
 
 export interface DealsQuery {
@@ -52,6 +53,8 @@ export interface MeddpiccClient {
   /** `refresh` reads the deal from Salesforce again instead of the backend's snapshot. */
   deal(opportunityId: string, options?: { refresh?: boolean }): Promise<DealDetail>;
   approve(opportunityId: string, request: ApproveRequest): Promise<ApproveResult>;
+  /** Turns down one field's pending Proposal. Writes nothing to Salesforce; answers the new DealDetail. */
+  rejectProposal(opportunityId: string, fieldKey: string, request: RejectProposalRequest): Promise<DealDetail>;
   moveStage(opportunityId: string, toStage: string): Promise<MoveStageResult>;
   includeCalls(opportunityId: string, meetingIds: number[]): Promise<DealDetail>;
 }
@@ -89,6 +92,10 @@ export function httpMeddpiccClient(getAccessToken: () => Promise<string>): Meddp
     approve: async (opportunityId, request) => {
       const url = echoServiceUrls.approve(opportunityId);
       return required(url, await authedPost<ApproveResult>(url, await getAccessToken(), request));
+    },
+    rejectProposal: async (opportunityId, fieldKey, request) => {
+      const url = echoServiceUrls.rejectProposal(opportunityId, fieldKey);
+      return required(url, await authedPost<DealDetail>(url, await getAccessToken(), request));
     },
     moveStage: async (opportunityId, toStage) => {
       const body: MoveStageRequest = { toStage };

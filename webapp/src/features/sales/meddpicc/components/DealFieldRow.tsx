@@ -35,13 +35,15 @@ import {
   CircleIcon,
   ExternalLinkIcon,
   FileSearchIcon,
+  InfoIcon,
   PanelRightOpenIcon,
   PencilIcon,
   Undo2Icon,
+  XIcon,
 } from "@wso2/oxygen-ui-icons-react";
-import type { DealField, EvidenceQuote, EvidenceSourceType, FieldValue, NewContact } from "../types";
+import type { DealField, EvidenceQuote, EvidenceSourceType, FieldProposal, FieldValue, NewContact } from "../types";
 import { newContactFromProposal, newContactProblem, type ApprovalDraft } from "../util/approval";
-import { formatFieldValue, isEmptyValue, isRoleProposal, sameValue } from "../util/meddpiccFormat";
+import { formatFieldValue, heardLabel, isEmptyValue, isRoleProposal, sameValue } from "../util/meddpiccFormat";
 import { hasCustomerEvidence, leadQuote, newestFirst, sourceOf } from "../util/evidenceSource";
 import { groupBySource } from "../util/provenance";
 import EchoMarker, { EchoIcon } from "./EchoMarker";
@@ -124,6 +126,22 @@ export function Compare({
 }
 
 /**
+ * The caveat on a value that is only the newest call's because combining the calls
+ * failed: said plainly, so it is never read as what every call adds up to.
+ */
+export function FallbackNote({ proposal }: { proposal: FieldProposal }) {
+  if (proposal.mergeStatus !== "FALLBACK") return null;
+  return (
+    <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", mt: 0.75, color: "text.secondary" }}>
+      <Box component="span" sx={{ display: "inline-flex" }} aria-hidden>
+        <InfoIcon size={12} />
+      </Box>
+      <Typography variant="caption">From the latest call only — couldn&apos;t combine calls</Typography>
+    </Stack>
+  );
+}
+
+/**
  * One Gate field on the deal page: what Salesforce has, what the AI proposes
  * and why, and the AM's control over it.
  *
@@ -132,8 +150,9 @@ export function Compare({
  * the confidence and every quote are one click away, in the provenance panel
  * ("Where this came from"), so the card stays a decision and not a dossier. There is no
  * per-field approve. A correct Proposal needs no action at all — Approve all
- * takes it as it is — so the only per-field control is Edit, which can also
- * clear; a role has the contact picker, which can also create the contact.
+ * takes it as it is — so the per-field controls are Edit, which can also clear,
+ * and Reject, which drops a wrong suggestion without touching Salesforce; a role
+ * has the contact picker, which can also create the contact.
  */
 export default function DealFieldRow({
   field,
@@ -146,6 +165,7 @@ export default function DealFieldRow({
   onRoleMatch,
   onNewContact,
   onExplain,
+  onReject,
   sourceFilter = null,
   variant = "full",
   askNext,
@@ -165,6 +185,8 @@ export default function DealFieldRow({
   onNewContact: (key: string, contact: NewContact | null) => void;
   /** Open the full account of where the field's suggestion came from. */
   onExplain: (field: DealField) => void;
+  /** Turn down the field's pending suggestion. No Reject is offered without it. */
+  onReject?: (field: DealField) => void;
   /** Show evidence from one source only; null shows all. */
   sourceFilter?: EvidenceSourceType | null;
   /**
@@ -379,9 +401,10 @@ export default function DealFieldRow({
             <Compare
               before={field.notInSalesforce ? null : sfEmpty ? "Empty" : formatFieldValue(field.salesforceValue)}
               after={formatFieldValue(proposal.value)}
-              afterLabel={field.notInSalesforce ? "Heard on calls · kept in Echo" : "Heard on calls"}
+              afterLabel={heardLabel(field)}
               confidence={proposal.confidence}
             />
+            <FallbackNote proposal={proposal} />
 
             {/* An attest field backed only by WSO2's words, or by words nobody could
                 attribute, is a claim about the customer rather than the customer's own
@@ -405,7 +428,22 @@ export default function DealFieldRow({
                 </Typography>
               )
             )}
-            {explain}
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+              {explain}
+              {/* Owners only, as Edit and Approve all are. */}
+              {onReject && !readOnly && (
+                <Button
+                  size="small"
+                  color="inherit"
+                  startIcon={<XIcon size={14} />}
+                  onClick={() => onReject(field)}
+                  aria-label={`Reject the suggestion for ${field.label}`}
+                  sx={{ mt: 1.25, textTransform: "none", color: "text.secondary" }}
+                >
+                  Reject
+                </Button>
+              )}
+            </Stack>
           </Box>
         )}
 
@@ -423,7 +461,10 @@ export default function DealFieldRow({
             <Typography variant="caption" color="text.secondary">
               {callsAgree ? "· the calls agree" : `· the calls heard ${formatFieldValue(proposal.value)}`}
             </Typography>
-            <Box sx={{ width: "100%" }}>{explain}</Box>
+            <Box sx={{ width: "100%" }}>
+              <FallbackNote proposal={proposal} />
+              {explain}
+            </Box>
           </Stack>
         )}
 

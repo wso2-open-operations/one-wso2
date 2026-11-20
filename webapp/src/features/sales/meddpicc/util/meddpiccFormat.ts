@@ -20,6 +20,7 @@
 
 import type {
   CoverageLevel,
+  DealField,
   DealLetterState,
   FieldValue,
   GateLetter,
@@ -110,6 +111,15 @@ export function sameValue(proposed: FieldValue | RoleProposalValue | undefined, 
       : proposed.name === held.name;
   }
   return formatFieldValue(proposed) === formatFieldValue(held);
+}
+
+/**
+ * Whose words a suggestion is, for the label over it. A value combining several calls is
+ * "heard on calls"; one whose combining failed is the latest call's alone, and says so.
+ */
+export function heardLabel(field: DealField): string {
+  const heard = field.proposal?.mergeStatus === "FALLBACK" ? "Heard on the latest call" : "Heard on calls";
+  return field.notInSalesforce ? `${heard} · kept in Echo` : heard;
 }
 
 /**

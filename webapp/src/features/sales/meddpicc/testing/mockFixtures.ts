@@ -49,7 +49,8 @@ export interface MockProposal {
   rationale: string | null;
   confidence: number;
   evidence: EvidenceQuote[];
-  status: "PROPOSED" | "APPROVED";
+  /** REJECTED: the AM turned it down; it shows no more until a call brings a new one. */
+  status: "PROPOSED" | "APPROVED" | "REJECTED";
 }
 
 export interface MockCoverage {

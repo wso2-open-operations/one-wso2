@@ -2666,6 +2666,8 @@ export const echoServiceUrls = {
     `${echoBackendUrl}/deals/${encodeURIComponent(opportunityId)}`,
   approve: (opportunityId: string): string =>
     `${echoBackendUrl}/deals/${encodeURIComponent(opportunityId)}/approve`,
+  rejectProposal: (opportunityId: string, fieldKey: string): string =>
+    `${echoBackendUrl}/deals/${encodeURIComponent(opportunityId)}/proposals/${encodeURIComponent(fieldKey)}/reject`,
   moveStage: (opportunityId: string): string =>
     `${echoBackendUrl}/deals/${encodeURIComponent(opportunityId)}/move-stage`,
   includeCalls: (opportunityId: string): string =>

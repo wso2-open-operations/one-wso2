@@ -217,6 +217,89 @@ describe("DealView", { timeout: 20000 }, () => {
     // The notice says why; there is no disabled Approve all to puzzle over.
     expect(screen.queryByRole("button", { name: /^Approve all/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Reject the suggestion/ })).not.toBeInTheDocument();
+  });
+
+  it("rejects a suggestion with a reason and a note, and drops it from the deal", async () => {
+    const user = userEvent.setup();
+    const reject = vi.spyOn(mockMeddpiccClient, "rejectProposal");
+    renderPanel("006MOCK0000BRWT");
+    await screen.findByRole("heading", { name: "Brightwater – API Manager first sale" });
+
+    await user.click(screen.getByRole("button", { name: "Reject the suggestion for Decision process" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject this suggestion?" });
+    const confirm = within(dialog).getByRole("button", { name: "Reject" });
+    // A reason first; the note is optional.
+    expect(confirm).toBeDisabled();
+    await user.click(within(dialog).getByRole("radio", { name: "Quote doesn't show it" }));
+    await user.type(within(dialog).getByRole("textbox", { name: "Note (optional)" }), "  The RFP was dropped.  ");
+    await user.click(confirm);
+
+    await waitFor(() => expect(reject).toHaveBeenCalledTimes(1));
+    expect(reject).toHaveBeenCalledWith("006MOCK0000BRWT", "decisionProcess", {
+      reason: "NOT_SUPPORTED",
+      note: "The RFP was dropped.",
+    });
+    await waitFor(() =>
+      expect(showSuccess).toHaveBeenCalledWith("Rejected the suggestion for Decision process. Nothing changed in Salesforce."),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Reject this suggestion?" })).not.toBeInTheDocument());
+    // The deal came back without it: nothing left to reject or explain on that field.
+    expect(screen.queryByRole("button", { name: "Reject the suggestion for Decision process" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Where Decision process came from" })).not.toBeInTheDocument();
+  });
+
+  it("sends no note when none is written", async () => {
+    const user = userEvent.setup();
+    const reject = vi.spyOn(mockMeddpiccClient, "rejectProposal");
+    renderPanel("006MOCK0000BRWT");
+    await screen.findByRole("heading", { name: "Brightwater – API Manager first sale" });
+
+    await user.click(screen.getByRole("button", { name: "Reject the suggestion for Decision process" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject this suggestion?" });
+    await user.click(within(dialog).getByRole("radio", { name: "Wrong value" }));
+    await user.click(within(dialog).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() =>
+      expect(reject).toHaveBeenCalledWith("006MOCK0000BRWT", "decisionProcess", { reason: "WRONG_VALUE", note: null }),
+    );
+  });
+
+  it("says there is nothing to reject when the suggestion has already gone, and offers a refresh", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(mockMeddpiccClient, "rejectProposal").mockRejectedValueOnce(
+      new HttpError("/reject", 409, JSON.stringify({ message: "no pending proposal on decisionProcess" })),
+    );
+    const deal = vi.spyOn(mockMeddpiccClient, "deal");
+    renderPanel("006MOCK0000BRWT");
+    await screen.findByRole("heading", { name: "Brightwater – API Manager first sale" });
+
+    await user.click(screen.getByRole("button", { name: "Reject the suggestion for Decision process" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject this suggestion?" });
+    await user.click(within(dialog).getByRole("radio", { name: "Out of date" }));
+    await user.click(within(dialog).getByRole("button", { name: "Reject" }));
+
+    expect(await within(dialog).findByText("Nothing to reject — refresh to see the latest.")).toBeInTheDocument();
+    expect(showSuccess).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(deal).toHaveBeenLastCalledWith("006MOCK0000BRWT", { refresh: true }));
+  });
+
+  it("shows the server's own message for any other refusal", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(mockMeddpiccClient, "rejectProposal").mockRejectedValueOnce(
+      new HttpError("/reject", 403, JSON.stringify({ message: "Only the Opportunity owner can reject a suggestion." })),
+    );
+    renderPanel("006MOCK0000BRWT");
+    await screen.findByRole("heading", { name: "Brightwater – API Manager first sale" });
+
+    await user.click(screen.getByRole("button", { name: "Reject the suggestion for Decision process" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject this suggestion?" });
+    await user.click(within(dialog).getByRole("radio", { name: "Other" }));
+    await user.click(within(dialog).getByRole("button", { name: "Reject" }));
+
+    expect(await within(dialog).findByText("Only the Opportunity owner can reject a suggestion.")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
   });
 
   // The redesign: the AM's attention goes to what the AI proposes and what is missing;

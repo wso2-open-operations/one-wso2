@@ -33,6 +33,7 @@ import type {
   MoveStageConflict,
   MoveStageRefusal,
   MoveStageResult,
+  RejectProposalRequest,
 } from "../types";
 import { useMeddpiccBasis } from "./useMeddpiccData";
 
@@ -67,6 +68,37 @@ export function useApproveDeal(opportunityId: string) {
     onSuccess: (result) =>
       afterDealChange(qc, ["meddpicc-deal", userSub, opportunityId], result.deal),
   });
+}
+
+/**
+ * POST /deals/{id}/proposals/{fieldKey}/reject. Answers the new DealDetail, with the
+ * field's proposal gone. Read failures with describeRejectError.
+ */
+export function useRejectProposal(opportunityId: string) {
+  const { client, userSub } = useMeddpiccBasis();
+  const qc = useQueryClient();
+  return useMutation<DealDetail, Error, { fieldKey: string; request: RejectProposalRequest }>({
+    mutationFn: ({ fieldKey, request }) => client.rejectProposal(opportunityId, fieldKey, request),
+    onSuccess: (detail) => afterDealChange(qc, ["meddpicc-deal", userSub, opportunityId], detail),
+  });
+}
+
+export interface RejectFailure {
+  message: string;
+  /** The page is out of date: a refresh, not a retry, is the way on. */
+  stale: boolean;
+}
+
+/**
+ * What a failed reject should say. 409: the field has no pending proposal any more (it
+ * was approved, rejected or changed elsewhere), so the page is out of date. Anything
+ * else (400, 403) carries the server's own message.
+ */
+export function describeRejectError(error: unknown): RejectFailure {
+  if (error instanceof HttpError && error.status === 409) {
+    return { message: "Nothing to reject — refresh to see the latest.", stale: true };
+  }
+  return { message: describeError(error), stale: false };
 }
 
 /** POST /deals/{id}/move-stage. Read failures with describeMoveStageError. */
