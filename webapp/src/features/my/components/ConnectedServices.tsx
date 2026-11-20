@@ -29,6 +29,7 @@ import PromotionHistoryDialog from "./PromotionHistoryDialog";
 import PerformanceStages from "./PerformanceStages";
 import BankAccountsCard from "./BankAccountsCard";
 import UpcomingCard from "@features/finance/engagement-app/me/UpcomingCard";
+import GroupsCard from "./GroupsCard";
 
 // Three cards surfacing adjacent people-ops-suite services inside the
 // profile: Vehicles, Time off, Performance & growth. Vehicles is live
@@ -116,6 +117,12 @@ export default function ConnectedServices() {
         {/* Engagement App: upcoming allocations and trips. Draws nothing when
             there are none, or while the feature is off or not connected. */}
         <UpcomingCard />
+      </Box>
+
+      {/* Full width, below the three-up grid: a chip list wraps better across
+          the whole row than squeezed into one column. */}
+      <Box sx={{ mt: 1.75 }}>
+        <GroupsCard />
       </Box>
 
       <PromotionHistoryDialog
