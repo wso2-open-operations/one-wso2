@@ -3,6 +3,14 @@ import { githubOAuthConfig } from "@config/apiConfig";
 const STATE_KEY = "gh_oauth_state";
 const CODE_KEY = "gh_pending_oauth_code";
 const RESULT_KEY = "gh_connect_result";
+/** sessionStorage key for a GitHub connect whose default-access grant has not finished. */
+export const DEFAULT_REPOSITORY_ACCESS_PENDING_KEY = "gh_default_access_pending";
+
+/** Removes that pending grant so the next account in this tab cannot reuse it. */
+export function clearPendingDefaultRepositoryAccess(): void {
+    sessionStorage.removeItem(DEFAULT_REPOSITORY_ACCESS_PENDING_KEY);
+}
+
 export const GITHUB_OAUTH_STATE_EXPIRY_MS = 5 * 60 * 1000;
 export const DEFAULT_GITHUB_RETURN_PATH = "/infra/github/connection";
 
