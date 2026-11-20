@@ -248,7 +248,8 @@ export function StatCard({
   color: UmtDashboardColor;
 }) {
   const theme = useTheme();
-  const cardColor = theme.palette[color].main;
+  const cardColor =
+    theme.vars?.palette[color].main ?? theme.palette[color].main;
 
   return (
     <Box

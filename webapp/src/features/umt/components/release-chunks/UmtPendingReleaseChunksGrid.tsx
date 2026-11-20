@@ -349,7 +349,7 @@ export default function UmtPendingReleaseChunksGrid() {
       {
         field: "id",
         headerName: "",
-        width: 80,
+        width: 82,
         sortable: false,
         renderCell: (params) => (
           <ChunkCell>
