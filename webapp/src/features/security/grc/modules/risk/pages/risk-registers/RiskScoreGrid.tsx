@@ -32,6 +32,17 @@ interface RiskScoreGridProps {
   // the Add Risk flow's initial assessment).
   previousLikelihood?: number;
   previousImpact?: number;
+  // The AI's suggested Likelihood, if "Suggest Likelihood" has been clicked —
+  // highlights that entire row (Impact is never suggested, only Likelihood,
+  // so a single cell can't be marked the way previousLikelihood/previousImpact
+  // mark one).
+  suggestedLikelihood?: number;
+  // Hides this component's own "<dot> Level : Rating N" summary below the
+  // grid — set false when the caller renders its own richer selected-score
+  // summary instead (e.g. the Add Risk wizard's Chip-based one, which also
+  // shows the Likelihood × Impact breakdown), so the two don't both render.
+  // Defaults true — most callers want the built-in summary.
+  showSelectedSummary?: boolean;
 }
 
 export default function RiskScoreGrid({
@@ -42,6 +53,8 @@ export default function RiskScoreGrid({
   error,
   previousLikelihood,
   previousImpact,
+  suggestedLikelihood,
+  showSelectedSummary = true,
 }: RiskScoreGridProps): JSX.Element {
   const findScore = (l: number, i: number) =>
     riskScores.find((s) => s.likelihood === l && s.impact === i);
@@ -88,15 +101,26 @@ export default function RiskScoreGrid({
           </Box>
 
           {/* Data rows */}
-          {LIKELIHOOD_ROWS.map((row) => (
+          {LIKELIHOOD_ROWS.map((row) => {
+            const isSuggestedRow = suggestedLikelihood === row.value;
+            return (
             <Box
               key={row.value}
-              sx={{ display: "grid", gridTemplateColumns: "90px repeat(3, 1fr)", gap: 0.75, mb: 0.75 }}
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "90px repeat(3, 1fr)",
+                gap: 0.75,
+                mb: 0.75,
+                borderRadius: 1.5,
+                outline: isSuggestedRow ? "2px dashed" : "none",
+                outlineColor: isSuggestedRow ? "info.main" : "transparent",
+                outlineOffset: isSuggestedRow ? "4px" : 0,
+              }}
             >
               <Typography
                 variant="caption"
                 fontWeight={600}
-                color="text.secondary"
+                color={isSuggestedRow ? "info.main" : "text.secondary"}
                 sx={{ display: "flex", alignItems: "center", userSelect: "none" }}
               >
                 {row.label}
@@ -144,7 +168,8 @@ export default function RiskScoreGrid({
                 );
               })}
             </Box>
-          ))}
+            );
+          })}
 
           {/* X-axis label */}
           <Typography
@@ -159,7 +184,7 @@ export default function RiskScoreGrid({
         </Box>
       </Box>
 
-      {selected && (
+      {showSelectedSummary && selected && (
         <Box sx={{ mt: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}>
           <Box
             sx={{

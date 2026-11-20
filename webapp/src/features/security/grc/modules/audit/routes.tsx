@@ -21,13 +21,14 @@ import AuditsListPage from "@features/security/grc/modules/audit/pages/AuditsLis
 import AuditDetailPage from "@features/security/grc/modules/audit/pages/AuditDetailPage";
 import AuditActivityLogPage from "@features/security/grc/modules/audit/pages/AuditActivityLogPage";
 import CreateAuditPage from "@features/security/grc/modules/audit/pages/CreateAuditPage";
+import AuditLayout from "@features/security/grc/modules/audit/components/AuditLayout";
 import AuditPrivilegeGuard from "@features/security/grc/modules/audit/components/AuditPrivilegeGuard";
 import { AuditPrivilege } from "@features/security/grc/modules/audit/privileges";
 
 // Audit Hub routes, mounted under /audit by App.tsx. Owned by the Audit module —
 // add Audit pages here without touching the shared App.tsx.
 export const auditRoutes = (
-  <Route path="audit">
+  <Route path="audit" element={<AuditLayout />}>
     <Route index element={<Navigate to="audits" replace />} />
     <Route path="frameworks" element={<AuditPrivilegeGuard privilege={AuditPrivilege.ViewAudits}><FrameworksPage /></AuditPrivilegeGuard>} />
     <Route path="audits" element={<AuditPrivilegeGuard privilege={AuditPrivilege.ViewAudits}><AuditsListPage /></AuditPrivilegeGuard>} />

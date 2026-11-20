@@ -21,12 +21,13 @@ import AddRisk from "@features/security/grc/modules/risk/pages/AddRisk";
 import RiskAnalytics from "@features/security/grc/modules/risk/pages/RiskAnalytics";
 import RiskAuditTrail from "@features/security/grc/modules/risk/pages/RiskAuditTrail";
 import PrivilegeGuard from "./components/PrivilegeGuard";
+import RiskLayout from "./components/RiskLayout";
 import { RiskPrivilege } from "./privileges";
 
 // Risk Hub routes, mounted under /risk by App.tsx. Owned by the Risk module —
 // add Risk pages here without touching the shared App.tsx.
 export const riskRoutes = (
-  <Route path="risk">
+  <Route path="risk" element={<RiskLayout />}>
     <Route index element={<Navigate to="dashboard" replace />} />
     <Route path="dashboard" element={<PrivilegeGuard privilege={RiskPrivilege.ViewRiskDashboard}><RiskDashboard /></PrivilegeGuard>} />
     {/*

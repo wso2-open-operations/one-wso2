@@ -82,6 +82,7 @@ export function riskDetail(overrides: Partial<RiskDetail> = {}): RiskDetail {
       ],
     },
     assessments: [],
+    pending_likelihood_suggestion: null,
     effective_privileges: [],
     ...overrides,
   };

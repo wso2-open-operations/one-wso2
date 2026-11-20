@@ -931,6 +931,14 @@ export default function RiskRegisters(): JSX.Element {
       description: payload.description,
       action_owner_id: payload.actionOwnerId,
       steps: payload.steps,
+      ai_action_plan_suggestion: payload.aiActionPlanSuggestion
+        ? {
+            description: payload.aiActionPlanSuggestion.description,
+            reason: payload.aiActionPlanSuggestion.reason,
+            confidence: payload.aiActionPlanSuggestion.confidence,
+            used: payload.aiActionPlanSuggestion.used,
+          }
+        : undefined,
     });
     await loadActionPlans(drawerDetail.id);
     setActionSuccess("Action plan added.");
@@ -1448,11 +1456,14 @@ export default function RiskRegisters(): JSX.Element {
         {...drawerActions}
       />
 
-      <ActionPlanDialog
-        open={actionPlanOpen}
-        onClose={() => setActionPlanOpen(false)}
-        onConfirm={handleCreateActionPlan}
-      />
+      {drawerDetail && (
+        <ActionPlanDialog
+          open={actionPlanOpen}
+          onClose={() => setActionPlanOpen(false)}
+          onConfirm={handleCreateActionPlan}
+          riskDetail={drawerDetail}
+        />
+      )}
 
       <EscalationCommentDialog
         open={escalationCommentOpen}
