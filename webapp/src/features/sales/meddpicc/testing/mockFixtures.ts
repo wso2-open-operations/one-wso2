@@ -35,6 +35,7 @@
 import { salesforceBaseUrl } from "@config/apiConfig";
 import type {
   CoverageLevel,
+  DealActivity,
   DealCall,
   DealSummary,
   EvidenceQuote,
@@ -79,6 +80,8 @@ export interface MockDeal {
   /** When set, move-stage answers 422 with this Salesforce message. */
   moveRefusal?: string;
   lastApproval: { by: string; at: string } | null;
+  /** Salesforce emails and activity, beside the calls; absent, the deal lists its calls alone. */
+  activity?: DealActivity[];
 }
 
 export interface MockFixtures {
@@ -88,6 +91,11 @@ export interface MockFixtures {
 }
 
 // ---- helpers -----------------------------------------------------------------
+
+/** A Salesforce email or activity on a deal's list, linking to its (made-up) record. */
+function sfActivity(id: string, type: "EMAIL" | "ACTIVITY", title: string, occurredAt: string, actor: string): DealActivity {
+  return { type, kind: type, id, title, occurredAt, actor, letters: [], meetingId: null, url: `${salesforceBaseUrl}/${id}` };
+}
 
 type Levels = [CoverageLevel, CoverageLevel, CoverageLevel, CoverageLevel, CoverageLevel, CoverageLevel, CoverageLevel, CoverageLevel];
 
@@ -243,6 +251,7 @@ export function createFixtures(): MockFixtures {
     summary: {
       opportunityId: "006MOCK0000MERI",
       name: "Meridian Bank – integration platform",
+      dealScore: 78.9,
       accountId: "001MOCK0000MERI",
       accountName: "Meridian Bank Group",
       salesRegion: "EU",
@@ -297,6 +306,13 @@ export function createFixtures(): MockFixtures {
     productsDiscussed: ["API Manager", "Choreo", "Micro Integrator"],
     canEdit: true,
     lastApproval: { by: "sophie@wso2.com", at: "2026-07-05T09:12:00Z" },
+    activity: [
+      sfActivity("00TMOCK0000MER1", "ACTIVITY", "Sent the revised proposal", "2026-11-13T10:00:00Z", "Sophie Martin"),
+      sfActivity("02sMOCK0000MER3", "EMAIL", "RE: Integration platform – pricing", "2026-11-12T08:40:00Z", "Aisha Rahman"),
+      sfActivity("02sMOCK0000MER2", "EMAIL", "Re: Integration platform – pricing", "2026-11-11T14:03:00Z", "Sophie Martin"),
+      sfActivity("02sMOCK0000MER4", "EMAIL", "Security questionnaire", "2026-11-11T09:30:00Z", "Aisha Rahman"),
+      sfActivity("02sMOCK0000MER1", "EMAIL", "Integration platform – pricing", "2026-11-10T09:12:00Z", "Sophie Martin"),
+    ],
   };
 
   // Nordlys: Gate complete --------------------------------------------------------
@@ -307,6 +323,7 @@ export function createFixtures(): MockFixtures {
     summary: {
       opportunityId: "006MOCK0000NORD",
       name: "Nordlys Energi – identity expansion",
+      dealScore: 42.1,
       accountId: "001MOCK0000NORD",
       accountName: "Nordlys Energi AS",
       salesRegion: "EU",

@@ -46,6 +46,20 @@ vi.mock("../api/useSalesData", () => ({
 vi.mock("../meddpicc/api/useCallMeddpicc", () => ({
   useCallMeddpicc: () => ({ configured: state.echoConfigured, opportunityId: "006X", insight: { markers: [] } }),
 }));
+// Who the caller is to the sales backend, and the re-analysis request, as the page wires them.
+const caller = { isAdmin: false, workEmail: null as string | null, isPending: false };
+const mutateAsync = vi.fn(async () => ({}));
+const showSuccess = vi.fn();
+const showError = vi.fn();
+vi.mock("../meddpicc/api/useMeddpiccMutations", () => ({
+  useReanalyseMeeting: () => ({ mutateAsync, isPending: caller.isPending }),
+}));
+vi.mock("../api/useSalesGate", () => ({
+  useSalesGate: () => ({ isResolved: true, isAdmin: caller.isAdmin, workEmail: caller.workEmail }),
+}));
+vi.mock("@context/notifications/NotificationsContext", () => ({
+  useNotifications: () => ({ showSuccess, showError }),
+}));
 vi.mock("../components/RecordingPlayer", () => ({
   default: ({ recordingId, startAt }: { recordingId?: number; startAt?: number }) => (
     <div>player {recordingId ?? "default"}{startAt ? ` at ${startAt}` : ""}</div>
@@ -58,10 +72,25 @@ vi.mock("../components/SmartNotesPanel", () => ({
 vi.mock("../components/TranscriptPanel", () => ({ default: () => <div>transcript pane</div> }));
 vi.mock("../meddpicc/components/CallMeddpiccStrip", () => ({ default: () => <div>strip</div> }));
 vi.mock("../meddpicc/components/CallMeddpiccTab", () => ({
-  default: ({ focusLetter }: { focusLetter: string | null }) => <div>meddpicc pane, letter {focusLetter ?? "none"}</div>,
+  default: ({
+    focusLetter,
+    reanalysis,
+  }: {
+    focusLetter: string | null;
+    reanalysis?: { allowed: boolean; inFlight: boolean; request: () => void };
+  }) => (
+    <div>
+      meddpicc pane, letter {focusLetter ?? "none"}
+      {reanalysis?.allowed && (
+        <button type="button" onClick={reanalysis.request}>
+          {reanalysis.inFlight ? "analysing" : "analyse again"}
+        </button>
+      )}
+    </div>
+  ),
 }));
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import MeetingDetailPage from "./MeetingDetailPage";
@@ -85,6 +114,12 @@ beforeEach(() => {
   state.echoConfigured = true;
   state.recordings = [];
   state.smartNotes = [];
+  caller.isAdmin = false;
+  caller.workEmail = null;
+  caller.isPending = false;
+  mutateAsync.mockClear();
+  showSuccess.mockClear();
+  showError.mockClear();
 });
 
 const part = (id: number): Part => ({ id, startTime: null, endTime: null, state: "ATTACHED" });
@@ -171,5 +206,50 @@ describe("MeetingDetailPage parts", () => {
     expect(screen.getByText("Notes 1")).toBeInTheDocument();
     expect(screen.getByText("smart notes 21")).toBeInTheDocument();
     expect(screen.getByText("smart notes 22")).toBeInTheDocument();
+  });
+});
+
+// The MEDDPICC tab's Analyse again is the page's to wire: who may ask, which meeting, and
+// what is said when the request is taken or refused.
+describe("MeetingDetailPage's Analyse again", () => {
+  const at = () => renderAt("/sales/meetings/7?tab=meddpicc");
+
+  it("is offered to the call's host and to an admin, not to anyone else", () => {
+    let view = at();
+    expect(screen.queryByRole("button", { name: "analyse again" })).not.toBeInTheDocument();
+    view.unmount();
+
+    caller.workEmail = "ravi@wso2.com"; // the host
+    view = at();
+    expect(screen.getByRole("button", { name: "analyse again" })).toBeInTheDocument();
+    view.unmount();
+
+    caller.workEmail = "someone@wso2.com";
+    caller.isAdmin = true;
+    at();
+    expect(screen.getByRole("button", { name: "analyse again" })).toBeInTheDocument();
+  });
+
+  it("asks for this meeting and says it will be analysed again, or says what went wrong", async () => {
+    caller.workEmail = "ravi@wso2.com";
+    const view = at();
+    await userEvent.click(screen.getByRole("button", { name: "analyse again" }));
+    expect(mutateAsync).toHaveBeenCalledWith(7);
+    await waitFor(() => expect(showSuccess).toHaveBeenCalledWith('"Budget sign-off" will be analysed again.'));
+    expect(showError).not.toHaveBeenCalled();
+    view.unmount();
+
+    mutateAsync.mockRejectedValueOnce(new Error("refused"));
+    at();
+    await userEvent.click(screen.getByRole("button", { name: "analyse again" }));
+    await waitFor(() => expect(showError).toHaveBeenCalledTimes(1));
+    expect(showSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the request in flight", () => {
+    caller.workEmail = "ravi@wso2.com";
+    caller.isPending = true;
+    at();
+    expect(screen.getByRole("button", { name: "analysing" })).toBeInTheDocument();
   });
 });

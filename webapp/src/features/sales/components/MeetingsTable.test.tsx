@@ -20,7 +20,6 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import MeetingsTable from "./MeetingsTable";
 import type { Meeting } from "../api/salesTypes";
-import type { MeetingCoverage } from "../meddpicc/types";
 
 const meeting = (overrides: Partial<Meeting>): Meeting => ({
   meetingId: 1,
@@ -98,21 +97,26 @@ describe("MeetingsTable", () => {
     expect(headers).toEqual(["Meeting", "Account Owner", "Start", "Files"]);
   });
 
-  // A meeting row is a meeting: it opens the call's analysis, not its deal.
-  it("opens the meeting's analysis from a row, and at a Letter from a circle", async () => {
-    const onOpenAnalysis = vi.fn();
+  // A meeting row is a meeting: it opens the call.
+  it("opens the meeting from a row", async () => {
+    const onOpenMeeting = vi.fn();
     const m = meeting({ meetingId: 7, opportunityId: "006X" });
-    const coverage = new Map<number, MeetingCoverage>([
-      [7, { meetingId: 7, status: "DONE", coverage: { M: 2, E: 0, DC: 1, DP: 0, P: 0, I: 0, CH: 0, CO: 0 },
-        missed: [], stageAtCall: null, quotes: {}, opportunityId: "006X" }],
-    ]);
-    renderTable([m], { coverage, onOpenAnalysis });
+    renderTable([m], { onOpenMeeting });
 
     await userEvent.click(within(bodyRows()[0]).getByText("amal@wso2.com"));
-    expect(onOpenAnalysis).toHaveBeenLastCalledWith(m);
+    expect(onOpenMeeting).toHaveBeenLastCalledWith(m);
+  });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Metrics/ }));
-    expect(onOpenAnalysis).toHaveBeenLastCalledWith(m, "M");
+  // The calls are the recordings: a deal's MEDDPICC lives under Opportunities, a call's on its page.
+  it("has no MEDDPICC column", () => {
+    renderTable([meeting({ meetingId: 7, opportunityId: "006X" })]);
+    expect(screen.queryByRole("columnheader", { name: "MEDDPICC" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Meeting",
+      "Account Owner",
+      "Start",
+      "Files",
+    ]);
   });
 });
 

@@ -23,13 +23,12 @@ import {
   InputAdornment,
   InputLabel,
   MenuItem,
-  Radio,
-  RadioGroup,
   Select,
   Switch,
   TextField,
 } from "@wso2/oxygen-ui";
 import { SearchIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
+import ScopeSwitch from "../../components/ScopeSwitch";
 
 const ALL = "__all__";
 
@@ -45,9 +44,9 @@ export interface OwnerOption {
 }
 
 /**
- * The filters above the deal list: whose deals, search, owner, stage, region and "hide closed".
- * The owner filter only means something across everyone's deals, so it rests while
- * My deals is on.
+ * The filters above the deal list, on one line: whose deals (Mine or All), search, owner,
+ * stage, region, and "hide closed" at the far end. The owner filter only means something
+ * across everyone's deals, so it rests while Mine is on.
  *
  * Search submits as a form, like MeetingFilters, so each keystroke isn't a
  * request. The select filters apply at once — one change, one request.
@@ -102,18 +101,18 @@ export default function DealFilters({
   };
 
   return (
-    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", mb: 2 }}>
-      <RadioGroup
-        row
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center", mb: 2 }}>
+      <ScopeSwitch
         value={scope}
-        onChange={(event) => onScopeChange(event.target.value as DealScope)}
-        aria-label="Whose opportunities to show"
-      >
-        <FormControlLabel value="mine" control={<Radio size="small" />} label="My opportunities" />
-        <FormControlLabel value="all" control={<Radio size="small" />} label="All opportunities" />
-      </RadioGroup>
+        onChange={onScopeChange}
+        label="Whose opportunities to show"
+        options={[
+          { value: "mine", label: "Mine" },
+          { value: "all", label: "All" },
+        ]}
+      />
 
-      <Box component="form" role="search" onSubmit={submit} sx={{ flex: 1, minWidth: 240 }}>
+      <Box component="form" role="search" onSubmit={submit} sx={{ flex: 1, minWidth: 220 }}>
         <TextField
           fullWidth
           size="small"
@@ -151,7 +150,7 @@ export default function DealFilters({
         />
       </Box>
 
-      <FormControl size="small" sx={{ minWidth: 180 }} disabled={scope === "mine"}>
+      <FormControl size="small" sx={{ minWidth: 170 }} disabled={scope === "mine"}>
         <InputLabel id="deals-owner-label">Owner</InputLabel>
         <Select
           labelId="deals-owner-label"
@@ -171,7 +170,7 @@ export default function DealFilters({
         </Select>
       </FormControl>
 
-      <FormControl size="small" sx={{ minWidth: 180 }}>
+      <FormControl size="small" sx={{ minWidth: 170 }}>
         <InputLabel id="deals-stage-label">Stage</InputLabel>
         <Select
           labelId="deals-stage-label"
@@ -191,7 +190,7 @@ export default function DealFilters({
         </Select>
       </FormControl>
 
-      <FormControl size="small" sx={{ minWidth: 150 }}>
+      <FormControl size="small" sx={{ minWidth: 130 }}>
         <InputLabel id="deals-region-label">Region</InputLabel>
         <Select
           labelId="deals-region-label"
@@ -216,6 +215,7 @@ export default function DealFilters({
           <Switch size="small" checked={hideClosed} onChange={(event) => onHideClosedChange(event.target.checked)} />
         }
         label="Hide closed"
+        sx={{ mr: 0, whiteSpace: "nowrap" }}
       />
     </Box>
   );

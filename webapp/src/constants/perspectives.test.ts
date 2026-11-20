@@ -95,16 +95,17 @@ describe("the Sales perspective", () => {
     expect(findPerspectiveByKey("sales")?.sections?.map((section) => section.id)).toContain("sales-echo");
   });
 
-  // Echo is a group of its screens, like CadO2: Calls and Deals.
-  it("lists Echo as a group with Calls and Deals inside it", async () => {
+  // Opportunities is the first row, where Sales lands; Echo is a group of its one screen,
+  // Calls, like Sales Pitstop's.
+  it("puts Opportunities first, then Echo as a group with Calls inside it", async () => {
     const { findPerspectiveByKey } = await load();
-    const echo = findPerspectiveByKey("sales")?.sections?.find((s) => s.id === "sales-echo");
+    const sections = findPerspectiveByKey("sales")?.sections ?? [];
+    expect(sections[0]).toMatchObject({ id: "sales-deals", label: "Opportunities", path: "/sales/deals" });
+    expect(sections[0]?.children).toBeUndefined();
+    const echo = sections.find((s) => s.id === "sales-echo");
     expect(echo?.label).toBe("Echo");
     expect(echo?.alwaysGroup).toBe(true);
-    expect(echo?.children?.map((c) => [c.id, c.label, c.path])).toEqual([
-      ["sales-meetings", "Calls", "/sales/meetings"],
-      ["sales-deals", "Opportunities", "/sales/deals"],
-    ]);
+    expect(echo?.children?.map((c) => [c.id, c.label, c.path])).toEqual([["sales-meetings", "Calls", "/sales/meetings"]]);
   });
 });
 
@@ -168,9 +169,9 @@ describe("CadO2's rail entries", () => {
   it("are gone when the flag is off, or never mentioned", async () => {
     for (const preview of [{ quickquote: false }, {}]) {
       expect(salesIdsIn(await load(preview))).toEqual([
+        "sales-deals",
         "sales-echo",
         "sales-meetings",
-        "sales-deals",
         "sales-pitstop",
         "sales-library",
       ]);
@@ -179,9 +180,9 @@ describe("CadO2's rail entries", () => {
 
   it("never join the Echo gate's ids", async () => {
     const { SALES_ITEM_IDS } = await load({ quickquote: true });
-    // Echo and Deals are the Sales rows gated through ONE_WSO2_REVOPS_BACKEND_URL;
+    // Opportunities and Echo are the Sales rows gated through ONE_WSO2_REVOPS_BACKEND_URL;
     // nothing of CadO2's joins them.
-    expect([...SALES_ITEM_IDS]).toEqual(["sales-echo", "sales-meetings", "sales-deals"]);
+    expect([...SALES_ITEM_IDS]).toEqual(["sales-deals", "sales-echo", "sales-meetings"]);
   });
 });
 
@@ -198,11 +199,12 @@ describe("the Ask Sales rail entry", () => {
     expect(group?.children?.map((c) => [c.id, c.label, c.path])).toEqual([
       ["sales-library", "Ask Sales", "/sales/library"],
     ]);
-    expect(salesIdsIn(perspectives)).toEqual(["sales-echo", "sales-pitstop"]);
+    expect(salesIdsIn(perspectives)).toEqual(["sales-deals", "sales-echo", "sales-pitstop"]);
   });
 
   it("sits before CadO2 when its flag is on", async () => {
     expect(salesIdsIn(await load({ quickquote: true }))).toEqual([
+      "sales-deals",
       "sales-echo",
       "sales-pitstop",
       "sec-app-cado2",
@@ -210,13 +212,13 @@ describe("the Ask Sales rail entry", () => {
   });
 
   it("is not affected by the other preview flags being off", async () => {
-    expect(salesIdsIn(await load({ quickquote: false }))).toEqual(["sales-echo", "sales-pitstop"]);
+    expect(salesIdsIn(await load({ quickquote: false }))).toEqual(["sales-deals", "sales-echo", "sales-pitstop"]);
   });
 
   it("never joins the Echo gate's ids", async () => {
     const { SALES_ITEM_IDS } = await load({});
-    // Echo and Deals are gated through ONE_WSO2_REVOPS_BACKEND_URL; the Library is decided by its own backend.
-    expect([...SALES_ITEM_IDS]).toEqual(["sales-echo", "sales-meetings", "sales-deals"]);
+    // Opportunities and Echo are gated through ONE_WSO2_REVOPS_BACKEND_URL; the Library is decided by its own backend.
+    expect([...SALES_ITEM_IDS]).toEqual(["sales-deals", "sales-echo", "sales-meetings"]);
   });
 });
 

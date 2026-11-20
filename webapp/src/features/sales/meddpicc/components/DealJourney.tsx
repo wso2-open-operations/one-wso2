@@ -198,6 +198,7 @@ export default function DealJourney({
   stageOrder = [],
   now,
   onOpenCall,
+  caption = "full",
 }: {
   marks: readonly TimelineMark[];
   journey: Journey;
@@ -209,6 +210,13 @@ export default function DealJourney({
   /** The current time in ms; the table passes one clock to every row. */
   now: number;
   onOpenCall?: (meetingId: number) => void;
+  /**
+   * What is said under the track. "full": the path in words (the stages, when it started,
+   * the day it is on, the close) and then the activity. "activity": the activity and when
+   * it last moved, alone, for a list whose rows show the stage and close date beside the
+   * name already.
+   */
+  caption?: "full" | "activity";
 }) {
   const color = useKindColor();
   const timed = marks
@@ -406,18 +414,20 @@ export default function DealJourney({
       </Box>
 
       {/* The path in words, and where the deal stands now. Text in text colours only. */}
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        component="div"
-        sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-        title={seen.join(" › ")}
-      >
-        {seen.length ? seen.join(" › ") : "No stage recorded"}
-        {startedMs !== undefined && ` · started ${formatDay(startedMs)}`}
-        {` · day ${dayN}`}
-        {toClose !== null && ` · ${closeIn(toClose)}`}
-      </Typography>
+      {caption === "full" && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          component="div"
+          sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          title={seen.join(" › ")}
+        >
+          {seen.length ? seen.join(" › ") : "No stage recorded"}
+          {startedMs !== undefined && ` · started ${formatDay(startedMs)}`}
+          {` · day ${dayN}`}
+          {toClose !== null && ` · ${closeIn(toClose)}`}
+        </Typography>
+      )}
       <Typography variant="caption" color="text.secondary" component="div">
         {counts.length ? counts.map(([kind, n]) => `${n} ${n === 1 ? KINDS[kind].singular : KINDS[kind].plural}`).join(" · ") : "No activity yet"}
         {quietDays !== null && (

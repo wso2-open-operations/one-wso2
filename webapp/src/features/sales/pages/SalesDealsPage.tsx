@@ -54,8 +54,9 @@ export default function SalesDealsPage() {
   const [owner, setOwner] = useState<string | null>(null);
   const [stage, setStage] = useState<string | null>(null);
   const [hideClosed, setHideClosed] = useState(true);
-  // My deals first: an AM opens Deals to work their own.
-  const [scope, setScope] = useState<DealScope>("mine");
+  // Every opportunity first: an account manager arriving here sees the whole list, and
+  // narrows it to their own with My opportunities.
+  const [scope, setScope] = useState<DealScope>("all");
   const [region, setRegion] = useState<string | null>(null);
   const navigate = useNavigate();
 

@@ -18,19 +18,17 @@ import { useState, type FormEvent } from "react";
 import {
   Box,
   FormControl,
-  FormControlLabel,
   IconButton,
   InputAdornment,
   InputLabel,
   MenuItem,
-  Radio,
-  RadioGroup,
   Select,
   TextField,
   Tooltip,
 } from "@wso2/oxygen-ui";
 import { SearchIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
 import type { MeetingScope } from "../api/salesTypes";
+import ScopeSwitch from "./ScopeSwitch";
 
 const ALL_REGIONS = "__all__";
 
@@ -115,23 +113,16 @@ export default function MeetingFilters({
         mb: 2,
       }}
     >
-      <RadioGroup
-        row
+      <ScopeSwitch
         value={scope}
-        onChange={(event) => onScopeChange(event.target.value as MeetingScope)}
-        aria-label="Which meetings to show"
-      >
-        <FormControlLabel
-          value="echo"
-          control={<Radio size="small" disabled={disabled} />}
-          label="Echo meetings"
-        />
-        <FormControlLabel
-          value="all"
-          control={<Radio size="small" disabled={disabled} />}
-          label="All meetings"
-        />
-      </RadioGroup>
+        onChange={onScopeChange}
+        label="Which meetings to show"
+        disabled={disabled}
+        options={[
+          { value: "echo", label: "Echo" },
+          { value: "all", label: "All" },
+        ]}
+      />
 
       {/* The span is required: a disabled control fires no pointer events and takes no
           focus, so without it the tooltip explaining WHY it is disabled never appears.

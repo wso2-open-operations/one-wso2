@@ -90,6 +90,15 @@ describe("DealJourney", () => {
     expect(screen.getByText(/last 4 days ago/)).toBeInTheDocument();
   });
 
+  // A list row shows the stage and close date beside the name already.
+  it("says only the activity and when it last moved, for a list row", () => {
+    renderJourney({ caption: "activity" });
+    expect(screen.getByText(/2 customer calls · 1 internal discussion · 1 email/)).toBeInTheDocument();
+    expect(screen.getByText(/last 4 days ago/)).toBeInTheDocument();
+    expect(screen.queryByText(/days to close/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Qualify › /)).not.toBeInTheDocument();
+  });
+
   it("opens a call, upcoming or past, on its analysis", async () => {
     const onOpenCall = vi.fn();
     renderJourney({ onOpenCall });

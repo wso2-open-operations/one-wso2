@@ -30,8 +30,6 @@ import { PaperclipIcon } from "@wso2/oxygen-ui-icons-react";
 import type { Meeting } from "../api/salesTypes";
 import { isLeadMeeting, meetingCustomer, meetingTypeLabel } from "../api/salesTypes";
 import { formatDateTime, formatDuration, parseUtc } from "../util/salesTime";
-import MeetingCoverageCell from "../meddpicc/components/MeetingCoverageCell";
-import type { LetterKey, MeetingCoverage } from "../meddpicc/types";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20];
 
@@ -43,10 +41,9 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20];
  * time on hover.
  */
 const COLUMNS = [
-  // Account, call type and title in one column, so MEDDPICC gets the rest of the row.
-  { key: "meeting", label: "Meeting", width: 300 },
-  // `auto`: the column that grows. More of a deal's MEDDPICC state is coming to this cell.
-  { key: "meddpicc", label: "MEDDPICC", width: "auto" },
+  // Account, call type and title in one column: `auto`, the column that grows. Nothing of
+  // MEDDPICC here: a call's analysis is on its own page, and a deal's under Opportunities.
+  { key: "meeting", label: "Meeting", width: "auto" },
   { key: "host", label: "Account Owner", width: 190 },
   { key: "start", label: "Start", width: 170 },
   { key: "attachments", label: "Files", width: 60, center: true },
@@ -143,11 +140,8 @@ function MeetingCell({ meeting }: { meeting: Meeting }) {
  * Provider takes `totalCount` separately from the rows, which is exactly the
  * shape server-side paging needs.
  *
- * The MEDDPICC column appears when the page passes `coverage`: one batched
- * lookup for the visible page, made by the page rather than per row. A row
- * opens its meeting on the MEDDPICC analysis, and a circle opens it at that
- * Letter; the title link opens the meeting's summary, and the other links and
- * buttons inside the row keep their own clicks.
+ * A row opens its meeting when the page passes `onOpenMeeting`; the title link
+ * does too, and the other links and buttons inside the row keep their own clicks.
  *
  * There is no Cancel column: every scope lists meetings that have already
  * happened, and those cannot be called off.
@@ -161,12 +155,7 @@ export default function MeetingsTable({
   onPageChange,
   onPageSizeChange,
   onOpenAttachments,
-  coverage,
-  coverageLoading = false,
-  onOpenAnalysis,
-  canReanalyse,
-  onReanalyse,
-  reanalysingId = null,
+  onOpenMeeting,
 }: {
   meetings: Meeting[];
   totalCount: number;
@@ -176,18 +165,10 @@ export default function MeetingsTable({
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onOpenAttachments: (meeting: Meeting) => void;
-  /** MEDDPICC coverage by meetingId. Omit to leave the column out. */
-  coverage?: Map<number, MeetingCoverage>;
-  coverageLoading?: boolean;
-  /** Open the meeting on its MEDDPICC analysis, at a Letter when a circle was clicked. */
-  onOpenAnalysis?: (meeting: Meeting, letter?: LetterKey) => void;
-  canReanalyse?: (meeting: Meeting) => boolean;
-  onReanalyse?: (meeting: Meeting) => void;
-  /** The meeting whose re-analysis request is in flight. */
-  reanalysingId?: number | null;
+  /** Open the meeting from its row. Omit for rows that only link from their title. */
+  onOpenMeeting?: (meeting: Meeting) => void;
 }) {
-  const showMeddpicc = coverage !== undefined;
-  const columns = showMeddpicc ? COLUMNS : COLUMNS.filter((column) => column.key !== "meddpicc");
+  const columns = COLUMNS;
   // Latest first, whatever order a page arrives in. The backend already returns meetings
   // newest first, so this keeps a page's rows in that order rather than reshuffling paging.
   const rows = [...meetings].sort((a, b) => startMs(b) - startMs(a));
@@ -235,38 +216,20 @@ export default function MeetingsTable({
                 ))
               : rows.map((meeting) => {
                   const duration = formatDuration(meeting.startTime, meeting.endTime);
-                  const meetingCoverage = coverage?.get(meeting.meetingId);
-                  // A row is a meeting, so it opens the meeting: its analysis, not its deal.
-                  // The deal is one click on from there.
-                  const openAnalysis = onOpenAnalysis ? () => onOpenAnalysis(meeting) : undefined;
+                  // A row is a meeting, so it opens the meeting.
+                  const openMeeting = onOpenMeeting ? () => onOpenMeeting(meeting) : undefined;
 
                   return (
                     <ListingTable.Row
                       key={meeting.meetingId}
-                      clickable={Boolean(openAnalysis)}
-                      hover={Boolean(openAnalysis)}
-                      onClick={openAnalysis}
-                      sx={openAnalysis ? { cursor: "pointer" } : undefined}
+                      clickable={Boolean(openMeeting)}
+                      hover={Boolean(openMeeting)}
+                      onClick={openMeeting}
+                      sx={openMeeting ? { cursor: "pointer" } : undefined}
                     >
-                      <ListingTable.Cell sx={{ maxWidth: 300 }}>
+                      <ListingTable.Cell>
                         <MeetingCell meeting={meeting} />
                       </ListingTable.Cell>
-
-                      {showMeddpicc && (
-                        <ListingTable.Cell>
-                          <MeetingCoverageCell
-                            meetingTitle={meeting.title}
-                            coverage={meetingCoverage}
-                            loading={coverageLoading}
-                            canReanalyse={Boolean(onReanalyse && canReanalyse?.(meeting))}
-                            reanalysing={reanalysingId === meeting.meetingId}
-                            onReanalyse={() => onReanalyse?.(meeting)}
-                            onLetterClick={
-                              onOpenAnalysis ? (letter) => onOpenAnalysis(meeting, letter) : undefined
-                            }
-                          />
-                        </ListingTable.Cell>
-                      )}
 
                       <ListingTable.Cell sx={{ whiteSpace: "nowrap" }}>
                         <Typography

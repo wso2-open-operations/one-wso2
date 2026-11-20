@@ -657,21 +657,31 @@ export const UMT_ITEM_IDS: ReadonlySet<string> = new Set([
   UMT_SECTION.id,
   ...(UMT_SECTION.children ?? []).map((child) => child.id),
 ]);
-// Sales's rail: Echo, the call-intelligence product, as a group of its screens (Calls and
-// Deals); Sales Pitstop's Library while its preview flag is on; and CadO2 while its flag is on.
+// Sales's rail: Opportunities first, where an account manager lands; Echo, the call
+// recordings, as a group of its one screen (Calls); Sales Pitstop's Library; and CadO2
+// while its flag is on.
+//
+// One row per Opportunity with its MEDDPICC state, beside the calls it came from. A row of
+// its own rather than one of Echo's screens: Echo is the recordings, and a deal is worked
+// from here. Served by the MEDDPICC backend (ONE_WSO2_ECHO_BACKEND_URL) rather than the
+// calls' (ONE_WSO2_REVOPS_BACKEND_URL), but gated like Calls: it is the same sales team,
+// and the rail already has ONE_WSO2_REVOPS_BACKEND_URL's answer.
+const SALES_OPPORTUNITIES_ROW: PerspectiveSection = {
+  id: "sales-deals",
+  label: "Opportunities",
+  icon: HandshakeIcon,
+  path: "/sales/deals",
+};
+// Echo: the calls it recorded, with their transcripts and notes. A group even with one
+// screen, so the rail names both the product and the screen, as Sales Pitstop's does.
 const SALES_ECHO_SECTION: PerspectiveSection = {
   id: "sales-echo",
   label: "Echo",
   icon: EchoLogoIcon,
   alwaysGroup: true,
   children: [
-    // The recordings Echo captured, with their transcripts and MEDDPICC evidence.
     // The id is an internal key and does not need to match the label.
     { id: "sales-meetings", label: "Calls", icon: VideoIcon, path: "/sales/meetings" },
-    // One row per Opportunity with its MEDDPICC state, beside the calls it came from.
-    // Served by the MEDDPICC backend rather than meet-app, but gated like Calls: it is
-    // the same sales team, and meet-app's answer is the one the rail already has.
-    { id: "sales-deals", label: "Opportunities", icon: HandshakeIcon, path: "/sales/deals" },
   ],
 };
 
@@ -688,6 +698,7 @@ const SALES_PITSTOP_SECTION: PerspectiveSection = {
 };
 
 const SALES_SECTIONS: PerspectiveSection[] = [
+  SALES_OPPORTUNITIES_ROW,
   SALES_ECHO_SECTION,
   SALES_PITSTOP_SECTION,
   // CadO2 answers to its own backend (CADO2_ITEM_IDS, the `cado2` adapter).
@@ -706,10 +717,11 @@ const SALES_SECTIONS: PerspectiveSection[] = [
  * id no adapter claims falls through to the capability check, and a group with no `requires`
  * would pass it for everyone.
  *
- * Echo's rows only: CadO2's rows sit in the same perspective but belong to its own adapter, and
- * two adapters claiming one id is a test failure (claimConflicts).
+ * Opportunities and Echo's rows only: CadO2's rows sit in the same perspective but belong to its
+ * own adapter, and two adapters claiming one id is a test failure (claimConflicts).
  */
 export const SALES_ITEM_IDS: ReadonlySet<string> = new Set([
+  SALES_OPPORTUNITIES_ROW.id,
   SALES_ECHO_SECTION.id,
   ...(SALES_ECHO_SECTION.children ?? []).map((child) => child.id),
 ]);

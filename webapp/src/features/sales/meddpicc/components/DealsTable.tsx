@@ -27,14 +27,17 @@ import { DealFlagMarker } from "./DealFlags";
 import { useNow } from "../../util/useNow";
 
 /**
- * Four columns. The stage, amount, close date and any flags ride under the opportunity's
- * name, and the count to review under the circles, so the deal's journey gets the width.
+ * Three columns, MEDDPICC first after the name: it is what the list is for. The stage,
+ * amount, close date and any flags ride under the opportunity's name; Salesforce's score
+ * rides beside the circles (nothing there when Salesforce has none), and the count to
+ * review under them. The journey takes the width that is left, saying only the activity
+ * and when it last moved under its track, since the stage and close date are already
+ * beside the name.
  */
 const COLUMNS = [
   { key: "deal", label: "Opportunity", width: 300 },
-  { key: "score", label: "Score", width: 120 },
+  { key: "meddpicc", label: "MEDDPICC · Score", width: 340 },
   { key: "activity", label: "Journey", width: "auto" },
-  { key: "meddpicc", label: "MEDDPICC", width: 250 },
 ] as const;
 
 /**
@@ -143,26 +146,15 @@ export default function DealsTable({
                       </Box>
                     </ListingTable.Cell>
                     <ListingTable.Cell>
-                      <DealScore score={deal.dealScore} />
-                    </ListingTable.Cell>
-                    <ListingTable.Cell>
-                      <DealJourney
-                        marks={timelineOf(deal)}
-                        journey={journeyOf(deal)}
-                        sources={rowSourcesOf(deal)}
-                        closeDate={deal.closeDate}
-                        stageOrder={stageOrder}
-                        now={now}
-                        onOpenCall={onOpenCall}
-                      />
-                    </ListingTable.Cell>
-                    <ListingTable.Cell>
-                      <MeddpiccCircles
-                        variant="dealState"
-                        values={deal.dealState}
-                        onLetterClick={(letter) => onOpenDeal(deal.opportunityId, letter)}
-                        label={`MEDDPICC for ${deal.name}`}
-                      />
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", rowGap: 0.5 }}>
+                        <MeddpiccCircles
+                          variant="dealState"
+                          values={deal.dealState}
+                          onLetterClick={(letter) => onOpenDeal(deal.opportunityId, letter)}
+                          label={`MEDDPICC for ${deal.name}`}
+                        />
+                        {deal.dealScore != null && <DealScore score={deal.dealScore} />}
+                      </Box>
                       {/* The circles already mark which Letters hold a suggestion; this
                           only says how many fields wait, quietly, under them. */}
                       {deal.pendingCount > 0 && (
@@ -175,6 +167,18 @@ export default function DealsTable({
                           {deal.pendingCount} to review
                         </Typography>
                       )}
+                    </ListingTable.Cell>
+                    <ListingTable.Cell>
+                      <DealJourney
+                        marks={timelineOf(deal)}
+                        journey={journeyOf(deal)}
+                        sources={rowSourcesOf(deal)}
+                        closeDate={deal.closeDate}
+                        stageOrder={stageOrder}
+                        now={now}
+                        onOpenCall={onOpenCall}
+                        caption="activity"
+                      />
                     </ListingTable.Cell>
                   </ListingTable.Row>
                 ))}

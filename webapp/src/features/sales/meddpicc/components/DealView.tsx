@@ -35,6 +35,7 @@ import {
 import {
   ArrowRightIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   ExternalLinkIcon,
   RefreshCwIcon,
   SparklesIcon,
@@ -68,6 +69,7 @@ import DealJourney, { KindMark, QUIET_AFTER_DAYS } from "./DealJourney";
 import DealScore from "./DealScore";
 import { DealFlags } from "./DealFlags";
 import { KINDS } from "../util/timelineKinds";
+import { threadActivity, type ActivityThread } from "../util/activityThreads";
 import StagePath from "./StagePath";
 import DealChat, { type ChatEntry } from "./DealChat";
 import { meetingPath, type DealTab } from "../../util/salesPaths";
@@ -770,17 +772,22 @@ export default function DealView({
                 {sourceFilter ? ` of ${activity.length}` : ""})
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                Everything the opportunity's MEDDPICC is drawn from, newest first.
+                Everything the opportunity's MEDDPICC is drawn from, newest first. An email thread
+                is one row, which opens to its messages.
               </Typography>
               <Stack component="ul" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0, mt: 0.75 }}>
-                {shownActivity.map((entry) => (
-                  <ActivityRow
-                    key={`${entry.type}-${entry.id}`}
-                    entry={entry}
-                    coverage={entry.meetingId !== null ? coverageByMeeting.get(entry.meetingId) : undefined}
-                    now={now}
-                  />
-                ))}
+                {threadActivity(shownActivity).map((item) =>
+                  item.kind === "thread" ? (
+                    <ActivityThreadRow key={`thread-${item.subject.toLowerCase()}`} thread={item} now={now} />
+                  ) : (
+                    <ActivityRow
+                      key={`${item.entry.type}-${item.entry.id}`}
+                      entry={item.entry}
+                      coverage={item.entry.meetingId !== null ? coverageByMeeting.get(item.entry.meetingId) : undefined}
+                      now={now}
+                    />
+                  ),
+                )}
               </Stack>
             </Box>
           )}
@@ -862,6 +869,55 @@ function ActivityRow({
         )}
       </Box>
     </Stack>
+  );
+}
+
+/**
+ * An email thread on the activity list: one row, titled by the subject without its Re:
+ * prefixes and placed by its newest message, that opens to the messages in the order they
+ * were sent, each a row of its own with its link into Salesforce.
+ */
+function ActivityThreadRow({ thread, now }: { thread: ActivityThread; now: number }) {
+  const [open, setOpen] = useState(false);
+  const { subject, messages, latest } = thread;
+  return (
+    <Box component="li">
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "flex-start", py: 0.5 }}>
+        <Box sx={{ width: 14, height: 20, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <KindMark kind="EMAIL" upcoming={false} />
+        </Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500, overflowWrap: "anywhere" }}>
+            {subject}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" component="div">
+            Email thread · {messages.length} messages · last {formatDateTime(latest.occurredAt)}
+            {latest.actor && ` · ${latest.actor}`}
+          </Typography>
+          <Button
+            size="small"
+            onClick={() => setOpen((current) => !current)}
+            aria-expanded={open}
+            startIcon={open ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+            sx={{ mt: 0.25, textTransform: "none" }}
+          >
+            {open ? "Hide the messages" : `Show the ${messages.length} messages`}
+          </Button>
+          {open && (
+            <Stack
+              component="ul"
+              spacing={0.25}
+              aria-label={`Messages in ${subject}`}
+              sx={{ listStyle: "none", p: 0, m: 0, mt: 0.5, pl: 1.5, borderLeft: 2, borderColor: "divider" }}
+            >
+              {messages.map((message) => (
+                <ActivityRow key={message.id} entry={message} coverage={undefined} now={now} />
+              ))}
+            </Stack>
+          )}
+        </Box>
+      </Stack>
+    </Box>
   );
 }
 

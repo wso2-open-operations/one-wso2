@@ -99,12 +99,20 @@ describe("SalesDealsPage", { timeout: 20000 }, () => {
     expect(row.getByRole("group", { name: /^MEDDPICC for Brightwater/ })).toBeInTheDocument();
     expect(row.getByRole("button", { name: "Champion: AI suggestion waiting for approval" })).toBeInTheDocument();
     expect(row.getByLabelText(/AI proposals waiting for approval/)).toHaveTextContent(/to review$/);
-    // The stage rides in the Opportunity cell; its own column made way for the deal score.
+    // The stage rides in the Opportunity cell, and Salesforce's score beside the circles
+    // (DealScore.test covers the badge); a deal Salesforce has no score for shows nothing there.
     expect(screen.getByRole("columnheader", { name: "Opportunity" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Stage" })).not.toBeInTheDocument();
-    // Salesforce's deal score has its own column (DealScore.test covers the badge).
-    expect(screen.getByRole("columnheader", { name: "Score" })).toBeInTheDocument();
-    expect(row.getByRole("img", { name: "No opportunity score" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Score" })).not.toBeInTheDocument();
+    expect(row.queryByRole("img", { name: /opportunity score/i })).not.toBeInTheDocument();
+    const meridian = within(
+      screen.getByRole("button", { name: "Meridian Bank – integration platform" }).closest("tr") as HTMLElement,
+    );
+    expect(meridian.getByRole("img", { name: "Opportunity score 78.9, Strong" })).toBeInTheDocument();
+    // MEDDPICC and the score beside the name, the journey after them.
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Opportunity", "MEDDPICC · Score", "Journey"]);
+    // Under the journey only the activity and when it last moved: the stage and close date are beside the name.
+    expect(screen.queryByText(/days to close/)).not.toBeInTheDocument();
 
     for (const name of [
       "Meridian Bank – integration platform",
@@ -114,29 +122,32 @@ describe("SalesDealsPage", { timeout: 20000 }, () => {
     ]) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
     }
-    // My deals is the default: a deal someone else owns waits for All deals.
-    expect(screen.queryByRole("button", { name: "Asterra Health – FHIR gateway" })).not.toBeInTheDocument();
+    // All opportunities is the default: a deal someone else owns is listed too.
+    expect(screen.getByRole("button", { name: "Asterra Health – FHIR gateway" })).toBeInTheDocument();
     // Closed deals are hidden by default.
     expect(screen.queryByRole("button", { name: "Kestrel Telecom – API Manager expansion" })).not.toBeInTheDocument();
   });
 
-  it("opens on My deals, and All deals adds everyone else's", async () => {
+  it("opens on All, and Mine narrows to your own", async () => {
     const user = userEvent.setup();
     const spy = vi.spyOn(mockMeddpiccClient, "deals");
     renderPage();
     await screen.findByRole("button", { name: "Brightwater – API Manager first sale" });
 
-    expect(screen.getByRole("radio", { name: "My opportunities" })).toBeChecked();
+    const scope = within(screen.getByRole("group", { name: "Whose opportunities to show" }));
+    expect(scope.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ mine: false }));
+    expect(screen.getByRole("button", { name: "Asterra Health – FHIR gateway" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Owner" })).not.toHaveAttribute("aria-disabled");
+
+    await user.click(scope.getByRole("button", { name: "Mine" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Asterra Health – FHIR gateway" })).not.toBeInTheDocument(),
+    );
     expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ mine: true }));
-    expect(screen.queryByRole("button", { name: "Asterra Health – FHIR gateway" })).not.toBeInTheDocument();
     // An owner filter means nothing on your own deals.
     expect(screen.getByRole("combobox", { name: "Owner" })).toHaveAttribute("aria-disabled", "true");
-
-    await user.click(screen.getByRole("radio", { name: "All opportunities" }));
-
-    expect(await screen.findByRole("button", { name: "Asterra Health – FHIR gateway" })).toBeInTheDocument();
-    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ mine: false }));
-    expect(screen.getByRole("combobox", { name: "Owner" })).not.toHaveAttribute("aria-disabled");
     spy.mockRestore();
   });
 
@@ -153,7 +164,7 @@ describe("SalesDealsPage", { timeout: 20000 }, () => {
       expect(screen.queryByRole("button", { name: "Brightwater – API Manager first sale" })).not.toBeInTheDocument(),
     );
     expect(screen.getByRole("button", { name: "Harbourline – API platform" })).toBeInTheDocument();
-    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ region: "APAC", mine: true }));
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ region: "APAC", mine: false }));
     spy.mockRestore();
   });
 

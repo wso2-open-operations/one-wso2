@@ -15,7 +15,8 @@
 // under the License.
 
 import { useEffect, useRef } from "react";
-import { alpha, Box, Button, Chip, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
+import { alpha, Box, Button, Chip, CircularProgress, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
+import { RefreshCwIcon } from "@wso2/oxygen-ui-icons-react";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import type { CallMeddpicc } from "../api/useCallMeddpicc";
 import type { LetterKey } from "../types";
@@ -37,17 +38,27 @@ import EvidenceItem from "./EvidenceItem";
  * there is one place to see what was approved. No score for the call either: this is the
  * account manager's working view, not a report on them.
  */
+/** Analyse this call again, for whoever may: an admin or the call's host. */
+export interface Reanalysis {
+  allowed: boolean;
+  inFlight: boolean;
+  request: () => void;
+}
+
 export default function CallMeddpiccTab({
   call,
   focusLetter,
   onSeek,
   onOpenDeal,
+  reanalysis,
 }: {
   call: CallMeddpicc;
   /** The Letter a circle was clicked for, scrolled to and marked. */
   focusLetter: LetterKey | null;
   onSeek: (seconds: number) => void;
   onOpenDeal: () => void;
+  /** Omitted where nobody can ask: the control is left out. */
+  reanalysis?: Reanalysis;
 }) {
   const sectionRefs = useRef(new Map<LetterKey, HTMLElement>());
   useEffect(() => {
@@ -65,17 +76,40 @@ export default function CallMeddpiccTab({
       </Stack>
     );
   }
+
+  // Here rather than in the calls table, which lists the recordings alone: the analysis is
+  // asked for where it is read. Only once an analysis has finished or failed: a call with
+  // no transcript, or an empty one, has nothing to analyse again, and one still running is
+  // not asked twice.
+  const analysing = coverage?.status === "PENDING" || coverage?.status === "RUNNING";
+  const retriable = coverage?.status === "DONE" || coverage?.status === "FAILED";
+  const analyseAgain =
+    reanalysis?.allowed && retriable ? (
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={reanalysis.inFlight ? <CircularProgress size={14} color="inherit" /> : <RefreshCwIcon size={14} />}
+        disabled={reanalysis.inFlight}
+        onClick={reanalysis.request}
+      >
+        Analyse again
+      </Button>
+    ) : null;
+
   if (!coverage || coverage.status !== "DONE") {
     return (
-      <Typography variant="body2" color="text.secondary">
-        {coverage?.status === "PENDING" || coverage?.status === "RUNNING"
-          ? "This call is being analysed. The evidence appears here when it's done."
-          : coverage?.status === "FAILED"
-            ? "MEDDPICC analysis failed for this call."
-            : coverage?.status === "EMPTY"
-              ? "No MEDDPICC: this call's transcript is empty, so there was nothing to analyse."
-              : "No MEDDPICC yet: this call has no transcript to analyse."}
-      </Typography>
+      <Stack spacing={1.5} sx={{ alignItems: "flex-start" }}>
+        <Typography variant="body2" color="text.secondary">
+          {analysing
+            ? "This call is being analysed. The evidence appears here when it's done."
+            : coverage?.status === "FAILED"
+              ? "MEDDPICC analysis failed for this call."
+              : coverage?.status === "EMPTY"
+                ? "No MEDDPICC: this call's transcript is empty, so there was nothing to analyse."
+                : "No MEDDPICC yet: this call has no transcript to analyse."}
+        </Typography>
+        {analyseAgain}
+      </Stack>
     );
   }
 
@@ -87,7 +121,10 @@ export default function CallMeddpiccTab({
 
   return (
     <Box sx={{ maxHeight: "60vh", overflowY: "auto", pr: 1 }}>
-      <Typography variant="subtitle2">What this call evidenced</Typography>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+        <Typography variant="subtitle2">What this call evidenced</Typography>
+        {analyseAgain}
+      </Stack>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
         What was said, by Letter, and whether the customer or WSO2 said it. Play a quote to hear
         it in the recording.

@@ -17,27 +17,24 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Alert, Box } from "@wso2/oxygen-ui";
-import { useNotifications } from "@context/notifications/NotificationsContext";
 import SalesShell from "../components/SalesShell";
 import MeetingFilters from "../components/MeetingFilters";
 import MeetingsTable from "../components/MeetingsTable";
 import AttachmentsDialog from "../components/AttachmentsDialog";
 import type { Meeting, MeetingScope } from "../api/salesTypes";
 import { isSalesBackendConfigured, useSalesRegions, useMeetings } from "../api/useSalesData";
-import { useSalesGate } from "../api/useSalesGate";
 import { describeError, isForbidden } from "../util/salesError";
 import { meetingPath } from "../util/salesPaths";
-import { isEchoBackendConfigured, useMeetingCoverage } from "../meddpicc/api/useMeddpiccData";
-import { useReanalyseMeeting } from "../meddpicc/api/useMeddpiccMutations";
 
 const DEFAULT_PAGE_SIZE = 10;
 
 /**
- * Echo — meeting history.
+ * Echo — the calls it recorded.
  *
  * Ported from meet-app's Meeting History tab. Create Meeting and the Dashboard
  * are deliberately not here: scheduling still happens in the calendar add-on,
- * and the analytics screen is not part of this one.
+ * and the analytics screen is not part of this one. Nothing of MEDDPICC either:
+ * a call's analysis is on its own page, and a deal's is under Opportunities.
  */
 export default function SalesMeetingsPage() {
   const configured = isSalesBackendConfigured();
@@ -52,8 +49,6 @@ export default function SalesMeetingsPage() {
 
   const navigate = useNavigate();
 
-  const { showSuccess, showError } = useNotifications();
-  const gate = useSalesGate();
   const regionsQuery = useSalesRegions();
 
   // Both scopes list past meetings only; the "already ended" cutoff is computed per fetch
@@ -100,25 +95,6 @@ export default function SalesMeetingsPage() {
   const meetings = meetingsQuery.data?.meetings ?? [];
   const totalCount = meetingsQuery.data?.count ?? 0;
 
-  // MEDDPICC for the visible page, in one request. A failure here leaves the
-  // column blank rather than taking the meeting list down with it.
-  const coverageQuery = useMeetingCoverage(meetings.map((meeting) => meeting.meetingId));
-  const reanalyse = useReanalyseMeeting();
-  // Without the MEDDPICC backend the column and its actions are left out.
-  const echoConfigured = isEchoBackendConfigured();
-  // Edit rights, as far as this app can tell: an admin or the call's host. The
-  // backend also lets the Opportunity owner in, and is the one that decides.
-  const canReanalyse = (meeting: Meeting): boolean =>
-    gate.isAdmin || (Boolean(gate.workEmail) && meeting.host === gate.workEmail);
-  const requestReanalysis = async (meeting: Meeting) => {
-    try {
-      await reanalyse.mutateAsync(meeting.meetingId);
-      showSuccess(`"${meeting.title}" will be analysed again.`);
-    } catch (error: unknown) {
-      showError(describeError(error));
-    }
-  };
-
   // One 403 anywhere means the caller is in no authorised group — the backend
   // refuses every endpoint in that case — so the page says so once instead of
   // repeating it per panel.
@@ -126,8 +102,8 @@ export default function SalesMeetingsPage() {
 
   return (
     <SalesShell
-      title="Meetings"
-      subtitle="Recorded sales meetings, with their transcripts, notes and MEDDPICC evidence."
+      title="Calls"
+      subtitle="Recorded sales calls, with their recordings, transcripts and notes."
       configured={configured}
       configKey="ONE_WSO2_REVOPS_BACKEND_URL"
       forbidden={forbidden}
@@ -163,14 +139,7 @@ export default function SalesMeetingsPage() {
           onPageChange={setPage}
           onPageSizeChange={changePageSize}
           onOpenAttachments={setAttachmentsFor}
-          coverage={echoConfigured ? coverageQuery.byId : undefined}
-          coverageLoading={coverageQuery.isLoading}
-          onOpenAnalysis={(meeting, letter) =>
-            void navigate(meetingPath(meeting.meetingId, { tab: "meddpicc", letter }))
-          }
-          canReanalyse={canReanalyse}
-          onReanalyse={echoConfigured ? (meeting) => void requestReanalysis(meeting) : undefined}
-          reanalysingId={reanalyse.isPending ? (reanalyse.variables ?? null) : null}
+          onOpenMeeting={(meeting) => void navigate(meetingPath(meeting.meetingId))}
         />
       </Box>
 

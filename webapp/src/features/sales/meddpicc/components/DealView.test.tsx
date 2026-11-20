@@ -332,12 +332,18 @@ describe("DealView", { timeout: 20000 }, () => {
   });
 
   // The score and flags themselves are covered in DealScore.test and DealFlags.test.
-  it("has a deal score card, a dash with no score, and no attention box with no flags", async () => {
+  it("has a deal score card with Salesforce's score, and no attention box with no flags", async () => {
     renderPanel("006MOCK0000MERI");
     await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
     expect(screen.getByText("Opportunity score")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "No opportunity score" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Opportunity score 78.9, Strong" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Needs attention" })).not.toBeInTheDocument();
+  });
+
+  it("shows a dash on the score card where Salesforce has none", async () => {
+    renderPanel("006MOCK0000BRWT");
+    await screen.findByRole("heading", { name: "Brightwater – API Manager first sale" });
+    expect(screen.getByRole("img", { name: "No opportunity score" })).toBeInTheDocument();
   });
 
   it("re-reads the deal from Salesforce on Refresh, and shows what came back", async () => {
@@ -443,6 +449,45 @@ describe("DealView", { timeout: 20000 }, () => {
     expect(await within(log).findByText("Ask AI isn't connected yet, so this question wasn't answered.")).toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "Your question" }), "Again?{Enter}");
     expect(await within(log).findByText(/asked a lot in the last minute/)).toBeInTheDocument();
+  });
+
+  it("folds an email thread into one row that opens to its messages", async () => {
+    const user = userEvent.setup();
+    const realDeal = mockMeddpiccClient.deal;
+    const email = (id: string, title: string, occurredAt: string, actor: string) => ({
+      type: "EMAIL" as const, kind: "EMAIL" as const, id, title, occurredAt, actor, letters: [], meetingId: null,
+      url: `https://example.org/${id}`,
+    });
+    const spy = vi.spyOn(mockMeddpiccClient, "deal").mockImplementation(async (id, options) => ({
+      ...(await realDeal(id, options)),
+      activity: [
+        email("02sC", "RE: Integration platform – pricing", "2026-09-22T10:00:00Z", "Aisha Rahman"),
+        email("02sB", "Re: Integration platform – pricing", "2026-09-21T15:00:00Z", "Sophie Martin"),
+        email("02sD", "Security questionnaire", "2026-09-21T09:00:00Z", "Aisha Rahman"),
+        email("02sA", "Integration platform – pricing", "2026-09-20T09:00:00Z", "Sophie Martin"),
+      ],
+    }));
+    renderPanel("006MOCK0000MERI", "activity");
+    await screen.findByRole("heading", { name: "Meridian Bank – integration platform" });
+    const activity = within(screen.getByRole("region", { name: "Activity" }));
+    // One row for the thread, titled without its Re: prefixes; a lone email stays a row.
+    expect(activity.getByText("Integration platform – pricing")).toBeInTheDocument();
+    expect(activity.getByText(/^Email thread · 3 messages · last/)).toBeInTheDocument();
+    expect(activity.queryByText("RE: Integration platform – pricing")).not.toBeInTheDocument();
+    expect(activity.getByText("Security questionnaire")).toBeInTheDocument();
+
+    await user.click(activity.getByRole("button", { name: "Show the 3 messages" }));
+    const messages = within(activity.getByRole("list", { name: "Messages in Integration platform – pricing" }));
+    expect(messages.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      expect.stringContaining("Integration platform – pricing"),
+      expect.stringContaining("Re: Integration platform – pricing"),
+      expect.stringContaining("RE: Integration platform – pricing"),
+    ]);
+    expect(messages.getByRole("link", { name: "RE: Integration platform – pricing" })).toHaveAttribute("href", "https://example.org/02sC");
+
+    await user.click(activity.getByRole("button", { name: "Hide the messages" }));
+    expect(activity.queryByRole("list", { name: /^Messages in / })).not.toBeInTheDocument();
+    spy.mockRestore();
   });
 
   it("filters the activity list and the journey by source with the chips", async () => {

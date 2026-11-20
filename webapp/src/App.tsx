@@ -1102,7 +1102,7 @@ export default function App() {
             </Route>
           )}
           {/* Sales opens on the first rail row the caller can see, which is
-              Echo → Meetings (`forwardsToFirstItem`); someone the backend
+              Opportunities (`forwardsToFirstItem`); someone the backend
               refuses is told so here, by PerspectiveLanding. */}
           <Route path="sales" element={<PerspectiveLanding />} />
           {/* Echo → Meetings: the recorded meetings. Scheduling stays in the

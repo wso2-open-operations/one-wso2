@@ -33,6 +33,8 @@ import type {
   DealDetail,
   DealField,
   DealLetterState,
+  DealActivity,
+  DealCall,
   DealSummary,
   FieldValue,
   GateFieldDefinition,
@@ -206,6 +208,25 @@ function field(deal: MockDeal, def: GateFieldDefinition): DealField {
   };
 }
 
+/** A call as an entry of the activity list, with the Letters its analysis covered. */
+function callActivity(call: DealCall): DealActivity {
+  return {
+    type: "CALL",
+    kind: "CUSTOMER_CALL",
+    id: String(call.meetingId),
+    title: call.title,
+    occurredAt: call.start,
+    actor: call.host,
+    letters: LETTER_KEYS.filter((letter) => (call.coverage?.[letter] ?? 0) > 0),
+    meetingId: call.meetingId,
+    url: null,
+  };
+}
+
+function newestActivityFirst(a: DealActivity, b: DealActivity): number {
+  return Date.parse(b.occurredAt) - Date.parse(a.occurredAt);
+}
+
 function detail(deal: MockDeal): DealDetail {
   const index = stageIndex(deal.summary.stage);
   const incomplete = incompleteFields(deal);
@@ -229,6 +250,8 @@ function detail(deal: MockDeal): DealDetail {
     askNext,
     productsDiscussed: deal.productsDiscussed,
     calls: deal.calls,
+    // With Salesforce activity the list carries the calls too, as the backend's does.
+    activity: deal.activity && [...deal.activity, ...deal.calls.map(callActivity)].sort(newestActivityFirst),
     unassignedCalls: deal.unassigned.map((u) => u.call),
     canEdit: deal.canEdit,
     salesforceUrl: mockSalesforceUrl(deal.summary.opportunityId),

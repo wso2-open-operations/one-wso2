@@ -44,6 +44,9 @@ import SmartNotesPanel from "../components/SmartNotesPanel";
 import SpeakerTimeline from "../components/SpeakerTimeline";
 import { describeError, isForbidden } from "../util/salesError";
 import { useCallMeddpicc } from "../meddpicc/api/useCallMeddpicc";
+import { useReanalyseMeeting } from "../meddpicc/api/useMeddpiccMutations";
+import { useSalesGate } from "../api/useSalesGate";
+import { useNotifications } from "@context/notifications/NotificationsContext";
 import CallMeddpiccStrip from "../meddpicc/components/CallMeddpiccStrip";
 import CallMeddpiccTab from "../meddpicc/components/CallMeddpiccTab";
 import { dealPath, MEETING_TABS, startSecondOf, type MeetingTab } from "../util/salesPaths";
@@ -184,6 +187,27 @@ export default function MeetingDetailPage() {
   // The call's MEDDPICC: the strip above the columns, the MEDDPICC tab, and the evidence
   // markers on the timeline all read this one answer.
   const call = useCallMeddpicc(meeting);
+  // Analyse again, from the MEDDPICC tab, for an admin or the call's host, as far as this
+  // app can tell. The backend also lets the Opportunity owner in, and is the one that decides.
+  const gate = useSalesGate();
+  const reanalyse = useReanalyseMeeting();
+  const { showSuccess, showError } = useNotifications();
+  const requestReanalysis = async () => {
+    if (!meeting) return;
+    try {
+      await reanalyse.mutateAsync(meeting.meetingId);
+      showSuccess(`"${meeting.title}" will be analysed again.`);
+    } catch (error: unknown) {
+      showError(describeError(error));
+    }
+  };
+  const reanalysis = meeting
+    ? {
+        allowed: gate.isAdmin || (Boolean(gate.workEmail) && meeting.host === gate.workEmail),
+        inFlight: reanalyse.isPending,
+        request: () => void requestReanalysis(),
+      }
+    : undefined;
 
   // The tab, and the Letter marked in the MEDDPICC tab, live in the URL (?tab=&letter=):
   // a click in the meetings table opens a call straight on its analysis, and a refresh or
@@ -375,6 +399,7 @@ export default function MeetingDetailPage() {
                   focusLetter={focusLetter}
                   onSeek={seek}
                   onOpenDeal={openDeal}
+                  reanalysis={reanalysis}
                 />
               )}
 
