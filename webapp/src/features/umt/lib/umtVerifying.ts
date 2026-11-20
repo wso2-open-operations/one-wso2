@@ -6,13 +6,14 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 
 // Public PRs — asked for on the view page and when an update moves from
-// Released to Completed — live in WSO2's public repos.
-const PUBLIC_PR_REGEX = /^https:\/\/github\.com\/wso2\/[A-Za-z0-9._-]+\/pull\/[0-9]+$/;
+// Released to Completed — live in WSO2's public GitHub organizations, wso2
+// and wso2-extensions.
+const PUBLIC_PR_REGEX = /^https:\/\/github\.com\/(wso2|wso2-extensions)\/[A-Za-z0-9._-]+\/pull\/[0-9]+$/;
 
 export function umtPublicPrError(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed || PUBLIC_PR_REGEX.test(trimmed)) return undefined;
-  return "The public PR must be a pull request under https://github.com/wso2/.";
+  return "The public PR must be a link like https://github.com/wso2/<repo>/pull/<number> or https://github.com/wso2-extensions/<repo>/pull/<number>.";
 }
 
 // Mirrors CompleteUpdateForm.tsx's exact exclusive-or rule: at least one

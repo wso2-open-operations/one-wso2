@@ -263,15 +263,21 @@ describe("Complete Update", () => {
   });
 
   // The PRs asked for on Released → Completed are public ones, under
-  // https://github.com/wso2/.
-  it("accepts only pull requests under https://github.com/wso2/", () => {
+  // https://github.com/wso2/ or https://github.com/wso2-extensions/.
+  it("accepts only pull requests under wso2 or wso2-extensions", () => {
     expect(isCompleteUpdateValid({ publicPullRequests: ["https://example.com/x"], reason: "" })).toBe(false);
     expect(
       isCompleteUpdateValid({ publicPullRequests: ["https://github.com/wso2/carbon/issues/1"], reason: "" }),
     ).toBe(false);
     expect(
+      isCompleteUpdateValid({ publicPullRequests: ["https://github.com/someone/carbon/pull/1"], reason: "" }),
+    ).toBe(false);
+    expect(
       isCompleteUpdateValid({ publicPullRequests: ["https://github.com/wso2-support/carbon/pull/1"], reason: "" }),
     ).toBe(false);
+    expect(
+      isCompleteUpdateValid({ publicPullRequests: ["https://github.com/wso2-extensions/carbon/pull/1"], reason: "" }),
+    ).toBe(true);
   });
 
   // An already-saved link may predate the rule, and the dialog can't edit it.

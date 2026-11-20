@@ -9,8 +9,9 @@ import { describe, expect, it } from "vitest";
 import { isCompleteUpdateValid, umtPublicPrError } from "./umtVerifying";
 
 describe("umtPublicPrError", () => {
-  it("accepts a pull request under https://github.com/wso2/", () => {
+  it("accepts a pull request under wso2 or wso2-extensions", () => {
     expect(umtPublicPrError("https://github.com/wso2/carbon-kernel/pull/123")).toBeUndefined();
+    expect(umtPublicPrError("https://github.com/wso2-extensions/identity-inbound-auth-oauth/pull/123")).toBeUndefined();
     expect(umtPublicPrError("")).toBeUndefined();
   });
 
@@ -19,7 +20,9 @@ describe("umtPublicPrError", () => {
       "not a url",
       "http://example.com",
       "ftp://example.com/file",
+      "https://github.com/someone/carbon-kernel/pull/123",
       "https://github.com/wso2-support/carbon-kernel/pull/123",
+      "https://github.com/wso2-incubator/carbon-kernel/pull/123",
       "https://github.com/wso2/carbon-kernel/issues/123",
     ]) {
       expect(umtPublicPrError(value), value).toBeDefined();

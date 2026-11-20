@@ -62,13 +62,13 @@ beforeEach(() => {
 });
 
 describe("Complete Update dialog", () => {
-  it("refuses a public PR outside https://github.com/wso2/", async () => {
+  it("refuses a public PR outside wso2 and wso2-extensions", async () => {
     renderDialog();
 
-    await enterNewPullRequest("https://github.com/wso2-support/carbon-apimgt/pull/3");
+    await enterNewPullRequest("https://github.com/someone/carbon-apimgt/pull/3");
 
     expect(completeButton()).toBeDisabled();
-    expect(screen.getByText(/must be a pull request under https:\/\/github.com\/wso2\//)).toBeInTheDocument();
+    expect(screen.getByText(/must be a link like https:\/\/github.com\/wso2\/<repo>\/pull\/<number>/)).toBeInTheDocument();
   });
 
   it("completes with a wso2 public PR", async () => {

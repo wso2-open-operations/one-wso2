@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// The view page's link lists: public PRs live under https://github.com/wso2/,
+// The view page's link lists: public PRs live under wso2 or wso2-extensions,
 // integration test PRs under https://github.com/wso2-support/, and nothing can
 // be added or deleted while the update is locked mid-demotion.
 
@@ -93,13 +93,13 @@ beforeEach(() => {
 });
 
 describe("public pull requests", () => {
-  it("refuses a pull request outside https://github.com/wso2/", async () => {
+  it("refuses a pull request outside wso2 and wso2-extensions", async () => {
     render(<UmtUpdateViewSections id="42" update={UPDATE} />);
 
-    await openAddWith("Public Pull Request", "https://github.com/wso2-support/carbon-apimgt/pull/11");
+    await openAddWith("Public Pull Request", "https://github.com/someone/carbon-apimgt/pull/11");
 
     expect(addButton()).toBeDisabled();
-    expect(screen.getByText(/must be a pull request under https:\/\/github.com\/wso2\//)).toBeInTheDocument();
+    expect(screen.getByText(/must be a link like https:\/\/github.com\/wso2\/<repo>\/pull\/<number>/)).toBeInTheDocument();
   });
 
   it("adds a wso2 public pull request", async () => {
