@@ -26,10 +26,17 @@ import {
   DialogTitle,
   FormControlLabel,
   Switch,
+  Typography,
 } from "@wso2/oxygen-ui";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { MASTER_DATA_FORM_COPY, MASTER_DATA_SNACK } from "./masterDataUiText";
-import { changedFields, initialFormData, isFormComplete, isUnchanged } from "./masterDataForm";
+import {
+  changedFields,
+  initialFormData,
+  invalidEngagementCodes,
+  isFormComplete,
+  isUnchanged,
+} from "./masterDataForm";
 import {
   CreditCardNumberInput,
   IdSelectInput,
@@ -51,6 +58,9 @@ import {
   type ExpenseTypeAutoComplete,
   type ExpenseTypePayload,
   type GlCode,
+  type InvoiceAccountMappingAutoComplete,
+  type InvoiceAccountMappingPayload,
+  type InvoiceCostType,
   type MasterDataPayload,
   type MasterDataRow,
   type MasterDataTab,
@@ -58,11 +68,26 @@ import {
 } from "./masterDataTypes";
 
 /**
- * Add / edit, for all four tabs.
+ * The mapping form, one field per row.
  *
- * One dialog rather than four: the submit path, the enable rule and the
- * snackbars are identical across tabs, and only the field list differs. The
- * field list is the `switch` at the bottom.
+ * Read top to bottom like the other four tabs, but kept short enough to sit
+ * on screen whole: no field is allowed to grow, the account details are one
+ * line rather than three boxes, and the two rules about the code fields are
+ * one line rather than two alerts. Scrolling a form to reach the
+ * Active/Inactive toggle is how that toggle came to be missed.
+ */
+const MAPPING_FORM_SX = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  rowGap: 0.5,
+} as const;
+
+/**
+ * Add / edit, for every tab.
+ *
+ * One dialog rather than one per tab: the submit path, the enable rule and
+ * the snackbars are identical across them, and only the field list differs.
+ * The field list is the `switch` at the bottom.
  *
  * Submit is enabled only when the form is complete AND — when editing —
  * something has actually changed. Pressing it on an unchanged record would
@@ -75,6 +100,8 @@ export default function MasterDataFormDialog({
   glCodes,
   autoComplete,
   employeeEmails,
+  costTypes,
+  mappingAutoComplete,
   onClose,
 }: {
   tab: MasterDataTab;
@@ -87,6 +114,10 @@ export default function MasterDataFormDialog({
   autoComplete?: ExpenseTypeAutoComplete;
   /** Credit-card form's employee + lead pickers. */
   employeeEmails?: string[];
+  /** Invoice-account-mapping form's Cost Type dropdown. */
+  costTypes?: InvoiceCostType[];
+  /** Invoice-account-mapping form's engagement code / department option lists. */
+  mappingAutoComplete?: InvoiceAccountMappingAutoComplete;
   onClose: () => void;
 }) {
   const isCreate = !row;
@@ -120,6 +151,13 @@ export default function MasterDataFormDialog({
       return { ...prev, [key]: value };
     });
 
+  // Several fields at once, for a picker that fills in more than its own box:
+  // the mapping form's GL Code reports the account number, name and internal
+  // ID together, and setting them one at a time would be three renders in
+  // which the form is briefly inconsistent.
+  const setMany = (patch: Record<string, string | number | string[]>) =>
+    setForm((prev) => ({ ...prev, ...patch }));
+
   const handleSubmit = () => {
     if (!canSubmit) return;
     if (row) {
@@ -131,7 +169,6 @@ export default function MasterDataFormDialog({
             showSuccess(MASTER_DATA_SNACK.success.updated);
             onClose();
           },
-          // The patch says which refusal a 409 was: retiring or reactivating.
           onError: (error) => showError(describeUpdateError(error, patch)),
         },
       );
@@ -157,17 +194,29 @@ export default function MasterDataFormDialog({
       <DialogTitle id="master-data-form-title">
         {isCreate ? copy.addTitle : copy.editTitle}
       </DialogTitle>
-      <DialogContent dividers>
+      {/* No scrollbar: the form above is laid out to fit, and a form that
+          has to be scrolled is how the status toggle came to be missed in
+          the first place. `visible` on small screens would clip, so the
+          overflow only gives way below the height the layout assumes. */}
+      <DialogContent dividers sx={{ overflowY: "auto" }}>
         <Fields
           tab={tab}
           form={form}
           set={set}
+          setMany={setMany}
           glCodes={glCodes}
           autoComplete={autoComplete}
           employeeEmails={employeeEmails}
+          costTypes={costTypes}
+          mappingAutoComplete={mappingAutoComplete}
           countryCurrency={countries.data ?? {}}
         />
       </DialogContent>
+      {/* Outside the scrolling content, not at the foot of it. This is how a
+          record is retired, and on the longer forms it used to sit below the
+          fold — so the one control a reader goes looking for when they want a
+          mapping gone was the one they had to scroll to find. */}
+      <StatusToggle value={(form as { status?: string }).status} onChange={set} />
       <DialogActions>
         <Button onClick={onClose} disabled={pending} color="inherit">
           Cancel
@@ -190,17 +239,23 @@ function Fields({
   tab,
   form,
   set,
+  setMany,
   glCodes,
   autoComplete,
   employeeEmails,
+  costTypes,
+  mappingAutoComplete,
   countryCurrency,
 }: {
   tab: MasterDataTab;
   form: MasterDataPayload;
   set: (key: string, value: string | number | string[]) => void;
+  setMany: (patch: Record<string, string | number | string[]>) => void;
   glCodes?: GlCode[];
   autoComplete?: ExpenseTypeAutoComplete;
   employeeEmails?: string[];
+  costTypes?: InvoiceCostType[];
+  mappingAutoComplete?: InvoiceAccountMappingAutoComplete;
   /** ISO 4217 currency code by country. */
   countryCurrency: Readonly<Record<string, string>>;
 }) {
@@ -340,8 +395,138 @@ function Fields({
               onChange={set}
             />
           </Box>
-          <StatusToggle value={f.status} onChange={set} />
         </>
+      );
+    }
+
+    case "invoiceAccountMappings": {
+      const f = form as InvoiceAccountMappingPayload;
+      const costTypeOptions = (costTypes ?? []).map((c) => ({ id: c.id, label: c.name }));
+
+      // The mapping stores the NetSuite account's number, name and internal
+      // ID as three loose columns, and all three come from one row of the GL
+      // code table. So they are reported by a single GL Code picker rather
+      // than typed into three boxes that can disagree with each other, and
+      // with NetSuite, one character at a time.
+      //
+      // Labelled with the code and the account name, because the
+      // Autocomplete filters on the label and someone adding a mapping knows
+      // "the sponsorship account" more often than its number.
+      const glCodeOptions = (glCodes ?? []).map((g) => ({
+        id: g.id,
+        label: g.glAccountName ? `${g.glCode} \u2014 ${g.glAccountName}` : g.glCode,
+      }));
+      // Resolved back out of the stored account number rather than kept as
+      // its own state, so there is one source of truth and an existing row
+      // opens with its GL code already shown. `glCodeId` is deliberately not
+      // part of the payload: the backend stores the three columns, not the
+      // reference, and sending it would be a 400 on a closed record.
+      const pickedGlCode = (glCodes ?? []).find((g) => g.glCode === f.accountNumber);
+      // A row written before this picker existed can carry an account number
+      // that matches no GL code. Its stored values are still shown and the
+      // rest of the row stays editable.
+      const unmatchedAccount = !pickedGlCode && f.accountNumber.trim().length > 0;
+
+      const applyGlCode = (glCodeId: number) => {
+        const picked = (glCodes ?? []).find((g) => g.id === glCodeId);
+        if (!picked) {
+          setMany({ accountNumber: "", accountClassification: "", internalId: "" });
+          return;
+        }
+        setMany({
+          accountNumber: picked.glCode,
+          accountClassification: picked.glAccountName,
+          internalId: String(picked.internalId),
+          // `costCenter` is the GL code table's own `department` column. It
+          // seeds the field below rather than replacing it, since a mapping
+          // may be filed under a different department than its account.
+          department: picked.costCenter ?? "",
+        });
+      };
+
+      const badCodes = invalidEngagementCodes(f);
+      return (
+        <Box sx={MAPPING_FORM_SX}>
+          <IdSelectInput
+            id="invCostTypeId"
+            label="Cost Type"
+            value={f.invCostTypeId}
+            options={costTypeOptions}
+            required
+            onChange={set}
+          />
+          <IdSelectInput
+            id="glCodeId"
+            label="GL Code"
+            value={pickedGlCode?.id ?? 0}
+            options={glCodeOptions}
+            required
+            onChange={(_id, value) => applyGlCode(value)}
+          />
+
+          {/* The account the GL Code resolves to, on one line. These are not
+              inputs any more, they are confirmation of what the picker just
+              filled in, and three full-width boxes of them were most of the
+              reason this form had to be scrolled. */}
+          {f.accountNumber.trim().length > 0 && (
+            <Box sx={{ px: 1.5, py: 0.75, borderRadius: 1, bgcolor: "action.hover" }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                {f.accountClassification || "\u2014"}
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
+                Account {f.accountNumber}
+                {f.internalId ? ` \u00b7 NetSuite internal ID ${f.internalId}` : ""}
+                {unmatchedAccount ? " \u00b7 not one of the GL codes on file" : ""}
+              </Typography>
+            </Box>
+          )}
+
+          <Box>
+            <SelectInput
+              id="department"
+              label="Department"
+              value={f.department}
+              options={mappingAutoComplete?.departments ?? []}
+              required={false}
+              freeSolo
+              onChange={set}
+            />
+          </Box>
+
+          <MultiSelectInput
+            id="engagementCodes"
+            label="Engagement Codes"
+            values={f.engagementCodes}
+            options={mappingAutoComplete?.engagementCodes ?? []}
+            required={false}
+            helperText=""
+            onChange={set}
+          />
+          <MultiSelectInput
+            id="engagementCodeSuffixes"
+            label="Engagement Code Suffixes"
+            values={f.engagementCodeSuffixes}
+            options={mappingAutoComplete?.engagementCodeSuffixes ?? []}
+            required={false}
+            helperText=""
+            onChange={set}
+          />
+
+          {/* One line in place of two Alert boxes. Both rules are about the
+              pair of fields above, and two bordered boxes to say so cost
+              more height than the fields they were explaining. */}
+          <Typography
+            sx={{
+              fontSize: 12,
+              lineHeight: 1.45,
+              color: badCodes.length > 0 ? "error.main" : "text.secondary",
+            }}
+          >
+            {badCodes.length > 0
+              ? `Cannot be saved as typed: ${badCodes.join(" \u00b7 ")}. Use letters, digits, hyphens, dots or underscores only, one code per entry.`
+              : "Fill in at least one of the two fields above. Type a value and press Enter to add it."}
+          </Typography>
+        </Box>
       );
     }
 
@@ -390,7 +575,6 @@ function Fields({
             multiline
             onChange={set}
           />
-          <StatusToggle value={f.status} onChange={set} />
         </>
       );
     }
@@ -417,7 +601,9 @@ function StatusToggle({
   const active = value === MASTER_DATA_STATUS.active;
   return (
     <FormControlLabel
-      sx={{ mt: 0.5 }}
+      // Its own padding, now that it sits between the content and the
+      // actions rather than inside the scrolling field list.
+      sx={{ px: 3, py: 1.5, mr: 0 }}
       control={
         <Switch
           checked={active}

@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import { useMemo } from "react";
 import { Box, Chip, DataGrid, IconButton, Stack, TextField, Tooltip, Typography } from "@wso2/oxygen-ui";
 import {
   DownloadIcon,
@@ -29,6 +30,7 @@ import {
   MASTER_DATA_STATUS,
   type Department,
   type ExpenseType,
+  type InvoiceAccountMapping,
   type MasterDataRow,
   type MasterDataTab,
 } from "./masterDataTypes";
@@ -45,15 +47,44 @@ import {
 /** Empty cells read as a dash, not as blank. */
 const EMPTY = "-";
 
-/** Lists render as chips; `valueFormatter` keeps CSV export readable. */
-function ChipList({ values }: { values: string[] }) {
+const CHIP_SX = { fontSize: 11, fontWeight: 600 } as const;
+
+/**
+ * Lists render as chips; `valueFormatter` keeps CSV export readable.
+ *
+ * `max` caps how many are drawn, and the rest become a `+n` chip with the
+ * whole list in a tooltip. A mapping can carry a dozen engagement codes, and
+ * uncapped that one row is as tall as the screen — which makes the table
+ * unreadable precisely when there is the most in it to find. Uncapped by
+ * default, so only the columns that need it pay for it.
+ */
+function ChipList({ values, max }: { values: string[]; max?: number }) {
   if (!values || values.length === 0) return <>{EMPTY}</>;
-  return (
+
+  const shown = max === undefined ? values : values.slice(0, max);
+  const hiddenCount = values.length - shown.length;
+  const chips = (
     <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ py: 0.75 }}>
-      {values.map((v) => (
-        <Chip key={v} label={v} title={v} size="small" sx={{ fontSize: 11, fontWeight: 600 }} />
+      {shown.map((v) => (
+        <Chip key={v} label={v} title={v} size="small" sx={CHIP_SX} />
       ))}
+      {hiddenCount > 0 && (
+        <Chip label={`+${hiddenCount}`} size="small" variant="outlined" sx={CHIP_SX} />
+      )}
     </Stack>
+  );
+
+  // No tooltip when everything is already on screen — one that repeats the
+  // cell is just something that flickers when the pointer crosses the row.
+  if (hiddenCount === 0) return chips;
+  return (
+    <Tooltip
+      arrow
+      placement="top"
+      title={<Box sx={{ p: 0.5, fontSize: 12.5 }}>{values.join(", ")}</Box>}
+    >
+      {chips}
+    </Tooltip>
   );
 }
 
@@ -120,11 +151,20 @@ const text = (): Partial<DataGrid.GridColDef> => ({
     : String(p.value)),
 });
 
-const chips = (): Partial<DataGrid.GridColDef> => ({
-  renderCell: (p) => <ChipList values={(p.value as string[]) ?? []} />,
-  // Export writes "a, b", not "[object Object]".
+const chips = (max?: number): Partial<DataGrid.GridColDef> => ({
+  renderCell: (p) => <ChipList values={(p.value as string[]) ?? []} max={max} />,
+  // Export writes "a, b", not "[object Object]" — and writes every value,
+  // not the `max` the cell shows.
   valueFormatter: (value) => ((value as string[])?.length ? (value as string[]).join(", ") : EMPTY),
 });
+
+/**
+ * Chips shown per mapping code cell before the rest move into the tooltip.
+ *
+ * Four is about two rows at these column widths, which is the height a row
+ * was asked to stay inside.
+ */
+const MAX_MAPPING_CHIPS = 4;
 
 /** Per-tab columns, headers and widths, in the order they're read left to right. */
 const MASTER_DATA_COLUMNS: Record<MasterDataTab, DataGrid.GridColDef[]> = {
@@ -211,6 +251,53 @@ const MASTER_DATA_COLUMNS: Record<MasterDataTab, DataGrid.GridColDef[]> = {
       renderCell: (p) => <StatusChip value={p.value as string} />,
     },
   ],
+  invoiceAccountMappings: [
+    // Keyed on the code rather than on the account name, the way the
+    // expense-type tab is: a code identifies one account and a name does not
+    // — several accounts read as "Travel" — so scanning down the names tells
+    // you less per row than scanning down the codes.
+    {
+      field: "accountNumber",
+      headerName: "GL Code",
+      flex: 2,
+      minWidth: 150,
+      renderCell: (p) => {
+        const r = p.row as InvoiceAccountMapping;
+        return (
+          <InfoCell
+            text={r.accountNumber}
+            details={[
+              ["Account Name", r.accountClassification ?? ""],
+              ["Internal ID", r.internalId ?? ""],
+            ]}
+          />
+        );
+      },
+    },
+    { field: "costType", headerName: "Cost Type", flex: 2, minWidth: 160, ...text() },
+    {
+      field: "engagementCodes",
+      headerName: "Engagement Code",
+      flex: 2.5,
+      minWidth: 180,
+      ...chips(MAX_MAPPING_CHIPS),
+    },
+    {
+      field: "engagementCodeSuffixes",
+      headerName: "Engagement Code Suffix",
+      flex: 2.5,
+      minWidth: 180,
+      ...chips(MAX_MAPPING_CHIPS),
+    },
+    { field: "department", headerName: "Department", flex: 1.5, minWidth: 130, ...text() },
+    {
+      field: "status",
+      headerName: "Status",
+      flex: 1,
+      minWidth: 110,
+      renderCell: (p) => <StatusChip value={p.value as string} />,
+    },
+  ],
   creditCards: [
     { field: "ccNumber", headerName: "CC Number", flex: 1.5, minWidth: 130, ...text() },
     { field: "ccProviderCode", headerName: "CC Provider Code", flex: 1.5, minWidth: 150, ...text() },
@@ -236,7 +323,7 @@ const MASTER_DATA_COLUMNS: Record<MasterDataTab, DataGrid.GridColDef[]> = {
  * tables are wide, and hiding a column you do not need is worth the extra
  * button.
  */
-function MasterDataToolbar() {
+function MasterDataToolbar({ showSearch = true }: { showSearch?: boolean }) {
   return (
     <DataGrid.Toolbar>
       {/* `Toolbar` is a bare container and takes no `sx`, so the row's
@@ -261,8 +348,10 @@ function MasterDataToolbar() {
         </DataGrid.ExportCsv>
         <Box sx={{ flex: 1 }} />
         {/* `expanded`, so the field is on screen rather than behind a
-            magnifier the reader has to click first. */}
-        <DataGrid.QuickFilter expanded>
+            magnifier the reader has to click first. Hidden on the tabs that
+            put their own search above the table, so there is never a second
+            box that searches the same rows a different way. */}
+        <DataGrid.QuickFilter expanded hidden={!showSearch}>
           <DataGrid.QuickFilterControl
             render={(props) => (
               <TextField
@@ -287,8 +376,9 @@ function MasterDataToolbar() {
  * One tab's table, with an Actions column of Edit and — on Subsidiaries and
  * Departments — Delete.
  *
- * Credit Cards and Expense Types have no Delete: both carry a status column
- * and retire a record through their form's Active/Inactive toggle instead.
+ * Credit Cards, Expense Types and Invoice Account Mappings have no Delete:
+ * each carries a status column and retires a record through its form's
+ * Active/Inactive toggle instead.
  *
  * Rows auto-size their height (`getRowHeight: () => "auto"`) because an
  * expense type can carry a dozen engagement-code chips and a fixed row
@@ -298,18 +388,32 @@ export default function MasterDataGrid({
   tab,
   rows,
   loading,
+  showSearch = true,
   onEdit,
   onDelete,
 }: {
   tab: MasterDataTab;
   rows: MasterDataRow[];
   loading: boolean;
+  /** False where the page puts its own search box above the table. */
+  showSearch?: boolean;
   onEdit: (row: MasterDataRow) => void;
   onDelete: (row: MasterDataRow) => void;
 }) {
-  // Both tabs retire a record through their form's Active/Inactive toggle
+  // These tabs retire a record through their form's Active/Inactive toggle
   // instead — see `StatusToggle` in MasterDataFormDialog.
-  const showsDelete = tab !== "creditCards" && tab !== "expenseTypes";
+  const showsDelete =
+    tab !== "creditCards" && tab !== "expenseTypes" && tab !== "invoiceAccountMappings";
+
+  // Closed over rather than passed through `slotProps`, which would need the
+  // grid's ToolbarPropsOverrides augmenting to carry a prop of our own.
+  // Memoised so the toolbar is not a new component type on every render.
+  const toolbar = useMemo(
+    () => function Toolbar() {
+      return <MasterDataToolbar showSearch={showSearch} />;
+    },
+    [showSearch],
+  );
 
   const columns: DataGrid.GridColDef[] = [
     ...MASTER_DATA_COLUMNS[tab],
@@ -358,7 +462,7 @@ export default function MasterDataGrid({
         getRowHeight={() => "auto"}
         disableRowSelectionOnClick
         disableColumnMenu
-        slots={{ toolbar: MasterDataToolbar }}
+        slots={{ toolbar }}
         localeText={{ toolbarFilters: "Column Search" }}
         initialState={{
           sorting: { sortModel: [{ field: INITIAL_SORT_FIELD[tab], sort: "asc" }] },

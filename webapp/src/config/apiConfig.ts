@@ -669,8 +669,8 @@ export function isFinanceMasterDataBackendConfigured(): boolean {
 
 export const financeMasterDataServiceUrls = {
   userInfo: `${financeMasterDataBackendUrl}/user-info`,
-  // The four collections, keyed by path segment, so the item helpers below
-  // can serve all four tabs off one shared builder.
+  // The five collections, keyed by path segment, so the item helpers below
+  // can serve every tab off one shared builder.
   collection: (name: string) => `${financeMasterDataBackendUrl}/${name}`,
   item: (name: string, id: number) =>
     `${financeMasterDataBackendUrl}/${name}/${encodeURIComponent(String(id))}`,
@@ -682,6 +682,14 @@ export const financeMasterDataServiceUrls = {
   employeeEmails: `${financeMasterDataBackendUrl}/employees/email`,
   expenseTypeAutocomplete: `${financeMasterDataBackendUrl}/expense-types/autocomplete-values`,
   countries: `${financeMasterDataBackendUrl}/countries`,
+  // Invoice cost types served by ONE_WSO2_FINANCE_MASTER_DATA_BACKEND_URL.
+  invoiceCostTypes: `${financeMasterDataBackendUrl}/invoice-cost-types`,
+  // The mappings are read through a POST filter like expense types, and for
+  // the same reason: the filter carries several engagement codes at once and
+  // the page is asked for by size and offset.
+  searchInvoiceAccountMappings: `${financeMasterDataBackendUrl}/invoice-account-mappings/search`,
+  invoiceAccountMappingAutocomplete:
+    `${financeMasterDataBackendUrl}/invoice-account-mappings/autocomplete-values`,
 };
 
 // ---- Updates Manager backend ---------------------------------------------

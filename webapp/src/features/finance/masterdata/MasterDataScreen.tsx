@@ -29,6 +29,8 @@ import {
   MASTER_DATA_LABELS,
   type ExpenseTypeAutoComplete,
   type GlCode,
+  type InvoiceAccountMappingAutoComplete,
+  type InvoiceCostType,
   type MasterDataRow,
   type MasterDataTab,
 } from "./masterDataTypes";
@@ -37,9 +39,9 @@ import {
  * The page every master-data tab is: a title, an "Add New …" button, and a
  * table with Edit and Delete on each row.
  *
- * The four screens differ only in which rows they load and, on expense types,
- * a filter bar above the table — so they share this and pass their own data
- * in, rather than each repeating the shell, the two dialogs and the
+ * The screens differ only in which rows they load and, on expense types, a
+ * filter bar above the table — so they share this and pass their own data in,
+ * rather than each repeating the shell, the two dialogs and the
  * add/edit/delete state machine.
  *
  * Which record a dialog is working on lives here because both dialogs and the
@@ -55,8 +57,11 @@ export default function MasterDataScreen({
   glCodes,
   autoComplete,
   employeeEmails,
+  costTypes,
+  mappingAutoComplete,
   toolbar,
   children,
+  showGridSearch = true,
 }: {
   tab: MasterDataTab;
   rows: MasterDataRow[];
@@ -66,10 +71,14 @@ export default function MasterDataScreen({
   glCodes?: GlCode[];
   autoComplete?: ExpenseTypeAutoComplete;
   employeeEmails?: string[];
-  /** Extra controls beside "Add New …" — the expense-type filter toggle. */
+  costTypes?: InvoiceCostType[];
+  mappingAutoComplete?: InvoiceAccountMappingAutoComplete;
+  /** Extra controls beside "Add New …" — the filter toggles. */
   toolbar?: ReactNode;
   /** Rendered between the header and the table — the expense-type filter bar. */
   children?: ReactNode;
+  /** False where the page puts its own search box above the table. */
+  showGridSearch?: boolean;
 }) {
   // `undefined` = closed. `null` = open for a NEW record. A row = editing it.
   // Three states in one value, because "the add dialog" and "the edit dialog"
@@ -108,6 +117,7 @@ export default function MasterDataScreen({
           tab={tab}
           rows={rows}
           loading={loading}
+          showSearch={showGridSearch}
           onEdit={setFormRow}
           onDelete={setDeleteRow}
         />
@@ -124,6 +134,8 @@ export default function MasterDataScreen({
           glCodes={glCodes}
           autoComplete={autoComplete}
           employeeEmails={employeeEmails}
+          costTypes={costTypes}
+          mappingAutoComplete={mappingAutoComplete}
           onClose={() => setFormRow(undefined)}
         />
       )}

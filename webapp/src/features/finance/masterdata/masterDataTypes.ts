@@ -17,14 +17,19 @@
 // The finance-master-data wire types, field for field. The backend decides
 // these names — a rename here is a broken request, not a tidy-up.
 
-/** The four collections, in the order the rail lists them. */
-export type MasterDataTab = "subsidiaries" | "departments" | "expenseTypes" | "creditCards";
+/** The five collections, in the order the rail lists them. */
+export type MasterDataTab =
+  | "subsidiaries"
+  | "departments"
+  | "expenseTypes"
+  | "creditCards"
+  | "invoiceAccountMappings";
 
 /**
  * Path segment per tab.
  *
- * The camelCase tab key and the kebab-case endpoint differ for two of the
- * four, so this map is what turns one into the other. Both spellings are load
+ * The camelCase tab key and the kebab-case endpoint differ for three of the
+ * five, so this map is what turns one into the other. Both spellings are load
  * bearing; neither is derivable from the other.
  */
 export const MASTER_DATA_ENDPOINTS: Record<MasterDataTab, string> = {
@@ -32,6 +37,7 @@ export const MASTER_DATA_ENDPOINTS: Record<MasterDataTab, string> = {
   departments: "departments",
   expenseTypes: "expense-types",
   creditCards: "credit-cards",
+  invoiceAccountMappings: "invoice-account-mappings",
 };
 
 /** Page/tab titles. */
@@ -40,6 +46,7 @@ export const MASTER_DATA_LABELS: Record<MasterDataTab, string> = {
   departments: "Departments",
   expenseTypes: "Expense Types",
   creditCards: "Credit Cards",
+  invoiceAccountMappings: "Invoice Account Mappings",
 };
 
 // ---- Subsidiaries ---------------------------------------------------------
@@ -194,14 +201,113 @@ export interface EmployeeEmail {
   workEmail: string;
 }
 
+// ---- Invoice account mappings ---------------------------------------------
+//
+// Served by ONE_WSO2_FINANCE_MASTER_DATA_BACKEND_URL like the rest of these
+// screens, though these rows are not held in the finance master data database
+// itself.
+//
+// A mapping decides which NetSuite account and department a travel invoice or
+// per diem bill is posted to. It is matched by engagement code — or, failing
+// that, by a suffix of one — narrowed to a cost type. Per diem is not a
+// separate table: it is cost type "Currency (per diem / allowances)", which is
+// why one screen answers Finance's request for both a Travel Invoice mapping
+// and a Per diem mapping.
+
+export interface InvoiceAccountMapping {
+  id: number;
+  /** NetSuite internal ID of the account. */
+  internalId: string;
+  /** NetSuite account number, e.g. "61033-003". */
+  accountNumber: string;
+  /** Account name exactly as it reads in NetSuite. */
+  accountClassification: string;
+  engagementCodes: string[];
+  engagementCodeSuffixes: string[];
+  invCostTypeId: number;
+  /** Cost type name, resolved by the backend from `invCostTypeId`. */
+  costType: string;
+  department: string | null;
+  status: string;
+}
+
+export interface InvoiceAccountMappingPayload {
+  internalId: string;
+  accountNumber: string;
+  accountClassification: string;
+  engagementCodes: string[];
+  engagementCodeSuffixes: string[];
+  invCostTypeId: number;
+  /**
+   * Blank is a real value, not a missing one — the Intercompany rows carry an
+   * empty department on purpose, so this is never required.
+   */
+  department: string;
+  /** Edits only — see {@link CreditCardPayload.status}, which works the same way. */
+  status?: string;
+}
+
+/** `/invoice-cost-types` rows — the cost types a mapping may be filed under. */
+export interface InvoiceCostType {
+  id: number;
+  name: string;
+}
+
+/**
+ * POST body for `invoice-account-mappings/search`. Every key is optional.
+ *
+ * An empty object is a real question rather than an absent one: the backend
+ * builds no WHERE clause for it and answers with the first page of the whole
+ * table, which is what the screen asks for on its first render.
+ */
+export interface InvoiceAccountMappingFilter {
+  invCostTypeIds?: number[];
+  engagementCodes?: string[];
+  engagementCodeSuffixes?: string[];
+  /** An empty string selects the rows that carry no department. */
+  departments?: string[];
+  status?: string[];
+  /** Matched against the account name, number, internal ID, codes and cost type. */
+  searchTerm?: string;
+  /** Page size. The backend defaults to 100 and clamps anything above 500. */
+  limit?: number;
+  offset?: number;
+}
+
+/** One page of mappings, with the total the filter matches across every page. */
+export interface InvoiceAccountMappingPage {
+  mappings: InvoiceAccountMapping[];
+  totalCount: number;
+}
+
+/**
+ * The option lists behind the mapping filters and that tab's form pickers.
+ *
+ * Read from the whole table by the backend rather than derived from the rows
+ * on screen. That distinction is what keeps the options honest once the list
+ * is paged: a code that only appears on page four is still offered.
+ */
+export interface InvoiceAccountMappingAutoComplete {
+  costTypes: LabelledId[];
+  engagementCodes: string[];
+  engagementCodeSuffixes: string[];
+  departments: string[];
+}
+
 // ---- Unions ---------------------------------------------------------------
 
-export type MasterDataRow = Subsidiary | Department | ExpenseType | CreditCard;
+export type MasterDataRow =
+  | Subsidiary
+  | Department
+  | ExpenseType
+  | CreditCard
+  | InvoiceAccountMapping;
 export type MasterDataPayload =
   | SubsidiaryPayload
   | DepartmentPayload
   | ExpenseTypePayload
-  | CreditCardPayload;
+  | CreditCardPayload
+  | InvoiceAccountMappingPayload;
 
 /**
  * The row type each tab holds, so a page can name its tab once and have the
@@ -212,6 +318,7 @@ export interface MasterDataRowFor {
   departments: Department;
   expenseTypes: ExpenseType;
   creditCards: CreditCard;
+  invoiceAccountMappings: InvoiceAccountMapping;
 }
 
 export interface MasterDataPayloadFor {
@@ -219,4 +326,5 @@ export interface MasterDataPayloadFor {
   departments: DepartmentPayload;
   expenseTypes: ExpenseTypePayload;
   creditCards: CreditCardPayload;
+  invoiceAccountMappings: InvoiceAccountMappingPayload;
 }
