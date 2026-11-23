@@ -22,6 +22,7 @@ export interface UmtCreateProductFormValues {
   version: string;
   leadMail: string;
   edMail: string;
+  platform: string;
   ftpHost: string;
   ftpPort: string;
   ftpUsername: string;
@@ -34,6 +35,7 @@ export const EMPTY_CREATE_PRODUCT_FORM: UmtCreateProductFormValues = {
   version: "",
   leadMail: "",
   edMail: "",
+  platform: "",
   ftpHost: "",
   ftpPort: "",
   ftpUsername: "",
@@ -62,14 +64,38 @@ export function isValidProductVersion(value: string): boolean {
   return /^\d+\.\d+\.\d+$/.test(value.trim());
 }
 
-// Every field is required, blank after trimming is not accepted, the version
-// must be X.Y.Z, and the lead and ED emails must be well formed.
+// A port is a whole number from 1 to 65535, with no sign or other characters.
+export function isValidFtpPort(value: string): boolean {
+  const text = value.trim();
+  return /^\d+$/.test(text) && Number(text) >= 1 && Number(text) <= 65535;
+}
+
+// The fields that must be filled. Every form field except the platform is
+// here; the Record type makes a new form field fail to compile until it is
+// added.
+const REQUIRED_FIELDS: Record<Exclude<keyof UmtCreateProductFormValues, "platform">, true> = {
+  name: true,
+  version: true,
+  leadMail: true,
+  edMail: true,
+  ftpHost: true,
+  ftpPort: true,
+  ftpUsername: true,
+  ftpPassword: true,
+  ftpAbsolutePath: true,
+};
+
+// Every required field is filled (blank after trimming is not accepted), the
+// version must be X.Y.Z, the lead and ED emails must be well formed, and the
+// FTP port must be a port number.
 export function isCreateProductFormValid(values: UmtCreateProductFormValues): boolean {
+  const requiredKeys = Object.keys(REQUIRED_FIELDS) as (keyof typeof REQUIRED_FIELDS)[];
   return (
-    Object.values(values).every((value) => value.trim().length > 0) &&
+    requiredKeys.every((key) => values[key].trim().length > 0) &&
     isValidProductVersion(values.version) &&
     isValidEmail(values.leadMail) &&
-    isValidEmail(values.edMail)
+    isValidEmail(values.edMail) &&
+    isValidFtpPort(values.ftpPort)
   );
 }
 
@@ -85,10 +111,26 @@ export function buildUmtCreateProductRequest(
     version: `${values.version.trim()}.0.full`,
     leadMail: values.leadMail.trim(),
     edMail: values.edMail.trim(),
-    ftpHost: values.ftpHost.trim(),
-    ftpPort: values.ftpPort.trim(),
-    ftpUsername: values.ftpUsername.trim(),
-    ftpPassword: values.ftpPassword, // not trimmed: a password may legitimately contain edge whitespace
-    ftpAbsolutePath: values.ftpAbsolutePath.trim(),
+    ...(values.platform ? { platform: values.platform } : {}),
+    FTPHost: values.ftpHost.trim(),
+    FTPPort: values.ftpPort.trim(),
+    FTPUsername: values.ftpUsername.trim(),
+    FTPPassword: values.ftpPassword, // not trimmed: a password may legitimately contain edge whitespace
+    FTPPath: values.ftpAbsolutePath.trim(),
   };
+}
+
+// Some add-product rejections carry a JSON object as their message, e.g.
+// `{"message":"Product already exists"}`. Returns the inner message for those,
+// and the text unchanged otherwise.
+export function unwrapUmtErrorMessage(text: string): string {
+  try {
+    const parsed = JSON.parse(text) as { message?: unknown } | null;
+    if (parsed && typeof parsed.message === "string" && parsed.message.trim()) {
+      return parsed.message;
+    }
+  } catch {
+    // not JSON
+  }
+  return text;
 }

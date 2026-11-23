@@ -23,6 +23,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  MenuItem,
   Stack,
   TextField,
 } from "@wso2/oxygen-ui";
@@ -32,19 +33,24 @@ import { useNotifications } from "@context/notifications/NotificationsContext";
 import {
   EMPTY_CREATE_PRODUCT_FORM,
   isValidEmail,
+  isValidFtpPort,
   buildUmtCreateProductRequest,
   isCreateProductFormValid,
   isValidProductVersion,
+  unwrapUmtErrorMessage,
   type UmtCreateProductFormValues,
 } from "../lib/umtProducts";
+import { PLATFORM_OPTIONS } from "../lib/umtPlatforms";
 import { useUmtCreateProduct } from "../api/useUmtProducts";
 
-// Full port of legacy's "Add a Product" form (product-management-view). The
-// one deliberate fix: FTP Password is masked here (legacy leaves it as a
-// plain, readable TextField) — the functional spec is explicit that
-// credentials must never be exposed after submission, and an unmasked field
-// on screen is exactly that. Every field resets on close, and nothing here is
-// ever written to browser storage.
+// The "Add a Product" form. It does not add the product at once: the backend
+// saves the request for onboarding and answers 202. A scheduled job later
+// downloads the pack from the given FTP location and adds the product, and
+// the admins and the ED get an email when that completes or fails.
+//
+// Every field is required except Platform. The FTP password is masked, because
+// credentials must never be shown on screen. Every field resets on close, and
+// nothing here is ever written to browser storage.
 export default function UmtAddProductDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { showSuccess } = useNotifications();
   const createProduct = useUmtCreateProduct();
@@ -60,12 +66,20 @@ export default function UmtAddProductDialog({ open, onClose }: { open: boolean; 
     const isMissing = submitted && text.length === 0;
     // An address is checked as it is typed, once there is something to check.
     const isMalformedEmail = (key === "leadMail" || key === "edMail") && text.length > 0 && !isValidEmail(text);
+    // So is a port.
+    const isMalformedPort = key === "ftpPort" && text.length > 0 && !isValidFtpPort(text);
     return {
       value: values[key],
       onChange: (event: ChangeEvent<HTMLInputElement>) =>
         setValues((current) => ({ ...current, [key]: event.target.value })),
-      error: isMissing || isMalformedEmail,
-      helperText: isMissing ? `${label} is required` : isMalformedEmail ? "Enter a valid email address." : undefined,
+      error: isMissing || isMalformedEmail || isMalformedPort,
+      helperText: isMissing
+        ? `${label} is required`
+        : isMalformedEmail
+          ? "Enter a valid email address."
+          : isMalformedPort
+            ? "Enter a port number from 1 to 65535."
+            : undefined,
     };
   };
 
@@ -85,10 +99,10 @@ export default function UmtAddProductDialog({ open, onClose }: { open: boolean; 
 
     try {
       await createProduct.mutateAsync(buildUmtCreateProductRequest(values));
-      showSuccess("Base product added successfully.");
+      showSuccess("Product submitted for onboarding. An email is sent when onboarding completes or fails.");
       handleClose();
     } catch (error) {
-      setSubmitError(describeError(error));
+      setSubmitError(unwrapUmtErrorMessage(describeError(error)));
     }
   }
 
@@ -127,6 +141,22 @@ export default function UmtAddProductDialog({ open, onClose }: { open: boolean; 
           />
           <TextField label="Lead Email" required size="small" {...field("leadMail", "Lead email")} />
           <TextField label="ED Email" required size="small" {...field("edMail", "ED email")} />
+          <TextField
+            select
+            label="Platform"
+            size="small"
+            value={values.platform}
+            onChange={(event) => setValues((current) => ({ ...current, platform: event.target.value }))}
+          >
+            <MenuItem value="">
+              <em>None</em>
+            </MenuItem>
+            {PLATFORM_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
           <TextField label="FTP Host" required size="small" {...field("ftpHost", "FTP host")} />
           <TextField label="FTP Port" required size="small" {...field("ftpPort", "FTP port")} />
           <TextField label="FTP Username" required size="small" {...field("ftpUsername", "FTP username")} />
