@@ -31,22 +31,32 @@ import { isUmtBranchInProgress } from "../lib/umtBranches";
 
 const UMT_BRANCH_POLL_INTERVAL_MS = 5000;
 
-export function useUmtBranches(id: string) {
+// `enabled` turns the fetch off where its result is not shown. `pollWhile`
+// keeps checking after every branch has settled, for as long as it returns
+// true for the latest list.
+export function useUmtBranches(
+  id: string,
+  options: { enabled?: boolean; pollWhile?: (branches: UmtUpdateBranch[]) => boolean } = {},
+) {
   const { isSignedIn } = useAsgardeo();
   const getAccessToken = useAccessToken();
   const { state: subState, retry: retryIdentity } = useAsgardeoSub();
   const userSub = subState.status === "ready" ? subState.sub : undefined;
+  const { enabled = true, pollWhile } = options;
 
   const query = useQuery<UmtUpdateBranch[]>({
     queryKey: ["umt-update-branches", userSub, id],
-    enabled: /^\d+$/.test(id) && isSignedIn && isUmtBackendConfigured() && Boolean(userSub),
+    enabled: enabled && /^\d+$/.test(id) && isSignedIn && isUmtBackendConfigured() && Boolean(userSub),
     queryFn: async () =>
       authedGet<UmtUpdateBranch[]>(umtServiceUrls.updateBranches(id), await getAccessToken()),
     // Branches are created asynchronously by a Jenkins job, so a branch's
     // status, branch URL and job URL change server-side after the create
     // request returns. Keep checking until no branch is still in progress.
-    refetchInterval: (query) =>
-      query.state.data?.some(isUmtBranchInProgress) ? UMT_BRANCH_POLL_INTERVAL_MS : false,
+    refetchInterval: (query) => {
+      const branches = query.state.data;
+      if (!branches) return false;
+      return branches.some(isUmtBranchInProgress) || pollWhile?.(branches) ? UMT_BRANCH_POLL_INTERVAL_MS : false;
+    },
     retry: httpRetry,
   });
 

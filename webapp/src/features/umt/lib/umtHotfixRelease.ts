@@ -14,9 +14,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import type { UmtUpdateBranch } from "../api/umtUpdates";
+import { toWebAddress } from "./umtDocumentation";
+
 // A hotfix is released from TestingEnvironmentCreated, gated on its Jenkins
 // integration-test run: anyone may release once the run passed; a lead or
 // admin may release without a pass, but only with a reason.
+
+// The branch the hotfix's integration tests run from: its completed product
+// branch. The backend triggers a run only with this branch's Jenkins job, so
+// without it the tests cannot run.
+export function umtHotfixProductBranch(branches: UmtUpdateBranch[] | undefined): UmtUpdateBranch | undefined {
+  return branches?.find((branch) => branch.branchType === "ProductBranch" && branch.status === "Completed");
+}
+
+// The Jenkins job the hotfix's integration tests run on: the job of its
+// completed product branch. The job is known once the branch is created, so it
+// does not wait on a run. Empty when there is no such branch or its job is not
+// an http(s) address; a branch of a Gradle repository has no Jenkins job.
+export function umtHotfixJobUrl(branches: UmtUpdateBranch[] | undefined): string {
+  return toWebAddress(umtHotfixProductBranch(branches)?.jenkinsJobUrl);
+}
 
 // The run's buildStatus ("success", "triggered", "unstable", "failure", ...),
 // or null when no run has been started yet.
