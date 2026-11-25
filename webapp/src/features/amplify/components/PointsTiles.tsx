@@ -16,82 +16,88 @@
 
 import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
-import { Box, LinearProgress, Skeleton, Typography } from "@wso2/oxygen-ui";
+import { Box, LinearProgress, Link, Skeleton, Typography } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useMyPoints } from "../api/useAmplifyData";
 import { coinsText, progressFraction } from "../util/coins";
 import { num } from "../util/dashboardFormat";
+import { CoinMark, warmSurfaceSx } from "./AmplifyTone";
 import { SectionLabel } from "./DashboardParts";
 
-/** One tile: a label, a number with an optional unit, a line of context and any extra content (a progress bar). */
+/** One tile: a label, the value, a line of context and any extra content (a progress bar). */
 function Tile({
   label,
   value,
-  unit,
   detail,
+  warm = false,
   children,
-  to,
 }: {
   label: string;
   value: ReactNode;
-  unit?: string;
   detail?: ReactNode;
+  /** The Coins colours. */
+  warm?: boolean;
   children?: ReactNode;
-  /** Makes the whole tile a link to this path. */
-  to?: string;
 }) {
-  const body = (
+  return (
     <Box
       component="section"
       aria-label={label}
       sx={{
         border: "1px solid",
         borderColor: "divider",
-        borderRadius: 2,
+        borderRadius: 3,
         p: 2,
         minWidth: 0,
         height: "100%",
         boxSizing: "border-box",
-        transition: "border-color 120ms",
-        ...(to && { "&:hover": { borderColor: "primary.main" } }),
+        bgcolor: "background.paper",
+        ...(warm && warmSurfaceSx),
       }}
     >
-      <SectionLabel>{label}</SectionLabel>
-      <Typography sx={{ fontSize: 28, fontWeight: 600, lineHeight: 1.15, mt: 1 }}>
-        {value}
-        {unit && (
-          <>
-            {" "}
-            <Box component="span" sx={{ fontSize: 14, fontWeight: 500, color: "text.secondary" }}>
-              {unit}
-            </Box>
-          </>
-        )}
-      </Typography>
+      <Box sx={warm ? { "& h2": { color: "warning.dark" } } : undefined}>
+        <SectionLabel>{label}</SectionLabel>
+      </Box>
+      {value}
       {children}
       {detail && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+        <Typography variant="body2" sx={{ mt: 0.75, color: warm ? "warning.dark" : "text.secondary" }}>
           {detail}
         </Typography>
       )}
     </Box>
   );
-  if (!to) return body;
+}
+
+/** A big number with a small unit after it, e.g. "185 points". */
+function BigNumber({ value, unit, icon }: { value: string; unit?: string; icon?: ReactNode }) {
   return (
-    <Box component={RouterLink} to={to} sx={{ display: "block", color: "inherit", textDecoration: "none", minWidth: 0 }}>
-      {body}
-    </Box>
+    <Typography
+      component="p"
+      sx={{ fontSize: 28, fontWeight: 700, lineHeight: 1.15, mt: 1, display: "flex", alignItems: "baseline", gap: 0.75 }}
+    >
+      {icon && <Box component="span" sx={{ alignSelf: "center", display: "inline-flex" }}>{icon}</Box>}
+      {value}
+      {unit && (
+        <>
+          {" "}
+          <Box component="span" sx={{ fontSize: 15, fontWeight: 500, color: "text.secondary" }}>
+            {unit}
+          </Box>
+        </>
+      )}
+    </Typography>
   );
 }
 
 /**
- * The caller's four numbers: points and rank this month, all-time points, Coins received, and progress to the next
- * Coins (GET /me/points, both periods). Loading shows placeholders; a failure shows a notice with Retry in their
- * place.
+ * Celebrate's four tiles (GET /me/points, both periods): This month (points and rank), All time, Coins received and
+ * Next Coins (progress, and a History link to My points & Coins). Loading shows placeholders; a failure shows a
+ * notice with Retry in their place.
  *
- * @param linkTo - makes each tile a link there (Celebrate links them to My points & Coins)
+ * @param historyTo - where the Next Coins tile's History link goes (My points & Coins); no link without it
  */
-export default function PointsTiles({ linkTo }: { linkTo?: string }) {
+export default function PointsTiles({ historyTo }: { historyTo?: string }) {
   const all = useMyPoints("ALL");
   const month = useMyPoints("MONTH");
   const failed = all.isError ? all : month.isError ? month : null;
@@ -128,30 +134,51 @@ export default function PointsTiles({ linkTo }: { linkTo?: string }) {
     <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: TILE_COLUMNS, mb: 3 }}>
       <Tile
         label="This month"
-        value={num(month.data.standing.points)}
-        unit="points"
-        detail={rank != null ? `Rank #${num(rank)}` : "Not ranked yet"}
-        to={linkTo}
+        value={<BigNumber value={num(month.data.standing.points ?? 0)} unit="points" />}
+        detail={rank != null ? `You're #${num(rank)}` : "Not ranked yet"}
       />
-      <Tile label="All-time points" value={num(all.data.standing.points)} unit="points" to={linkTo} />
-      <Tile label="Coins received" value={num(coins.coinsReceived)} unit="WSO2 Coins" to={linkTo} />
+      <Tile
+        label="All time"
+        value={<BigNumber value={num(all.data.standing.points ?? 0)} unit="points" />}
+        detail="Since you joined Amplify"
+      />
+      <Tile
+        label="Coins received"
+        warm
+        value={<BigNumber value={num(coins.coinsReceived)} icon={<CoinMark size={24} />} />}
+        detail="In your WSO2 Coins wallet"
+      />
       <Tile
         label="Next Coins"
-        value={`${num(coins.pointsTowardNext)} / ${num(coins.blockPoints)}`}
-        unit="points"
-        detail={`${num(toGo)} more ${toGo === 1 ? "point" : "points"} to ${coinsText(coins.blockCoins)}`}
-        to={linkTo}
+        value={
+          <Typography component="p" sx={{ fontWeight: 700, mt: 1 }}>
+            {num(coins.pointsTowardNext)} / {num(coins.blockPoints)} points
+          </Typography>
+        }
+        detail={
+          <>
+            {num(toGo)} more for {coinsText(coins.blockCoins)}
+            {historyTo && (
+              <>
+                {" · "}
+                <Link component={RouterLink} to={historyTo} color="primary">
+                  History
+                </Link>
+              </>
+            )}
+          </>
+        }
       >
         <LinearProgress
           variant="determinate"
+          color="warning"
           value={Math.round(progressFraction(coins.pointsTowardNext, coins.blockPoints) * 100)}
           aria-label="Progress to your next Coins"
-          sx={{ mt: 1.25, height: 8, borderRadius: 4 }}
+          sx={{ mt: 1, height: 8, borderRadius: 4 }}
         />
       </Tile>
     </Box>
   );
 }
 
-// One column on a phone, two on a tablet, four on a desktop.
 const TILE_COLUMNS = { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" };

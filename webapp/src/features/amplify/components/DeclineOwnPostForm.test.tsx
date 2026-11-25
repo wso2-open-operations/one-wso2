@@ -26,21 +26,21 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showError, showSuccess }),
 }));
 
-import DeclineOwnPostDialog from "./DeclineOwnPostDialog";
+import DeclineOwnPostForm from "./DeclineOwnPostForm";
 
 const share = { id: "x-1", employeeId: "e-1", status: "PENDING" } as ExternalShare;
-const declineButton = () => screen.getByRole("button", { name: "Decline" }) as HTMLButtonElement;
+const declineButton = () => screen.getByRole("button", { name: "Decline with reason" }) as HTMLButtonElement;
 const message = () => screen.getByLabelText(/Message/);
 
-describe("DeclineOwnPostDialog", () => {
+describe("DeclineOwnPostForm", () => {
   beforeEach(() => {
     mutate.mockReset();
     showSuccess.mockClear();
   });
 
   it("offers the four reasons and needs one before declining", () => {
-    render(<DeclineOwnPostDialog share={share} submitterName="Jane Doe" onClose={() => {}} />);
-    expect(screen.getByText("Decline Jane Doe's post")).toBeTruthy();
+    render(<DeclineOwnPostForm share={share} firstName="Jane" onClose={() => {}} />);
+    expect(screen.getByRole("group", { name: "Decline this post" })).toBeTruthy();
     for (const r of ["Not about Choreo Labs", "Not their own post", "Already rewarded", "Other"]) {
       expect(screen.getByRole("radio", { name: r })).toBeTruthy();
     }
@@ -49,16 +49,21 @@ describe("DeclineOwnPostDialog", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
+  it("addresses the message to the person by first name", () => {
+    render(<DeclineOwnPostForm share={share} firstName="Ayesha" onClose={() => {}} />);
+    expect(screen.getByLabelText("Message to Ayesha (optional)")).toBeTruthy();
+  });
+
   it("sends the chosen reason alone when there is no message", () => {
-    render(<DeclineOwnPostDialog share={share} submitterName="Jane" onClose={() => {}} />);
+    render(<DeclineOwnPostForm share={share} firstName="Jane" onClose={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: "Not their own post" }));
-    expect(screen.getByRole("radio", { name: "Not their own post" }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByRole("radio", { name: "Not their own post" }) as HTMLInputElement).checked).toBe(true);
     fireEvent.click(declineButton());
     expect(mutate.mock.calls[0][0]).toEqual({ id: "x-1", reason: "Not their own post" });
   });
 
   it("adds the message after a dash", () => {
-    render(<DeclineOwnPostDialog share={share} submitterName="Jane" onClose={() => {}} />);
+    render(<DeclineOwnPostForm share={share} firstName="Jane" onClose={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: "Already rewarded" }));
     fireEvent.change(message(), { target: { value: " Paid in October. " } });
     fireEvent.click(declineButton());
@@ -66,7 +71,7 @@ describe("DeclineOwnPostDialog", () => {
   });
 
   it("caps the message so reason and message stay within 1000 characters", () => {
-    render(<DeclineOwnPostDialog share={share} submitterName="Jane" onClose={() => {}} />);
+    render(<DeclineOwnPostForm share={share} firstName={null} onClose={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: "Other" }));
     expect(message().getAttribute("maxlength")).toBe(String(1000 - "Other".length - 3));
   });
@@ -75,7 +80,7 @@ describe("DeclineOwnPostDialog", () => {
     const onClose = vi.fn();
     const onDeclined = vi.fn();
     mutate.mockImplementation((_v, opts: { onSuccess: () => void }) => opts.onSuccess());
-    render(<DeclineOwnPostDialog share={share} submitterName="Jane" onClose={onClose} onDeclined={onDeclined} />);
+    render(<DeclineOwnPostForm share={share} firstName="Jane" onClose={onClose} onDeclined={onDeclined} />);
     fireEvent.click(screen.getByRole("radio", { name: "Other" }));
     fireEvent.click(declineButton());
     expect(showSuccess).toHaveBeenCalledWith("Post declined.");
@@ -85,7 +90,7 @@ describe("DeclineOwnPostDialog", () => {
 
   it("Cancel closes without declining", () => {
     const onClose = vi.fn();
-    render(<DeclineOwnPostDialog share={share} submitterName="Jane" onClose={onClose} />);
+    render(<DeclineOwnPostForm share={share} firstName="Jane" onClose={onClose} />);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalled();
     expect(mutate).not.toHaveBeenCalled();

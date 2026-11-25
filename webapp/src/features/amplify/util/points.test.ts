@@ -17,7 +17,10 @@
 import { describe, expect, it } from "vitest";
 import type { LedgerEntry } from "../api/amplifyTypes";
 import {
+  CORRECTION_REASONS,
   canReverse,
+  correctionNoteMaxLength,
+  correctionReasonText,
   effectPreview,
   isReversed,
   ledgerActionLabel,
@@ -121,5 +124,14 @@ describe("action labels", () => {
     expect(ledgerActionLabel({ sourceType: "ADJUSTMENT", action: null })).toBe("Correction by the PO team");
     expect(ledgerActionLabel({ sourceType: "REVERSAL", action: "REPOST" })).toBe("Reversal");
     expect(ledgerActionLabel({ sourceType: "ENGAGEMENT", action: "NEW_KIND" })).toBe("NEW_KIND");
+  });
+});
+
+describe("correction reasons", () => {
+  it("lists the reasons, and joins the note after a dash", () => {
+    expect(CORRECTION_REASONS[0]).toBe("Duplicate of another activity");
+    expect(correctionReasonText("No longer on LinkedIn", "  ")).toBe("No longer on LinkedIn");
+    expect(correctionReasonText("Other", " Paid twice ")).toBe("Other — Paid twice");
+    expect(correctionNoteMaxLength("Other")).toBe(1000 - 5 - 3);
   });
 });

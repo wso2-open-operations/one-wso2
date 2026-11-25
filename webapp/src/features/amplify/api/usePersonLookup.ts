@@ -32,6 +32,8 @@ export interface ResolvedPerson {
   photoUrl: string | null;
   team: string | null;
   businessUnit: string | null;
+  /** Where they work, e.g. "Colombo" (the directory's `workLocation`). */
+  location: string | null;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,8 +59,8 @@ function fullName(r: EmployeeDirectoryRecord): string {
 }
 
 /**
- * Looks a person up in the people directory (by work email, then employee id) for the real name, photo, team
- * and business unit. A uuid is never shown as a name: with no directory match the answer is "Unknown employee".
+ * Looks a person up in the people directory (by work email, then employee id) for the real name, photo, team,
+ * business unit and work location. A uuid is never shown as a name: with no directory match the answer is "Unknown employee".
  */
 export function usePersonLookup(): (p: PersonRef) => ResolvedPerson {
   const directory = useEmployeeDirectory();
@@ -79,6 +81,7 @@ export function usePersonLookup(): (p: PersonRef) => ResolvedPerson {
       photoUrl: rec?.employeeThumbnail ?? null,
       team: rec?.team || null,
       businessUnit: rec?.businessUnit || null,
+      location: rec?.workLocation || null,
     };
   };
 }

@@ -29,8 +29,8 @@ export const SCHEDULE_PHRASES: Readonly<Record<CoinSchedule, string>> = {
 
 /** Each schedule as Amplify Admin offers it, in order. */
 export const SCHEDULE_LABELS: Readonly<Record<CoinSchedule, string>> = {
-  MONTHLY: "Monthly on the 1st",
-  WEEKLY: "Weekly on Mondays",
+  MONTHLY: "Monthly, on the 1st",
+  WEEKLY: "Weekly, on Mondays",
   DAILY: "Daily",
 };
 
@@ -90,14 +90,43 @@ export function examplePoints(blockPoints: number): number {
   return blockPoints * 12 + Math.floor(blockPoints * 0.4);
 }
 
+/** Amplify Admin's worked example for a rate: the points, the Coins they become and the points carried over. */
+export interface RateExample {
+  points: number;
+  coins: number;
+  carried: number;
+}
+
 /**
- * Amplify Admin's worked example for a rate, e.g. "1,240 points becomes 120 Coins, with 40 points carried over."
- * Null for a rate that can't be used (a block below one).
+ * Amplify Admin's worked example for a rate, e.g. 1,240 points → 120 Coins, 40 points carried over. Null for a rate
+ * that can't be used (a block below one).
  */
-export function workedExample(blockPoints: number, blockCoins: number): string | null {
+export function rateExample(blockPoints: number, blockCoins: number): RateExample | null {
   if (!(blockPoints >= 1) || !(blockCoins >= 1)) return null;
   const points = examplePoints(blockPoints);
-  const { coins, carried } = convertPoints(points, blockPoints, blockCoins);
-  const head = `${pointsText(points)} becomes ${coinsText(coins)}`;
-  return carried > 0 ? `${head}, with ${pointsText(carried)} carried over.` : `${head}.`;
+  return { points, ...convertPoints(points, blockPoints, blockCoins) };
+}
+
+/** The rate in plain words, e.g. "Every 100 points becomes 10 Coins, automatically." */
+export function rateSentence(blockPoints: number, blockCoins: number): string {
+  return `Every ${pointsText(blockPoints)} becomes ${coinsText(blockCoins)}, automatically.`;
+}
+
+/**
+ * When points next convert on `schedule` (UTC, midnight): the 1st of next month, the next Monday, or tomorrow.
+ * Amplify's scheduler runs the conversion on these days; the date is worked out here, not read from it.
+ */
+export function nextConversion(schedule: CoinSchedule, now: Date = new Date()): Date {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const d = now.getUTCDate();
+  if (schedule === "MONTHLY") return new Date(Date.UTC(y, m + 1, 1));
+  if (schedule === "DAILY") return new Date(Date.UTC(y, m, d + 1));
+  const daysToMonday = ((8 - now.getUTCDay()) % 7) || 7;
+  return new Date(Date.UTC(y, m, d + daysToMonday));
+}
+
+/** The points that have become Coins so far: all points less the ones still held. Never negative. */
+export function convertedPoints(allTimePoints: number, heldPoints: number): number {
+  return Math.max(0, allTimePoints - heldPoints);
 }

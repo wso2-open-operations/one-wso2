@@ -27,7 +27,7 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showError, showSuccess }),
 }));
 
-import ReversePointsDialog from "./ReversePointsDialog";
+import ReversePointsPanel from "./ReversePointsPanel";
 
 const entry: LedgerEntry = {
   reference: "ENG-1",
@@ -37,10 +37,11 @@ const entry: LedgerEntry = {
   points: 2,
   createdAt: "2026-11-10T00:00:00Z",
 };
-const reverseButton = () => screen.getByRole("button", { name: "Reverse" }) as HTMLButtonElement;
-const reason = () => screen.getByLabelText(/Reason/);
+const reverseButton = () => screen.getByRole("button", { name: /^Reverse · / }) as HTMLButtonElement;
+const reason = () => screen.getByLabelText(/^Reason/);
+const note = () => screen.getByLabelText(/^Note for Jane/);
 
-describe("ReversePointsDialog", () => {
+describe("ReversePointsPanel", () => {
   beforeEach(() => {
     mutate.mockReset();
     showError.mockClear();
@@ -48,14 +49,24 @@ describe("ReversePointsDialog", () => {
   });
 
   it("shows the effect on the person's total before confirming", () => {
-    render(<ReversePointsDialog entry={entry} personName="Jane" total={1040} onClose={() => {}} />);
+    render(<ReversePointsPanel firstName="Jane" entry={entry} personName="Jane" total={1040} onClose={() => {}} />);
     expect(screen.getByRole("status").textContent).toContain("1,040 → 1,038");
-    expect(screen.getByText(/Your reason is shown in the person's history/)).toBeTruthy();
+    expect(screen.getByText(/Coins are never taken back/)).toBeTruthy();
+  });
+
+  it("shows the activity and its points, and the reversal on the button", () => {
+    render(
+      <ReversePointsPanel firstName="Nimal" entry={{ ...entry, campaignTitle: "KubeCon" }} personName="Nimal" total={10} onClose={() => {}} />,
+    );
+    expect(screen.getByRole("region", { name: "Reverse this activity" }).textContent).toContain("Reposted · +2");
+    expect(screen.getByText("KubeCon · Nov 10")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reverse · −2" })).toBeTruthy();
+    expect(screen.getByLabelText("Note for Nimal (shown in their history)")).toBeTruthy();
   });
 
   it("adds back the points of a negative row", () => {
     render(
-      <ReversePointsDialog
+      <ReversePointsPanel firstName="Jane"
         entry={{ ...entry, sourceType: "ADJUSTMENT", action: null, points: -5 }}
         personName="Jane"
         total={95}
@@ -66,27 +77,32 @@ describe("ReversePointsDialog", () => {
   });
 
   it("shows only the change when the total isn't known", () => {
-    render(<ReversePointsDialog entry={entry} personName="Jane" total={null} onClose={() => {}} />);
+    render(<ReversePointsPanel firstName="Jane" entry={entry} personName="Jane" total={null} onClose={() => {}} />);
     expect(screen.getByRole("status").textContent).toContain("−2 points");
   });
 
   it("needs a reason", () => {
-    render(<ReversePointsDialog entry={entry} personName="Jane" total={10} onClose={() => {}} />);
-    expect(reverseButton().disabled).toBe(true);
-    fireEvent.change(reason(), { target: { value: "   " } });
+    render(<ReversePointsPanel firstName="Jane" entry={entry} personName="Jane" total={10} onClose={() => {}} />);
     expect(reverseButton().disabled).toBe(true);
     fireEvent.click(reverseButton());
     expect(mutate).not.toHaveBeenCalled();
-    expect(reason().getAttribute("maxlength")).toBe("1000");
+    fireEvent.change(reason(), { target: { value: "No longer on LinkedIn" } });
+    expect(reverseButton().disabled).toBe(false);
+    expect(note().getAttribute("maxlength")).toBe(String(1000 - "No longer on LinkedIn".length - 3));
   });
 
-  it("reverses the row by reference with the trimmed reason", () => {
+  it("reverses the row by reference with the reason and the note", () => {
     const onClose = vi.fn();
     mutate.mockImplementation((_v, opts: { onSuccess: () => void }) => opts.onSuccess());
-    render(<ReversePointsDialog entry={entry} personName="Jane" total={10} onClose={onClose} />);
-    fireEvent.change(reason(), { target: { value: "  Counted twice " } });
+    render(<ReversePointsPanel firstName="Jane" entry={entry} personName="Jane" total={10} onClose={onClose} />);
+    fireEvent.change(reason(), { target: { value: "Duplicate of another activity" } });
+    fireEvent.change(note(), { target: { value: "  You reposted this post twice; we kept the first one. " } });
     fireEvent.click(reverseButton());
-    expect(mutate.mock.calls[0][0]).toEqual({ reference: "ENG-1", employeeId: "e-9", reason: "Counted twice" });
+    expect(mutate.mock.calls[0][0]).toEqual({
+      reference: "ENG-1",
+      employeeId: "e-9",
+      reason: "Duplicate of another activity — You reposted this post twice; we kept the first one.",
+    });
     expect(showSuccess).toHaveBeenCalledWith("Reversed: −2 points for Jane.");
     expect(onClose).toHaveBeenCalled();
   });
@@ -95,8 +111,8 @@ describe("ReversePointsDialog", () => {
     mutate.mockImplementation((_v, opts: { onError: (e: unknown) => void }) =>
       opts.onError(new HttpError("u", 403, JSON.stringify({ status: 403, code: "SELF_REVIEW" }))),
     );
-    render(<ReversePointsDialog entry={entry} personName="Jane" total={10} onClose={() => {}} />);
-    fireEvent.change(reason(), { target: { value: "x" } });
+    render(<ReversePointsPanel firstName="Jane" entry={entry} personName="Jane" total={10} onClose={() => {}} />);
+    fireEvent.change(reason(), { target: { value: "Other" } });
     fireEvent.click(reverseButton());
     expect(showError).toHaveBeenCalledWith("You can't correct your own points.");
   });

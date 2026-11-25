@@ -33,7 +33,7 @@ const h = vi.hoisted(() => ({
   myId: "me-1",
   waiting: undefined as number | undefined,
   values: undefined as Record<string, number> | undefined,
-  person: { name: "Jane Doe", photoUrl: null as string | null, team: null, businessUnit: null },
+  person: { name: "Jane Doe", photoUrl: null as string | null, team: null as string | null, businessUnit: null, location: null as string | null },
   lookups: [] as unknown[],
   approve: vi.fn(),
   feature: vi.fn(),
@@ -78,7 +78,7 @@ vi.mock("../components/AmplifyShell", () => ({
   ),
 }));
 
-import ReviewOwnPostsPage, { FEATURE_AFTER_APPROVE_FAILED, OWN_CLAIM_NOTE, ReviewTab } from "./ReviewOwnPostsPage";
+import ReviewOwnPostsPage, { AUDIT_NOTE, FEATURE_AFTER_APPROVE_FAILED, OWN_CLAIM_NOTE, ReviewTab } from "./ReviewOwnPostsPage";
 
 const share = (id: string, status: ExternalShare["status"], extra: Partial<ExternalShare> = {}): ExternalShare => ({
   id,
@@ -105,7 +105,7 @@ beforeEach(() => {
   h.myId = "me-1";
   h.waiting = undefined;
   h.values = undefined;
-  h.person = { name: "Jane Doe", photoUrl: null, team: null, businessUnit: null };
+  h.person = { name: "Jane Doe", photoUrl: null, team: null, businessUnit: null, location: null };
   h.lookups.length = 0;
   h.approve.mockReset().mockResolvedValue({});
   h.feature.mockReset().mockResolvedValue({});
@@ -116,12 +116,16 @@ beforeEach(() => {
 });
 
 describe("a waiting post", () => {
-  it("shows who sent it, their note, when, and the LinkedIn link", () => {
+  it("shows who sent it, their team and location, their note, when, and the LinkedIn link", () => {
+    h.person = { ...h.person, team: "Engineering", location: "Colombo" };
     showList([share("x-1", "PENDING", { note: "Wrote this for the launch." })]);
     render(<ReviewTab status="PENDING" />);
     const card = screen.getByRole("article", { name: "Post from Jane Doe" });
     expect(within(card).getByText("Jane Doe")).toBeTruthy();
-    expect(within(card).getByText("Wrote this for the launch.")).toBeTruthy();
+    expect(card.textContent).toContain("Jane Doe · Engineering · Colombo");
+    expect(within(card).getByLabelText("Note for the reviewer").textContent).toBe("Their note: Wrote this for the launch.");
+    expect(within(card).getByText("First claim of this post")).toBeTruthy();
+    expect(within(card).getByText("Author certified they wrote it")).toBeTruthy();
     expect(within(card).getByText(/^Submitted /)).toBeTruthy();
     const link = within(card).getByRole("link", { name: /Open on LinkedIn/ });
     expect(link.getAttribute("href")).toBe("https://www.linkedin.com/feed/update/urn:li:activity:x-1/");
@@ -129,18 +133,18 @@ describe("a waiting post", () => {
     expect(h.listArgs[0]).toEqual(["PENDING", 0]);
   });
 
-  it("offers Approve (+10), Feature (+25) and Decline", () => {
+  it("offers Approve · +10, Feature · +25 and Decline…", () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
-    expect(screen.getByRole("button", { name: "Approve (+10)" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Feature (+25)" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Decline" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve · +10" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Feature · +25" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Decline…" })).toBeTruthy();
   });
 
   it("approves by id and says so", async () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
-    fireEvent.click(screen.getByRole("button", { name: "Approve (+10)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve · +10" }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Approved: +10 points for Jane Doe."));
     expect(h.approve).toHaveBeenCalledWith({ id: "x-1", employeeId: "e-9" });
     expect(h.feature).not.toHaveBeenCalled();
@@ -152,7 +156,7 @@ describe("a waiting post", () => {
     h.feature.mockImplementation(async () => order.push("feature"));
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
-    fireEvent.click(screen.getByRole("button", { name: "Feature (+25)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Feature · +25" }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +25 points for Jane Doe."));
     expect(order).toEqual(["approve", "feature"]);
     expect(h.feature).toHaveBeenCalledWith({ id: "x-1", employeeId: "e-9" });
@@ -162,7 +166,7 @@ describe("a waiting post", () => {
     h.approve.mockRejectedValue(problem(409, "NOT_PENDING"));
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
-    fireEvent.click(screen.getByRole("button", { name: "Feature (+25)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Feature · +25" }));
     await waitFor(() => expect(h.showError).toHaveBeenCalled());
     expect(h.showError).toHaveBeenCalledWith("Someone has already decided on this post. Reload to see where it is now.");
     expect(h.feature).not.toHaveBeenCalled();
@@ -173,7 +177,7 @@ describe("a waiting post", () => {
     h.feature.mockRejectedValue(problem(503, "DEPENDENCY_UNAVAILABLE"));
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
-    fireEvent.click(screen.getByRole("button", { name: "Feature (+25)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Feature · +25" }));
     await waitFor(() => expect(h.showError).toHaveBeenCalledWith(FEATURE_AFTER_APPROVE_FAILED));
     expect(FEATURE_AFTER_APPROVE_FAILED).toMatch(/approved/);
     expect(FEATURE_AFTER_APPROVE_FAILED).toMatch(/Approved tab/);
@@ -184,47 +188,53 @@ describe("a waiting post", () => {
     h.approve.mockRejectedValue(problem(403, "SELF_REVIEW"));
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
-    fireEvent.click(screen.getByRole("button", { name: "Approve (+10)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve · +10" }));
     await waitFor(() =>
       expect(h.showError).toHaveBeenCalledWith("You can't decide on your own post; another marketing team member will."),
     );
   });
 
-  it("opens the decline dialog", () => {
+  it("opens the decline form in the card, addressed to the person by first name", () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
-    fireEvent.click(screen.getByRole("button", { name: "Decline" }));
-    expect(screen.getByText("Decline Jane Doe's post")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Decline…" }));
+    const card = screen.getByRole("article", { name: "Post from Jane Doe" });
+    expect(within(card).getByRole("group", { name: "Decline this post" })).toBeTruthy();
+    expect(within(card).getByLabelText("Message to Jane (optional)")).toBeTruthy();
+    expect(within(card).queryByRole("button", { name: "Approve · +10" })).toBeNull();
+    fireEvent.click(within(card).getByRole("button", { name: "Cancel" }));
+    expect(within(card).getByRole("button", { name: "Approve · +10" })).toBeTruthy();
   });
 
-  it("hides the buttons on the reviewer's own post", () => {
+  it("disables the buttons on the reviewer's own post and says why", () => {
     showList([share("x-1", "PENDING", { employeeId: "me-1" })]);
     render(<ReviewTab status="PENDING" />);
     expect(screen.getByText(OWN_CLAIM_NOTE)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Approve (+10)" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Feature/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Decline" })).toBeNull();
+    expect(OWN_CLAIM_NOTE).toBe("This is your own post, so another marketing team member reviews it.");
+    expect(screen.getByText("Jane Doe (you)")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Approve · +10" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Feature · +25" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Decline…" })).toBeNull();
   });
 
   it("falls back to the employee id when neither a name nor an email is known", () => {
-    h.person = { name: "Unknown employee", photoUrl: null, team: null, businessUnit: null };
+    h.person = { name: "Unknown employee", photoUrl: null, team: null, businessUnit: null, location: null };
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
     expect(screen.getByText("An employee")).toBeTruthy();
     expect(screen.getByText("Employee ID: e-9")).toBeTruthy();
   });
 
-  it("looks the person up by the name and email the review list sends, and shows the email", () => {
+  it("looks the person up by the name and email the review list sends", () => {
     showList([share("x-1", "PENDING", { employeeName: "Jane Doe", employeeEmail: "jane@choreolabs.test" })]);
     render(<ReviewTab status="PENDING" />);
     expect(h.lookups[0]).toEqual({ employeeId: "e-9", email: "jane@choreolabs.test", displayName: "Jane Doe" });
     const card = screen.getByRole("article", { name: "Post from Jane Doe" });
-    expect(within(card).getByText("jane@choreolabs.test")).toBeTruthy();
     expect(within(card).queryByText(/Employee ID/)).toBeNull();
   });
 
   it("names the sender by email when only the email is known", () => {
-    h.person = { name: "Unknown employee", photoUrl: null, team: null, businessUnit: null };
+    h.person = { name: "Unknown employee", photoUrl: null, team: null, businessUnit: null, location: null };
     showList([share("x-1", "PENDING", { employeeName: null, employeeEmail: "jane@choreolabs.test" })]);
     render(<ReviewTab status="PENDING" />);
     expect(screen.getByRole("article", { name: "Post from jane@choreolabs.test" })).toBeTruthy();
@@ -237,8 +247,8 @@ describe("the points on the decision buttons", () => {
     h.values = { OWN_POST: 12, OWN_POST_AMPLIFIED: 30, REPOST: 2 };
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
-    expect(screen.getByRole("button", { name: "Approve (+12)" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Feature (+30)" }));
+    expect(screen.getByRole("button", { name: "Approve · +12" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Feature · +30" }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +30 points for Jane Doe."));
   });
 
@@ -246,7 +256,7 @@ describe("the points on the decision buttons", () => {
     h.values = { OWN_POST: 12, OWN_POST_AMPLIFIED: 30 };
     showList([share("x-2", "APPROVED")]);
     render(<ReviewTab status="APPROVED" />);
-    fireEvent.click(screen.getByRole("button", { name: "Feature (+18)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Feature · +18" }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +18 more points for Jane Doe."));
   });
 
@@ -254,19 +264,19 @@ describe("the points on the decision buttons", () => {
     h.values = { REPOST: 2 };
     showList([share("x-1", "PENDING"), share("x-2", "APPROVED")]);
     render(<ReviewTab status="PENDING" />);
-    expect(screen.getByRole("button", { name: "Approve (+10)" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Feature (+25)" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Feature (+15)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve · +10" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Feature · +25" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Feature · +15" })).toBeTruthy();
   });
 });
 
 describe("other tabs", () => {
-  it("offers only Feature (+15) on an approved post, and it only marks it featured", async () => {
+  it("offers only Feature · +15 on an approved post, and it only marks it featured", async () => {
     showList([share("x-2", "APPROVED", { decidedAt: "2026-11-21T00:00:00Z" })]);
     render(<ReviewTab status="APPROVED" />);
     expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Decline" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Feature (+15)" }));
+    expect(screen.queryByRole("button", { name: "Decline…" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Feature · +15" }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +15 more points for Jane Doe."));
     expect(h.feature).toHaveBeenCalledWith({ id: "x-2", employeeId: "e-9" });
     expect(h.approve).not.toHaveBeenCalled();
@@ -315,7 +325,7 @@ describe("paging after decisions", () => {
     fireEvent.click(screen.getByRole("button", { name: /next page/i }));
     showList([share("p-10", "PENDING")], 11);
     rerender(<ReviewTab status="PENDING" />);
-    fireEvent.click(screen.getByRole("button", { name: "Approve (+10)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve · +10" }));
     await waitFor(() => expect(h.listArgs.at(-1)).toEqual(["PENDING", 0]));
   });
 
@@ -332,7 +342,7 @@ describe("paging after decisions", () => {
 });
 
 describe("ReviewOwnPostsPage", () => {
-  it("has the four tabs as links, with the waiting count on Waiting", () => {
+  it("has the four statuses as pill links, with the waiting count on Waiting", () => {
     h.waiting = 4;
     showList([]);
     render(
@@ -345,13 +355,15 @@ describe("ReviewOwnPostsPage", () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole("heading", { name: "Review own posts" })).toBeTruthy();
-    const tabs = screen.getAllByRole("tab");
+    const tabs = within(screen.getByRole("navigation", { name: "Review own posts" })).getAllByRole("link");
     expect(tabs.map((t) => t.getAttribute("href"))).toEqual([
       "/amplify/review/waiting",
       "/amplify/review/approved",
       "/amplify/review/featured",
       "/amplify/review/declined",
     ]);
-    expect(within(tabs[0]).getByText("4")).toBeTruthy();
+    expect(tabs.map((t) => t.textContent)).toEqual(["Waiting · 4", "Approved", "Featured", "Declined"]);
+    expect(tabs[0].getAttribute("aria-current")).toBe("page");
+    expect(screen.getByText(AUDIT_NOTE)).toBeTruthy();
   });
 });

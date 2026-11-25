@@ -58,6 +58,7 @@ vi.mock("../api/useAmplifyData", () => ({
   useAmplifyLeaderboard: () => ({ data: undefined, isPending: true }),
   useAmplifyTopBoard: () => ({ data: undefined, isPending: true }),
   useAmplifyCategories: () => ({ data: [{ code: "PRODUCT", label: "Product", sortOrder: 1 }] }),
+  usePointValues: () => ({ data: { REPOST: 2, REPOST_COMMENTARY: 5 } }),
   useAmplifyConfig: () => ({
     linkedinOrgUrn: "",
     privacyNoticeUrl: "",
@@ -83,12 +84,15 @@ vi.mock("../components/PostGrid", () => ({
     items,
     categories,
     renderItem,
+    note,
   }: {
     items: { id: string }[];
     categories?: unknown[];
     renderItem: (c: { id: string }) => ReactNode;
+    note?: ReactNode;
   }) => (
     <section aria-label="post grid" data-categories={categories?.length ?? 0}>
+      <p data-testid="grid-note">{note}</p>
       {items.map((c) => (
         <div key={c.id}>{renderItem(c)}</div>
       ))}
@@ -96,7 +100,7 @@ vi.mock("../components/PostGrid", () => ({
   ),
 }));
 vi.mock("../components/PointsTiles", () => ({
-  default: ({ linkTo }: { linkTo?: string }) => <div>points tiles → {linkTo}</div>,
+  default: ({ historyTo }: { historyTo?: string }) => <div>points tiles → {historyTo}</div>,
 }));
 vi.mock("../components/OwnPostPanel", () => ({ default: () => <div>own post panel</div> }));
 vi.mock("../components/LeaderboardPanels", () => ({
@@ -125,6 +129,7 @@ vi.mock("../components/LinkLinkedInDialog", () => ({
     ) : null,
 }));
 vi.mock("../components/ShareDialog", () => ({
+  WITH_THOUGHTS_POINTS: 5,
   default: ({ campaign }: { campaign: { title: string } | null }) =>
     campaign ? <div>share dialog: {campaign.title}</div> : null,
 }));
@@ -290,7 +295,7 @@ describe("CelebratePage's tiles and post grid", () => {
     h.state.mePending = false;
   });
 
-  it("shows the points tiles first, each linking to My points & Coins", () => {
+  it("shows the points tiles first, with History linking to My points & Coins", () => {
     render(<CelebratePage />);
     expect(screen.getByText("points tiles → /amplify/my-points")).toBeTruthy();
   });
@@ -304,18 +309,25 @@ describe("CelebratePage's tiles and post grid", () => {
     expect(screen.queryByRole("article", { name: "Old news" })).toBeNull();
   });
 
-  it("opens the share dialog from a card's Amplify button when LinkedIn is linked", () => {
+  it("opens the share dialog from a card's Post it for me button when LinkedIn is linked", () => {
     render(<CelebratePage />);
-    fireEvent.click(within(screen.getByRole("article", { name: "Integrator 5" })).getByRole("button", { name: "Amplify" }));
+    fireEvent.click(within(screen.getByRole("article", { name: "Integrator 5" })).getByRole("button", { name: "Post it for me" }));
     expect(screen.getByText("share dialog: Integrator 5")).toBeTruthy();
   });
 
-  it("asks to link LinkedIn first from a card's Amplify button when it isn't linked", () => {
+  it("asks to link LinkedIn first from a card's Post it for me button when it isn't linked", () => {
     h.state.linkStatus = "NOT_CONNECTED";
     render(<CelebratePage />);
-    fireEvent.click(within(screen.getByRole("article", { name: "Launch week" })).getByRole("button", { name: "Amplify" }));
+    fireEvent.click(within(screen.getByRole("article", { name: "Launch week" })).getByRole("button", { name: "Post it for me" }));
     expect(screen.getByText(/link dialog: c1 connect/)).toBeTruthy();
     expect(screen.queryByText(/share dialog/)).toBeNull();
+  });
+
+  it("says the order and the points over the grid", () => {
+    render(<CelebratePage />);
+    expect(screen.getByTestId("grid-note").textContent).toBe(
+      "Priority first, then newest · Repost +2 · with your thoughts +5",
+    );
   });
 
   it("leaves the grid out once every post is amplified", () => {

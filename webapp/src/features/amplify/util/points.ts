@@ -97,3 +97,25 @@ export function parseRulePoints(text: string): number | null {
   const n = Number(value);
   return n <= MAX_RULE_POINTS ? n : null;
 }
+
+/** The reasons the PO team picks from when reversing an activity or adding or removing points. */
+export const CORRECTION_REASONS = [
+  "Duplicate of another activity",
+  "No longer on LinkedIn",
+  "Missed activity",
+  "Other",
+] as const;
+export type CorrectionReason = (typeof CORRECTION_REASONS)[number];
+
+const CORRECTION_SEPARATOR = " — ";
+
+/** The most characters the note may have after `reason`, so the whole stays within the API's limit. */
+export function correctionNoteMaxLength(reason: string): number {
+  return REASON_MAX_LENGTH - reason.length - CORRECTION_SEPARATOR.length;
+}
+
+/** The `reason` sent with a correction: the chosen reason, plus " — " and the note when there is one. */
+export function correctionReasonText(reason: string, note: string): string {
+  const text = note.trim();
+  return text ? `${reason}${CORRECTION_SEPARATOR}${text}` : reason;
+}

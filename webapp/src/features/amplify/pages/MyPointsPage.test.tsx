@@ -66,11 +66,14 @@ vi.mock("../api/useAmplifyData", () => ({
     },
   }),
 }));
-vi.mock("../components/PointsTiles", () => ({ default: () => <div>points tiles</div> }));
+vi.mock("../components/SubmitOwnPostDialog", () => ({
+  default: ({ open }: { open: boolean }) => (open ? <div>submit dialog</div> : null),
+}));
 vi.mock("../components/AmplifyShell", () => ({
-  default: ({ title, children }: { title: string; children: ReactNode }) => (
+  default: ({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) => (
     <div>
       <h1>{title}</h1>
+      {action}
       {children}
     </div>
   ),
@@ -93,7 +96,7 @@ const row = (reference: string, points: number, extra: Partial<LedgerEntry> = {}
   ...extra,
 });
 
-const claim = (id: string, status: ExternalShare["status"]): ExternalShare => ({
+const claim = (id: string, status: ExternalShare["status"], extra: Partial<ExternalShare> = {}): ExternalShare => ({
   id,
   employeeId: "e-1",
   action: "OWN_POST",
@@ -103,6 +106,7 @@ const claim = (id: string, status: ExternalShare["status"]): ExternalShare => ({
   status,
   createdAt: "2026-11-22T10:00:00Z",
   version: 1,
+  ...extra,
 });
 
 const history = [
@@ -132,16 +136,22 @@ beforeEach(() => {
   h.walletsEnabled = false;
 });
 
-const list = () => screen.getByRole("list", { name: "Your activity" });
-const items = () => within(list()).getAllByRole("listitem");
+const table = () => screen.getByRole("table", { name: "Your activity" });
+const items = () => within(table()).getAllByRole("row").slice(1);
 const chip = (name: string) => screen.getByRole("button", { name });
 
 describe("the top of My points & Coins", () => {
-  it("shows the tiles and the conversion rate in plain words", () => {
+  it("shows Coins received, progress to the next Coins with the rule, and the all-time numbers", () => {
     render(<MyPointsPage />);
     expect(screen.getByRole("heading", { name: "My points & Coins" })).toBeTruthy();
-    expect(screen.getByText("points tiles")).toBeTruthy();
-    expect(screen.getByText("Every 100 points becomes 10 Coins, automatically, every Monday.")).toBeTruthy();
+    const band = screen.getByRole("region", { name: "Your Coins" });
+    expect(band.textContent).toContain("120 Coins");
+    expect(band.textContent).toContain("40 of 100 points toward your next 10 Coins");
+    expect(band.textContent).toContain("Every 100 points becomes 10 Coins, automatically.");
+    expect(band.textContent).toContain("All-time points1,240");
+    expect(band.textContent).toContain("Converted to Coins1,000");
+    expect(band.textContent).toContain("Next conversion");
+    expect(within(band).getByRole("progressbar").getAttribute("aria-valuenow")).toBe("40");
   });
 
   it("says Coins aren't sent yet while wallets are off", () => {
@@ -149,10 +159,17 @@ describe("the top of My points & Coins", () => {
     expect(screen.getByText("Coins aren't being sent yet; your points keep counting toward them.")).toBeTruthy();
   });
 
-  it("drops the note once wallets are on", () => {
+  it("says where the Coins went once wallets are on", () => {
     h.walletsEnabled = true;
     render(<MyPointsPage />);
     expect(screen.queryByText(/Coins aren't being sent yet/)).toBeNull();
+    expect(screen.getByText("Sent to your WSO2 Coins wallet")).toBeTruthy();
+  });
+
+  it("opens Submit your own post from the top right", () => {
+    render(<MyPointsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Submit your own post" }));
+    expect(screen.getByText("submit dialog")).toBeTruthy();
   });
 });
 
@@ -162,36 +179,60 @@ describe("the activity list", () => {
     expect(h.activityIds.at(-1)).toBe("e-1");
   });
 
-  it("puts own posts waiting for review first, at 0 points", () => {
+  it("lists own posts waiting for review by date, with no points yet", () => {
     render(<MyPointsPage />);
     const first = items()[0];
-    expect(first.textContent).toContain("You sent your own post for review");
+    expect(first.textContent).toContain("Own post submitted");
     expect(first.textContent).toContain("Waiting for review");
-    expect(within(first).getByText("0")).toBeTruthy();
+    expect(first.textContent).toContain("—");
     expect(within(first).getByRole("link", { name: /Open on LinkedIn/ })).toBeTruthy();
     // Only the waiting claim; the approved one shows as its points row.
     expect(items()).toHaveLength(history.length + 1);
   });
 
-  it("shows what happened, the post, the signed points and the status of each row", () => {
+  it("lists a declined own post with the reason", () => {
+    h.claims = {
+      ...h.claims,
+      data: [claim("x-3", "REJECTED", { decisionReason: "Not about Choreo Labs", note: "Weekend hike" })],
+    };
     render(<MyPointsPage />);
+    const first = items()[0];
+    expect(first.textContent).toContain("Own post declined");
+    expect(first.textContent).toContain("Not about Choreo Labs");
+    expect(first.textContent).toContain("Weekend hike");
+    expect(first.textContent).toContain("Declined");
+  });
+
+  it("shows the date, what happened, the post, the signed points and the status of each row", () => {
+    render(<MyPointsPage />);
+    expect(within(table()).getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
+      "Date",
+      "Activity",
+      "Post",
+      "Points",
+      "Status",
+    ]);
     const rows = items().slice(1);
-    expect(rows[0].textContent).toContain("The PO team reversed points");
-    expect(rows[0].textContent).toContain("Reason: No longer on LinkedIn");
+    expect(rows[0].textContent).toContain("Nov 20");
+    expect(rows[0].textContent).toContain("Points reversed");
+    expect(rows[0].textContent).toContain("No longer on LinkedIn");
     expect(rows[0].textContent).toContain("−2");
-    expect(rows[1].textContent).toContain("The PO team added points");
-    expect(rows[1].textContent).toContain("Reason: Event bonus");
+    expect(rows[0].textContent).toContain("Reversed");
+    expect(rows[1].textContent).toContain("Corrected by the PO team");
+    expect(rows[1].textContent).toContain("Event bonus");
     expect(rows[1].textContent).toContain("+30");
-    expect(rows[1].textContent).toContain("Coins sent");
-    expect(rows[2].textContent).toContain("Your own post was approved");
+    expect(rows[1].textContent).toContain("Corrected");
+    expect(rows[2].textContent).toContain("Own post approved");
     expect(rows[2].textContent).toContain("Waiting for the PO team");
     expect(rows[3].textContent).toContain("Integrator launch");
     expect(rows[3].textContent).toContain("Reversed");
-    expect(rows[4].textContent).toContain("You reacted on LinkedIn");
+    expect(rows[4].textContent).toContain("Reacted on LinkedIn");
     expect(rows[4].textContent).toContain("Counts toward next Coins");
-    expect(rows[5].textContent).toContain("You reposted with your thoughts");
+    expect(rows[5].textContent).toContain("Reposted with your thoughts");
     expect(rows[5].textContent).toContain("Choreo GA");
     expect(rows[5].textContent).toContain("+5");
+    expect(rows[5].textContent).toContain("Coins sent");
+    expect(screen.getByText(/Something look wrong\? Ask the PO team/)).toBeTruthy();
   });
 
   it("filters by kind with the chips", () => {
@@ -201,23 +242,23 @@ describe("the activity list", () => {
     fireEvent.click(chip("Reposts"));
     expect(items().map((i) => i.textContent)).toEqual([
       expect.stringContaining("Reversed"),
-      expect.stringContaining("You reposted with your thoughts"),
+      expect.stringContaining("Reposted with your thoughts"),
     ]);
 
     fireEvent.click(chip("Reactions & comments"));
     expect(items()).toHaveLength(1);
-    expect(items()[0].textContent).toContain("You reacted on LinkedIn");
+    expect(items()[0].textContent).toContain("Reacted on LinkedIn");
 
     fireEvent.click(chip("Own posts"));
     expect(items().map((i) => i.textContent)).toEqual([
-      expect.stringContaining("You sent your own post for review"),
-      expect.stringContaining("Your own post was approved"),
+      expect.stringContaining("Own post submitted"),
+      expect.stringContaining("Own post approved"),
     ]);
 
-    fireEvent.click(chip("Corrections"));
+    fireEvent.click(chip("Coins"));
     expect(items().map((i) => i.textContent)).toEqual([
-      expect.stringContaining("The PO team reversed points"),
-      expect.stringContaining("The PO team added points"),
+      expect.stringContaining("Corrected by the PO team"),
+      expect.stringContaining("Reposted with your thoughts"),
     ]);
   });
 
@@ -225,7 +266,7 @@ describe("the activity list", () => {
     h.activity = { ...h.activity, data: { pages: [{ items: [row("ENG-1", 2)] }] }, hasNextPage: true };
     h.claims = { ...h.claims, data: [] };
     render(<MyPointsPage />);
-    fireEvent.click(chip("Corrections"));
+    fireEvent.click(chip("Coins"));
     expect(screen.getByText("Nothing of this kind in the activity shown so far.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Show more activity" })).toBeTruthy();
   });
@@ -255,7 +296,7 @@ describe("the activity list", () => {
     expect(screen.getByText(/Couldn't load your activity/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(h.activity.refetch).toHaveBeenCalled();
-    expect(screen.getByText("points tiles")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Your Coins" })).toBeTruthy();
   });
 
   it("still lists the history when the waiting claims fail to load", () => {

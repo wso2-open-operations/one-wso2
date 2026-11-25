@@ -46,7 +46,6 @@ export default function FilterChips<T extends string>({
         return (
           <Chip
             key={option.value}
-            size="small"
             clickable
             color={selected ? "primary" : "default"}
             variant={selected ? "filled" : "outlined"}
@@ -58,7 +57,7 @@ export default function FilterChips<T extends string>({
               ) : (
                 <>
                   {option.label}{" "}
-                  <Box component="span" sx={{ fontWeight: 700 }}>
+                  <Box component="span" sx={{ opacity: selected ? 0.85 : 0.6 }}>
                     {option.count}
                   </Box>
                 </>

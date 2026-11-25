@@ -15,27 +15,32 @@
 // under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router";
 import { HttpError } from "@api/http";
 
 const mutate = vi.fn();
 const showSuccess = vi.fn();
 const showError = vi.fn();
 vi.mock("../api/useAmplifyMutations", () => ({ useClaimOwnPost: () => ({ mutate, isPending: false }) }));
+vi.mock("../api/useAmplifyData", () => ({ usePointValues: () => ({ data: undefined }) }));
 vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showError, showSuccess }),
 }));
 
-import SubmitOwnPostDialog, { OWN_POST_NEXT_STEPS, OWN_POST_SUBMITTED_MESSAGE } from "./SubmitOwnPostDialog";
+import SubmitOwnPostDialog, { CLAIM_ONCE_NOTE, LINK_LOOKS_RIGHT, OWN_POST_SUBMITTED_MESSAGE } from "./SubmitOwnPostDialog";
+
+const render = (ui: ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 
 const POST = "https://www.linkedin.com/posts/jane_choreo-labs-activity-7400000000000000000-AbCd";
 const problem = (status: number, code: string) =>
   new HttpError("https://api.test/external-shares", status, JSON.stringify({ status, code }));
 
-const link = () => screen.getByLabelText(/LinkedIn post link/);
-const note = () => screen.getByLabelText(/Note for the reviewer/);
+const link = () => screen.getByLabelText(/Link to your LinkedIn post/);
+const note = () => screen.getByLabelText(/What's it about\?/);
 const certify = () => screen.getByRole("checkbox", { name: /I wrote this post myself, and it's about Choreo Labs/ });
-const submit = () => screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement;
+const submit = () => screen.getByRole("button", { name: "Submit for review" }) as HTMLButtonElement;
 
 function fillValid() {
   fireEvent.change(link(), { target: { value: POST } });
@@ -55,9 +60,22 @@ describe("SubmitOwnPostDialog", () => {
     expect(link()).toBeTruthy();
     expect(note().getAttribute("maxlength")).toBe("500");
     expect(certify()).toBeTruthy();
-    expect(screen.getByText(OWN_POST_NEXT_STEPS)).toBeTruthy();
-    expect(OWN_POST_NEXT_STEPS).toMatch(/Waiting for review/);
-    expect(OWN_POST_NEXT_STEPS).toMatch(/\+10 points, and \+15 more if featured/);
+    expect(screen.getByText(/The marketing team reviews it and adds your points/).textContent).toContain(
+      "+10 when approved, +15 more if it's featured.",
+    );
+    const next = screen.getByRole("region", { name: "What happens next" });
+    expect(next.textContent).toContain("You'll see it in My points & Coins as Waiting for review.");
+    expect(next.textContent).toContain("The marketing team approves, features or declines it, with a reason if declined.");
+    expect(next.textContent).toContain("Approved points count toward your next Coins.");
+    expect(screen.getByRole("link", { name: "My points & Coins" }).getAttribute("href")).toBe("/amplify/my-points");
+    expect(screen.getByText(CLAIM_ONCE_NOTE)).toBeTruthy();
+  });
+
+  it("confirms a link that looks like a LinkedIn post", () => {
+    render(<SubmitOwnPostDialog open onClose={() => {}} />);
+    expect(screen.queryByText(LINK_LOOKS_RIGHT)).toBeNull();
+    fireEvent.change(link(), { target: { value: POST } });
+    expect(screen.getByText(LINK_LOOKS_RIGHT)).toBeTruthy();
   });
 
   it("keeps Submit off until there is a LinkedIn post link and the box is ticked", () => {

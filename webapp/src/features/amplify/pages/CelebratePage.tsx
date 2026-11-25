@@ -16,7 +16,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton } from "@wso2/oxygen-ui";
-import { Volume2Icon } from "@wso2/oxygen-ui-icons-react";
 import { useNavigate, useSearchParams } from "react-router";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
@@ -30,6 +29,7 @@ import {
   useAmplifyMe,
   useAmplifyTopBoard,
   useMyShares,
+  usePointValues,
 } from "../api/useAmplifyData";
 import { useAmplifyPeople } from "../api/useAmplifyPeople";
 import AmplifyShell from "../components/AmplifyShell";
@@ -39,16 +39,19 @@ import OwnPostPanel from "../components/OwnPostPanel";
 import PointsTiles from "../components/PointsTiles";
 import PostCard, { CategoryChip, PriorityChip } from "../components/PostCard";
 import PostGrid from "../components/PostGrid";
-import ShareDialog from "../components/ShareDialog";
+import ShareDialog, { WITH_THOUGHTS_POINTS } from "../components/ShareDialog";
 import { campaignForShareParam } from "../util/linkedinPost";
+
+/** Points a plain repost earns at the default rule, until GET /point-values answers. */
+export const REPOST_POINTS = 2;
 
 /**
  * Celebrate: every employee's Amplify page. In order:
- *  1. Four tiles: points and rank this month, all-time points, Coins received and progress to the next Coins, each
- *     linking to My points & Coins.
- *  2. Posts to amplify, a grid of six, priority first then newest, with filter chips and Show all. Gone once you've
- *     shared them all ("all caught up").
- *  3. Your own posts: submit one you wrote for review, and see where each is.
+ *  1. Four tiles: points and rank this month, all time, Coins received and progress to the next Coins, with a History
+ *     link to My points & Coins.
+ *  2. Posts to amplify, a grid of six, priority first then newest, with filter chips and Show all. Each card's
+ *     "Post it for me" opens the share dialog. Gone once you've shared them all.
+ *  3. Wrote your own post: submit one you wrote for review.
  *  4. Top three leaders, company wide, this month by default (leaderboard.top_scope), and my position.
  *  5. Team leaderboard.
  */
@@ -64,6 +67,9 @@ export default function CelebratePage() {
   const navigate = useNavigate();
   const { showSuccess } = useNotifications();
   const { campaignLinkOrigins } = useAmplifyConfig();
+  const pointValues = usePointValues().data;
+  const repostPoints = pointValues?.REPOST ?? REPOST_POINTS;
+  const thoughtsPoints = pointValues?.REPOST_COMMENTARY ?? WITH_THOUGHTS_POINTS;
 
   const [linking, setLinking] = useState<Campaign | null>(null);
   const [sharing, setSharing] = useState<Campaign | null>(null);
@@ -170,7 +176,7 @@ export default function CelebratePage() {
 
   return (
     <AmplifyShell title="Celebrate" subtitle="Share Choreo Labs' posts on LinkedIn, earn points, and see where you rank.">
-      <PointsTiles linkTo={AMPLIFY_MY_POINTS_PATH} />
+      <PointsTiles historyTo={AMPLIFY_MY_POINTS_PATH} />
 
       {postsLoading ? (
         <Skeleton variant="rounded" height={320} sx={{ mb: 3 }} />
@@ -191,6 +197,12 @@ export default function CelebratePage() {
           <PostGrid
             items={toAmplify}
             categories={categories.data}
+            note={
+              <>
+                Priority first, then newest · Repost <strong>+{repostPoints}</strong> · with your thoughts{" "}
+                <strong>+{thoughtsPoints}</strong>
+              </>
+            }
             renderItem={(campaign) => (
               <PostCard
                 campaign={campaign}
@@ -201,13 +213,8 @@ export default function CelebratePage() {
                   </>
                 }
                 action={
-                  <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<Volume2Icon size={14} />}
-                    onClick={() => amplify(campaign)}
-                  >
-                    Amplify
+                  <Button variant="outlined" onClick={() => amplify(campaign)}>
+                    Post it for me
                   </Button>
                 }
               />

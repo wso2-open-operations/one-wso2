@@ -17,7 +17,7 @@
 import type { LedgerEntry, LedgerSettlement, PointAction, PointsHistory } from "../api/amplifyTypes";
 
 /** The filter chips over My points & Coins' activity list. */
-export type ActivityFilter = "all" | "reposts" | "reactions" | "own-posts" | "corrections";
+export type ActivityFilter = "all" | "reposts" | "reactions" | "own-posts" | "coins";
 
 /** The filter chips in order, with their labels. */
 export const ACTIVITY_FILTERS: readonly { value: ActivityFilter; label: string }[] = [
@@ -25,7 +25,7 @@ export const ACTIVITY_FILTERS: readonly { value: ActivityFilter; label: string }
   { value: "reposts", label: "Reposts" },
   { value: "reactions", label: "Reactions & comments" },
   { value: "own-posts", label: "Own posts" },
-  { value: "corrections", label: "Corrections" },
+  { value: "coins", label: "Coins" },
 ];
 
 const REPOST_ACTIONS: ReadonlySet<string> = new Set(["REPOST", "REPOST_COMMENTARY", "SHARE", "SHARE_COMMENTARY"]);
@@ -37,10 +37,16 @@ export function isCorrection(entry: Pick<LedgerEntry, "sourceType">): boolean {
   return entry.sourceType === "ADJUSTMENT" || entry.sourceType === "REVERSAL";
 }
 
-/** Whether a row belongs under `filter`. A correction shows only under All and Corrections, whatever its action. */
-export function matchesActivityFilter(entry: Pick<LedgerEntry, "sourceType" | "action">, filter: ActivityFilter): boolean {
+/**
+ * Whether a row belongs under `filter`. A correction shows only under All, whatever its action. Coins lists the
+ * activity whose points became Coins (GET /team/{id}/history has no conversion rows of its own).
+ */
+export function matchesActivityFilter(
+  entry: Pick<LedgerEntry, "sourceType" | "action" | "settlement">,
+  filter: ActivityFilter,
+): boolean {
   if (filter === "all") return true;
-  if (filter === "corrections") return isCorrection(entry);
+  if (filter === "coins") return entry.settlement === "PAID";
   if (isCorrection(entry)) return false;
   const action = entry.action ?? "";
   if (filter === "reposts") return REPOST_ACTIONS.has(action);
@@ -49,29 +55,36 @@ export function matchesActivityFilter(entry: Pick<LedgerEntry, "sourceType" | "a
 }
 
 const ACTION_TEXT: Readonly<Record<PointAction, string>> = {
-  REPOST: "You reposted",
-  REPOST_COMMENTARY: "You reposted with your thoughts",
-  SHARE: "You shared with a link",
-  SHARE_COMMENTARY: "You shared with a link and your thoughts",
-  REACTION: "You reacted on LinkedIn",
-  COMMENT: "You commented on LinkedIn",
-  OWN_POST: "Your own post was approved",
-  OWN_POST_AMPLIFIED: "Your own post was featured",
-  CHALLENGE_ENTRY: "You entered a challenge",
-  CHALLENGE_WINNER: "You won a challenge",
+  REPOST: "Reposted",
+  REPOST_COMMENTARY: "Reposted with your thoughts",
+  SHARE: "Shared with a link",
+  SHARE_COMMENTARY: "Shared with a link and your thoughts",
+  REACTION: "Reacted on LinkedIn",
+  COMMENT: "Commented on LinkedIn",
+  OWN_POST: "Own post approved",
+  OWN_POST_AMPLIFIED: "Own post featured",
+  CHALLENGE_ENTRY: "Challenge entry",
+  CHALLENGE_WINNER: "Challenge winner",
 };
 
-/** What happened on a row of the caller's own history, in plain words. */
-export function activityText(entry: Pick<LedgerEntry, "sourceType" | "action" | "points">): string {
-  if (entry.sourceType === "REVERSAL") return "The PO team reversed points";
-  if (entry.sourceType === "ADJUSTMENT") {
-    return entry.points < 0 ? "The PO team removed points" : "The PO team added points";
+/**
+ * What happened on a row, in plain words ("Reposted with your thoughts"). A reversal of a repost reads "Repost
+ * removed"; with `forPerson` the employee's "your" becomes neutral, for the PO team's view of someone else.
+ */
+export function activityText(
+  entry: Pick<LedgerEntry, "sourceType" | "action" | "points">,
+  { forPerson = false }: { forPerson?: boolean } = {},
+): string {
+  if (entry.sourceType === "REVERSAL") {
+    return entry.action && REPOST_ACTIONS.has(entry.action) ? "Repost removed" : "Points reversed";
   }
-  return (entry.action && ACTION_TEXT[entry.action as PointAction]) || "Points activity";
+  if (entry.sourceType === "ADJUSTMENT") return "Corrected by the PO team";
+  const text = (entry.action && ACTION_TEXT[entry.action as PointAction]) || "Points activity";
+  return forPerson ? text.replace(" your ", " ") : text;
 }
 
-/** The status an activity row shows: its Coins status, or REVERSED once another row cancelled it. */
-export type ActivityStatus = LedgerSettlement | "REVERSED";
+/** The status an activity row shows: its Coins status, or REVERSED / CORRECTED for the PO team's rows. */
+export type ActivityStatus = LedgerSettlement | "REVERSED" | "CORRECTED";
 
 /** Each status in the employee's words. */
 export const ACTIVITY_STATUS_LABELS: Readonly<Record<ActivityStatus, string>> = {
@@ -79,11 +92,18 @@ export const ACTIVITY_STATUS_LABELS: Readonly<Record<ActivityStatus, string>> = 
   PAID: "Coins sent",
   ACTION_REQUIRED: "Waiting for the PO team",
   REVERSED: "Reversed",
+  CORRECTED: "Corrected",
 };
 
-/** A row's status: REVERSED once another row cancelled it, else its Coins status. Null when it has none. */
-export function activityStatus(entry: Pick<LedgerEntry, "reversedBy" | "settlement">): ActivityStatus | null {
-  if (entry.reversedBy) return "REVERSED";
+/**
+ * A row's status: REVERSED for a reversal or a row another one cancelled, CORRECTED for an adjustment, else its Coins
+ * status. Null when it has none.
+ */
+export function activityStatus(
+  entry: Pick<LedgerEntry, "reversedBy" | "settlement"> & Partial<Pick<LedgerEntry, "sourceType">>,
+): ActivityStatus | null {
+  if (entry.reversedBy || entry.sourceType === "REVERSAL") return "REVERSED";
+  if (entry.sourceType === "ADJUSTMENT") return "CORRECTED";
   return entry.settlement ?? null;
 }
 

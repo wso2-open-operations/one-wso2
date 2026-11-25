@@ -15,7 +15,7 @@
 // under the License.
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Box, Button } from "@wso2/oxygen-ui";
+import { Box, Button, Typography } from "@wso2/oxygen-ui";
 import { ChevronDownIcon, ChevronUpIcon } from "@wso2/oxygen-ui-icons-react";
 import type { Campaign, Category } from "../api/amplifyTypes";
 import {
@@ -38,11 +38,14 @@ export default function PostGrid({
   items,
   categories,
   renderItem,
+  note,
 }: {
   items: readonly Campaign[];
   /** The post categories, in the order their chips appear. */
   categories: readonly Category[] | undefined;
   renderItem: (campaign: Campaign) => ReactNode;
+  /** The line on the right of the title, e.g. "Priority first, then newest · Repost +2 · with your thoughts +5". */
+  note?: ReactNode;
 }) {
   const [filter, setFilter] = useState<PostFilter>("all");
   const [expanded, setExpanded] = useState(false);
@@ -60,7 +63,16 @@ export default function PostGrid({
   };
 
   return (
-    <AmplifyPanel title={postsToAmplifyTitle(items.length)}>
+    <AmplifyPanel
+      title={postsToAmplifyTitle(items.length)}
+      action={
+        note && (
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: "right" }}>
+            {note}
+          </Typography>
+        )
+      }
+    >
       {options.length > 1 && (
         <Box sx={{ mb: 1.5 }}>
           <FilterChips options={options} value={active} onChange={choose} ariaLabel="Filter posts" />
@@ -69,7 +81,7 @@ export default function PostGrid({
       <Box
         sx={{
           display: "grid",
-          gap: 1.5,
+          gap: 2,
           gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))" },
         }}
       >
@@ -80,9 +92,10 @@ export default function PostGrid({
         ))}
       </Box>
       {filtered.length > POST_GRID_SIZE && (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 1.5 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 2.5 }}>
           <Button
-            size="small"
+            variant="outlined"
+            sx={{ minWidth: { xs: "100%", sm: 320 } }}
             aria-expanded={expanded}
             endIcon={expanded ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
             onClick={() => setExpanded((open) => !open)}

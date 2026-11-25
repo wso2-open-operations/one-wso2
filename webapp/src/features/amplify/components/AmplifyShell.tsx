@@ -24,24 +24,32 @@ import { isAmplifyBackendConfigured } from "../api/useAmplifyData";
 export default function AmplifyShell({
   title,
   subtitle,
+  action,
   children,
 }: {
   title: string;
   subtitle?: string;
+  /** A button at the top right, beside the title (My points & Coins' Submit your own post). */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   useDocumentTitle(title);
   const configured = isAmplifyBackendConfigured();
   return (
     <Box>
-      <Typography component="h1" variant="h5" sx={{ mb: 0.5 }}>
-        {title}
-      </Typography>
-      {subtitle && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: "70ch" }}>
-          {subtitle}
-        </Typography>
-      )}
+      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 3 }}>
+        <Box sx={{ minWidth: 0, flex: "1 1 320px" }}>
+          <Typography component="h1" variant="h5" sx={{ mb: 0.5 }}>
+            {title}
+          </Typography>
+          {subtitle && (
+            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: "80ch" }}>
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+        {action && configured && <Box sx={{ flexShrink: 0 }}>{action}</Box>}
+      </Box>
 
       {configured ? (
         children
@@ -72,9 +80,11 @@ export function AmplifyPanel({
     <Box
       component="section"
       aria-label={ariaLabel ?? title}
-      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2, mb: 3 }}
+      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3, p: 2, mb: 3 }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5, minHeight: 32 }}>
+      <Box
+        sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap", mb: 1.5, minHeight: 32 }}
+      >
         <Typography
           component="h2"
           variant="overline"

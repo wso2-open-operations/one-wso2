@@ -44,7 +44,7 @@ const rows: LedgerEntry[] = [
   row("REACTION", { action: "REACTION" }),
   row("COMMENT", { action: "COMMENT" }),
   row("OWN_POST", { sourceType: "EXTERNAL_SHARE", action: "OWN_POST" }),
-  row("OWN_POST_AMPLIFIED", { sourceType: "EXTERNAL_SHARE", action: "OWN_POST_AMPLIFIED" }),
+  row("OWN_POST_AMPLIFIED", { sourceType: "EXTERNAL_SHARE", action: "OWN_POST_AMPLIFIED", settlement: "PAID" }),
   row("ADJUSTMENT", { sourceType: "ADJUSTMENT", action: null }),
   // A reversal that carries the action of the row it cancels is still a correction.
   row("REVERSAL", { sourceType: "REVERSAL", action: "REPOST", points: -2 }),
@@ -53,13 +53,13 @@ const rows: LedgerEntry[] = [
 const under = (filter: ActivityFilter) => rows.filter((r) => matchesActivityFilter(r, filter)).map((r) => r.reference);
 
 describe("the activity filters", () => {
-  it("are All, Reposts, Reactions & comments, Own posts and Corrections", () => {
+  it("are All, Reposts, Reactions & comments, Own posts and Coins", () => {
     expect(ACTIVITY_FILTERS.map((f) => f.label)).toEqual([
       "All",
       "Reposts",
       "Reactions & comments",
       "Own posts",
-      "Corrections",
+      "Coins",
     ]);
   });
 
@@ -68,26 +68,32 @@ describe("the activity filters", () => {
     expect(under("reposts")).toEqual(["REPOST", "REPOST_COMMENTARY", "SHARE", "SHARE_COMMENTARY"]);
     expect(under("reactions")).toEqual(["REACTION", "COMMENT"]);
     expect(under("own-posts")).toEqual(["OWN_POST", "OWN_POST_AMPLIFIED"]);
-    expect(under("corrections")).toEqual(["ADJUSTMENT", "REVERSAL"]);
+    expect(under("coins")).toEqual(["OWN_POST_AMPLIFIED"]);
   });
 });
 
 describe("activityText", () => {
   it("says what happened in plain words", () => {
-    expect(activityText(row("a", { action: "REPOST_COMMENTARY" }))).toBe("You reposted with your thoughts");
+    expect(activityText(row("a", { action: "REPOST_COMMENTARY" }))).toBe("Reposted with your thoughts");
+    expect(activityText(row("a2", { action: "REACTION" }))).toBe("Reacted on LinkedIn");
+    expect(activityText(row("a3", { action: "COMMENT" }))).toBe("Commented on LinkedIn");
     expect(activityText(row("b", { sourceType: "EXTERNAL_SHARE", action: "OWN_POST_AMPLIFIED" }))).toBe(
-      "Your own post was featured",
+      "Own post featured",
     );
     expect(activityText(row("c", { sourceType: "ADJUSTMENT", action: null, points: 30 }))).toBe(
-      "The PO team added points",
+      "Corrected by the PO team",
     );
-    expect(activityText(row("d", { sourceType: "ADJUSTMENT", action: null, points: -5 }))).toBe(
-      "The PO team removed points",
-    );
-    expect(activityText(row("e", { sourceType: "REVERSAL", action: "REPOST", points: -2 }))).toBe(
-      "The PO team reversed points",
+    expect(activityText(row("e", { sourceType: "REVERSAL", action: "REPOST", points: -2 }))).toBe("Repost removed");
+    expect(activityText(row("e2", { sourceType: "REVERSAL", action: "OWN_POST", points: -10 }))).toBe(
+      "Points reversed",
     );
     expect(activityText(row("f", { action: "SOMETHING_NEW" }))).toBe("Points activity");
+  });
+
+  it("drops the employee's \"your\" for the PO team's view", () => {
+    expect(activityText(row("a", { action: "REPOST_COMMENTARY" }), { forPerson: true })).toBe(
+      "Reposted with thoughts",
+    );
   });
 });
 
@@ -101,11 +107,17 @@ describe("activityStatus", () => {
       PAID: "Coins sent",
       ACTION_REQUIRED: "Waiting for the PO team",
       REVERSED: "Reversed",
+      CORRECTED: "Corrected",
     });
   });
 
-  it("is Reversed once another row cancelled it, whatever its Coins status", () => {
+  it("is Reversed once another row cancelled it, whatever its Coins status, and on the reversal itself", () => {
     expect(activityStatus(row("a", { settlement: "PAID", reversedBy: "REV-1" }))).toBe("REVERSED");
+    expect(activityStatus(row("b", { sourceType: "REVERSAL", settlement: "HELD" }))).toBe("REVERSED");
+  });
+
+  it("is Corrected on an adjustment", () => {
+    expect(activityStatus(row("a", { sourceType: "ADJUSTMENT", settlement: "HELD" }))).toBe("CORRECTED");
   });
 
   it("is nothing when the row has no status", () => {

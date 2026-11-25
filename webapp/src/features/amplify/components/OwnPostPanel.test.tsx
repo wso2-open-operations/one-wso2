@@ -14,82 +14,42 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { ExternalShare } from "../api/amplifyTypes";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 
-const h = vi.hoisted(() => ({
-  mine: { data: [] as unknown[] | undefined, isError: false, error: null as unknown, refetch: () => undefined },
-}));
-vi.mock("../api/useAmplifyData", () => ({ useMyExternalShares: () => h.mine }));
+const h = vi.hoisted(() => ({ values: undefined as Record<string, number> | undefined }));
+vi.mock("../api/useAmplifyData", () => ({ usePointValues: () => ({ data: h.values }) }));
 vi.mock("./SubmitOwnPostDialog", () => ({
   default: ({ open }: { open: boolean }) => (open ? <div>submit dialog</div> : null),
 }));
 
-import OwnPostPanel, { OWN_POSTS_SHOWN } from "./OwnPostPanel";
-
-const share = (id: string, status: ExternalShare["status"], extra: Partial<ExternalShare> = {}): ExternalShare => ({
-  id,
-  employeeId: "e-1",
-  action: "OWN_POST",
-  evidenceUrl: `https://www.linkedin.com/feed/update/urn:li:activity:${id}/`,
-  evidenceHost: "www.linkedin.com",
-  evidenceProvider: "linkedin",
-  status,
-  createdAt: "2026-11-20T10:00:00Z",
-  version: 1,
-  ...extra,
-});
+import OwnPostPanel from "./OwnPostPanel";
 
 describe("OwnPostPanel", () => {
-  beforeEach(() => {
-    h.mine = { data: [], isError: false, error: null, refetch: () => undefined };
-  });
-
   it("prompts for an own post and opens the dialog", () => {
     render(<OwnPostPanel />);
-    expect(screen.getByText(/Wrote your own LinkedIn post about Choreo Labs\? Submit it for extra points/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Wrote your own post about Choreo Labs?" })).toBeTruthy();
     expect(screen.queryByText("submit dialog")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Submit your own post" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit your post" }));
     expect(screen.getByText("submit dialog")).toBeTruthy();
   });
 
-  it("lists each submission with its status, and the reason for a declined one", () => {
-    h.mine.data = [
-      share("1", "PENDING"),
-      share("2", "APPROVED"),
-      share("3", "AMPLIFIED"),
-      share("4", "REJECTED", { decisionReason: "Not about Choreo Labs" }),
-    ];
+  it("states the points at the default rules while the values load, and says the marketing team features posts", () => {
+    h.values = undefined;
     render(<OwnPostPanel />);
-    const list = screen.getByRole("list", { name: "Posts you submitted" });
-    expect(within(list).getByText("Waiting for review")).toBeTruthy();
-    expect(within(list).getByText("Approved")).toBeTruthy();
-    expect(within(list).getByText("Featured")).toBeTruthy();
-    expect(within(list).getByText("Declined")).toBeTruthy();
-    expect(within(list).getByText("Reason: Not about Choreo Labs")).toBeTruthy();
-    const links = within(list).getAllByRole("link", { name: /Open on LinkedIn/ });
-    expect(links[0].getAttribute("rel")).toBe("noopener noreferrer");
-  });
-
-  it("lists only the latest few", () => {
-    h.mine.data = Array.from({ length: OWN_POSTS_SHOWN + 3 }, (_, i) => share(String(i), "PENDING"));
-    render(<OwnPostPanel />);
-    expect(within(screen.getByRole("list", { name: "Posts you submitted" })).getAllByRole("listitem")).toHaveLength(
-      OWN_POSTS_SHOWN,
+    expect(screen.getByRole("region", { name: "Your own post" }).textContent).toContain(
+      "Submit it for review. Approved posts earn +10, and +15 more if the marketing team features it.",
     );
   });
 
-  it("doesn't link a stored address that isn't http(s)", () => {
-    h.mine.data = [share("1", "PENDING", { evidenceUrl: "javascript:alert(1)" })];
+  it("states the points in force", () => {
+    h.values = { OWN_POST: 12, OWN_POST_AMPLIFIED: 30 };
     render(<OwnPostPanel />);
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByRole("region", { name: "Your own post" }).textContent).toContain("earn +12, and +18 more");
   });
 
-  it("says when the list couldn't load, and still offers the button", () => {
-    h.mine = { data: undefined, isError: true, error: new Error("down"), refetch: () => undefined };
+  it("lists no submissions; those show on My points & Coins", () => {
     render(<OwnPostPanel />);
-    expect(screen.getByText(/Couldn't load the posts you submitted/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Submit your own post" })).toBeTruthy();
+    expect(screen.queryByRole("list")).toBeNull();
   });
 });

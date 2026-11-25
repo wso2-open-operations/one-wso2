@@ -26,17 +26,18 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showError, showSuccess }),
 }));
 
-import AdjustPointsDialog from "./AdjustPointsDialog";
+import AdjustPointsPanel from "./AdjustPointsPanel";
 
 const save = () => screen.getByRole("button", { name: "Save" }) as HTMLButtonElement;
-const points = () => screen.getByLabelText(/Points/);
-const reason = () => screen.getByLabelText(/Reason/);
+const points = () => screen.getByLabelText(/^Points/);
+const reason = () => screen.getByLabelText(/^Reason/);
+const note = () => screen.getByLabelText(/^Note for Jane/);
 
 function renderDialog(total: number | null = 1040, onClose = () => {}) {
-  render(<AdjustPointsDialog employeeId="e-9" personName="Jane" total={total} onClose={onClose} />);
+  render(<AdjustPointsPanel employeeId="e-9" personName="Jane" firstName="Jane" total={total} onClose={onClose} />);
 }
 
-describe("AdjustPointsDialog", () => {
+describe("AdjustPointsPanel", () => {
   beforeEach(() => {
     mutate.mockReset();
     showError.mockClear();
@@ -64,7 +65,7 @@ describe("AdjustPointsDialog", () => {
   it.each(["0", "1.5", "10001", "-10001"])("refuses %j points", (value) => {
     renderDialog();
     fireEvent.change(points(), { target: { value } });
-    fireEvent.change(reason(), { target: { value: "Fix" } });
+    fireEvent.change(reason(), { target: { value: "Other" } });
     expect(save().disabled).toBe(true);
     expect(screen.queryByRole("status")).toBeNull();
     fireEvent.click(save());
@@ -75,9 +76,7 @@ describe("AdjustPointsDialog", () => {
     renderDialog();
     fireEvent.change(points(), { target: { value: "5" } });
     expect(save().disabled).toBe(true);
-    fireEvent.change(reason(), { target: { value: "  " } });
-    expect(save().disabled).toBe(true);
-    fireEvent.change(reason(), { target: { value: "Event bonus" } });
+    fireEvent.change(reason(), { target: { value: "Missed activity" } });
     expect(save().disabled).toBe(false);
   });
 
@@ -86,9 +85,14 @@ describe("AdjustPointsDialog", () => {
     mutate.mockImplementation((_v, opts: { onSuccess: () => void }) => opts.onSuccess());
     renderDialog(1040, onClose);
     fireEvent.change(points(), { target: { value: "-10000" } });
-    fireEvent.change(reason(), { target: { value: " Duplicate account " } });
+    fireEvent.change(reason(), { target: { value: "Duplicate of another activity" } });
+    fireEvent.change(note(), { target: { value: " Same repost twice. " } });
     fireEvent.click(save());
-    expect(mutate.mock.calls[0][0]).toEqual({ employeeId: "e-9", points: -10000, reason: "Duplicate account" });
+    expect(mutate.mock.calls[0][0]).toEqual({
+      employeeId: "e-9",
+      points: -10000,
+      reason: "Duplicate of another activity — Same repost twice.",
+    });
     expect(showSuccess).toHaveBeenCalledWith("Saved: −10,000 points for Jane.");
     expect(onClose).toHaveBeenCalled();
   });
@@ -99,7 +103,7 @@ describe("AdjustPointsDialog", () => {
     );
     renderDialog();
     fireEvent.change(points(), { target: { value: "5" } });
-    fireEvent.change(reason(), { target: { value: "x" } });
+    fireEvent.change(reason(), { target: { value: "Other" } });
     fireEvent.click(save());
     expect(showError).toHaveBeenCalledWith("You can't correct your own points.");
   });

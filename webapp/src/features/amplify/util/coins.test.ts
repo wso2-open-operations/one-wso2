@@ -16,6 +16,9 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  convertedPoints,
+  nextConversion,
+  rateSentence,
   SCHEDULE_LABELS,
   coinsText,
   conversionSentence,
@@ -25,7 +28,7 @@ import {
   pointsText,
   progressFraction,
   progressText,
-  workedExample,
+  rateExample,
 } from "./coins";
 
 describe("convertPoints", () => {
@@ -67,20 +70,20 @@ describe("conversionSentence", () => {
   });
 });
 
-describe("workedExample", () => {
+describe("rateExample", () => {
   it("converts twelve and four tenths blocks, so it shows Coins and a carry-over", () => {
     expect(examplePoints(100)).toBe(1240);
-    expect(workedExample(100, 10)).toBe("1,240 points becomes 120 Coins, with 40 points carried over.");
-    expect(workedExample(250, 30)).toBe("3,100 points becomes 360 Coins, with 100 points carried over.");
+    expect(rateExample(100, 10)).toEqual({ points: 1240, coins: 120, carried: 40 });
+    expect(rateExample(250, 30)).toEqual({ points: 3100, coins: 360, carried: 100 });
   });
 
   it("leaves the carry-over out when there is none", () => {
-    expect(workedExample(1, 2)).toBe("12 points becomes 24 Coins.");
+    expect(rateExample(1, 2)).toEqual({ points: 12, coins: 24, carried: 0 });
   });
 
   it("has no example for a block below one", () => {
-    expect(workedExample(0, 10)).toBeNull();
-    expect(workedExample(100, 0)).toBeNull();
+    expect(rateExample(0, 10)).toBeNull();
+    expect(rateExample(100, 0)).toBeNull();
   });
 });
 
@@ -93,9 +96,30 @@ describe("wording", () => {
   });
 
   it("knows the three schedules", () => {
-    expect(Object.values(SCHEDULE_LABELS)).toEqual(["Monthly on the 1st", "Weekly on Mondays", "Daily"]);
+    expect(Object.values(SCHEDULE_LABELS)).toEqual(["Monthly, on the 1st", "Weekly, on Mondays", "Daily"]);
     expect(isCoinSchedule("WEEKLY")).toBe(true);
     expect(isCoinSchedule("weekly")).toBe(false);
     expect(isCoinSchedule(null)).toBe(false);
+  });
+});
+
+describe("the My points & Coins band", () => {
+  it("says the rate in plain words", () => {
+    expect(rateSentence(100, 10)).toBe("Every 100 points becomes 10 Coins, automatically.");
+  });
+
+  it("works out the next conversion day for each schedule", () => {
+    const wed = new Date("2026-11-25T15:00:00Z");
+    expect(nextConversion("MONTHLY", wed).toISOString()).toBe("2026-12-01T00:00:00.000Z");
+    expect(nextConversion("WEEKLY", wed).toISOString()).toBe("2026-11-30T00:00:00.000Z");
+    expect(nextConversion("DAILY", wed).toISOString()).toBe("2026-11-26T00:00:00.000Z");
+    // On a Monday the next run is the Monday after; in December the next month is January.
+    expect(nextConversion("WEEKLY", new Date("2026-11-30T01:00:00Z")).toISOString()).toBe("2026-12-07T00:00:00.000Z");
+    expect(nextConversion("MONTHLY", new Date("2026-12-31T23:00:00Z")).toISOString()).toBe("2027-01-01T00:00:00.000Z");
+  });
+
+  it("counts converted points as all points less the held ones, never below zero", () => {
+    expect(convertedPoints(1240, 40)).toBe(1200);
+    expect(convertedPoints(10, 40)).toBe(0);
   });
 });

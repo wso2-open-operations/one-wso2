@@ -16,70 +16,59 @@
 
 import { useState } from "react";
 import { Box, Button, Typography } from "@wso2/oxygen-ui";
-import { SendIcon } from "@wso2/oxygen-ui-icons-react";
-import ErrorNotice from "@components/error-notice/ErrorNotice";
-import type { ExternalShare } from "../api/amplifyTypes";
-import { useMyExternalShares } from "../api/useAmplifyData";
-import { shortDate } from "../util/dashboardFormat";
-import { AmplifyPanel } from "./AmplifyShell";
-import { OwnPostLink, OwnPostStatusChip } from "./OwnPostParts";
+import { PencilIcon } from "@wso2/oxygen-ui-icons-react";
+import { usePointValues } from "../api/useAmplifyData";
+import { ownPostAwards } from "../util/ownPosts";
 import SubmitOwnPostDialog from "./SubmitOwnPostDialog";
 
-/** How many of the caller's latest submissions the panel lists. */
-export const OWN_POSTS_SHOWN = 5;
-
-function SubmissionRow({ share }: { share: ExternalShare }) {
-  return (
-    <Box component="li" sx={{ py: 1, borderTop: "1px solid", borderColor: "divider" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-        <Typography variant="body2" sx={{ minWidth: 56 }}>
-          {shortDate(share.createdAt)}
-        </Typography>
-        <OwnPostStatusChip status={share.status} />
-        <OwnPostLink share={share} />
-      </Box>
-      {share.status === "REJECTED" && share.decisionReason && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Reason: {share.decisionReason}
-        </Typography>
-      )}
-    </Box>
-  );
-}
-
 /**
- * Celebrate's "own post" prompt: a button that opens Submit your own post, and the caller's latest submissions with
- * where each one is.
+ * Celebrate's own-post prompt: "Wrote your own post about Choreo Labs?", the points an approved and a featured post
+ * earn (GET /point-values), and Submit your post, which opens Submit your own post. Where each submission is shows
+ * on My points & Coins.
  */
 export default function OwnPostPanel() {
-  const mine = useMyExternalShares();
+  const awards = ownPostAwards(usePointValues().data);
   const [open, setOpen] = useState(false);
-  const latest = (mine.data ?? []).slice(0, OWN_POSTS_SHOWN);
 
   return (
-    <AmplifyPanel title="Your own posts">
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", justifyContent: "space-between" }}>
-        <Typography variant="body2">
-          Wrote your own LinkedIn post about Choreo Labs? Submit it for extra points.
-        </Typography>
-        <Button variant="outlined" size="small" startIcon={<SendIcon size={14} />} onClick={() => setOpen(true)}>
-          Submit your own post
-        </Button>
+    <Box
+      component="section"
+      aria-label="Your own post"
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 2.5,
+        flexWrap: { xs: "wrap", sm: "nowrap" },
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 3,
+        p: 2.5,
+        mb: 3,
+      }}
+    >
+      <Box sx={{ color: "primary.dark", display: "inline-flex", flexShrink: 0 }} aria-hidden="true">
+        <PencilIcon size={30} />
       </Box>
-      {mine.isError ? (
-        <ErrorNotice error={mine.error} onRetry={() => void mine.refetch()} sx={{ mt: 1.5 }}>
-          Couldn&apos;t load the posts you submitted.
-        </ErrorNotice>
-      ) : (
-        latest.length > 0 && (
-          <Box component="ul" aria-label="Posts you submitted" sx={{ listStyle: "none", p: 0, m: 0, mt: 1.5 }}>
-            {latest.map((share) => (
-              <SubmissionRow key={share.id} share={share} />
-            ))}
+      <Box sx={{ flex: "1 1 240px", minWidth: 0 }}>
+        <Typography component="h2" sx={{ fontWeight: 700, fontSize: 17 }}>
+          Wrote your own post about Choreo Labs?
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Submit it for review. Approved posts earn{" "}
+          <Box component="strong" sx={{ color: "text.primary" }}>
+            +{awards.approved}
           </Box>
-        )
-      )}
+          , and{" "}
+          <Box component="strong" sx={{ color: "text.primary" }}>
+            +{awards.topUp} more
+          </Box>{" "}
+          if the marketing team features it.
+        </Typography>
+      </Box>
+      <Button variant="outlined" onClick={() => setOpen(true)} sx={{ flexShrink: 0 }}>
+        Submit your post
+      </Button>
       <SubmitOwnPostDialog open={open} onClose={() => setOpen(false)} />
-    </AmplifyPanel>
+    </Box>
   );
 }

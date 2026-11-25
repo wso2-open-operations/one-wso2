@@ -73,11 +73,13 @@ describe("PointsTiles", () => {
     render(<PointsTiles />);
     expect(new Set(h.scopes)).toEqual(new Set(["ALL", "MONTH"]));
     expect(tile("This month").textContent).toContain("85 points");
-    expect(tile("This month").textContent).toContain("Rank #4");
-    expect(tile("All-time points").textContent).toContain("1,240 points");
-    expect(tile("Coins received").textContent).toContain("120 WSO2 Coins");
+    expect(tile("This month").textContent).toContain("You're #4");
+    expect(tile("All time").textContent).toContain("1,240 points");
+    expect(tile("All time").textContent).toContain("Since you joined Amplify");
+    expect(tile("Coins received").textContent).toContain("120");
+    expect(tile("Coins received").textContent).toContain("In your WSO2 Coins wallet");
     expect(tile("Next Coins").textContent).toContain("40 / 100 points");
-    expect(tile("Next Coins").textContent).toContain("60 more points to 10 Coins");
+    expect(tile("Next Coins").textContent).toContain("60 more for 10 Coins");
     const bar = within(tile("Next Coins")).getByRole("progressbar", { name: "Progress to your next Coins" });
     expect(bar.getAttribute("aria-valuenow")).toBe("40");
   });
@@ -89,20 +91,21 @@ describe("PointsTiles", () => {
     expect(tile("This month").textContent).toContain("Not ranked yet");
   });
 
-  it("isn't a link on My points & Coins itself", () => {
+  it("has no links without a history page", () => {
     render(<PointsTiles />);
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("links every tile to the given page", () => {
+  it("links History on the Next Coins tile to the given page", () => {
     render(
       <MemoryRouter>
-        <PointsTiles linkTo="/amplify/my-points" />
+        <PointsTiles historyTo="/amplify/my-points" />
       </MemoryRouter>,
     );
     const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(4);
-    for (const link of links) expect(link.getAttribute("href")).toBe("/amplify/my-points");
+    expect(links).toHaveLength(1);
+    expect(links[0].textContent).toBe("History");
+    expect(links[0].getAttribute("href")).toBe("/amplify/my-points");
   });
 
   it("shows placeholders while either period loads", () => {
