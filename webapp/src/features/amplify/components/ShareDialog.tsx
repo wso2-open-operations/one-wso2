@@ -108,7 +108,7 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
       onClose={busy ? undefined : close}
       maxWidth="sm"
       fullWidth
-      slotProps={{ paper: { sx: { ...dialogPaperSx, borderRadius: 3 } } }}
+      slotProps={{ paper: { sx: dialogPaperSx } }}
     >
       <ClosableDialogTitle onClose={close} disabled={busy}>
         Amplify this post

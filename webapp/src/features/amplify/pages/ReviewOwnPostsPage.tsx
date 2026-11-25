@@ -223,6 +223,8 @@ function ReviewCard({
   const { showError, showSuccess } = useNotifications();
   const [working, setWorking] = useState(false);
   const [declining, setDeclining] = useState(false);
+  // Approve and Feature award points at once, so each asks first: a stray click must not decide a post.
+  const [confirming, setConfirming] = useState<"approve" | "feature" | null>(null);
   const known = who.name !== UNKNOWN_EMPLOYEE;
   const email = share.employeeEmail?.trim() || null;
   // Without a name, the work email is the next best way to say who sent it; the id only when there is neither.
@@ -289,7 +291,7 @@ function ReviewCard({
       variant="outlined"
       component="article"
       aria-label={`Post from ${name}`}
-      sx={{ p: 2.5, borderRadius: 3, ...(declining && { borderColor: "error.light" }) }}
+      sx={{ p: 2.5, borderRadius: 2, ...(declining && { borderColor: "error.light" }) }}
     >
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, flexWrap: "wrap" }}>
         <Avatar src={who.photoUrl ?? undefined} alt="" sx={{ width: 44, height: 44, fontSize: 15 }}>
@@ -368,17 +370,17 @@ function ReviewCard({
         </Typography>
       )}
 
-      {open && !declining && (
+      {open && !declining && !confirming && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mt: 2 }}>
           {share.status === "PENDING" && (
-            <Button variant="contained" onClick={() => void approveOnly()} disabled={working || isOwn}>
+            <Button variant="contained" onClick={() => setConfirming("approve")} disabled={working || isOwn}>
               Approve · +{awards.approved}
             </Button>
           )}
           <Button
             variant="outlined"
             color="warning"
-            onClick={() => void (share.status === "PENDING" ? approveAndFeature() : featureApproved())}
+            onClick={() => setConfirming("feature")}
             disabled={working || isOwn}
             sx={{ color: "warning.dark", bgcolor: (t) => alpha(t.palette.warning.main, 0.1) }}
           >
@@ -394,6 +396,43 @@ function ReviewCard({
               {OWN_CLAIM_NOTE}
             </Typography>
           )}
+        </Box>
+      )}
+
+      {confirming && (
+        <Box
+          role="group"
+          aria-label={confirming === "approve" ? "Confirm approval" : "Confirm feature"}
+          sx={{ mt: 2, p: 2, borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "action.hover" }}
+        >
+          <Typography sx={{ fontWeight: 700 }}>
+            {confirming === "approve" ? "Approve this post?" : "Feature this post?"}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {confirming === "approve"
+              ? `${name} gets +${awards.approved} points now.`
+              : share.status === "PENDING"
+                ? `It's approved and featured: ${name} gets +${awards.featured} points now.`
+                : `${name} gets +${awards.topUp} more points now.`}{" "}
+            Points can only be taken back by a PO correction.
+          </Typography>
+          <Box sx={{ display: "flex", gap: 1.5, mt: 1.5, flexWrap: "wrap" }}>
+            <Button
+              variant="contained"
+              color={confirming === "approve" ? "primary" : "warning"}
+              disabled={working}
+              onClick={() => {
+                const step = confirming === "approve" ? approveOnly : share.status === "PENDING" ? approveAndFeature : featureApproved;
+                setConfirming(null);
+                void step();
+              }}
+            >
+              {confirming === "approve" ? `Yes, approve · +${awards.approved}` : `Yes, feature · +${share.status === "PENDING" ? awards.featured : awards.topUp}`}
+            </Button>
+            <Button variant="text" onClick={() => setConfirming(null)} disabled={working}>
+              Cancel
+            </Button>
+          </Box>
         </Box>
       )}
 

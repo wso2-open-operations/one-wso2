@@ -122,7 +122,7 @@ function CoinsBand() {
         alignItems: "center",
         gap: 3,
         border: "1px solid",
-        borderRadius: 3,
+        borderRadius: 2,
         p: 3,
         mb: 3,
         ...warmSurfaceSx,
@@ -285,7 +285,7 @@ function ActivityPanel() {
     <Box
       component="section"
       aria-label="Activity"
-      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3, pt: 2, pb: 2, mb: 3 }}
+      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, pt: 2, pb: 2, mb: 3 }}
     >
       <Box
         sx={{

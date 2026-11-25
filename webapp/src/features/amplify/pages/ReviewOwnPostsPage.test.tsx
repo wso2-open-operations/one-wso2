@@ -145,6 +145,7 @@ describe("a waiting post", () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
     fireEvent.click(screen.getByRole("button", { name: "Approve · +10" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, approve/ }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Approved: +10 points for Jane Doe."));
     expect(h.approve).toHaveBeenCalledWith({ id: "x-1", employeeId: "e-9" });
     expect(h.feature).not.toHaveBeenCalled();
@@ -157,6 +158,7 @@ describe("a waiting post", () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
     fireEvent.click(screen.getByRole("button", { name: "Feature · +25" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, feature/ }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +25 points for Jane Doe."));
     expect(order).toEqual(["approve", "feature"]);
     expect(h.feature).toHaveBeenCalledWith({ id: "x-1", employeeId: "e-9" });
@@ -167,6 +169,7 @@ describe("a waiting post", () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
     fireEvent.click(screen.getByRole("button", { name: "Feature · +25" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, feature/ }));
     await waitFor(() => expect(h.showError).toHaveBeenCalled());
     expect(h.showError).toHaveBeenCalledWith("Someone has already decided on this post. Reload to see where it is now.");
     expect(h.feature).not.toHaveBeenCalled();
@@ -178,6 +181,7 @@ describe("a waiting post", () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
     fireEvent.click(screen.getByRole("button", { name: "Feature · +25" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, feature/ }));
     await waitFor(() => expect(h.showError).toHaveBeenCalledWith(FEATURE_AFTER_APPROVE_FAILED));
     expect(FEATURE_AFTER_APPROVE_FAILED).toMatch(/approved/);
     expect(FEATURE_AFTER_APPROVE_FAILED).toMatch(/Approved tab/);
@@ -189,6 +193,7 @@ describe("a waiting post", () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
     fireEvent.click(screen.getByRole("button", { name: "Approve · +10" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, approve/ }));
     await waitFor(() =>
       expect(h.showError).toHaveBeenCalledWith("You can't decide on your own post; another marketing team member will."),
     );
@@ -249,6 +254,7 @@ describe("the points on the decision buttons", () => {
     render(<ReviewTab status="PENDING" />);
     expect(screen.getByRole("button", { name: "Approve · +12" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Feature · +30" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, feature/ }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +30 points for Jane Doe."));
   });
 
@@ -257,6 +263,7 @@ describe("the points on the decision buttons", () => {
     showList([share("x-2", "APPROVED")]);
     render(<ReviewTab status="APPROVED" />);
     fireEvent.click(screen.getByRole("button", { name: "Feature · +18" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, feature/ }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +18 more points for Jane Doe."));
   });
 
@@ -277,6 +284,7 @@ describe("other tabs", () => {
     expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Decline…" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Feature · +15" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, feature/ }));
     await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +15 more points for Jane Doe."));
     expect(h.feature).toHaveBeenCalledWith({ id: "x-2", employeeId: "e-9" });
     expect(h.approve).not.toHaveBeenCalled();
@@ -326,6 +334,7 @@ describe("paging after decisions", () => {
     showList([share("p-10", "PENDING")], 11);
     rerender(<ReviewTab status="PENDING" />);
     fireEvent.click(screen.getByRole("button", { name: "Approve · +10" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, approve/ }));
     await waitFor(() => expect(h.listArgs.at(-1)).toEqual(["PENDING", 0]));
   });
 
@@ -365,5 +374,15 @@ describe("ReviewOwnPostsPage", () => {
     expect(tabs.map((t) => t.textContent)).toEqual(["Waiting · 4", "Approved", "Featured", "Declined"]);
     expect(tabs[0].getAttribute("aria-current")).toBe("page");
     expect(screen.getByText(AUDIT_NOTE)).toBeTruthy();
+  });
+
+  it("asks before approving: Cancel decides nothing", () => {
+    showList([share("x-1", "PENDING")]);
+    render(<ReviewTab status="PENDING" />);
+    fireEvent.click(screen.getByRole("button", { name: "Approve · +10" }));
+    expect(screen.getByText("Approve this post?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(h.approve).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Approve · +10" })).toBeTruthy();
   });
 });

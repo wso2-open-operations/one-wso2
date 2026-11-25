@@ -80,7 +80,7 @@ export function AmplifyPanel({
     <Box
       component="section"
       aria-label={ariaLabel ?? title}
-      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3, p: 2, mb: 3 }}
+      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2, mb: 3 }}
     >
       <Box
         sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap", mb: 1.5, minHeight: 32 }}

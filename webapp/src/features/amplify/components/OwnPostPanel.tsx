@@ -41,7 +41,7 @@ export default function OwnPostPanel() {
         flexWrap: { xs: "wrap", sm: "nowrap" },
         border: "1px solid",
         borderColor: "divider",
-        borderRadius: 3,
+        borderRadius: 2,
         p: 2.5,
         mb: 3,
       }}

@@ -230,7 +230,7 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
       <Box
         component="section"
         aria-label={name}
-        sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3, minWidth: 0, overflow: "hidden" }}
+        sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, minWidth: 0, overflow: "hidden" }}
       >
         <Box sx={{ p: 2.5 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>

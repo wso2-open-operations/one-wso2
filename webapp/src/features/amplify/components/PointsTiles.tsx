@@ -46,7 +46,7 @@ function Tile({
       sx={{
         border: "1px solid",
         borderColor: "divider",
-        borderRadius: 3,
+        borderRadius: 2,
         p: 2,
         minWidth: 0,
         height: "100%",
@@ -174,7 +174,7 @@ export default function PointsTiles({ historyTo }: { historyTo?: string }) {
           color="warning"
           value={Math.round(progressFraction(coins.pointsTowardNext, coins.blockPoints) * 100)}
           aria-label="Progress to your next Coins"
-          sx={{ mt: 1, height: 8, borderRadius: 4 }}
+          sx={{ mt: 1, height: 8, borderRadius: 2 }}
         />
       </Tile>
     </Box>

@@ -137,7 +137,7 @@ export default function SubmitOwnPostDialog({ open, onClose }: { open: boolean; 
       onClose={busy ? undefined : close}
       maxWidth="sm"
       fullWidth
-      slotProps={{ paper: { sx: { ...dialogPaperSx, borderRadius: 3 } } }}
+      slotProps={{ paper: { sx: dialogPaperSx } }}
     >
       <ClosableDialogTitle onClose={close} disabled={busy}>
         Submit your own post

@@ -140,7 +140,7 @@ export function CorrectionPanel({
       sx={{
         border: "2px solid",
         borderColor: "primary.dark",
-        borderRadius: 3,
+        borderRadius: 2,
         p: 2.5,
         display: "flex",
         flexDirection: "column",

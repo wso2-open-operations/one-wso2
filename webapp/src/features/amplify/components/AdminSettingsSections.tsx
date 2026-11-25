@@ -135,7 +135,7 @@ export function pointValueChanges(saved: PointValues, texts: ValueTexts): RuleCh
 /** A section of Amplify Admin: a bordered card with a title. */
 function Card({ title, icon, children }: { title: string; icon?: ReactNode; children: ReactNode }) {
   return (
-    <Box component="section" aria-label={title} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3, p: 2.5, mb: 2.5 }}>
+    <Box component="section" aria-label={title} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2.5, mb: 2.5 }}>
       <Typography component="h2" sx={{ fontWeight: 700, fontSize: 19, display: "flex", alignItems: "center", gap: 1.25, mb: 1.5 }}>
         {icon}
         {title}
