@@ -77,6 +77,7 @@ vi.mock("../components/PostCard", () => ({
   PriorityChip: () => null,
 }));
 vi.mock("../components/PostCarousel", () => ({ default: () => null }));
+vi.mock("../components/OwnPostPanel", () => ({ default: () => <div>own post panel</div> }));
 vi.mock("../components/LeaderboardPanels", () => ({
   TeamLeaderboardPanel: () => null,
   TopAmplifiersPanel: () => null,
@@ -247,5 +248,12 @@ describe("CelebratePage and the Novera share link", () => {
     render(<CelebratePage />);
     expect(h.showSuccess).not.toHaveBeenCalled();
     expect(h.setSearchParams).not.toHaveBeenCalled();
+  });
+});
+
+describe("CelebratePage and own posts", () => {
+  it("offers every employee the own-post panel", () => {
+    render(<CelebratePage />);
+    expect(screen.getByText("own post panel")).toBeTruthy();
   });
 });

@@ -23,6 +23,8 @@ import {
   changePercent,
   deltaText,
   fraction,
+  fullDate,
+  initialsOf,
   measureValue,
   num,
   percentOf,
@@ -160,5 +162,19 @@ describe("scoreBar", () => {
     expect(scoreBar(m({ value: 250, target: 25 })).fill).toBe(1);
     expect(scoreBar(m({ value: Number.NaN, target: 25 })).fill).toBe(0);
     expect(scoreBar(m({ value: 10, target: -5 })).tick).toBe(0);
+  });
+});
+
+describe("fullDate and initialsOf", () => {
+  it("writes a date with its year, and nothing for a missing or bad one", () => {
+    expect(fullDate("2026-11-20T10:00:00Z")).toMatch(/2026/);
+    expect(fullDate(null)).toBe("");
+    expect(fullDate("not a date")).toBe("");
+  });
+
+  it("takes the first and last initials", () => {
+    expect(initialsOf("Jane van Doe")).toBe("JD");
+    expect(initialsOf("  cher ")).toBe("C");
+    expect(initialsOf("")).toBe("?");
   });
 });

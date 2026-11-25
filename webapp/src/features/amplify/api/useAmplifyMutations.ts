@@ -36,7 +36,13 @@ import type {
   CampaignRegistration,
   DashboardOperations,
   ConnectAuthorization,
+  ExternalShare,
+  ExternalShareClaim,
+  LedgerEntry,
   LinkedInConnection,
+  PointAction,
+  PointRule,
+  PointsAdjustment,
   Share,
   ShareKind,
 } from "./amplifyTypes";
@@ -62,6 +68,15 @@ function markAnnouncementQueued(qc: QueryClient, campaignId: string): void {
       : old,
   );
   void qc.invalidateQueries({ queryKey: ["amplify", "dashboard-operations"], refetchType: "all" });
+}
+
+// After a change to someone's points: their history, and the boards their total ranks on.
+function refreshPointsOf(qc: QueryClient, sub: string | undefined, employeeId: string): Promise<unknown> {
+  return Promise.all([
+    refreshNow(qc, amplifyKey("points-history", sub, employeeId)),
+    refreshNow(qc, amplifyKey("leaderboard", sub)),
+    refreshNow(qc, amplifyKey("leaderboard-top", sub)),
+  ]);
 }
 
 function useAmplifySub(): string | undefined {
@@ -221,6 +236,111 @@ export function useCompleteLinkedInConnect() {
       ),
     onSuccess: async () => {
       await refreshNow(qc, amplifyKey("me", sub));
+    },
+  });
+}
+
+/** POST /external-shares: the caller's own post, sent for review. Then refetches the caller's own claims. */
+export function useClaimOwnPost() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ExternalShare | null, Error, ExternalShareClaim>({
+    mutationFn: async (claim) =>
+      authedPost<ExternalShare>(amplifyServiceUrls.externalShares, await getAccessToken(), claim),
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("my-external-shares", sub));
+    },
+  });
+}
+
+/** What a review decision needs: the claim, and whose points it changes. */
+interface ClaimRef {
+  id: string;
+  employeeId: string;
+}
+
+// After a review decision: every review list and the waiting count, then the person's points.
+async function refreshAfterDecision(qc: QueryClient, sub: string | undefined, employeeId: string): Promise<void> {
+  await refreshNow(qc, amplifyKey("external-shares-review", sub));
+  await refreshPointsOf(qc, sub, employeeId);
+}
+
+/** POST /po/external-shares/{id}/approve (CAN_REVIEW_SHARES): approves a waiting claim and awards its points. */
+export function useApproveExternalShare() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ExternalShare | null, Error, ClaimRef>({
+    mutationFn: async ({ id }) =>
+      authedPost<ExternalShare>(amplifyServiceUrls.poExternalShareApprove(id), await getAccessToken(), {}),
+    onSuccess: async (_data, vars) => refreshAfterDecision(qc, sub, vars.employeeId),
+  });
+}
+
+/** POST /po/external-shares/{id}/amplified (CAN_REVIEW_SHARES): features an approved claim and adds the top-up. */
+export function useFeatureExternalShare() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ExternalShare | null, Error, ClaimRef>({
+    mutationFn: async ({ id }) =>
+      authedPost<ExternalShare>(amplifyServiceUrls.poExternalShareAmplified(id), await getAccessToken(), {}),
+    onSuccess: async (_data, vars) => refreshAfterDecision(qc, sub, vars.employeeId),
+  });
+}
+
+/** POST /po/external-shares/{id}/reject (CAN_REVIEW_SHARES): declines a waiting claim with a reason. */
+export function useDeclineExternalShare() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ExternalShare | null, Error, { id: string; reason: string }>({
+    mutationFn: async ({ id, reason }) =>
+      authedPost<ExternalShare>(amplifyServiceUrls.poExternalShareReject(id), await getAccessToken(), { reason }),
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("external-shares-review", sub));
+    },
+  });
+}
+
+/** POST /po/points/{reference}/reverse (CAN_ADJUST_POINTS): cancels one ledger row with a reason. */
+export function useReversePoints() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<LedgerEntry | null, Error, { reference: string; employeeId: string; reason: string }>({
+    mutationFn: async ({ reference, reason }) =>
+      authedPost<LedgerEntry>(amplifyServiceUrls.poPointsReverse(reference), await getAccessToken(), { reason }),
+    onSuccess: async (_data, vars) => {
+      await refreshPointsOf(qc, sub, vars.employeeId);
+    },
+  });
+}
+
+/** POST /po/points/adjustments (CAN_ADJUST_POINTS): adds or removes points with a reason. */
+export function useAdjustPoints() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<LedgerEntry | null, Error, PointsAdjustment>({
+    mutationFn: async (body) =>
+      authedPost<LedgerEntry>(amplifyServiceUrls.poPointsAdjustments, await getAccessToken(), body),
+    onSuccess: async (_data, vars) => {
+      await refreshPointsOf(qc, sub, vars.employeeId);
+    },
+  });
+}
+
+/** POST /po/point-rules (CAN_POINT_RULES): a new value for one action, from now on. Then refetches the rules. */
+export function useSetPointRule() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<PointRule | null, Error, { action: PointAction; points: number }>({
+    mutationFn: async (body) => authedPost<PointRule>(amplifyServiceUrls.poPointRules, await getAccessToken(), body),
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("point-rules", sub));
     },
   });
 }

@@ -15,7 +15,13 @@
 // under the License.
 
 import { describeError } from "@api/errors";
-import { AMPLIFY_DASHBOARD_ITEM_IDS, AMPLIFY_EDITOR_ITEM_IDS } from "@constants/perspectives";
+import {
+  AMPLIFY_ADMIN_ITEM_ID,
+  AMPLIFY_DASHBOARD_ITEM_IDS,
+  AMPLIFY_EDITOR_ITEM_IDS,
+  AMPLIFY_POINTS_ITEM_ID,
+  AMPLIFY_REVIEW_ITEM_ID,
+} from "@constants/perspectives";
 import type { VisibilityAnswer } from "@components/side-rail/visibilityFold";
 import type { AmplifyGrant, AmplifyMe } from "./amplifyTypes";
 import { isAmplifyBackendConfigured, useAmplifyMe } from "./useAmplifyData";
@@ -71,6 +77,31 @@ export function useAmplifyDashboardAccess(enabled = true): AmplifyDashboardAcces
   return useAmplifyGrant("CAN_DASHBOARD", enabled);
 }
 
+/** Review own posts: `CAN_REVIEW_SHARES`, the grant on GET /po/external-shares and every decision. */
+export function useAmplifyReviewAccess(enabled = true): AmplifyAccess {
+  return useAmplifyGrant("CAN_REVIEW_SHARES", enabled);
+}
+
+/** Points & corrections: `CAN_ADJUST_POINTS`, the grant on GET /po/people and POST /po/points/*. */
+export function useAmplifyPointsAccess(enabled = true): AmplifyAccess {
+  return useAmplifyGrant("CAN_ADJUST_POINTS", enabled);
+}
+
+/**
+ * Amplify Admin: `CAN_POINT_RULES`, the grant its one section (point values) needs. Each section checks its own
+ * grant as well.
+ */
+export function useAmplifyAdminAccess(enabled = true): AmplifyAccess {
+  return useAmplifyGrant("CAN_POINT_RULES", enabled);
+}
+
+/** The PO team's screens, one gate each. */
+export interface AmplifyPoGates {
+  review: AmplifyAccess;
+  points: AmplifyAccess;
+  admin: AmplifyAccess;
+}
+
 /**
  * The left-menu answer for Amplify's New Post and Current Posts rows. Hidden
  * while resolving (fails closed) and when /me fails; the route guard is where a
@@ -84,17 +115,28 @@ export function amplifyEditorVisibility(gate: AmplifyEditorAccess): VisibilityAn
   };
 }
 
+// Allowed only once answered: fails closed while /me is in flight.
+const allowed = (gate: AmplifyAccess): boolean => gate.hasAccess && !gate.isResolving;
+
 /**
  * The left-menu answer for Amplify's grant-gated rows: New Post and Current
- * Posts for `CAN_CAMPAIGN`, the Dashboarding boards for `CAN_DASHBOARD`.
+ * Posts for `CAN_CAMPAIGN`, the Dashboarding boards for `CAN_DASHBOARD`, and
+ * the PO team's screens for their own grants.
  */
-export function amplifyVisibility(editor: AmplifyEditorAccess, dashboards: AmplifyDashboardAccess): VisibilityAnswer {
-  const resolving = editor.isResolving || dashboards.isResolving;
+export function amplifyVisibility(
+  editor: AmplifyEditorAccess,
+  dashboards: AmplifyDashboardAccess,
+  po: AmplifyPoGates,
+): VisibilityAnswer {
+  const gates = [editor, dashboards, po.review, po.points, po.admin];
   return {
     canSee: (id) =>
-      (AMPLIFY_EDITOR_ITEM_IDS.has(id) && editor.hasAccess && !editor.isResolving) ||
-      (AMPLIFY_DASHBOARD_ITEM_IDS.has(id) && dashboards.hasAccess && !dashboards.isResolving),
-    resolving,
+      (AMPLIFY_EDITOR_ITEM_IDS.has(id) && allowed(editor)) ||
+      (AMPLIFY_DASHBOARD_ITEM_IDS.has(id) && allowed(dashboards)) ||
+      (id === AMPLIFY_REVIEW_ITEM_ID && allowed(po.review)) ||
+      (id === AMPLIFY_POINTS_ITEM_ID && allowed(po.points)) ||
+      (id === AMPLIFY_ADMIN_ITEM_ID && allowed(po.admin)),
+    resolving: gates.some((g) => g.isResolving),
     retry: editor.retry,
   };
 }

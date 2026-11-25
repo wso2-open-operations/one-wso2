@@ -24,6 +24,7 @@ import {
   isLinkedInShortLink,
   linkedInPostUrl,
   originOf,
+  ownPostEvidenceUrl,
   POST_KINDS,
   POST_PERMALINK_PREFIX,
   postPermalink,
@@ -253,5 +254,36 @@ describe("campaignForShareParam", () => {
     ).toBeNull();
     expect(campaignForShareParam(null, open)).toBeNull();
     expect(campaignForShareParam("", open)).toBeNull();
+  });
+});
+
+describe("ownPostEvidenceUrl", () => {
+  it("sends a LinkedIn post link as typed, trimmed", () => {
+    const link = "https://www.linkedin.com/posts/jane_choreo-labs-activity-7400000000000000000-AbCd";
+    expect(ownPostEvidenceUrl(`  ${link} `)).toBe(link);
+    expect(ownPostEvidenceUrl("https://www.linkedin.com/feed/update/urn:li:activity:7400000000000000000/")).toBe(
+      "https://www.linkedin.com/feed/update/urn:li:activity:7400000000000000000/",
+    );
+  });
+
+  it("adds https:// to a link without a scheme", () => {
+    expect(ownPostEvidenceUrl("www.linkedin.com/feed/update/urn:li:share:7411/")).toBe(
+      "https://www.linkedin.com/feed/update/urn:li:share:7411/",
+    );
+  });
+
+  it("turns a bare URN into its feed link, since the API takes only HTTPS URLs", () => {
+    expect(ownPostEvidenceUrl("urn:li:activity:7411")).toBe("https://www.linkedin.com/feed/update/urn:li:activity:7411/");
+  });
+
+  it.each([
+    "",
+    "https://www.linkedin.com/in/jane",
+    "http://www.linkedin.com/feed/update/urn:li:share:7411/",
+    "https://medium.com/@jane/choreo-labs-123",
+    "https://lnkd.in/abc123",
+    "https://evil.example/feed/update/urn:li:share:7411/",
+  ])("refuses %j", (raw) => {
+    expect(ownPostEvidenceUrl(raw)).toBeNull();
   });
 });

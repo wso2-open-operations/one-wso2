@@ -16,10 +16,13 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  AMPLIFY_ADMIN_ITEM_ID,
   AMPLIFY_CURRENT_POSTS_ITEM_ID,
   AMPLIFY_DASHBOARD_ITEM_IDS,
   AMPLIFY_EDITOR_ITEM_IDS,
   AMPLIFY_NEW_POST_ITEM_ID,
+  AMPLIFY_POINTS_ITEM_ID,
+  AMPLIFY_REVIEW_ITEM_ID,
   PERSPECTIVES,
   PROMOTION_LEAD_PORTAL_ITEM_ID,
   SRI_LANKA_ONLY_ITEM_IDS,
@@ -199,6 +202,25 @@ describe("foldVisibility", () => {
 
     expect(folded.resolving).toBe(true);
     expect(folded.canSee({ id: AMPLIFY_NEW_POST_ITEM_ID })).toBe(false);
+  });
+
+  // The PO screens declare no `requires`; without the Amplify claim they would fall to the open default.
+  it("claims the PO team's rows, so they stay hidden unless the Amplify gate allows them", () => {
+    const poIds = [AMPLIFY_REVIEW_ITEM_ID, AMPLIFY_POINTS_ITEM_ID, AMPLIFY_ADMIN_ITEM_ID];
+    const claim = claimOf("amplify");
+    for (const id of poIds) expect(claim.kind === "sections" && claim.ids.has(id)).toBe(true);
+
+    const folded = foldVisibility(
+      [adapter({ name: "amplify", canSee: (id) => id === AMPLIFY_POINTS_ITEM_ID })],
+      shell({ perspectiveKey: "amplify", sectionIds: new Set(poIds), capabilities: new Set(["admin"]) }),
+    );
+    expect(folded.canSee({ id: AMPLIFY_POINTS_ITEM_ID })).toBe(true);
+    expect(folded.canSee({ id: AMPLIFY_REVIEW_ITEM_ID })).toBe(false);
+    expect(folded.canSee({ id: AMPLIFY_ADMIN_ITEM_ID })).toBe(false);
+
+    // Asked from another perspective, where the Amplify adapter is not in play: still hidden.
+    const elsewhere = foldVisibility([], shell({ perspectiveKey: "me", sectionIds: new Set(poIds) }));
+    for (const id of poIds) expect(elsewhere.canSee({ id })).toBe(false);
   });
 
   it("hides a claimed section when its adapter is not in play", () => {

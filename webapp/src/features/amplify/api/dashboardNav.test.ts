@@ -60,3 +60,23 @@ describe("Amplify Dashboarding menu", () => {
     expect(m.AMPLIFY_DASHBOARD_ITEM_IDS.size).toBe(5);
   });
 });
+
+describe("Amplify PO team rows", () => {
+  it("sit after Current Posts, with Amplify Admin last, each on its own path", async () => {
+    const m = await load();
+    const amplify = m.PERSPECTIVES.find((p) => p.key === "amplify");
+    expect(amplify?.sections?.map((s) => s.label)).toEqual([
+      "Celebrate",
+      "New Post",
+      "Current Posts",
+      "Review own posts",
+      "Points & corrections",
+      "Dashboarding",
+      "Amplify Admin",
+    ]);
+    const byId = new Map((amplify?.sections ?? []).map((s) => [s.id, s.path]));
+    expect(byId.get(m.AMPLIFY_REVIEW_ITEM_ID)).toBe("/amplify/review");
+    expect(byId.get(m.AMPLIFY_POINTS_ITEM_ID)).toBe("/amplify/points");
+    expect(byId.get(m.AMPLIFY_ADMIN_ITEM_ID)).toBe("/amplify/admin");
+  });
+});

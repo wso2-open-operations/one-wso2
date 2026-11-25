@@ -17,7 +17,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { AmplifyGrant } from "./amplifyTypes";
-import { useAmplifyDashboardAccess, useAmplifyEditorAccess } from "./useAmplifyEditorAccess";
+import {
+  useAmplifyAdminAccess,
+  useAmplifyDashboardAccess,
+  useAmplifyEditorAccess,
+  useAmplifyPointsAccess,
+  useAmplifyReviewAccess,
+} from "./useAmplifyEditorAccess";
 
 const meState = vi.hoisted(() => ({
   configured: true,
@@ -95,5 +101,25 @@ describe("useAmplifyEditorAccess", () => {
     expect(renderHook(() => useAmplifyEditorAccess()).result.current.hasAccess).toBe(true);
     setGrants(["EMPLOYEE", "CAN_DASHBOARD", "CAN_ADMIN"]);
     expect(renderHook(() => useAmplifyEditorAccess()).result.current.hasAccess).toBe(false);
+  });
+});
+
+describe("the PO screens' access", () => {
+  it.each([
+    ["Review own posts", "CAN_REVIEW_SHARES", useAmplifyReviewAccess],
+    ["Points & corrections", "CAN_ADJUST_POINTS", useAmplifyPointsAccess],
+    ["Amplify Admin", "CAN_POINT_RULES", useAmplifyAdminAccess],
+  ] as const)("%s follows %s alone", (_screen, grant, useAccess) => {
+    setGrants(["EMPLOYEE", grant]);
+    expect(renderHook(() => useAccess()).result.current.hasAccess).toBe(true);
+    setGrants(["EMPLOYEE", "CAN_DASHBOARD", "CAN_CAMPAIGN"]);
+    expect(renderHook(() => useAccess()).result.current.hasAccess).toBe(false);
+  });
+
+  it("answers no access, not resolving, off the Amplify perspective", () => {
+    setGrants(["EMPLOYEE", "CAN_REVIEW_SHARES", "CAN_ADJUST_POINTS", "CAN_POINT_RULES"]);
+    for (const useAccess of [useAmplifyReviewAccess, useAmplifyPointsAccess, useAmplifyAdminAccess]) {
+      expect(renderHook(() => useAccess(false)).result.current).toMatchObject({ hasAccess: false, isResolving: false });
+    }
   });
 });
