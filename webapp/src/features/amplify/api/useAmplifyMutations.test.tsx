@@ -19,15 +19,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-vi.mock("@api/http", () => ({
-  authedPost: vi.fn(async () => ({ run: "STARTED" })),
-  authedPatch: vi.fn(async () => ({})),
-  authedDelete: vi.fn(async () => undefined),
-}));
+vi.mock("@api/http", async () => {
+  const actual = await vi.importActual<typeof import("@api/http")>("@api/http");
+  return {
+    HttpError: actual.HttpError,
+    authedPost: vi.fn(async () => ({ run: "STARTED" })),
+    authedPatch: vi.fn(async () => ({})),
+    authedPut: vi.fn(async () => ({ settings: [] })),
+    authedDelete: vi.fn(async () => undefined),
+  };
+});
 vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "token" }));
 vi.mock("@hooks/useAsgardeoSub", () => ({ useAsgardeoSub: () => ({ state: { status: "ready", sub: "sub-1" } }) }));
 
-import { authedDelete, authedPost } from "@api/http";
+import { HttpError, authedDelete, authedPost, authedPut } from "@api/http";
 import {
   useAdjustPoints,
   useApproveExternalShare,
@@ -39,6 +44,7 @@ import {
   useRemoveLinkedInConnection,
   useRetryAnnouncement,
   useReversePoints,
+  useSaveSettings,
   useSendAnnouncement,
   useSetPointRule,
 } from "./useAmplifyMutations";
@@ -262,14 +268,72 @@ describe("points corrections", () => {
 });
 
 describe("point values", () => {
-  it("posts the new value for one action and refetches the rules", async () => {
+  it("posts the new value for one action and refetches the rules and the values employees read", async () => {
     vi.clearAllMocks();
-    const { wrapper, loads } = await setupWithCached(["amplify", "point-rules", "sub-1"]);
+    const { wrapper, loads } = await setupWithCached(["amplify", "point-rules", "sub-1"], ["amplify", "point-values", "sub-1"]);
     const { result } = renderHook(() => useSetPointRule(), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({ action: "REPOST", points: 6 });
     });
     expect(vi.mocked(authedPost).mock.calls[0]).toEqual(["/po/point-rules", "token", { action: "REPOST", points: 6 }]);
     expect(loads[0]).toHaveBeenCalledTimes(2);
+    expect(loads[1]).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("saving settings", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const changes = [
+    { key: "coin.block_points", value: 200, version: 3 },
+    { key: "coin.schedule", value: "WEEKLY", version: 1 },
+  ];
+  const cached = [
+    ["amplify", "settings", "sub-1", "po"],
+    ["amplify", "settings", "sub-1", "admin"],
+    ["amplify", "my-points", "sub-1", "ALL"],
+  ];
+
+  it.each([
+    ["po", "/po/settings"],
+    ["admin", "/admin/settings"],
+  ] as const)("PUTs the %s changes with their versions to %s, then refetches the settings and my points", async (scope, url) => {
+    const { wrapper, loads } = await setupWithCached(...cached);
+    const { result } = renderHook(() => useSaveSettings(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ scope, changes });
+    });
+    expect(vi.mocked(authedPut).mock.calls[0]).toEqual([url, "token", { changes }]);
+    for (const load of loads) expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetches the settings before a 409 VERSION_CONFLICT reaches the caller", async () => {
+    vi.mocked(authedPut).mockRejectedValueOnce(
+      new HttpError("/po/settings", 409, JSON.stringify({ status: 409, code: "VERSION_CONFLICT" })),
+    );
+    const { wrapper, loads } = await setupWithCached(...cached);
+    const { result } = renderHook(() => useSaveSettings(), { wrapper });
+    let caught: unknown;
+    await act(async () => {
+      await result.current.mutateAsync({ scope: "po", changes }).catch((err: unknown) => {
+        caught = err;
+        // The refetch has already happened when the caller hears of the conflict.
+        expect(loads[0]).toHaveBeenCalledTimes(2);
+      });
+    });
+    expect(caught).toBeInstanceOf(HttpError);
+    expect(loads[2]).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the settings alone on any other failure", async () => {
+    vi.mocked(authedPut).mockRejectedValueOnce(
+      new HttpError("/po/settings", 422, JSON.stringify({ status: 422, code: "INVALID_SETTING" })),
+    );
+    const { wrapper, loads } = await setupWithCached(...cached);
+    const { result } = renderHook(() => useSaveSettings(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ scope: "po", changes }).catch(() => undefined);
+    });
+    expect(loads[0]).toHaveBeenCalledTimes(1);
   });
 });

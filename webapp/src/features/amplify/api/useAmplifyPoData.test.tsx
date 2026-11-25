@@ -42,14 +42,11 @@ vi.mock("@config/apiConfig", () => ({
 import { authedGet } from "@api/http";
 import type { LedgerEntry } from "./amplifyTypes";
 import {
-  HISTORY_FETCH_SIZE,
-  HISTORY_MAX_PAGES,
-  readWholeHistory,
   useExternalSharesForReview,
   useMyExternalShares,
   usePoPeopleSearch,
   usePointRules,
-  usePointsHistory,
+  usePointsHistoryPage,
   useWaitingReviewCount,
 } from "./useAmplifyData";
 
@@ -121,59 +118,44 @@ describe("usePoPeopleSearch", () => {
   });
 });
 
-describe("readWholeHistory", () => {
-  it("reads page after page until the rows run out", async () => {
-    const first = Array.from({ length: HISTORY_FETCH_SIZE }, (_, i) => row(`R-${i}`));
-    vi.mocked(authedGet)
-      .mockResolvedValueOnce({ employeeId: "e-1", page: 0, size: 100, total: 102, items: first })
-      .mockResolvedValueOnce({ employeeId: "e-1", page: 1, size: 100, total: 102, items: [row("R-100"), row("R-101")] });
-    const history = await readWholeHistory("/team/e-1/history", "token");
-    expect(history.complete).toBe(true);
-    expect(history.items).toHaveLength(102);
-    expect(vi.mocked(authedGet).mock.calls.map((c) => c[0])).toEqual([
-      "/team/e-1/history?page=0&size=100",
-      "/team/e-1/history?page=1&size=100",
-    ]);
-  });
-
-  it("keeps a row once when a new row pushes it onto the next page", async () => {
-    const first = Array.from({ length: HISTORY_FETCH_SIZE }, (_, i) => row(`R-${i}`));
-    vi.mocked(authedGet)
-      .mockResolvedValueOnce({ employeeId: "e-1", page: 0, size: 100, total: 101, items: first })
-      .mockResolvedValueOnce({ employeeId: "e-1", page: 1, size: 100, total: 101, items: [row("R-99")] });
-    const history = await readWholeHistory("/team/e-1/history", "token");
-    expect(history.items).toHaveLength(100);
-  });
-
-  it("stops after the page limit and says the history is partial", async () => {
-    vi.mocked(authedGet).mockImplementation(async (url: string) => {
-      const page = Number(new URL(url, "http://x").searchParams.get("page"));
-      return {
-        employeeId: "e-1",
-        page,
-        size: 100,
-        total: 99_999,
-        items: Array.from({ length: HISTORY_FETCH_SIZE }, (_, i) => row(`P${page}-${i}`)),
-      };
-    });
-    const history = await readWholeHistory("/team/e-1/history", "token");
-    expect(history.complete).toBe(false);
-    expect(authedGet).toHaveBeenCalledTimes(HISTORY_MAX_PAGES);
-  });
-});
-
-describe("usePointsHistory", () => {
+describe("usePointsHistoryPage", () => {
   it.each([null, "", "  "])("asks nothing without a person (%j)", async (id) => {
-    renderHook(() => usePointsHistory(id), { wrapper });
+    renderHook(() => usePointsHistoryPage(id, 0, 25), { wrapper });
     await act(async () => undefined);
     expect(authedGet).not.toHaveBeenCalled();
   });
 
-  it("reads the person's history by id", async () => {
-    vi.mocked(authedGet).mockResolvedValueOnce({ employeeId: "e 1", page: 0, size: 100, total: 1, items: [row("R-1")] });
-    const { result } = renderHook(() => usePointsHistory("e 1"), { wrapper });
-    await waitFor(() => expect(result.current.data?.items).toHaveLength(1));
-    expect(authedGet).toHaveBeenCalledWith("/team/e%201/history?page=0&size=100", "token");
+  it("asks for one page of the person's history, with their all-time points", async () => {
+    vi.mocked(authedGet).mockResolvedValueOnce({
+      employeeId: "e 1",
+      page: 2,
+      size: 25,
+      total: 120,
+      totalPoints: 1040,
+      heldPoints: 40,
+      items: [row("R-1")],
+    });
+    const { result } = renderHook(() => usePointsHistoryPage("e 1", 2, 25), { wrapper });
+    await waitFor(() => expect(result.current.data?.totalPoints).toBe(1040));
+    expect(authedGet).toHaveBeenCalledTimes(1);
+    expect(authedGet).toHaveBeenCalledWith("/team/e%201/history?page=2&size=25", "token");
+  });
+
+  it("keeps the page on screen while the next one loads", async () => {
+    let release: (v: unknown) => void = () => undefined;
+    vi.mocked(authedGet)
+      .mockResolvedValueOnce({ employeeId: "e-1", page: 0, size: 25, total: 30, totalPoints: 30, items: [row("R-1")] })
+      .mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    const { result, rerender } = renderHook(({ page }) => usePointsHistoryPage("e-1", page, 25), {
+      wrapper,
+      initialProps: { page: 0 },
+    });
+    await waitFor(() => expect(result.current.data?.items[0].reference).toBe("R-1"));
+    rerender({ page: 1 });
+    await waitFor(() => expect(authedGet).toHaveBeenCalledTimes(2));
+    expect(result.current.data?.items[0].reference).toBe("R-1");
+    await act(async () => release({ employeeId: "e-1", page: 1, size: 25, total: 30, totalPoints: 30, items: [row("R-26")] }));
+    await waitFor(() => expect(result.current.data?.items[0].reference).toBe("R-26"));
   });
 });
 

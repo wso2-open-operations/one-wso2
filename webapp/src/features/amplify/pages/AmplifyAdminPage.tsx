@@ -32,8 +32,9 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import type { AmplifyGrant, PointAction, PointRule } from "../api/amplifyTypes";
 import { usePointRules } from "../api/useAmplifyData";
-import { useAmplifyGrant } from "../api/useAmplifyEditorAccess";
+import { useAmplifyAnyGrant } from "../api/useAmplifyEditorAccess";
 import { useSetPointRule } from "../api/useAmplifyMutations";
+import { CoinsSection, OwnPostsSection } from "../components/AdminSettingsSections";
 import AmplifyShell, { AmplifyPanel } from "../components/AmplifyShell";
 import { describeAmplifyError } from "../util/amplifyError";
 import { num, shortDate } from "../util/dashboardFormat";
@@ -43,27 +44,30 @@ import { MAX_RULE_POINTS, POINT_ACTION_LABELS, parseRulePoints, pointActionOrder
 export const NEW_ACTIVITY_ONLY_NOTE =
   "New values apply to new activity only. Points people have already earned keep their value.";
 
-/** One section of Amplify Admin and the grant it needs. */
+/** One section of Amplify Admin and the grants that show it (any one of them). */
 interface AdminSection {
   key: string;
-  grant: AmplifyGrant;
+  grants: readonly AmplifyGrant[];
   Section: ComponentType;
 }
 
-// Sections in page order. Later slices add theirs here, each with the grant it needs.
+// Sections in page order, each with the grants that show it.
 const ADMIN_SECTIONS: readonly AdminSection[] = [
-  { key: "point-values", grant: "CAN_POINT_RULES", Section: PointValuesSection },
+  { key: "point-values", grants: ["CAN_POINT_RULES"], Section: PointValuesSection },
+  { key: "coins", grants: ["CAN_POINT_RULES", "CAN_ADMIN"], Section: CoinsSection },
+  { key: "own-posts", grants: ["CAN_POINT_RULES", "CAN_ADMIN"], Section: OwnPostsSection },
 ];
 
 /**
  * Amplify Admin (AmplifyAdminRoute lets in anyone who holds a section's grant). Each section shows only to callers
- * with its own grant; for now the one section is Point values (`CAN_POINT_RULES`).
+ * with one of its own grants: Point values to `CAN_POINT_RULES`, Coins and Own posts to `CAN_POINT_RULES` or
+ * `CAN_ADMIN`.
  */
 export default function AmplifyAdminPage() {
   return (
     <AmplifyShell title="Amplify Admin" subtitle="Settings for Amplify across Choreo Labs.">
-      {ADMIN_SECTIONS.map(({ key, grant, Section }) => (
-        <GrantedSection key={key} grant={grant}>
+      {ADMIN_SECTIONS.map(({ key, grants, Section }) => (
+        <GrantedSection key={key} grants={grants}>
           <Section />
         </GrantedSection>
       ))}
@@ -71,9 +75,9 @@ export default function AmplifyAdminPage() {
   );
 }
 
-/** Renders `children` only for a caller amplify-api grants `grant`. */
-function GrantedSection({ grant, children }: { grant: AmplifyGrant; children: ReactNode }) {
-  const access = useAmplifyGrant(grant);
+/** Renders `children` only for a caller amplify-api grants any of `grants`. */
+function GrantedSection({ grants, children }: { grants: readonly AmplifyGrant[]; children: ReactNode }) {
+  const access = useAmplifyAnyGrant(grants);
   return access.hasAccess && !access.isResolving ? <>{children}</> : null;
 }
 

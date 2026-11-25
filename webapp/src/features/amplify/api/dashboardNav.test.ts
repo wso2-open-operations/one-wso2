@@ -67,6 +67,7 @@ describe("Amplify PO team rows", () => {
     const amplify = m.PERSPECTIVES.find((p) => p.key === "amplify");
     expect(amplify?.sections?.map((s) => s.label)).toEqual([
       "Celebrate",
+      "My points & Coins",
       "New Post",
       "Current Posts",
       "Review own posts",
@@ -78,5 +79,16 @@ describe("Amplify PO team rows", () => {
     expect(byId.get(m.AMPLIFY_REVIEW_ITEM_ID)).toBe("/amplify/review");
     expect(byId.get(m.AMPLIFY_POINTS_ITEM_ID)).toBe("/amplify/points");
     expect(byId.get(m.AMPLIFY_ADMIN_ITEM_ID)).toBe("/amplify/admin");
+  });
+});
+
+describe("Amplify My points & Coins row", () => {
+  it("sits after Celebrate on its own path, apart from the PO team's Points & corrections", async () => {
+    const m = await load();
+    const amplify = m.PERSPECTIVES.find((p) => p.key === "amplify");
+    const row = amplify?.sections?.find((s) => s.id === m.AMPLIFY_MY_POINTS_ITEM_ID);
+    expect(row?.label).toBe("My points & Coins");
+    expect(row?.path).toBe("/amplify/my-points");
+    expect(m.AMPLIFY_MY_POINTS_PATH).not.toBe(m.AMPLIFY_POINTS_PATH);
   });
 });

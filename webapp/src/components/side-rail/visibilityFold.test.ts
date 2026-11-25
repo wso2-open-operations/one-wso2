@@ -20,6 +20,7 @@ import {
   AMPLIFY_CURRENT_POSTS_ITEM_ID,
   AMPLIFY_DASHBOARD_ITEM_IDS,
   AMPLIFY_EDITOR_ITEM_IDS,
+  AMPLIFY_MY_POINTS_ITEM_ID,
   AMPLIFY_NEW_POST_ITEM_ID,
   AMPLIFY_POINTS_ITEM_ID,
   AMPLIFY_REVIEW_ITEM_ID,
@@ -202,6 +203,16 @@ describe("foldVisibility", () => {
 
     expect(folded.resolving).toBe(true);
     expect(folded.canSee({ id: AMPLIFY_NEW_POST_ITEM_ID })).toBe(false);
+  });
+
+  it("leaves My points & Coins open to every employee, like Celebrate", () => {
+    const claim = claimOf("amplify");
+    expect(claim.kind === "sections" && claim.ids.has(AMPLIFY_MY_POINTS_ITEM_ID)).toBe(false);
+    const folded = foldVisibility(
+      [adapter({ name: "amplify", canSee: () => false })],
+      shell({ perspectiveKey: "amplify", sectionIds: new Set([AMPLIFY_MY_POINTS_ITEM_ID]) }),
+    );
+    expect(folded.canSee({ id: AMPLIFY_MY_POINTS_ITEM_ID })).toBe(true);
   });
 
   // The PO screens declare no `requires`; without the Amplify claim they would fall to the open default.

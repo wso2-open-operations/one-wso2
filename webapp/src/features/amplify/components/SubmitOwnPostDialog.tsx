@@ -39,7 +39,7 @@ export const OWN_POST_SUBMITTED_MESSAGE = "Thanks! Your post is waiting for revi
 
 /** The line under the form on what happens after sending. */
 export const OWN_POST_NEXT_STEPS =
-  `It shows as Waiting for review until the PO team decides. Approved posts earn +${OWN_POST_APPROVED_POINTS} ` +
+  `It shows as Waiting for review until the marketing team decides. Approved posts earn +${OWN_POST_APPROVED_POINTS} ` +
   `points, and +${OWN_POST_FEATURE_TOP_UP} more if featured.`;
 
 const CERTIFY_LABEL = "I wrote this post myself, and it's about Choreo Labs.";
@@ -54,7 +54,7 @@ function linkProblem(link: string): string | null {
 
 /**
  * "Submit your own post": an employee sends the link to a LinkedIn post they wrote about Choreo Labs, with an
- * optional note for the reviewer, for the PO team to review (POST /external-shares).
+ * optional note for the reviewer, for the marketing team to review (POST /external-shares).
  */
 export default function SubmitOwnPostDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const claim = useClaimOwnPost();

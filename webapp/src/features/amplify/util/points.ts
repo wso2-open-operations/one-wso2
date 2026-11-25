@@ -69,24 +69,14 @@ export function effectPreview(current: number, change: number): string {
   return `${num(current)} → ${num(current + change)}`;
 }
 
-/** The sum of every row's points: a person's all-time total, when every row is there. */
-export function totalPoints(entries: readonly Pick<LedgerEntry, "points">[]): number {
-  return entries.reduce((sum, e) => sum + e.points, 0);
-}
-
-/** References of the rows some other row reverses. */
-export function reversedReferences(entries: readonly Pick<LedgerEntry, "reversesReference">[]): Set<string> {
-  const reversed = new Set<string>();
-  for (const e of entries) if (e.reversesReference) reversed.add(e.reversesReference);
-  return reversed;
+/** Whether a row was reversed: the history names the row that reversed it in `reversedBy`. */
+export function isReversed(entry: Pick<LedgerEntry, "reversedBy">): boolean {
+  return Boolean(entry.reversedBy);
 }
 
 /** Whether a row may be reversed: not a reversal itself, and not reversed already. */
-export function canReverse(
-  entry: Pick<LedgerEntry, "reference" | "sourceType">,
-  reversed: ReadonlySet<string>,
-): boolean {
-  return entry.sourceType !== "REVERSAL" && !reversed.has(entry.reference);
+export function canReverse(entry: Pick<LedgerEntry, "sourceType" | "reversedBy">): boolean {
+  return entry.sourceType !== "REVERSAL" && !isReversed(entry);
 }
 
 /**

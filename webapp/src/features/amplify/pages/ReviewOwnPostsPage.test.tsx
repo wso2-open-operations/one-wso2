@@ -32,7 +32,9 @@ const h = vi.hoisted(() => ({
   },
   myId: "me-1",
   waiting: undefined as number | undefined,
+  values: undefined as Record<string, number> | undefined,
   person: { name: "Jane Doe", photoUrl: null as string | null, team: null, businessUnit: null },
+  lookups: [] as unknown[],
   approve: vi.fn(),
   feature: vi.fn(),
   decline: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock("../api/useAmplifyData", () => ({
   },
   useAmplifyMe: () => ({ data: { employee: { employeeId: h.myId } } }),
   useWaitingReviewCount: () => ({ data: h.waiting }),
+  usePointValues: () => ({ data: h.values }),
 }));
 vi.mock("../api/useAmplifyMutations", () => ({
   useApproveExternalShare: () => ({ mutateAsync: h.approve, isPending: false }),
@@ -58,7 +61,10 @@ vi.mock("../api/useAmplifyMutations", () => ({
 }));
 vi.mock("../api/usePersonLookup", () => ({
   UNKNOWN_EMPLOYEE: "Unknown employee",
-  usePersonLookup: () => () => h.person,
+  usePersonLookup: () => (p: unknown) => {
+    h.lookups.push(p);
+    return h.person;
+  },
 }));
 vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showSuccess: h.showSuccess, showError: h.showError }),
@@ -98,7 +104,9 @@ beforeEach(() => {
   h.list = { data: undefined, isPending: false, isError: false, isFetching: false, error: null, refetch: () => undefined };
   h.myId = "me-1";
   h.waiting = undefined;
+  h.values = undefined;
   h.person = { name: "Jane Doe", photoUrl: null, team: null, businessUnit: null };
+  h.lookups.length = 0;
   h.approve.mockReset().mockResolvedValue({});
   h.feature.mockReset().mockResolvedValue({});
   h.decline.mockReset();
@@ -178,7 +186,7 @@ describe("a waiting post", () => {
     render(<ReviewTab status="PENDING" />);
     fireEvent.click(screen.getByRole("button", { name: "Approve (+10)" }));
     await waitFor(() =>
-      expect(h.showError).toHaveBeenCalledWith("You can't decide on your own post; another PO team member will."),
+      expect(h.showError).toHaveBeenCalledWith("You can't decide on your own post; another marketing team member will."),
     );
   });
 
@@ -198,12 +206,57 @@ describe("a waiting post", () => {
     expect(screen.queryByRole("button", { name: "Decline" })).toBeNull();
   });
 
-  it("falls back to the employee id when the directory doesn't know the person", () => {
+  it("falls back to the employee id when neither a name nor an email is known", () => {
     h.person = { name: "Unknown employee", photoUrl: null, team: null, businessUnit: null };
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
     expect(screen.getByText("An employee")).toBeTruthy();
     expect(screen.getByText("Employee ID: e-9")).toBeTruthy();
+  });
+
+  it("looks the person up by the name and email the review list sends, and shows the email", () => {
+    showList([share("x-1", "PENDING", { employeeName: "Jane Doe", employeeEmail: "jane@choreolabs.test" })]);
+    render(<ReviewTab status="PENDING" />);
+    expect(h.lookups[0]).toEqual({ employeeId: "e-9", email: "jane@choreolabs.test", displayName: "Jane Doe" });
+    const card = screen.getByRole("article", { name: "Post from Jane Doe" });
+    expect(within(card).getByText("jane@choreolabs.test")).toBeTruthy();
+    expect(within(card).queryByText(/Employee ID/)).toBeNull();
+  });
+
+  it("names the sender by email when only the email is known", () => {
+    h.person = { name: "Unknown employee", photoUrl: null, team: null, businessUnit: null };
+    showList([share("x-1", "PENDING", { employeeName: null, employeeEmail: "jane@choreolabs.test" })]);
+    render(<ReviewTab status="PENDING" />);
+    expect(screen.getByRole("article", { name: "Post from jane@choreolabs.test" })).toBeTruthy();
+    expect(screen.queryByText(/Employee ID/)).toBeNull();
+  });
+});
+
+describe("the points on the decision buttons", () => {
+  it("come from the values in force", async () => {
+    h.values = { OWN_POST: 12, OWN_POST_AMPLIFIED: 30, REPOST: 2 };
+    showList([share("x-1", "PENDING")]);
+    render(<ReviewTab status="PENDING" />);
+    expect(screen.getByRole("button", { name: "Approve (+12)" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Feature (+30)" }));
+    await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +30 points for Jane Doe."));
+  });
+
+  it("offer the top-up, featured minus approved, on an approved post", async () => {
+    h.values = { OWN_POST: 12, OWN_POST_AMPLIFIED: 30 };
+    showList([share("x-2", "APPROVED")]);
+    render(<ReviewTab status="APPROVED" />);
+    fireEvent.click(screen.getByRole("button", { name: "Feature (+18)" }));
+    await waitFor(() => expect(h.showSuccess).toHaveBeenCalledWith("Featured: +18 more points for Jane Doe."));
+  });
+
+  it("fall back to 10, 25 and 15 while the values load or lack an action", () => {
+    h.values = { REPOST: 2 };
+    showList([share("x-1", "PENDING"), share("x-2", "APPROVED")]);
+    render(<ReviewTab status="PENDING" />);
+    expect(screen.getByRole("button", { name: "Approve (+10)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Feature (+25)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Feature (+15)" })).toBeTruthy();
   });
 });
 

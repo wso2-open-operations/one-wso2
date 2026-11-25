@@ -15,7 +15,7 @@
 // under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 // Novera's card button links to /amplify/celebrate?share=<campaignId>. When the
@@ -57,7 +57,7 @@ vi.mock("../api/useAmplifyData", () => ({
   useMyShares: () => ({ data: { items: h.state.shares }, isPending: h.state.sharesPending }),
   useAmplifyLeaderboard: () => ({ data: undefined, isPending: true }),
   useAmplifyTopBoard: () => ({ data: undefined, isPending: true }),
-  useAmplifyCategories: () => ({ data: [] }),
+  useAmplifyCategories: () => ({ data: [{ code: "PRODUCT", label: "Product", sortOrder: 1 }] }),
   useAmplifyConfig: () => ({
     linkedinOrgUrn: "",
     privacyNoticeUrl: "",
@@ -72,11 +72,32 @@ vi.mock("../components/AmplifyShell", () => ({
   AmplifyPanel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("../components/PostCard", () => ({
-  default: () => null,
+  default: ({ campaign, action }: { campaign: { title: string }; action?: ReactNode }) => (
+    <article aria-label={campaign.title}>{action}</article>
+  ),
   CategoryChip: () => null,
   PriorityChip: () => null,
 }));
-vi.mock("../components/PostCarousel", () => ({ default: () => null }));
+vi.mock("../components/PostGrid", () => ({
+  default: ({
+    items,
+    categories,
+    renderItem,
+  }: {
+    items: { id: string }[];
+    categories?: unknown[];
+    renderItem: (c: { id: string }) => ReactNode;
+  }) => (
+    <section aria-label="post grid" data-categories={categories?.length ?? 0}>
+      {items.map((c) => (
+        <div key={c.id}>{renderItem(c)}</div>
+      ))}
+    </section>
+  ),
+}));
+vi.mock("../components/PointsTiles", () => ({
+  default: ({ linkTo }: { linkTo?: string }) => <div>points tiles → {linkTo}</div>,
+}));
 vi.mock("../components/OwnPostPanel", () => ({ default: () => <div>own post panel</div> }));
 vi.mock("../components/LeaderboardPanels", () => ({
   TeamLeaderboardPanel: () => null,
@@ -255,5 +276,51 @@ describe("CelebratePage and own posts", () => {
   it("offers every employee the own-post panel", () => {
     render(<CelebratePage />);
     expect(screen.getByText("own post panel")).toBeTruthy();
+  });
+});
+
+describe("CelebratePage's tiles and post grid", () => {
+  beforeEach(() => {
+    h.state.params = new URLSearchParams();
+    h.state.campaigns = [campaign("c1", "Launch week"), campaign("c2", "Integrator 5"), campaign("c3", "Old news")];
+    h.state.shares = [share("c3")];
+    h.state.sharesPending = false;
+    h.state.campaignsPending = false;
+    h.state.linkStatus = "ACTIVE";
+    h.state.mePending = false;
+  });
+
+  it("shows the points tiles first, each linking to My points & Coins", () => {
+    render(<CelebratePage />);
+    expect(screen.getByText("points tiles → /amplify/my-points")).toBeTruthy();
+  });
+
+  it("gives the grid the posts not yet amplified, and the categories for its chips", () => {
+    render(<CelebratePage />);
+    const grid = screen.getByRole("region", { name: "post grid" });
+    expect(grid.getAttribute("data-categories")).toBe("1");
+    expect(screen.getByRole("article", { name: "Launch week" })).toBeTruthy();
+    expect(screen.getByRole("article", { name: "Integrator 5" })).toBeTruthy();
+    expect(screen.queryByRole("article", { name: "Old news" })).toBeNull();
+  });
+
+  it("opens the share dialog from a card's Amplify button when LinkedIn is linked", () => {
+    render(<CelebratePage />);
+    fireEvent.click(within(screen.getByRole("article", { name: "Integrator 5" })).getByRole("button", { name: "Amplify" }));
+    expect(screen.getByText("share dialog: Integrator 5")).toBeTruthy();
+  });
+
+  it("asks to link LinkedIn first from a card's Amplify button when it isn't linked", () => {
+    h.state.linkStatus = "NOT_CONNECTED";
+    render(<CelebratePage />);
+    fireEvent.click(within(screen.getByRole("article", { name: "Launch week" })).getByRole("button", { name: "Amplify" }));
+    expect(screen.getByText(/link dialog: c1 connect/)).toBeTruthy();
+    expect(screen.queryByText(/share dialog/)).toBeNull();
+  });
+
+  it("leaves the grid out once every post is amplified", () => {
+    h.state.shares = [share("c1"), share("c2"), share("c3")];
+    render(<CelebratePage />);
+    expect(screen.queryByRole("region", { name: "post grid" })).toBeNull();
   });
 });

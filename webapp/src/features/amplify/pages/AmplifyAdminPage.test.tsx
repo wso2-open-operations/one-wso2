@@ -39,7 +39,15 @@ vi.mock("../api/useAmplifyData", () => ({
   usePointRules: () => h.rules,
 }));
 vi.mock("../api/useAmplifyEditorAccess", () => ({
-  useAmplifyGrant: (grant: string) => ({ hasAccess: h.grants.includes(grant), isResolving: false, retry: () => undefined }),
+  useAmplifyAnyGrant: (grants: string[]) => ({
+    hasAccess: grants.some((g) => h.grants.includes(g)),
+    isResolving: false,
+    retry: () => undefined,
+  }),
+}));
+vi.mock("../components/AdminSettingsSections", () => ({
+  CoinsSection: () => <section aria-label="Coins" />,
+  OwnPostsSection: () => <section aria-label="Own posts" />,
 }));
 vi.mock("../api/useAmplifyMutations", () => ({ useSetPointRule: () => ({ mutate: h.mutate, isPending: false }) }));
 vi.mock("@context/notifications/NotificationsContext", () => ({
@@ -152,6 +160,26 @@ describe("AmplifyAdminPage", () => {
     h.grants = ["CAN_ADMIN", "CAN_DASHBOARD"];
     render(<AmplifyAdminPage />);
     expect(screen.queryByRole("region", { name: "Point values" })).toBeNull();
+  });
+
+  const regions = () => screen.queryAllByRole("region").map((r) => r.getAttribute("aria-label"));
+
+  it("shows the PO team Point values, Coins and Own posts, in that order", () => {
+    h.grants = ["CAN_POINT_RULES"];
+    render(<AmplifyAdminPage />);
+    expect(regions()).toEqual(["Point values", "Coins", "Own posts"]);
+  });
+
+  it("shows an admin without CAN_POINT_RULES Coins and Own posts only", () => {
+    h.grants = ["CAN_ADMIN"];
+    render(<AmplifyAdminPage />);
+    expect(regions()).toEqual(["Coins", "Own posts"]);
+  });
+
+  it("shows nothing to a caller with neither grant", () => {
+    h.grants = ["CAN_DASHBOARD", "CAN_REVIEW_SHARES", "CAN_ADJUST_POINTS"];
+    render(<AmplifyAdminPage />);
+    expect(regions()).toEqual([]);
   });
 
   it("offers a retry when the rules fail to load", () => {

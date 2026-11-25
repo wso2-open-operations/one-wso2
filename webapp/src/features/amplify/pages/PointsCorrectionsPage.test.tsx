@@ -24,7 +24,9 @@ const h = vi.hoisted(() => ({
   debounced: [] as [unknown, unknown][],
   matches: [] as unknown[],
   history: {
-    data: undefined as { items: unknown[]; complete: boolean } | undefined,
+    data: undefined as
+      | { items: unknown[]; page: number; size: number; total: number; totalPoints?: number }
+      | undefined,
     isPending: false,
     isError: false,
     isFetching: false,
@@ -32,6 +34,7 @@ const h = vi.hoisted(() => ({
     refetch: () => undefined,
   },
   historyIds: [] as unknown[],
+  historyPages: [] as unknown[][],
   myId: "me-1",
 }));
 
@@ -43,19 +46,17 @@ vi.mock("@hooks/useDebouncedValue", () => ({
 }));
 vi.mock("../api/useAmplifyData", () => ({
   PEOPLE_SEARCH_MIN_LENGTH: 2,
-  HISTORY_FETCH_SIZE: 100,
-  HISTORY_MAX_PAGES: 20,
   isAmplifyBackendConfigured: () => true,
   usePoPeopleSearch: (q: string) => {
     h.searched.push(q);
     return { data: q.trim().length >= 2 ? h.matches : undefined, isFetching: false, isError: false };
   },
-  usePointsHistory: (id: unknown) => {
+  usePointsHistoryPage: (id: unknown, page: unknown, size: unknown) => {
     h.historyIds.push(id);
+    h.historyPages.push([id, page, size]);
     return h.history;
   },
   useAmplifyMe: () => ({ data: { employee: { employeeId: h.myId } } }),
-  useAmplifyCampaigns: () => ({ data: { items: [{ id: "c-1", title: "Integrator launch" }] } }),
 }));
 vi.mock("../api/usePersonLookup", () => ({
   UNKNOWN_EMPLOYEE: "Unknown employee",
@@ -112,16 +113,21 @@ beforeEach(() => {
   h.searched.length = 0;
   h.debounced.length = 0;
   h.historyIds.length = 0;
+  h.historyPages.length = 0;
   h.matches = [jane];
   h.myId = "me-1";
   h.history = {
     data: {
-      complete: true,
+      page: 0,
+      size: 25,
+      total: 4,
+      // The all-time total from the server; more than this page's rows add up to.
+      totalPoints: 1040,
       items: [
         row("REV-1", -2, { sourceType: "REVERSAL", action: null, reversesReference: "ENG-2", reason: "Counted twice" }),
         row("ADJ-1", 30, { sourceType: "ADJUSTMENT", action: null, reason: "Event bonus" }),
-        row("ENG-2", 2, { campaignId: "c-1" }),
-        row("ENG-1", 10, { campaignId: "c-1", action: "REPOST_COMMENTARY" }),
+        row("ENG-2", 2, { campaignId: "c-1", campaignTitle: "Integrator launch", reversedBy: "REV-1" }),
+        row("ENG-1", 10, { campaignId: "c-1", campaignTitle: "Integrator launch", action: "REPOST_COMMENTARY" }),
       ],
     },
     isPending: false,
@@ -151,15 +157,25 @@ describe("finding a person", () => {
 });
 
 describe("a picked person", () => {
-  it("shows their all-time points, summed from every activity", () => {
+  it("shows their all-time points from the history's totalPoints, reading only the first page", () => {
     render(<PointsCorrectionsPage />);
     pick();
     expect(h.historyIds.at(-1)).toBe("e-9");
-    expect(screen.getByRole("region", { name: "All-time points" }).textContent).toContain("40");
+    expect(new Set(h.historyPages.map((p) => JSON.stringify(p)))).toEqual(new Set([JSON.stringify(["e-9", 0, 25])]));
+    expect(screen.getByRole("region", { name: "All-time points" }).textContent).toContain("1,040");
     expect(screen.getByText("Jane Doe")).toBeTruthy();
   });
 
-  it("lists every activity with its date, action, campaign or reason and points", () => {
+  it("shows a dash while the server sends no all-time total", () => {
+    h.history = { ...h.history, data: { page: 0, size: 25, total: 1, items: [row("ENG-1", 10)] } };
+    render(<PointsCorrectionsPage />);
+    pick();
+    expect(screen.getByRole("region", { name: "All-time points" }).textContent).toContain("—");
+    fireEvent.click(screen.getByRole("button", { name: "Add or remove points" }));
+    expect(screen.getByText("adjust dialog: e-9 total null")).toBeTruthy();
+  });
+
+  it("lists every activity with its date, action, the post title or reason, and points", () => {
     render(<PointsCorrectionsPage />);
     pick();
     const table = screen.getByRole("table", { name: "Every activity" });
@@ -175,7 +191,7 @@ describe("a picked person", () => {
     expect(within(rows[3]).getByText("+10")).toBeTruthy();
   });
 
-  it("offers Reverse only on rows that are neither reversals nor reversed", () => {
+  it("offers Reverse only on rows that are neither reversals nor reversed (reversedBy)", () => {
     render(<PointsCorrectionsPage />);
     pick();
     const rows = within(screen.getByRole("table", { name: "Every activity" })).getAllByRole("row").slice(1);
@@ -184,14 +200,36 @@ describe("a picked person", () => {
     expect(within(rows[2]).getByText("Reversed")).toBeTruthy();
     expect(within(rows[1]).getByRole("button", { name: /Reverse/ })).toBeTruthy();
     fireEvent.click(within(rows[3]).getByRole("button", { name: /Reverse/ }));
-    expect(screen.getByText("reverse dialog: ENG-1 total 40")).toBeTruthy();
+    expect(screen.getByText("reverse dialog: ENG-1 total 1040")).toBeTruthy();
+  });
+
+  it("marks a row reversed on a later page, whose reversal isn't on screen", () => {
+    h.history = {
+      ...h.history,
+      data: { page: 0, size: 25, total: 1, totalPoints: 0, items: [row("ENG-7", 5, { reversedBy: "REV-9" })] },
+    };
+    render(<PointsCorrectionsPage />);
+    pick();
+    const rows = within(screen.getByRole("table", { name: "Every activity" })).getAllByRole("row").slice(1);
+    expect(within(rows[0]).getByText("Reversed")).toBeTruthy();
+    expect(within(rows[0]).queryByRole("button")).toBeNull();
+  });
+
+  it("falls back to a plain label when a post has no title", () => {
+    h.history = {
+      ...h.history,
+      data: { page: 0, size: 25, total: 1, totalPoints: 5, items: [row("ENG-8", 5, { campaignId: "c-9", campaignTitle: null })] },
+    };
+    render(<PointsCorrectionsPage />);
+    pick();
+    expect(screen.getByText("A Choreo Labs post")).toBeTruthy();
   });
 
   it("opens Add or remove points with the person and their total", () => {
     render(<PointsCorrectionsPage />);
     pick();
     fireEvent.click(screen.getByRole("button", { name: "Add or remove points" }));
-    expect(screen.getByText("adjust dialog: e-9 total 40")).toBeTruthy();
+    expect(screen.getByText("adjust dialog: e-9 total 1040")).toBeTruthy();
     expect(screen.getByText("Your reason is shown in the person's history.")).toBeTruthy();
   });
 
@@ -204,27 +242,18 @@ describe("a picked person", () => {
     expect(screen.queryByRole("button", { name: /Reverse/ })).toBeNull();
   });
 
-  it("leaves the total out when the history is too long to read whole", () => {
-    h.history = { ...h.history, data: { complete: false, items: [row("ENG-1", 10)] } };
-    render(<PointsCorrectionsPage />);
-    pick();
-    expect(screen.getByRole("region", { name: "All-time points" }).textContent).toContain("—");
-    expect(screen.getByText(/Showing the latest 2,000 activities/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Add or remove points" }));
-    expect(screen.getByText("adjust dialog: e-9 total null")).toBeTruthy();
-  });
-
-  it("pages through a long history, newest first", () => {
+  it("asks the server for the next page of a long history, counting every row", () => {
     h.history = {
       ...h.history,
-      data: { complete: true, items: Array.from({ length: 30 }, (_, i) => row(`R-${i}`, 1)) },
+      data: { page: 0, size: 25, total: 3000, totalPoints: 3000, items: Array.from({ length: 25 }, (_, i) => row(`R-${i}`, 1)) },
     };
     render(<PointsCorrectionsPage />);
     pick();
-    const table = () => screen.getByRole("table", { name: "Every activity" });
-    expect(within(table()).getAllByRole("row")).toHaveLength(26);
+    expect(within(screen.getByRole("table", { name: "Every activity" })).getAllByRole("row")).toHaveLength(26);
+    expect(screen.getByText(/1–25 of 3000/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /next page/i }));
-    expect(within(table()).getAllByRole("row")).toHaveLength(6);
+    expect(h.historyPages.at(-1)).toEqual(["e-9", 1, 25]);
+    expect(screen.queryByText(/Showing the latest/)).toBeNull();
   });
 
   it("offers a retry when the history fails to load", () => {

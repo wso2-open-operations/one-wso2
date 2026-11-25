@@ -128,6 +128,7 @@ import SriLankaRoute from "@components/route-guards/SriLankaRoute";
 import AmplifyEditorRoute from "@components/route-guards/AmplifyEditorRoute";
 import AmplifyDashboardRoute from "@components/route-guards/AmplifyDashboardRoute";
 import CelebratePage from "@features/amplify/pages/CelebratePage";
+import MyPointsPage from "@features/amplify/pages/MyPointsPage";
 import NewPostPage from "@features/amplify/pages/NewPostPage";
 import CurrentPostsPage from "@features/amplify/pages/CurrentPostsPage";
 import LinkedInCallbackPage from "@features/amplify/pages/LinkedInCallbackPage";
@@ -1187,6 +1188,8 @@ export default function App() {
             <>
               <Route path="amplify" element={<PerspectiveLanding />} />
               <Route path="amplify/celebrate" element={<CelebratePage />} />
+              {/* My points & Coins: every employee's own points, like Celebrate. */}
+              <Route path="amplify/my-points" element={<MyPointsPage />} />
               <Route
                 path="amplify/new-post"
                 element={
@@ -1228,7 +1231,8 @@ export default function App() {
               {/* The PO team's screens, each on its own grant (GET /me):
                   Review own posts CAN_REVIEW_SHARES (its tabs are routes),
                   Points & corrections CAN_ADJUST_POINTS, Amplify Admin
-                  CAN_POINT_RULES. Each guard sends everyone else to Celebrate. */}
+                  CAN_POINT_RULES or CAN_ADMIN. Each guard sends everyone else
+                  to Celebrate. */}
               <Route
                 path="amplify/review"
                 element={

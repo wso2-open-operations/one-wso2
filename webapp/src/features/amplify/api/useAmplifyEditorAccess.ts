@@ -42,9 +42,9 @@ export function hasAmplifyGrant(me: AmplifyMe | undefined, grant: AmplifyGrant):
 }
 
 /**
- * Whether amplify-api grants the caller `grant` (GET /me `grants`, ADR-038).
- * Which Asgardeo groups hold a grant is amplify-api configuration, so the UI
- * names no group: the same pattern as the Marketing Ops gate.
+ * Whether amplify-api grants the caller any of `grants` (GET /me `grants`,
+ * ADR-038). Which Asgardeo groups hold a grant is amplify-api configuration, so
+ * the UI names no group: the same pattern as the Marketing Ops gate.
  *
  * Presentation only. amplify-api checks the grant again on every call and 403s
  * anyone without it. `enabled` keeps it quiet off the Amplify perspective, and
@@ -52,19 +52,24 @@ export function hasAmplifyGrant(me: AmplifyMe | undefined, grant: AmplifyGrant):
  * access" rather than "resolving", so it never holds a landing it has nothing
  * to say about. Fails closed while /me is in flight.
  */
-export function useAmplifyGrant(grant: AmplifyGrant, enabled = true): AmplifyAccess {
+export function useAmplifyAnyGrant(grants: readonly AmplifyGrant[], enabled = true): AmplifyAccess {
   const me = useAmplifyMe(enabled);
   const retry = () => void me.refetch();
   // No amplify-api URL: /me never runs, so its query would stay pending forever.
   if (!enabled || !isAmplifyBackendConfigured()) return { hasAccess: false, isResolving: false, retry };
   return {
-    hasAccess: hasAmplifyGrant(me.data, grant),
+    hasAccess: grants.some((grant) => hasAmplifyGrant(me.data, grant)),
     // `isPending`, so the window before the Asgardeo sub resolves counts as resolving too.
     isResolving: me.isPending,
     // describeError never surfaces the raw response body — see @api/errors.
     error: me.isError ? describeError(me.error) : undefined,
     retry,
   };
+}
+
+/** Whether amplify-api grants the caller `grant`; `useAmplifyAnyGrant` with one grant. */
+export function useAmplifyGrant(grant: AmplifyGrant, enabled = true): AmplifyAccess {
+  return useAmplifyAnyGrant([grant], enabled);
 }
 
 /** New Post and Current Posts: `CAN_CAMPAIGN`, the grant amplify-api checks on POST/PATCH/DELETE /campaigns. */
@@ -87,12 +92,15 @@ export function useAmplifyPointsAccess(enabled = true): AmplifyAccess {
   return useAmplifyGrant("CAN_ADJUST_POINTS", enabled);
 }
 
+/** The grants that open Amplify Admin: the PO team's (`CAN_POINT_RULES`) and the admins' (`CAN_ADMIN`). */
+export const AMPLIFY_ADMIN_GRANTS: readonly AmplifyGrant[] = ["CAN_POINT_RULES", "CAN_ADMIN"];
+
 /**
- * Amplify Admin: `CAN_POINT_RULES`, the grant its one section (point values) needs. Each section checks its own
- * grant as well.
+ * Amplify Admin: `CAN_POINT_RULES` or `CAN_ADMIN`, the grants its sections need. Each section checks its own grant as
+ * well.
  */
 export function useAmplifyAdminAccess(enabled = true): AmplifyAccess {
-  return useAmplifyGrant("CAN_POINT_RULES", enabled);
+  return useAmplifyAnyGrant(AMPLIFY_ADMIN_GRANTS, enabled);
 }
 
 /** The PO team's screens, one gate each. */

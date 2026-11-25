@@ -22,6 +22,7 @@ import {
   OWN_POST_FEATURE_TOP_UP,
   OWN_POST_STATUS_LABELS,
   REVIEW_TABS,
+  ownPostAwards,
 } from "./ownPosts";
 import { REASON_MAX_LENGTH } from "./points";
 
@@ -64,5 +65,21 @@ describe("own post wording", () => {
       ["featured", "AMPLIFIED"],
       ["declined", "REJECTED"],
     ]);
+  });
+});
+
+describe("ownPostAwards", () => {
+  it("takes approval and the featured total from the values in force, and the top-up as their difference", () => {
+    expect(ownPostAwards({ OWN_POST: 12, OWN_POST_AMPLIFIED: 30 })).toEqual({ approved: 12, featured: 30, topUp: 18 });
+  });
+
+  it("falls back to 10, 25 and 15 while the values are unknown", () => {
+    expect(ownPostAwards(undefined)).toEqual({ approved: 10, featured: 25, topUp: 15 });
+    expect(ownPostAwards({ REPOST: 2 })).toEqual({ approved: 10, featured: 25, topUp: 15 });
+  });
+
+  it("falls back per action, and never offers a negative top-up", () => {
+    expect(ownPostAwards({ OWN_POST: 20 })).toEqual({ approved: 20, featured: 25, topUp: 5 });
+    expect(ownPostAwards({ OWN_POST: 40, OWN_POST_AMPLIFIED: 30 })).toEqual({ approved: 40, featured: 30, topUp: 0 });
   });
 });

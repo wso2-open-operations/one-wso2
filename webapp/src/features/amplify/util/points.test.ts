@@ -19,14 +19,13 @@ import type { LedgerEntry } from "../api/amplifyTypes";
 import {
   canReverse,
   effectPreview,
+  isReversed,
   ledgerActionLabel,
   parseAdjustmentPoints,
   parseRulePoints,
   pointActionOrder,
   POINT_ACTION_LABELS,
-  reversedReferences,
   signedPoints,
-  totalPoints,
 } from "./points";
 
 const row = (reference: string, points: number, extra: Partial<LedgerEntry> = {}): LedgerEntry => ({
@@ -56,27 +55,20 @@ describe("signedPoints", () => {
   });
 });
 
-describe("totalPoints and reversals", () => {
+describe("reversals", () => {
   const rows = [
-    row("REV-1", -10, { sourceType: "REVERSAL", action: null, reversesReference: "R-1" }),
-    row("R-2", 5),
-    row("R-1", 10),
+    row("REV-1", -10, { sourceType: "REVERSAL", action: null, reversesReference: "R-1", reversedBy: null }),
+    row("R-2", 5, { reversedBy: null }),
+    row("R-1", 10, { reversedBy: "REV-1" }),
   ];
 
-  it("sums every row, reversals included", () => {
-    expect(totalPoints(rows)).toBe(5);
-    expect(totalPoints([])).toBe(0);
-  });
-
-  it("knows which rows are reversed", () => {
-    expect([...reversedReferences(rows)]).toEqual(["R-1"]);
+  it("reads a reversed row from the history's reversedBy", () => {
+    expect(rows.map(isReversed)).toEqual([false, false, true]);
+    expect(isReversed(row("R-3", 1))).toBe(false);
   });
 
   it("offers Reverse only on a row that is neither a reversal nor reversed", () => {
-    const reversed = reversedReferences(rows);
-    expect(canReverse(rows[0], reversed)).toBe(false);
-    expect(canReverse(rows[1], reversed)).toBe(true);
-    expect(canReverse(rows[2], reversed)).toBe(false);
+    expect(rows.map(canReverse)).toEqual([false, true, false]);
   });
 });
 

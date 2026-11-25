@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -36,13 +36,10 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useDebouncedValue } from "@hooks/useDebouncedValue";
 import type { AmplifyPersonMatch, LedgerEntry } from "../api/amplifyTypes";
 import {
-  HISTORY_FETCH_SIZE,
-  HISTORY_MAX_PAGES,
   PEOPLE_SEARCH_MIN_LENGTH,
-  useAmplifyCampaigns,
   useAmplifyMe,
   usePoPeopleSearch,
-  usePointsHistory,
+  usePointsHistoryPage,
 } from "../api/useAmplifyData";
 import { UNKNOWN_EMPLOYEE, usePersonLookup } from "../api/usePersonLookup";
 import AdjustPointsDialog from "../components/AdjustPointsDialog";
@@ -51,7 +48,7 @@ import { REASON_SHOWN_NOTE } from "../components/CorrectionParts";
 import { StatCard, StateChip } from "../components/DashboardParts";
 import ReversePointsDialog from "../components/ReversePointsDialog";
 import { fullDate, initialsOf, num } from "../util/dashboardFormat";
-import { canReverse, ledgerActionLabel, reversedReferences, signedPoints, totalPoints } from "../util/points";
+import { canReverse, isReversed, ledgerActionLabel, signedPoints } from "../util/points";
 
 /** How long the search box waits after the last keystroke before it asks. */
 export const PEOPLE_SEARCH_DEBOUNCE_MS = 300;
@@ -147,30 +144,29 @@ function PersonSearch({
   );
 }
 
-/** One person: all-time points, the correction button, and every activity with Reverse where it applies. */
+/** What a row was for: the PO team's reason, else the post's title. */
+function detailOf(e: LedgerEntry): string {
+  return e.reason?.trim() || e.campaignTitle?.trim() || (e.campaignId ? "A Choreo Labs post" : "—");
+}
+
+/**
+ * One person: all-time points, the correction button, and their activity a page at a time, with Reverse where it
+ * applies.
+ */
 function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
-  const history = usePointsHistory(person.employeeId);
-  const me = useAmplifyMe();
-  const campaigns = useAmplifyCampaigns("all");
-  const lookup = usePersonLookup();
   const [page, setPage] = useState(0);
+  const history = usePointsHistoryPage(person.employeeId, page, HISTORY_PAGE_SIZE);
+  const me = useAmplifyMe();
+  const lookup = usePersonLookup();
   const [reversing, setReversing] = useState<LedgerEntry | null>(null);
   const [adjusting, setAdjusting] = useState(false);
 
   const who = lookup({ employeeId: person.employeeId, email: person.email, displayName: person.displayName });
   const name = who.name !== UNKNOWN_EMPLOYEE ? who.name : person.email;
   const isSelf = me.data?.employee.employeeId === person.employeeId;
-  const items = useMemo(() => history.data?.items ?? [], [history.data]);
-  const total = history.data?.complete ? totalPoints(items) : null;
-  const reversed = useMemo(() => reversedReferences(items), [items]);
-  const titles = useMemo(
-    () => new Map((campaigns.data?.items ?? []).map((c) => [c.id, c.title])),
-    [campaigns.data],
-  );
-  const shown = items.slice(page * HISTORY_PAGE_SIZE, (page + 1) * HISTORY_PAGE_SIZE);
-
-  const detailOf = (e: LedgerEntry): string =>
-    e.reason?.trim() || (e.campaignId ? (titles.get(e.campaignId) ?? "A Choreo Labs post") : "—");
+  const items = history.data?.items ?? [];
+  const total = history.data?.totalPoints ?? null;
+  const rowCount = history.data?.total ?? 0;
 
   return (
     <>
@@ -230,12 +226,6 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
           </Typography>
         ) : (
           <>
-            {!history.data.complete && (
-              <Alert severity="info" sx={{ mb: 1.5 }}>
-                Showing the latest {num(HISTORY_FETCH_SIZE * HISTORY_MAX_PAGES)} activities, so the all-time total
-                isn&apos;t shown.
-              </Alert>
-            )}
             <Box sx={{ overflowX: "auto" }}>
               <Table size="small" aria-label="Every activity">
                 <TableHead>
@@ -248,7 +238,7 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {shown.map((e) => (
+                  {items.map((e) => (
                     <TableRow key={e.reference}>
                       <TableCell sx={{ whiteSpace: "nowrap" }}>{fullDate(e.createdAt)}</TableCell>
                       <TableCell>{ledgerActionLabel(e)}</TableCell>
@@ -257,11 +247,11 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
                         {signedPoints(e.points)}
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                        {reversed.has(e.reference) ? (
+                        {isReversed(e) ? (
                           <StateChip label="Reversed" />
                         ) : (
                           !isSelf &&
-                          canReverse(e, reversed) && (
+                          canReverse(e) && (
                             <Button
                               size="small"
                               startIcon={<Undo2Icon size={14} />}
@@ -278,10 +268,10 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
                 </TableBody>
               </Table>
             </Box>
-            {items.length > HISTORY_PAGE_SIZE && (
+            {rowCount > HISTORY_PAGE_SIZE && (
               <TablePagination
                 component="div"
-                count={items.length}
+                count={rowCount}
                 page={page}
                 rowsPerPage={HISTORY_PAGE_SIZE}
                 rowsPerPageOptions={[HISTORY_PAGE_SIZE]}

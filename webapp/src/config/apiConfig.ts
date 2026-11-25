@@ -1927,6 +1927,14 @@ export const amplifyServiceUrls = {
   poPeople: `${amplifyBackendUrl}/po/people`,
   // GET one person's ledger rows, newest first (page, size). Anyone beyond self and team needs CAN_ADJUST_POINTS.
   pointsHistory: (employeeId: string) => `${amplifyBackendUrl}/team/${encodeURIComponent(employeeId)}/history`,
+  // GET the caller's standing for a period (period=ALL or YYYY-MM) and their Coins.
+  myPoints: `${amplifyBackendUrl}/me/points`,
+  // GET the points each action earns today (every employee).
+  pointValues: `${amplifyBackendUrl}/point-values`,
+  // GET and PUT the Coins rate, schedule and own-post daily limit (CAN_POINT_RULES only).
+  poSettings: `${amplifyBackendUrl}/po/settings`,
+  // GET and PUT every editable setting, the wallet switch included (CAN_ADMIN only).
+  adminSettings: `${amplifyBackendUrl}/admin/settings`,
 };
 
 // ---------------------------------------------------------------------------

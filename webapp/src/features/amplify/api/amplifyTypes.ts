@@ -443,6 +443,10 @@ export interface ExternalShare {
   amplifiedAt?: string | null;
   /** The employee's note for the reviewer. Absent until the API sends it. */
   note?: string | null;
+  /** Who sent it, as Amplify recorded them. On GET /po/external-shares items only; null when unknown. */
+  employeeName?: string | null;
+  /** Their work email. On GET /po/external-shares items only; null when unknown. */
+  employeeEmail?: string | null;
   createdAt: string;
   version: number;
 }
@@ -481,6 +485,12 @@ export interface PointRule {
   inForce: boolean;
 }
 
+/**
+ * Where a history row stands for Coins: HELD counts toward the next Coins, PAID became Coins, ACTION_REQUIRED waits
+ * for the PO team.
+ */
+export type LedgerSettlement = "HELD" | "PAID" | "ACTION_REQUIRED";
+
 /** One points ledger row. A reversal row cancels the row named in `reversesReference`. */
 export interface LedgerEntry {
   reference: string;
@@ -490,12 +500,18 @@ export interface LedgerEntry {
   action?: string | null;
   /** Signed: a removal or a reversal is negative. */
   points: number;
-  /** The PO team's reason, on adjustment and reversal rows. */
+  /** The PO team's reason, on adjustment and reversal rows. The person the row belongs to sees it too. */
   reason?: string | null;
   reversesReference?: string | null;
   actorId?: string;
   createdAt: string;
   status?: "HELD" | "PAID" | null;
+  /** History rows only: the title of the post the points were earned on. */
+  campaignTitle?: string | null;
+  /** History rows only: the reference of the row that reversed this one; null when it stands. */
+  reversedBy?: string | null;
+  /** History rows only: where the row stands for Coins. */
+  settlement?: LedgerSettlement;
 }
 
 /** GET /team/{employeeId}/history: one page of a person's ledger rows, newest first. `total` counts rows. */
@@ -504,6 +520,10 @@ export interface PointsHistory {
   page: number;
   size: number;
   total: number;
+  /** The person's all-time points: every row, not only this page. */
+  totalPoints?: number;
+  /** Their points not yet paid out as Coins. */
+  heldPoints?: number;
   items: LedgerEntry[];
 }
 
@@ -520,4 +540,63 @@ export interface AmplifyPersonMatch {
   employeeId: string;
   displayName: string | null;
   email: string;
+}
+
+// ---- Coins and settings (amplify-api /me/points, /point-values, /po/settings, /admin/settings) -------------
+
+/** How often points become Coins: on the 1st of each month, every Monday, or every day. */
+export type CoinSchedule = "MONTHLY" | "WEEKLY" | "DAILY";
+
+/** GET /me/points `coins`: the conversion rate and schedule, and the caller's progress toward the next Coins. */
+export interface CoinsStanding {
+  /** False while Coins aren't sent to wallets yet; points keep counting. */
+  walletsEnabled: boolean;
+  /** Points in one conversion block. */
+  blockPoints: number;
+  /** Coins one block becomes. */
+  blockCoins: number;
+  schedule: CoinSchedule;
+  /** Points not yet paid out as Coins. */
+  heldPoints: number;
+  /** Points toward the next block, 0 to `blockPoints - 1`. */
+  pointsTowardNext: number;
+  /** Coins the caller has received so far. */
+  coinsReceived: number;
+}
+
+/** GET /me/points: the caller's standing for one period, and their Coins. */
+export interface MyPoints {
+  /** The period asked for: `ALL`, `YYYY-MM` or `YYYY-Qn`. */
+  period: string;
+  standing: PersonalStanding;
+  coins: CoinsStanding;
+  monthly: { month: string; points: number; actions: number }[];
+}
+
+/** GET /point-values `values`: the points each action earns today, by action. Actions without a rule are absent. */
+export type PointValues = Partial<Record<PointAction, number>>;
+
+/** One setting as GET /po/settings and GET /admin/settings list it. */
+export interface AmplifySetting {
+  key: string;
+  /** A JSON number, boolean or string. */
+  value: unknown;
+  /** Sent back with a change; a stale one is refused with 409 VERSION_CONFLICT. */
+  version: number;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/** GET and PUT /po/settings and /admin/settings. */
+export interface SettingList {
+  settings: AmplifySetting[];
+  /** Only on a PUT that changed a schedule setting. */
+  schedulerSync?: "SYNCED" | "PENDING" | "NOT_CONFIGURED";
+}
+
+/** One change in PUT /po/settings or /admin/settings: the new value and the version it was read at. */
+export interface SettingChange {
+  key: string;
+  value: number | boolean | string;
+  version: number;
 }

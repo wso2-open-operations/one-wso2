@@ -27,6 +27,7 @@ import {
   REVIEW_PAGE_SIZE,
   useAmplifyMe,
   useExternalSharesForReview,
+  usePointValues,
   useWaitingReviewCount,
 } from "../api/useAmplifyData";
 import { useApproveExternalShare, useFeatureExternalShare } from "../api/useAmplifyMutations";
@@ -37,19 +38,14 @@ import DeclineOwnPostDialog from "../components/DeclineOwnPostDialog";
 import { OwnPostLink, OwnPostStatusChip } from "../components/OwnPostParts";
 import { describeAmplifyError } from "../util/amplifyError";
 import { fullDate, initialsOf } from "../util/dashboardFormat";
-import {
-  OWN_POST_APPROVED_POINTS,
-  OWN_POST_FEATURED_POINTS,
-  OWN_POST_FEATURE_TOP_UP,
-  REVIEW_TABS,
-} from "../util/ownPosts";
+import { REVIEW_TABS, ownPostAwards, type OwnPostAwards } from "../util/ownPosts";
 
 /** The error when Feature approved a post but couldn't feature it. */
 export const FEATURE_AFTER_APPROVE_FAILED =
   "The post was approved, but it couldn't be featured. You can feature it from the Approved tab.";
 
 /** Shown in place of the buttons on the reviewer's own post. */
-export const OWN_CLAIM_NOTE = "This is your own post; another PO team member will decide on it.";
+export const OWN_CLAIM_NOTE = "This is your own post; another marketing team member will decide on it.";
 
 const EMPTY_TEXT: Readonly<Record<ExternalShareStatus, string>> = {
   PENDING: "Nothing is waiting for review.",
@@ -92,6 +88,7 @@ export function ReviewTab({ status }: { status: ExternalShareStatus }) {
   const list = useExternalSharesForReview(status, page);
   const me = useAmplifyMe();
   const lookup = usePersonLookup();
+  const awards = ownPostAwards(usePointValues().data);
   const myId = me.data?.employee.employeeId;
   const items = list.data?.items ?? [];
 
@@ -133,7 +130,8 @@ export function ReviewTab({ status }: { status: ExternalShareStatus }) {
           <ReviewCard
             key={share.id}
             share={share}
-            who={lookup({ employeeId: share.employeeId })}
+            who={lookup({ employeeId: share.employeeId, email: share.employeeEmail, displayName: share.employeeName })}
+            awards={awards}
             isOwn={myId !== undefined && share.employeeId === myId}
             onDecided={afterDecision}
           />
@@ -153,15 +151,20 @@ export function ReviewTab({ status }: { status: ExternalShareStatus }) {
   );
 }
 
-/** One claim: who sent it, their note, when, the link, and the decision buttons its status allows. */
+/**
+ * One claim: who sent it, their note, when, the link, and the decision buttons its status allows, each labelled with
+ * the points it awards.
+ */
 function ReviewCard({
   share,
   who,
+  awards,
   isOwn,
   onDecided,
 }: {
   share: ExternalShare;
   who: ResolvedPerson;
+  awards: OwnPostAwards;
   isOwn: boolean;
   onDecided: () => void;
 }) {
@@ -171,7 +174,9 @@ function ReviewCard({
   const [working, setWorking] = useState(false);
   const [declining, setDeclining] = useState(false);
   const known = who.name !== UNKNOWN_EMPLOYEE;
-  const name = known ? who.name : "An employee";
+  const email = share.employeeEmail?.trim() || null;
+  // Without a name, the work email is the next best way to say who sent it; the id only when there is neither.
+  const name = known ? who.name : (email ?? "An employee");
   const target = { id: share.id, employeeId: share.employeeId };
   const decidable = !isOwn && (share.status === "PENDING" || share.status === "APPROVED");
 
@@ -192,7 +197,7 @@ function ReviewCard({
         showError(describeAmplifyError(err));
         return;
       }
-      showSuccess(`Approved: +${OWN_POST_APPROVED_POINTS} points for ${name}.`);
+      showSuccess(`Approved: +${awards.approved} points for ${name}.`);
       onDecided();
     });
 
@@ -212,7 +217,7 @@ function ReviewCard({
         showError(FEATURE_AFTER_APPROVE_FAILED);
         return;
       }
-      showSuccess(`Featured: +${OWN_POST_FEATURED_POINTS} points for ${name}.`);
+      showSuccess(`Featured: +${awards.featured} points for ${name}.`);
     });
 
   const featureApproved = () =>
@@ -223,7 +228,7 @@ function ReviewCard({
         showError(describeAmplifyError(err));
         return;
       }
-      showSuccess(`Featured: +${OWN_POST_FEATURE_TOP_UP} more points for ${name}.`);
+      showSuccess(`Featured: +${awards.topUp} more points for ${name}.`);
       onDecided();
     });
 
@@ -234,8 +239,13 @@ function ReviewCard({
           {known ? initialsOf(who.name) : "?"}
         </Avatar>
         <Box sx={{ flex: "1 1 240px", minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{name}</Typography>
-          {!known && (
+          <Typography sx={{ fontWeight: 700, fontSize: 14, overflowWrap: "anywhere" }}>{name}</Typography>
+          {known && email && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", overflowWrap: "anywhere" }}>
+              {email}
+            </Typography>
+          )}
+          {!known && !email && (
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", wordBreak: "break-all" }}>
               Employee ID: {share.employeeId}
             </Typography>
@@ -294,7 +304,7 @@ function ReviewCard({
                 onClick={() => void approveOnly()}
                 disabled={working}
               >
-                Approve (+{OWN_POST_APPROVED_POINTS})
+                Approve (+{awards.approved})
               </Button>
               <Button
                 variant="outlined"
@@ -303,7 +313,7 @@ function ReviewCard({
                 onClick={() => void approveAndFeature()}
                 disabled={working}
               >
-                Feature (+{OWN_POST_FEATURED_POINTS})
+                Feature (+{awards.featured})
               </Button>
               <Button
                 variant="outlined"
@@ -324,7 +334,7 @@ function ReviewCard({
               onClick={() => void featureApproved()}
               disabled={working}
             >
-              Feature (+{OWN_POST_FEATURE_TOP_UP})
+              Feature (+{awards.topUp})
             </Button>
           )}
         </Box>

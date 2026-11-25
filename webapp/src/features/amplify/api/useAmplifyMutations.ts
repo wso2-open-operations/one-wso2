@@ -24,11 +24,12 @@
 // here is a final answer.
 
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { authedDelete, authedPatch, authedPost } from "@api/http";
+import { authedDelete, authedPatch, authedPost, authedPut } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { amplifyServiceUrls } from "@config/apiConfig";
 import { useAsgardeoSub } from "@hooks/useAsgardeoSub";
-import { amplifyKey } from "./useAmplifyData";
+import { amplifyProblemCode } from "../util/amplifyError";
+import { amplifyKey, settingsUrl, type SettingsScope } from "./useAmplifyData";
 import type {
   Campaign,
   CampaignDraft,
@@ -43,6 +44,8 @@ import type {
   PointAction,
   PointRule,
   PointsAdjustment,
+  SettingChange,
+  SettingList,
   Share,
   ShareKind,
 } from "./amplifyTypes";
@@ -332,7 +335,10 @@ export function useAdjustPoints() {
   });
 }
 
-/** POST /po/point-rules (CAN_POINT_RULES): a new value for one action, from now on. Then refetches the rules. */
+/**
+ * POST /po/point-rules (CAN_POINT_RULES): a new value for one action, from now on. Then refetches the rules and the
+ * values every employee reads.
+ */
 export function useSetPointRule() {
   const getAccessToken = useAccessToken();
   const qc = useQueryClient();
@@ -340,7 +346,28 @@ export function useSetPointRule() {
   return useMutation<PointRule | null, Error, { action: PointAction; points: number }>({
     mutationFn: async (body) => authedPost<PointRule>(amplifyServiceUrls.poPointRules, await getAccessToken(), body),
     onSuccess: async () => {
-      await refreshNow(qc, amplifyKey("point-rules", sub));
+      await Promise.all([refreshNow(qc, amplifyKey("point-rules", sub)), refreshNow(qc, amplifyKey("point-values", sub))]);
+    },
+  });
+}
+
+/**
+ * PUT /po/settings or /admin/settings: changes the given keys in one go, each with the version it was read at. Then
+ * refetches both settings lists and the caller's Coins. A 409 VERSION_CONFLICT (someone else saved first) refetches
+ * the settings before the error reaches the caller, so the screen shows the latest values.
+ */
+export function useSaveSettings() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<SettingList | null, Error, { scope: SettingsScope; changes: SettingChange[] }>({
+    mutationFn: async ({ scope, changes }) =>
+      authedPut<SettingList>(settingsUrl(scope), await getAccessToken(), { changes }),
+    onSuccess: async () => {
+      await Promise.all([refreshNow(qc, amplifyKey("settings", sub)), refreshNow(qc, amplifyKey("my-points", sub))]);
+    },
+    onError: async (err) => {
+      if (amplifyProblemCode(err) === "VERSION_CONFLICT") await refreshNow(qc, amplifyKey("settings", sub));
     },
   });
 }

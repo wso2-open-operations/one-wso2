@@ -15,23 +15,40 @@
 // under the License.
 
 import type { RoutedTabDef } from "@components/routed-tabs/RoutedTabs";
-import type { ExternalShareStatus } from "../api/amplifyTypes";
+import type { ExternalShareStatus, PointValues } from "../api/amplifyTypes";
 import { REASON_MAX_LENGTH } from "./points";
 
 /** The longest note for the reviewer amplify-api accepts on an own post. */
 export const OWN_POST_NOTE_MAX_LENGTH = 500;
 
 /**
- * Points an approved own post earns, and a featured one in total. The default `OWN_POST` and `OWN_POST_AMPLIFIED`
- * rules; reviewers can't read the rules, so the labels state them.
+ * Points an approved own post earns, and a featured one in total: the default `OWN_POST` and `OWN_POST_AMPLIFIED`
+ * rules, stated where the values in force (GET /point-values) aren't known.
  */
 export const OWN_POST_APPROVED_POINTS = 10;
 export const OWN_POST_FEATURED_POINTS = 25;
 
-/** The extra points featuring an approved post adds. */
+/** The extra points featuring an approved post adds, at the default rules. */
 export const OWN_POST_FEATURE_TOP_UP = OWN_POST_FEATURED_POINTS - OWN_POST_APPROVED_POINTS;
 
-/** Each status in the words the employee and the PO team see. */
+/** What a review decision awards: approval, a feature in total, and the extra a feature adds to an approved post. */
+export interface OwnPostAwards {
+  approved: number;
+  featured: number;
+  topUp: number;
+}
+
+/**
+ * The awards at the values in force (GET /point-values `OWN_POST` and `OWN_POST_AMPLIFIED`), each falling back to
+ * the default rule while the values load, fail, or lack the action. The top-up is never negative.
+ */
+export function ownPostAwards(values: PointValues | undefined): OwnPostAwards {
+  const approved = values?.OWN_POST ?? OWN_POST_APPROVED_POINTS;
+  const featured = values?.OWN_POST_AMPLIFIED ?? OWN_POST_FEATURED_POINTS;
+  return { approved, featured, topUp: Math.max(0, featured - approved) };
+}
+
+/** Each status in the words the employee and the marketing team see. */
 export const OWN_POST_STATUS_LABELS: Readonly<Record<ExternalShareStatus, string>> = {
   PENDING: "Waiting for review",
   APPROVED: "Approved",

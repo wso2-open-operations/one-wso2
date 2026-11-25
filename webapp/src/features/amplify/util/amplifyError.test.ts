@@ -44,7 +44,7 @@ describe("own posts and corrections", () => {
 
   it("tells a reviewer they can't decide on their own post", () => {
     expect(describeAmplifyError(problem(403, "SELF_REVIEW"))).toBe(
-      "You can't decide on your own post; another PO team member will.",
+      "You can't decide on your own post; another marketing team member will.",
     );
   });
 

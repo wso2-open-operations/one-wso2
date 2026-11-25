@@ -19,7 +19,14 @@
 // Every key is scoped to the signed-in subject, same as TIL: a tab switching
 // accounts must not serve the previous user's grants or LinkedIn status from cache.
 
-import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
 import { authedGet } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
@@ -31,15 +38,18 @@ import type {
   AmplifyAppConfig,
   AmplifyMe,
   AmplifyPersonMatch,
+  AmplifySetting,
   CampaignPage,
   Category,
   ExternalShare,
   ExternalSharePage,
   ExternalShareStatus,
-  LedgerEntry,
   Leaderboard,
+  MyPoints,
   PointRule,
+  PointValues,
   PointsHistory,
+  SettingList,
   Share,
   TopBoard,
 } from "./amplifyTypes";
@@ -139,12 +149,16 @@ export function sharePublishedSince(before: Share[] | undefined, after: Share[])
   return after.some((s) => s.status === "PUBLISHED" && queued.has(s.id));
 }
 
-/** Refetches the leaderboard and the Celebrate top board now, including copies no page is showing. */
+/**
+ * Refetches the leaderboard, the Celebrate top board, the caller's points and their history now, including copies no
+ * page is showing.
+ */
 function refreshBoards(qc: QueryClient, sub: string | undefined): Promise<unknown> {
-  return Promise.all([
-    qc.invalidateQueries({ queryKey: amplifyKey("leaderboard", sub), refetchType: "all" }),
-    qc.invalidateQueries({ queryKey: amplifyKey("leaderboard-top", sub), refetchType: "all" }),
-  ]);
+  return Promise.all(
+    ["leaderboard", "leaderboard-top", "my-points", "points-history"].map((name) =>
+      qc.invalidateQueries({ queryKey: amplifyKey(name, sub), refetchType: "all" }),
+    ),
+  );
 }
 
 /**
@@ -152,7 +166,7 @@ function refreshBoards(qc: QueryClient, sub: string | undefined): Promise<unknow
  *
  * A share is queued (202) and published by the next Amplify Jobs run, which is when its points are awarded. While
  * one is queued, the list is checked every 30 s (only while the tab is visible), and when a queued share comes back
- * PUBLISHED the boards are refetched, so the new points show without a page reload.
+ * PUBLISHED the boards and the caller's points are refetched, so the new points show without a page reload.
  */
 export function useMyShares() {
   const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
@@ -314,51 +328,126 @@ export function usePoPeopleSearch(q: string) {
   return foldIdentityError(query, subState, retryIdentity);
 }
 
-/** Rows per request when reading a person's whole history (amplify-api caps `size` at 100). */
-export const HISTORY_FETCH_SIZE = 100;
-
-/** The most history requests one read makes: the latest 2,000 rows. */
-export const HISTORY_MAX_PAGES = 20;
-
-/** A person's ledger rows, newest first. `complete` is false when there were more rows than one read takes. */
-export interface PersonHistory {
-  items: LedgerEntry[];
-  complete: boolean;
-}
-
 /**
- * Reads every page of a person's history, newest first, up to `HISTORY_MAX_PAGES`. A row that moved onto the next
- * page while reading (a new row arrived) is kept once.
+ * One page (0-based) of a person's points history, newest first (GET /team/{employeeId}/history), with their
+ * all-time points in `totalPoints`. The page on screen stays while the next one loads. Asks nothing without an id.
  */
-export async function readWholeHistory(url: string, accessToken: string): Promise<PersonHistory> {
-  const items: LedgerEntry[] = [];
-  const seen = new Set<string>();
-  for (let page = 0; page < HISTORY_MAX_PAGES; page++) {
-    const body = await authedGet<PointsHistory>(`${url}?page=${page}&size=${HISTORY_FETCH_SIZE}`, accessToken);
-    for (const row of body.items) {
-      if (seen.has(row.reference)) continue;
-      seen.add(row.reference);
-      items.push(row);
-    }
-    if (body.items.length < HISTORY_FETCH_SIZE || (page + 1) * HISTORY_FETCH_SIZE >= body.total) {
-      return { items, complete: true };
-    }
-  }
-  return { items, complete: false };
-}
-
-/**
- * One person's whole points history (GET /team/{employeeId}/history, every page), so the page can sum the all-time
- * total and tell which rows are reversed: a reversal is always newer than the row it cancels. Asks nothing without
- * an id.
- */
-export function usePointsHistory(employeeId: string | null) {
+export function usePointsHistoryPage(employeeId: string | null, page: number, size: number) {
   const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
   const id = employeeId?.trim() || null;
-  const query = useQuery<PersonHistory>({
-    queryKey: amplifyKey("points-history", userSub, id ?? ""),
+  const query = useQuery<PointsHistory>({
+    queryKey: amplifyKey("points-history", userSub, id ?? "", page, size),
     enabled: ready && id !== null,
-    queryFn: async () => readWholeHistory(amplifyServiceUrls.pointsHistory(id ?? ""), await getAccessToken()),
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), size: String(size) });
+      const url = `${amplifyServiceUrls.pointsHistory(id ?? "")}?${params}`;
+      return authedGet<PointsHistory>(url, await getAccessToken());
+    },
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** Rows per request in the caller's own activity list. */
+export const ACTIVITY_PAGE_SIZE = 25;
+
+/** The page number after `pages`, or undefined when the last one was the end of the history. */
+export function nextHistoryPage(last: PointsHistory, pages: readonly PointsHistory[]): number | undefined {
+  return last.items.length < ACTIVITY_PAGE_SIZE || pages.length * ACTIVITY_PAGE_SIZE >= last.total
+    ? undefined
+    : pages.length;
+}
+
+/**
+ * The caller's own points history, newest first, `ACTIVITY_PAGE_SIZE` rows at a time (GET
+ * /team/{employeeId}/history); `fetchNextPage` adds the next page. Asks nothing until `employeeId` (GET /me
+ * `employee.employeeId`) is known, so an identity failure surfaces on /me rather than here.
+ */
+export function useMyActivity(employeeId: string | undefined) {
+  const { getAccessToken, userSub, ready } = useAmplifyQueryBasis();
+  const id = employeeId?.trim() || null;
+  return useInfiniteQuery<PointsHistory, Error, InfiniteData<PointsHistory>, unknown[], number>({
+    queryKey: amplifyKey("points-history", userSub, id ?? "", "feed"),
+    enabled: ready && id !== null,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ page: String(pageParam), size: String(ACTIVITY_PAGE_SIZE) });
+      const url = `${amplifyServiceUrls.pointsHistory(id ?? "")}?${params}`;
+      return authedGet<PointsHistory>(url, await getAccessToken());
+    },
+    getNextPageParam: nextHistoryPage,
+    staleTime: 30 * 1000,
+    retry: amplifyRetry,
+  });
+}
+
+/** Which standing GET /me/points answers for: all time, or this calendar month (UTC). */
+export type MyPointsScope = "ALL" | "MONTH";
+
+/** The `period` GET /me/points takes for `scope`: `ALL`, or the month `now` falls in as `YYYY-MM` (UTC). */
+export function myPointsPeriod(scope: MyPointsScope, now: Date = new Date()): string {
+  if (scope === "ALL") return "ALL";
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * The caller's points and rank for `scope`, and their Coins (GET /me/points). Reloads when the page is opened again
+ * or the tab regains focus, like the leaderboards, since points change while it is open.
+ */
+export function useMyPoints(scope: MyPointsScope) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const period = myPointsPeriod(scope);
+  const query = useQuery<MyPoints>({
+    queryKey: amplifyKey("my-points", userSub, period),
+    enabled: ready,
+    queryFn: async () =>
+      authedGet<MyPoints>(`${amplifyServiceUrls.myPoints}?period=${encodeURIComponent(period)}`, await getAccessToken()),
+    staleTime: 60 * 1000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** The points each action earns today (GET /point-values, every employee). */
+export function usePointValues() {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<PointValues>({
+    queryKey: amplifyKey("point-values", userSub),
+    enabled: ready,
+    queryFn: async () =>
+      (await authedGet<{ values: PointValues }>(amplifyServiceUrls.pointValues, await getAccessToken())).values,
+    staleTime: 5 * 60 * 1000,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/**
+ * Which settings endpoint a screen uses: the PO team's (`/po/settings`, CAN_POINT_RULES: the Coins rate and schedule
+ * and the own-post daily limit) or the admins' (`/admin/settings`, CAN_ADMIN: every editable key).
+ */
+export type SettingsScope = "po" | "admin";
+
+/** The URL of `scope`'s settings, for GET and PUT. */
+export function settingsUrl(scope: SettingsScope): string {
+  return scope === "admin" ? amplifyServiceUrls.adminSettings : amplifyServiceUrls.poSettings;
+}
+
+/**
+ * The settings `scope` lists (GET /po/settings or /admin/settings), each with the version a change sends back.
+ *
+ * @param enabled - false asks nothing (a caller without the scope's grant)
+ */
+export function useAmplifySettings(scope: SettingsScope, enabled = true) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<AmplifySetting[]>({
+    queryKey: amplifyKey("settings", userSub, scope),
+    enabled: ready && enabled,
+    queryFn: async () => (await authedGet<SettingList>(settingsUrl(scope), await getAccessToken())).settings,
     staleTime: 30 * 1000,
     retry: amplifyRetry,
   });
