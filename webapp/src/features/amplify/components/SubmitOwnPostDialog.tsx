@@ -46,6 +46,9 @@ export const OWN_POST_SUBMITTED_MESSAGE = "Thanks! Your post is waiting for revi
 /** Shown under the link once it looks like a LinkedIn post. */
 export const LINK_LOOKS_RIGHT = "Looks like a LinkedIn post link";
 
+/** Shown under a lnkd.in short link: Amplify opens it once to find the post. */
+export const SHORT_LINK_OK = "LinkedIn short link. We'll open it to find your post";
+
 /** How to find the link, under the field. */
 export const LINK_HELP = "On LinkedIn, open the post's ••• menu and choose Copy link to post.";
 
@@ -56,8 +59,7 @@ const CERTIFY_LABEL = "I wrote this post myself, and it's about Choreo Labs.";
 
 function linkProblem(link: string): string | null {
   const value = link.trim();
-  if (!value || ownPostEvidenceUrl(value)) return null;
-  if (isLinkedInShortLink(value)) return "Short lnkd.in links can't be checked. Open the post and copy its full link.";
+  if (!value || ownPostEvidenceUrl(value) || isLinkedInShortLink(value)) return null;
   return "Paste the link to your LinkedIn post, like https://www.linkedin.com/posts/…";
 }
 
@@ -103,7 +105,8 @@ export default function SubmitOwnPostDialog({ open, onClose }: { open: boolean; 
   const [certified, setCertified] = useState(false);
   const [linkTouched, setLinkTouched] = useState(false);
 
-  const evidenceUrl = ownPostEvidenceUrl(link);
+  const shortLink = isLinkedInShortLink(link.trim());
+  const evidenceUrl = ownPostEvidenceUrl(link) ?? (shortLink ? link.trim() : null);
   const problem = linkTouched ? linkProblem(link) : null;
   const busy = claim.isPending;
   const canSubmit = evidenceUrl !== null && certified && !busy;
@@ -181,7 +184,7 @@ export default function SubmitOwnPostDialog({ open, onClose }: { open: boolean; 
                 evidenceUrl && (
                   <Typography variant="body2" sx={{ color: "success.main", display: "flex", alignItems: "center", gap: 0.75 }}>
                     <CheckIcon size={15} aria-hidden="true" />
-                    {LINK_LOOKS_RIGHT}
+                    {shortLink ? SHORT_LINK_OK : LINK_LOOKS_RIGHT}
                   </Typography>
                 )
               )}

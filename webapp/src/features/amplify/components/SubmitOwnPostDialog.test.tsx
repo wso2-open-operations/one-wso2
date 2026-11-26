@@ -29,7 +29,12 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showError, showSuccess }),
 }));
 
-import SubmitOwnPostDialog, { CLAIM_ONCE_NOTE, LINK_LOOKS_RIGHT, OWN_POST_SUBMITTED_MESSAGE } from "./SubmitOwnPostDialog";
+import SubmitOwnPostDialog, {
+  CLAIM_ONCE_NOTE,
+  LINK_LOOKS_RIGHT,
+  OWN_POST_SUBMITTED_MESSAGE,
+  SHORT_LINK_OK,
+} from "./SubmitOwnPostDialog";
 
 const render = (ui: ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -99,11 +104,17 @@ describe("SubmitOwnPostDialog", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it("explains that a short lnkd.in link can't be used", () => {
+  it("accepts LinkedIn's lnkd.in short link as typed: the server opens it to find the post", () => {
     render(<SubmitOwnPostDialog open onClose={() => {}} />);
-    fireEvent.change(link(), { target: { value: "https://lnkd.in/abc" } });
+    fireEvent.change(link(), { target: { value: " https://lnkd.in/p/grXV-CRX " } });
     fireEvent.blur(link());
-    expect(screen.getByText(/Short lnkd.in links can't be checked/)).toBeTruthy();
+    expect(screen.getByText(SHORT_LINK_OK)).toBeTruthy();
+    fireEvent.click(certify());
+    fireEvent.click(submit());
+    expect(mutate).toHaveBeenCalledWith(
+      { evidenceUrl: "https://lnkd.in/p/grXV-CRX", certified: true },
+      expect.anything(),
+    );
   });
 
   it("sends the link as evidenceUrl with certified: true, and no note when there is none", () => {
