@@ -23,6 +23,7 @@ import { SectionLabel } from "../../components/DashboardParts";
 import PersonLink from "../../components/PersonLink";
 import PostCard, { CategoryChip, PriorityChip } from "../../components/PostCard";
 import { announcementLabel, commentedReposts, num, plainReposts, rate } from "../../util/dashboardFormat";
+import { AMPLIFY_RADIUS, amplifyRadiusSx } from "../../util/radius";
 
 function DayChart({ byDay }: { byDay: { day: number; reposts: number }[] }) {
   const max = Math.max(1, ...byDay.map((d) => d.reposts));
@@ -130,7 +131,7 @@ export default function CampaignDetailDialog({
       fullWidth
       scroll="paper"
       aria-label={`Post detail: ${sel.title}`}
-      slotProps={{ paper: { sx: dialogPaperSx } }}
+      slotProps={{ paper: { sx: { ...dialogPaperSx, ...amplifyRadiusSx } } }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2.5, pt: 2 }}>
         <Typography component="h2" sx={{ flexGrow: 1, fontSize: 17, fontWeight: 700 }}>
@@ -188,7 +189,7 @@ export default function CampaignDetailDialog({
           </Typography>
         )}
 
-        <Box sx={{ mt: 2, border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+        <Box sx={{ mt: 2, border: "1px solid", borderColor: "divider", borderRadius: AMPLIFY_RADIUS, p: 2 }}>
           <Numbers sel={sel} />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             Novera: {announcementLabel(sel.announcement)}

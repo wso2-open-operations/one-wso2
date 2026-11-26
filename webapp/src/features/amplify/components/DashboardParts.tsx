@@ -18,6 +18,7 @@ import { Box, Chip, Skeleton, Typography } from "@wso2/oxygen-ui";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { HttpError } from "@api/http";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /**
  * Loading, 403 and error states shared by every board. A 403 is an expected
@@ -92,7 +93,7 @@ export function StatCard({
     <Box
       component="section"
       aria-label={label}
-      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2, minWidth: 0 }}
+      sx={{ border: "1px solid", borderColor: "divider", borderRadius: AMPLIFY_RADIUS, p: 2, minWidth: 0 }}
     >
       {action ? (
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
@@ -115,7 +116,7 @@ export function StatCard({
 /** A bordered block for a table or chart. */
 export function Block({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <Box component="section" aria-label={title} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2, minWidth: 0 }}>
+    <Box component="section" aria-label={title} sx={{ border: "1px solid", borderColor: "divider", borderRadius: AMPLIFY_RADIUS, p: 2, minWidth: 0 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
         <Box sx={{ flexGrow: 1 }}>
           <SectionLabel>{title}</SectionLabel>

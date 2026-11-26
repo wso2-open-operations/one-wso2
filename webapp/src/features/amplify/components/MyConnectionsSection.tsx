@@ -21,7 +21,9 @@ import { LinkedinIcon } from "@components/icons/LinkedinIcon";
 import { useAmplifyMe } from "../api/useAmplifyData";
 import type { LinkedInStatus } from "../api/amplifyTypes";
 import LinkLinkedInDialog from "./LinkLinkedInDialog";
+import { ReachConnectionRow } from "./ReachPanels";
 import RemoveLinkedInDialog from "./RemoveLinkedInDialog";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 const SETTINGS_PATH = "/settings";
 
@@ -37,7 +39,8 @@ const dateOnly = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateStrin
 
 /**
  * Settings > My Connections: the employee's LinkedIn link for Amplify. Link me opens the consent pop-up
- * (returning here after LinkedIn), Remove connection confirms and deletes the link.
+ * (returning here after LinkedIn), Remove connection confirms and deletes the link. Below it, Reach: whether Amplify
+ * reads the impressions on the employee's reposts (optional).
  */
 export default function MyConnectionsSection() {
   const me = useAmplifyMe();
@@ -63,7 +66,7 @@ export default function MyConnectionsSection() {
           p: 2,
           border: 1,
           borderColor: "divider",
-          borderRadius: 1,
+          borderRadius: AMPLIFY_RADIUS,
         }}
       >
         <Box sx={{ color: "primary.main", display: "flex" }}>
@@ -95,6 +98,7 @@ export default function MyConnectionsSection() {
           Remove connection
         </Button>
       )}
+      <ReachConnectionRow />
 
       <LinkLinkedInDialog
         open={linking}

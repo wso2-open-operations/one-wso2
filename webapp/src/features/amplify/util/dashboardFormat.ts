@@ -20,6 +20,19 @@ export function num(n: number | null | undefined): string {
   return (n ?? 0).toLocaleString("en-US");
 }
 
+/** A large count in short form, as the reach tiles show it: 412k, 1.2M; under 10,000 in full (9,850). */
+export function compactNum(n: number | null | undefined): string {
+  const v = n ?? 0;
+  if (Math.abs(v) >= 1_000_000) return `${(Math.round(v / 100_000) / 10).toLocaleString("en-US")}M`;
+  if (Math.abs(v) >= 10_000) return `${Math.round(v / 1000).toLocaleString("en-US")}k`;
+  return num(v);
+}
+
+/** The note under reach: approximate, and measured only for the people who allowed it. */
+export function reachNote(consenting: number | null | undefined, when = "this month"): string {
+  return `Reach is approximate: it counts only employees who allowed it in My points & Coins (${num(consenting)} ${when}).`;
+}
+
 /** A 0..1 rate as a whole percent, e.g. 0.667 -> "67%". */
 export function rate(r: number | null | undefined): string {
   return `${Math.round((r ?? 0) * 100)}%`;
@@ -51,6 +64,20 @@ export function shortDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+/** An ISO timestamp as "Nov 20, 2026" in the reader's locale and timezone, or "" when it isn't a date. */
+export function fullDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** Up to two initials for an avatar, e.g. "Jane van Doe" -> "JD"; "?" for a blank name. */
+export function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "")).toUpperCase() || "?";
 }
 
 /** "Oct 2026" for the month an ISO date falls in (UTC). */

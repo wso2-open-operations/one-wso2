@@ -14,17 +14,74 @@
 // specific language governing permissions and limitations
 
 import { useState } from "react";
-import { Box, Typography } from "@wso2/oxygen-ui";
+import { Box, Link, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
 import { useSearchParams } from "react-router";
 import type { DashboardCampaigns } from "../../api/amplifyTypes";
 import { useDashboardCampaigns } from "../../api/useAmplifyDashboards";
 import type { PersonRef } from "../../api/usePersonLookup";
 import AmplifyShell from "../../components/AmplifyShell";
-import { Block, BoardState, Empty } from "../../components/DashboardParts";
+import { Block, BoardState, Empty, StatCard } from "../../components/DashboardParts";
 import RepostGrid from "../../components/RepostGrid";
-import { commentedReposts, plainReposts, updatedStamp } from "../../util/dashboardFormat";
+import { commentedReposts, compactNum, num, plainReposts, reachNote, updatedStamp } from "../../util/dashboardFormat";
 import CampaignDetailDialog from "./CampaignDetailDialog";
 import PersonDetailDialog from "./PersonDetailDialog";
+
+/** This month's reposts, reactions, comments and reach (design 08), when the API sends them. */
+export function MonthTiles({ data }: { data: DashboardCampaigns }) {
+  const m = data.monthTotals;
+  if (!m) return null;
+  return (
+    <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" } }}>
+      <StatCard label="Reposts" value={num(m.reposts)} detail="This month" />
+      <StatCard label="Reactions" value={num(m.reactions)} detail="On Choreo Labs posts, by employees" />
+      <StatCard label="Comments" value={num(m.comments)} detail="On Choreo Labs posts, by employees" />
+      <StatCard label="Reach" value={compactNum(m.reach.impressions)} detail="Impressions on employee reposts" />
+    </Box>
+  );
+}
+
+/**
+ * Reactions, comments and reach per post, beside its reposts (design 08). Reach is the impressions on the employees'
+ * reposts, approximate: it counts only people who allowed Reach. A post's name opens its popup.
+ */
+export function EngagementTable({ data, onSelect }: { data: DashboardCampaigns; onSelect: (campaignId: string) => void }) {
+  if (!data.campaigns.some((c) => c.reactions !== undefined || c.comments !== undefined || c.reach)) return null;
+  return (
+    <Block title="Reactions, comments and reach per post">
+      <Box sx={{ overflowX: "auto" }}>
+        <Table size="small" aria-label="Reactions, comments and reach per post">
+          <TableHead>
+            <TableRow>
+              <TableCell>Post</TableCell>
+              <TableCell align="right">Reposts</TableCell>
+              <TableCell align="right">Reactions</TableCell>
+              <TableCell align="right">Comments</TableCell>
+              <TableCell align="right">Reach</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {data.campaigns.map((c) => (
+              <TableRow key={c.campaignId}>
+                <TableCell sx={{ overflowWrap: "anywhere" }}>
+                  <Link component="button" type="button" onClick={() => onSelect(c.campaignId)} color="inherit" underline="hover" sx={{ textAlign: "left" }}>
+                    {c.title}
+                  </Link>
+                </TableCell>
+                <TableCell align="right">{num(c.reposts)}</TableCell>
+                <TableCell align="right">{num(c.reactions)}</TableCell>
+                <TableCell align="right">{num(c.comments)}</TableCell>
+                <TableCell align="right">{c.reach ? compactNum(c.reach.impressions) : "—"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+        {reachNote(data.monthTotals?.reachConsenting)}
+      </Typography>
+    </Block>
+  );
+}
 
 /** Post performance: reposts per post (a click opens the post's popup) and reposts by category. */
 export function PostPerformanceBoard({
@@ -55,6 +112,7 @@ export function PostPerformanceBoard({
       <Typography variant="caption" color="text.secondary">
         {updatedStamp(data.asOf)} · last {data.windowDays} days
       </Typography>
+      <MonthTiles data={data} />
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "flex-start" }}>
         <Box sx={{ flex: "1 1 520px", minWidth: 0 }}>
           <Block title="Reposts per post">
@@ -93,6 +151,7 @@ export function PostPerformanceBoard({
           </Block>
         </Box>
       </Box>
+      <EngagementTable data={data} onSelect={onSelect} />
       {detailOpen && sel && !person && (
         <CampaignDetailDialog
           sel={sel}

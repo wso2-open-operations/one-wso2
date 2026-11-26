@@ -19,6 +19,7 @@ import { Box, Chip, Link, Paper, Typography } from "@wso2/oxygen-ui";
 import type { Campaign } from "../api/amplifyTypes";
 import { useAmplifyConfig } from "../api/useAmplifyData";
 import { linkedInPostUrl } from "../util/linkedinPost";
+import { AMPLIFY_INNER_RADIUS, AMPLIFY_RADIUS } from "../util/radius";
 
 // Choreo Labs logo, drawn inline so there is nothing to fetch. White on the black card.
 function ChoreoLabsLogo() {
@@ -46,7 +47,7 @@ function ChoreoLabsLogo() {
 }
 
 // The post's own image, or the default when the URL is empty or fails to load.
-function PostImage({ url }: { url?: string | null }) {
+export function PostImage({ url }: { url?: string | null }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const useDefault = !url || failedUrl === url;
   const onError = () => {
@@ -72,7 +73,7 @@ function PostImage({ url }: { url?: string | null }) {
   );
 }
 
-function postDate(iso: string): string {
+export function postDate(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
@@ -93,7 +94,7 @@ export default function PostCard({
 }) {
   const { campaignLinkOrigins } = useAmplifyConfig();
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, height: "100%", display: "flex", flexDirection: "column", gap: 1 }}>
+    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: AMPLIFY_RADIUS, height: "100%", display: "flex", flexDirection: "column", gap: 1 }}>
       <Box sx={{ minWidth: 0 }}>
         <Link
           href={linkedInPostUrl(campaign.resourceUrn, campaign.resourceUrl, campaignLinkOrigins)}
@@ -110,7 +111,7 @@ export default function PostCard({
         </Typography>
       </Box>
 
-      <Box sx={{ aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", bgcolor: "common.black" }}>
+      <Box sx={{ aspectRatio: "16 / 9", borderRadius: AMPLIFY_INNER_RADIUS, overflow: "hidden", bgcolor: "common.black" }}>
         <PostImage url={campaign.imageUrl} />
       </Box>
 

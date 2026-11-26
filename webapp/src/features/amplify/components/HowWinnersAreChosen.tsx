@@ -15,6 +15,7 @@
 // under the License.
 
 import { alpha, Box, Typography } from "@wso2/oxygen-ui";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /** One rule tile: a big figure on the left, the rule in words on the right. */
 function RuleTile({ figure, lead, text, tone }: { figure: string; lead: string; text: string; tone: "primary" | "info" }) {
@@ -29,7 +30,7 @@ function RuleTile({ figure, lead, text, tone }: { figure: string; lead: string; 
         alignItems: "center",
         gap: 2,
         p: 2,
-        borderRadius: 2,
+        borderRadius: AMPLIFY_RADIUS,
         border: "1px solid",
         borderColor: alpha(theme.palette[tone].main, 0.35),
         bgcolor: alpha(theme.palette[tone].main, 0.1),

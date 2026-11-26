@@ -24,7 +24,7 @@ const me = (config: AmplifyAppConfig): AmplifyMe => ({
   grants: [],
   capabilities: [],
   linkedin: { status: "NOT_CONNECTED" },
-  config,
+  config: { ...config, nativeRepostDefault: false },
 });
 
 describe("amplifyConfigFrom", () => {

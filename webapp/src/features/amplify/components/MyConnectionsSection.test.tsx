@@ -19,6 +19,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 let me: { isPending: boolean; isError: boolean; data?: unknown } = { isPending: false, isError: false };
 vi.mock("../api/useAmplifyData", () => ({ useAmplifyMe: () => me }));
+vi.mock("./ReachPanels", () => ({ ReachCard: () => <div>reach card</div>, ReachConnectionRow: () => <div>reach row</div> }));
 vi.mock("./LinkLinkedInDialog", () => ({
   default: ({ open, returnTo }: { open: boolean; returnTo: string }) =>
     open ? <div>link dialog returns to {returnTo}</div> : null,

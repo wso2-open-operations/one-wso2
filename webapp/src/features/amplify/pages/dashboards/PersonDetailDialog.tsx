@@ -24,6 +24,7 @@ import { usePersonLookup, type PersonRef } from "../../api/usePersonLookup";
 import { Empty, PriorityPill, SectionLabel } from "../../components/DashboardParts";
 import RepostGrid from "../../components/RepostGrid";
 import { num, windowText } from "../../util/dashboardFormat";
+import { AMPLIFY_RADIUS, amplifyRadiusSx } from "../../util/radius";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -44,7 +45,7 @@ export default function PersonDetailDialog({ person, onClose }: { person: Person
   const who = lookup({ ...person, displayName: q.data?.displayName ?? person.displayName, email: q.data?.email ?? person.email });
   const posts = q.data?.campaigns ?? [];
   return (
-    <Dialog open onClose={onClose} maxWidth="md" fullWidth scroll="paper" aria-label={`${who.name} Amplify Details`} slotProps={{ paper: { sx: dialogPaperSx } }}>
+    <Dialog open onClose={onClose} maxWidth="md" fullWidth scroll="paper" aria-label={`${who.name} Amplify Details`} slotProps={{ paper: { sx: { ...dialogPaperSx, ...amplifyRadiusSx } } }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, px: 2.5, pt: 2.5 }}>
         <Avatar src={who.photoUrl ?? undefined} alt="" sx={{ width: 64, height: 64, fontSize: 22 }}>
           {initials(who.name)}
@@ -78,7 +79,7 @@ export default function PersonDetailDialog({ person, onClose }: { person: Person
         ) : (
           q.data && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-              <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+              <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: AMPLIFY_RADIUS, p: 2 }}>
                 <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 2 }}>
                   {(
                     [
