@@ -80,12 +80,14 @@ describe("useMyShares", () => {
     return { qc, wrapper };
   }
 
-  it("refetches the leaderboard and the top board when a queued share is published", async () => {
+  it("refetches the boards and the caller's points when a queued share is published", async () => {
     const { qc, wrapper } = setup();
     const loadBoard = vi.fn(async () => ({}));
     const loadTop = vi.fn(async () => ({}));
+    const loadMine = vi.fn(async () => ({}));
     await qc.fetchQuery({ queryKey: ["amplify", "leaderboard", "sub-1"], queryFn: loadBoard });
     await qc.fetchQuery({ queryKey: ["amplify", "leaderboard-top", "sub-1"], queryFn: loadTop });
+    await qc.fetchQuery({ queryKey: ["amplify", "my-points", "sub-1", "ALL"], queryFn: loadMine });
     vi.mocked(authedGet)
       .mockResolvedValueOnce({ items: [share("s1", "QUEUED")] })
       .mockResolvedValueOnce({ items: [share("s1", "PUBLISHED")] });
@@ -100,6 +102,7 @@ describe("useMyShares", () => {
 
     await waitFor(() => expect(loadBoard).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(loadTop).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(loadMine).toHaveBeenCalledTimes(2));
   });
 
   it("checks again every 30 s while a share is queued, and stops once it is published", async () => {

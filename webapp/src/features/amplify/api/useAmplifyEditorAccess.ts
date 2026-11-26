@@ -15,7 +15,13 @@
 // under the License.
 
 import { describeError } from "@api/errors";
-import { AMPLIFY_DASHBOARD_ITEM_IDS, AMPLIFY_EDITOR_ITEM_IDS } from "@constants/perspectives";
+import {
+  AMPLIFY_ADMIN_ITEM_ID,
+  AMPLIFY_DASHBOARD_ITEM_IDS,
+  AMPLIFY_EDITOR_ITEM_IDS,
+  AMPLIFY_POINTS_ITEM_ID,
+  AMPLIFY_REVIEW_ITEM_ID,
+} from "@constants/perspectives";
 import type { VisibilityAnswer } from "@components/side-rail/visibilityFold";
 import type { AmplifyGrant, AmplifyMe } from "./amplifyTypes";
 import { isAmplifyBackendConfigured, useAmplifyMe } from "./useAmplifyData";
@@ -36,9 +42,9 @@ export function hasAmplifyGrant(me: AmplifyMe | undefined, grant: AmplifyGrant):
 }
 
 /**
- * Whether amplify-api grants the caller `grant` (GET /me `grants`, ADR-038).
- * Which Asgardeo groups hold a grant is amplify-api configuration, so the UI
- * names no group: the same pattern as the Marketing Ops gate.
+ * Whether amplify-api grants the caller any of `grants` (GET /me `grants`,
+ * ADR-038). Which Asgardeo groups hold a grant is amplify-api configuration, so
+ * the UI names no group: the same pattern as the Marketing Ops gate.
  *
  * Presentation only. amplify-api checks the grant again on every call and 403s
  * anyone without it. `enabled` keeps it quiet off the Amplify perspective, and
@@ -46,19 +52,24 @@ export function hasAmplifyGrant(me: AmplifyMe | undefined, grant: AmplifyGrant):
  * access" rather than "resolving", so it never holds a landing it has nothing
  * to say about. Fails closed while /me is in flight.
  */
-export function useAmplifyGrant(grant: AmplifyGrant, enabled = true): AmplifyAccess {
+export function useAmplifyAnyGrant(grants: readonly AmplifyGrant[], enabled = true): AmplifyAccess {
   const me = useAmplifyMe(enabled);
   const retry = () => void me.refetch();
   // No amplify-api URL: /me never runs, so its query would stay pending forever.
   if (!enabled || !isAmplifyBackendConfigured()) return { hasAccess: false, isResolving: false, retry };
   return {
-    hasAccess: hasAmplifyGrant(me.data, grant),
+    hasAccess: grants.some((grant) => hasAmplifyGrant(me.data, grant)),
     // `isPending`, so the window before the Asgardeo sub resolves counts as resolving too.
     isResolving: me.isPending,
     // describeError never surfaces the raw response body — see @api/errors.
     error: me.isError ? describeError(me.error) : undefined,
     retry,
   };
+}
+
+/** Whether amplify-api grants the caller `grant`; `useAmplifyAnyGrant` with one grant. */
+export function useAmplifyGrant(grant: AmplifyGrant, enabled = true): AmplifyAccess {
+  return useAmplifyAnyGrant([grant], enabled);
 }
 
 /** New Post and Current Posts: `CAN_CAMPAIGN`, the grant amplify-api checks on POST/PATCH/DELETE /campaigns. */
@@ -69,6 +80,34 @@ export function useAmplifyEditorAccess(enabled = true): AmplifyEditorAccess {
 /** The Dashboarding boards and the person popup: `CAN_DASHBOARD`, the grant on GET /dashboards/*. */
 export function useAmplifyDashboardAccess(enabled = true): AmplifyDashboardAccess {
   return useAmplifyGrant("CAN_DASHBOARD", enabled);
+}
+
+/** Review own posts: `CAN_REVIEW_SHARES`, the grant on GET /po/external-shares and every decision. */
+export function useAmplifyReviewAccess(enabled = true): AmplifyAccess {
+  return useAmplifyGrant("CAN_REVIEW_SHARES", enabled);
+}
+
+/** Points & corrections: `CAN_ADJUST_POINTS`, the grant on GET /po/people and POST /po/points/*. */
+export function useAmplifyPointsAccess(enabled = true): AmplifyAccess {
+  return useAmplifyGrant("CAN_ADJUST_POINTS", enabled);
+}
+
+/** The grants that open Amplify Admin: the PO team's (`CAN_POINT_RULES`) and the admins' (`CAN_ADMIN`). */
+export const AMPLIFY_ADMIN_GRANTS: readonly AmplifyGrant[] = ["CAN_POINT_RULES", "CAN_ADMIN"];
+
+/**
+ * Amplify Admin: `CAN_POINT_RULES` or `CAN_ADMIN`, the grants its sections need. Each section checks its own grant as
+ * well.
+ */
+export function useAmplifyAdminAccess(enabled = true): AmplifyAccess {
+  return useAmplifyAnyGrant(AMPLIFY_ADMIN_GRANTS, enabled);
+}
+
+/** The PO team's screens, one gate each. */
+export interface AmplifyPoGates {
+  review: AmplifyAccess;
+  points: AmplifyAccess;
+  admin: AmplifyAccess;
 }
 
 /**
@@ -84,17 +123,28 @@ export function amplifyEditorVisibility(gate: AmplifyEditorAccess): VisibilityAn
   };
 }
 
+// Allowed only once answered: fails closed while /me is in flight.
+const allowed = (gate: AmplifyAccess): boolean => gate.hasAccess && !gate.isResolving;
+
 /**
  * The left-menu answer for Amplify's grant-gated rows: New Post and Current
- * Posts for `CAN_CAMPAIGN`, the Dashboarding boards for `CAN_DASHBOARD`.
+ * Posts for `CAN_CAMPAIGN`, the Dashboarding boards for `CAN_DASHBOARD`, and
+ * the PO team's screens for their own grants.
  */
-export function amplifyVisibility(editor: AmplifyEditorAccess, dashboards: AmplifyDashboardAccess): VisibilityAnswer {
-  const resolving = editor.isResolving || dashboards.isResolving;
+export function amplifyVisibility(
+  editor: AmplifyEditorAccess,
+  dashboards: AmplifyDashboardAccess,
+  po: AmplifyPoGates,
+): VisibilityAnswer {
+  const gates = [editor, dashboards, po.review, po.points, po.admin];
   return {
     canSee: (id) =>
-      (AMPLIFY_EDITOR_ITEM_IDS.has(id) && editor.hasAccess && !editor.isResolving) ||
-      (AMPLIFY_DASHBOARD_ITEM_IDS.has(id) && dashboards.hasAccess && !dashboards.isResolving),
-    resolving,
+      (AMPLIFY_EDITOR_ITEM_IDS.has(id) && allowed(editor)) ||
+      (AMPLIFY_DASHBOARD_ITEM_IDS.has(id) && allowed(dashboards)) ||
+      (id === AMPLIFY_REVIEW_ITEM_ID && allowed(po.review)) ||
+      (id === AMPLIFY_POINTS_ITEM_ID && allowed(po.points)) ||
+      (id === AMPLIFY_ADMIN_ITEM_ID && allowed(po.admin)),
+    resolving: gates.some((g) => g.isResolving),
     retry: editor.retry,
   };
 }
