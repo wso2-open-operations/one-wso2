@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { HttpError } from "@api/http";
-import { describeAmplifyError } from "./amplifyError";
+import { describeAmplifyError, SELF_CORRECTION_MESSAGE } from "./amplifyError";
 
 const problem = (status: number, code: string) =>
   new HttpError("https://api.test/amplify/campaigns/c-1/shares", status, JSON.stringify({ status, code }));
@@ -31,5 +31,29 @@ describe("describeAmplifyError", () => {
   it("falls back to a generic line for a code it has no copy for", () => {
     expect(describeAmplifyError(problem(422, "SOMETHING_NEW"))).toBe("Something went wrong, please try again.");
     expect(describeAmplifyError(new Error("network"))).toBe("Something went wrong, please try again.");
+  });
+});
+
+describe("own posts and corrections", () => {
+  it("says a post was already submitted, and that today's limit is reached", () => {
+    expect(describeAmplifyError(problem(409, "EVIDENCE_ALREADY_CLAIMED"))).toBe("This post has already been submitted.");
+    expect(describeAmplifyError(problem(429, "DAILY_LIMIT_REACHED"))).toBe(
+      "You've reached today's limit for submitting your own posts. Try again tomorrow.",
+    );
+  });
+
+  it("tells a reviewer they can't decide on their own post", () => {
+    expect(describeAmplifyError(problem(403, "SELF_REVIEW"))).toBe(
+      "You can't decide on your own post; another marketing team member will.",
+    );
+  });
+
+  it("lets a screen give a code its own meaning", () => {
+    const err = problem(403, "SELF_REVIEW");
+    expect(describeAmplifyError(err, { SELF_REVIEW: SELF_CORRECTION_MESSAGE })).toBe("You can't correct your own points.");
+    // An override for another code leaves the shared message alone.
+    expect(describeAmplifyError(problem(409, "ALREADY_REVERSED"), { SELF_REVIEW: SELF_CORRECTION_MESSAGE })).toBe(
+      "This activity has already been reversed.",
+    );
   });
 });

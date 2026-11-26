@@ -15,7 +15,13 @@
 // under the License.
 
 import { describe, expect, it } from "vitest";
-import { AMPLIFY_CURRENT_POSTS_ITEM_ID, AMPLIFY_NEW_POST_ITEM_ID } from "@constants/perspectives";
+import {
+  AMPLIFY_ADMIN_ITEM_ID,
+  AMPLIFY_CURRENT_POSTS_ITEM_ID,
+  AMPLIFY_NEW_POST_ITEM_ID,
+  AMPLIFY_POINTS_ITEM_ID,
+  AMPLIFY_REVIEW_ITEM_ID,
+} from "@constants/perspectives";
 import { AMPLIFY_DASHBOARD_ITEM_IDS } from "@constants/perspectives";
 import type { AmplifyMe } from "./amplifyTypes";
 import { amplifyEditorVisibility, amplifyVisibility, hasAmplifyGrant } from "./useAmplifyEditorAccess";
@@ -72,27 +78,64 @@ describe("amplifyVisibility", () => {
   const yes = { hasAccess: true, isResolving: false, retry };
   const no = { hasAccess: false, isResolving: false, retry };
   const resolving = { hasAccess: true, isResolving: true, retry };
+  const noPo = { review: no, points: no, admin: no };
 
   it("shows the Dashboarding boards to a dashboard role and not New Post to an SLT", () => {
-    const v = amplifyVisibility(no, yes);
+    const v = amplifyVisibility(no, yes, noPo);
     for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(true);
     expect(v.canSee(AMPLIFY_NEW_POST_ITEM_ID)).toBe(false);
   });
 
   it("hides every board from a plain employee", () => {
-    const v = amplifyVisibility(no, no);
+    const v = amplifyVisibility(no, no, noPo);
     for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(false);
   });
 
   it("keeps the editor rows on their own gate", () => {
-    const v = amplifyVisibility(yes, no);
+    const v = amplifyVisibility(yes, no, noPo);
     expect(v.canSee(AMPLIFY_NEW_POST_ITEM_ID)).toBe(true);
     for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(false);
   });
 
   it("fails closed while /me is loading", () => {
-    const v = amplifyVisibility(resolving, resolving);
+    const v = amplifyVisibility(resolving, resolving, noPo);
     for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(false);
     expect(v.resolving).toBe(true);
+  });
+
+  it("shows each PO screen only to its own grant", () => {
+    const reviewer = amplifyVisibility(no, no, { review: yes, points: no, admin: no });
+    expect(reviewer.canSee(AMPLIFY_REVIEW_ITEM_ID)).toBe(true);
+    expect(reviewer.canSee(AMPLIFY_POINTS_ITEM_ID)).toBe(false);
+    expect(reviewer.canSee(AMPLIFY_ADMIN_ITEM_ID)).toBe(false);
+
+    const corrector = amplifyVisibility(no, no, { review: no, points: yes, admin: no });
+    expect(corrector.canSee(AMPLIFY_POINTS_ITEM_ID)).toBe(true);
+    expect(corrector.canSee(AMPLIFY_REVIEW_ITEM_ID)).toBe(false);
+
+    const admin = amplifyVisibility(no, no, { review: no, points: no, admin: yes });
+    expect(admin.canSee(AMPLIFY_ADMIN_ITEM_ID)).toBe(true);
+    expect(admin.canSee(AMPLIFY_REVIEW_ITEM_ID)).toBe(false);
+  });
+
+  it("hides every PO screen from a plain employee", () => {
+    const v = amplifyVisibility(no, no, noPo);
+    for (const id of [AMPLIFY_REVIEW_ITEM_ID, AMPLIFY_POINTS_ITEM_ID, AMPLIFY_ADMIN_ITEM_ID]) {
+      expect(v.canSee(id)).toBe(false);
+    }
+  });
+
+  it("holds the PO screens back, and reports resolving, while /me loads", () => {
+    const v = amplifyVisibility(no, no, { review: resolving, points: resolving, admin: resolving });
+    expect(v.canSee(AMPLIFY_REVIEW_ITEM_ID)).toBe(false);
+    expect(v.canSee(AMPLIFY_POINTS_ITEM_ID)).toBe(false);
+    expect(v.canSee(AMPLIFY_ADMIN_ITEM_ID)).toBe(false);
+    expect(v.resolving).toBe(true);
+  });
+
+  it("doesn't let a PO grant open the editor or dashboard rows", () => {
+    const v = amplifyVisibility(no, no, { review: yes, points: yes, admin: yes });
+    expect(v.canSee(AMPLIFY_NEW_POST_ITEM_ID)).toBe(false);
+    for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(false);
   });
 });

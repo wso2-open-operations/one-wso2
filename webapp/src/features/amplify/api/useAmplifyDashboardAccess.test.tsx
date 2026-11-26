@@ -17,7 +17,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { AmplifyGrant } from "./amplifyTypes";
-import { useAmplifyDashboardAccess, useAmplifyEditorAccess } from "./useAmplifyEditorAccess";
+import {
+  useAmplifyAdminAccess,
+  useAmplifyAnyGrant,
+  useAmplifyDashboardAccess,
+  useAmplifyEditorAccess,
+  useAmplifyPointsAccess,
+  useAmplifyReviewAccess,
+} from "./useAmplifyEditorAccess";
 
 const meState = vi.hoisted(() => ({
   configured: true,
@@ -95,5 +102,49 @@ describe("useAmplifyEditorAccess", () => {
     expect(renderHook(() => useAmplifyEditorAccess()).result.current.hasAccess).toBe(true);
     setGrants(["EMPLOYEE", "CAN_DASHBOARD", "CAN_ADMIN"]);
     expect(renderHook(() => useAmplifyEditorAccess()).result.current.hasAccess).toBe(false);
+  });
+});
+
+describe("the PO screens' access", () => {
+  it.each([
+    ["Review own posts", "CAN_REVIEW_SHARES", useAmplifyReviewAccess],
+    ["Points & corrections", "CAN_ADJUST_POINTS", useAmplifyPointsAccess],
+    ["Amplify Admin", "CAN_POINT_RULES", useAmplifyAdminAccess],
+  ] as const)("%s follows %s alone", (_screen, grant, useAccess) => {
+    setGrants(["EMPLOYEE", grant]);
+    expect(renderHook(() => useAccess()).result.current.hasAccess).toBe(true);
+    setGrants(["EMPLOYEE", "CAN_DASHBOARD", "CAN_CAMPAIGN"]);
+    expect(renderHook(() => useAccess()).result.current.hasAccess).toBe(false);
+  });
+
+  it("opens Amplify Admin to CAN_ADMIN as well, for the Coins and Own posts sections", () => {
+    setGrants(["EMPLOYEE", "CAN_ADMIN"]);
+    expect(renderHook(() => useAmplifyAdminAccess()).result.current.hasAccess).toBe(true);
+    setGrants(["EMPLOYEE", "CAN_REVIEW_SHARES", "CAN_ADJUST_POINTS", "CAN_DASHBOARD"]);
+    expect(renderHook(() => useAmplifyAdminAccess()).result.current.hasAccess).toBe(false);
+  });
+
+  it("answers no access, not resolving, off the Amplify perspective", () => {
+    setGrants(["EMPLOYEE", "CAN_REVIEW_SHARES", "CAN_ADJUST_POINTS", "CAN_POINT_RULES"]);
+    for (const useAccess of [useAmplifyReviewAccess, useAmplifyPointsAccess, useAmplifyAdminAccess]) {
+      expect(renderHook(() => useAccess(false)).result.current).toMatchObject({ hasAccess: false, isResolving: false });
+    }
+  });
+});
+
+describe("useAmplifyAnyGrant", () => {
+  it("lets in a caller with any one of the grants", () => {
+    setGrants(["EMPLOYEE", "CAN_ADMIN"]);
+    expect(renderHook(() => useAmplifyAnyGrant(["CAN_POINT_RULES", "CAN_ADMIN"])).result.current.hasAccess).toBe(true);
+    expect(renderHook(() => useAmplifyAnyGrant(["CAN_POINT_RULES"])).result.current.hasAccess).toBe(false);
+    expect(renderHook(() => useAmplifyAnyGrant([])).result.current.hasAccess).toBe(false);
+  });
+
+  it("is resolving, with no access, until /me answers", () => {
+    setGrants(undefined, true);
+    expect(renderHook(() => useAmplifyAnyGrant(["CAN_ADMIN"])).result.current).toMatchObject({
+      hasAccess: false,
+      isResolving: true,
+    });
   });
 });

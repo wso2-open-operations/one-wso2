@@ -66,6 +66,8 @@ import {
   ShoppingCartIcon,
   PackageIcon,
   BellIcon,
+  CoinsIcon,
+  SettingsIcon,
   type LucideIcon,
 } from "@wso2/oxygen-ui-icons-react";
 import type { ComponentType } from "react";
@@ -547,6 +549,10 @@ const ME_SECTIONS: PerspectiveSection[] = [
 // and AmplifyEditorRoute. Everyone else neither sees the rows nor opens the
 // routes.
 export const AMPLIFY_CELEBRATE_PATH = "/amplify/celebrate";
+// My points & Coins: every employee's own points, Coins and activity (open
+// like Celebrate; Points & corrections at /amplify/points is the PO team's).
+export const AMPLIFY_MY_POINTS_PATH = "/amplify/my-points";
+export const AMPLIFY_MY_POINTS_ITEM_ID = "amplify-my-points";
 export const AMPLIFY_NEW_POST_PATH = "/amplify/new-post";
 export const AMPLIFY_CURRENT_POSTS_PATH = "/amplify/current-posts";
 export const AMPLIFY_NEW_POST_ITEM_ID = "amplify-new-post";
@@ -577,12 +583,27 @@ const AMPLIFY_DASHBOARD_SECTIONS: PerspectiveSection[] = [
 ];
 export const AMPLIFY_DASHBOARD_ITEM_IDS: ReadonlySet<string> = new Set(AMPLIFY_DASHBOARD_SECTIONS.map((s) => s.id));
 
+// The PO team's screens, each behind its own amplify-api grant (GET /me) — see
+// useAmplifyReviewAccess, useAmplifyPointsAccess, useAmplifyAdminAccess and
+// AmplifyGrantRoute. Review own posts needs CAN_REVIEW_SHARES, Points &
+// corrections CAN_ADJUST_POINTS, and Amplify Admin CAN_POINT_RULES or
+// CAN_ADMIN (each of its sections checks its own).
+export const AMPLIFY_REVIEW_PATH = "/amplify/review";
+export const AMPLIFY_POINTS_PATH = "/amplify/points";
+export const AMPLIFY_ADMIN_PATH = "/amplify/admin";
+export const AMPLIFY_REVIEW_ITEM_ID = "amplify-review";
+export const AMPLIFY_POINTS_ITEM_ID = "amplify-points";
+export const AMPLIFY_ADMIN_ITEM_ID = "amplify-admin";
+
 // Celebrate and the editor rows stay flat, like Knowledge: the rail is always
 // open on Amplify's screens. Dashboarding is the one collapsible group.
 const AMPLIFY_SECTIONS: PerspectiveSection[] = [
   { id: "amplify-celebrate", label: "Celebrate", icon: TrophyIcon, path: AMPLIFY_CELEBRATE_PATH },
+  { id: AMPLIFY_MY_POINTS_ITEM_ID, label: "My points & Coins", icon: WalletIcon, path: AMPLIFY_MY_POINTS_PATH },
   { id: AMPLIFY_NEW_POST_ITEM_ID, label: "New Post", icon: CirclePlusIcon, path: AMPLIFY_NEW_POST_PATH },
   { id: AMPLIFY_CURRENT_POSTS_ITEM_ID, label: "Current Posts", icon: Volume2Icon, path: AMPLIFY_CURRENT_POSTS_PATH },
+  { id: AMPLIFY_REVIEW_ITEM_ID, label: "Review own posts", icon: ClipboardCheckIcon, path: AMPLIFY_REVIEW_PATH },
+  { id: AMPLIFY_POINTS_ITEM_ID, label: "Points & corrections", icon: CoinsIcon, path: AMPLIFY_POINTS_PATH },
   {
     id: AMPLIFY_DASHBOARDING_GROUP_ID,
     label: "Dashboarding",
@@ -590,6 +611,7 @@ const AMPLIFY_SECTIONS: PerspectiveSection[] = [
     alwaysGroup: true,
     children: AMPLIFY_DASHBOARD_SECTIONS,
   },
+  { id: AMPLIFY_ADMIN_ITEM_ID, label: "Amplify Admin", icon: SettingsIcon, path: AMPLIFY_ADMIN_PATH },
 ];
 
 // Swag Store's shop rows: flat leaves, open to every employee. Categories are

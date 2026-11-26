@@ -36,6 +36,9 @@ export interface ResolvedPerson {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** The name shown for someone neither the directory nor Amplify has a name for. */
+export const UNKNOWN_EMPLOYEE = "Unknown employee";
+
 /** True when a "name" is really an id, which Amplify stores when the sign-in never gave it a name. */
 export function looksLikeId(name: string | null | undefined): boolean {
   // A blank or whitespace-only "name" is as good as none.
@@ -46,7 +49,7 @@ export function looksLikeId(name: string | null | undefined): boolean {
 export function nameOrUnknown(directoryName: string | undefined, recorded: string | null | undefined): string {
   const fromDirectory = directoryName?.trim();
   if (fromDirectory) return fromDirectory;
-  return looksLikeId(recorded) ? "Unknown employee" : (recorded ?? "").trim();
+  return looksLikeId(recorded) ? UNKNOWN_EMPLOYEE : (recorded ?? "").trim();
 }
 
 function fullName(r: EmployeeDirectoryRecord): string {
@@ -72,7 +75,7 @@ export function usePersonLookup(): (p: PersonRef) => ResolvedPerson {
     const rec = (p.email ? index.byEmail.get(p.email.trim().toLowerCase()) : undefined) ?? (p.employeeId ? index.byId.get(p.employeeId) : undefined);
     const recorded = looksLikeId(p.displayName) ? "" : (p.displayName ?? "").trim();
     return {
-      name: (rec && fullName(rec)) || recorded || "Unknown employee",
+      name: (rec && fullName(rec)) || recorded || UNKNOWN_EMPLOYEE,
       photoUrl: rec?.employeeThumbnail ?? null,
       team: rec?.team || null,
       businessUnit: rec?.businessUnit || null,
