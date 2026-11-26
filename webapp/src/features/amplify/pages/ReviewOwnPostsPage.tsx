@@ -429,10 +429,10 @@ function ReviewCard({
           <Typography variant="body2" color="text.secondary">
             {confirming === "feature"
               ? share.status === "PENDING"
-                ? `It's approved and featured: ${name} gets +${awards.featured} points now.`
-                : `${name} gets +${awards.topUp} more points now.`
-              : `${name} gets +${awards.approved} points now.`}{" "}
-            Points can only be taken back by a PO correction.
+                ? `${name}'s post will be approved and featured.`
+                : `${name}'s post will be featured.`
+              : `${name}'s post will be approved.`}{" "}
+            Only a PO correction can undo this.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
@@ -446,9 +446,7 @@ function ReviewCard({
               void step();
             }}
           >
-            {confirming === "feature"
-              ? `Yes, feature · +${share.status === "PENDING" ? awards.featured : awards.topUp}`
-              : `Yes, approve · +${awards.approved}`}
+            {confirming === "feature" ? "Yes, feature" : "Yes, approve"}
           </Button>
           <Button variant="text" onClick={() => setConfirming(null)} disabled={working}>
             Cancel
