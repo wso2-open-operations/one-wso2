@@ -409,3 +409,244 @@ export interface GroupBoard {
   entries: GroupBoardEntry[];
   unassigned: { participants: number; points: number };
 }
+
+// ---- Own posts (amplify-api /external-shares, /me/external-shares, /po/external-shares) ------------------
+
+/** Where a claim is: waiting for the PO team, approved, featured (AMPLIFIED) or declined (REJECTED). */
+export type ExternalShareStatus = "PENDING" | "APPROVED" | "REJECTED" | "AMPLIFIED";
+
+/** POST /external-shares: an employee's own post, sent for review. */
+export interface ExternalShareClaim {
+  /** The post's public HTTPS link. */
+  evidenceUrl: string;
+  /** "I wrote this post myself, and it's about Choreo Labs." Must be true. */
+  certified: true;
+  /** A note for the reviewer, at most 500 characters. Sent only when there is one. */
+  note?: string;
+}
+
+/** One claim, as the employee and the PO team see it. */
+export interface ExternalShare {
+  id: string;
+  /** Amplify's id for the person who sent it, the same id as GET /me `employee.employeeId`. */
+  employeeId: string;
+  campaignId?: string | null;
+  action: "OWN_POST";
+  evidenceUrl: string;
+  evidenceHost: string;
+  evidenceProvider: "linkedin" | "medium" | "other";
+  status: ExternalShareStatus;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  /** Why it was declined; shown to the employee. */
+  decisionReason?: string | null;
+  amplifiedAt?: string | null;
+  /** The employee's note for the reviewer. Absent until the API sends it. */
+  note?: string | null;
+  /** Who sent it, as Amplify recorded them. On GET /po/external-shares items only; null when unknown. */
+  employeeName?: string | null;
+  /** Their work email. On GET /po/external-shares items only; null when unknown. */
+  employeeEmail?: string | null;
+  createdAt: string;
+  version: number;
+}
+
+/** GET /po/external-shares: one page of claims, oldest first. */
+export interface ExternalSharePage {
+  items: ExternalShare[];
+  page: number;
+  size: number;
+  total: number;
+}
+
+// ---- Points (amplify-api /po/point-rules, /po/points/*, /team/{employeeId}/history, /po/people) ----------
+
+/** What a points rule or a ledger row is for. */
+export type PointAction =
+  | "REPOST"
+  | "REPOST_COMMENTARY"
+  | "SHARE"
+  | "SHARE_COMMENTARY"
+  | "OWN_POST"
+  | "OWN_POST_AMPLIFIED"
+  | "REACTION"
+  | "COMMENT"
+  | "CHALLENGE_ENTRY"
+  | "CHALLENGE_WINNER";
+
+/** One version of a points rule. `inForce` marks the version used for new activity. */
+export interface PointRule {
+  id: string;
+  action: PointAction;
+  points: number;
+  effectiveFrom: string;
+  createdBy: string;
+  createdAt: string;
+  inForce: boolean;
+}
+
+/**
+ * Where a history row stands for Coins: HELD counts toward the next Coins, PAID became Coins, ACTION_REQUIRED waits
+ * for the PO team.
+ */
+export type LedgerSettlement = "HELD" | "PAID" | "ACTION_REQUIRED";
+
+/** One points ledger row. A reversal row cancels the row named in `reversesReference`. */
+export interface LedgerEntry {
+  /** History rows only: always LEDGER (a Coins conversion is a `CoinConversion`). */
+  kind?: "LEDGER";
+  reference: string;
+  employeeId: string;
+  campaignId?: string | null;
+  sourceType: "ENGAGEMENT" | "EXTERNAL_SHARE" | "ADJUSTMENT" | "REVERSAL";
+  action?: string | null;
+  /** Signed: a removal or a reversal is negative. */
+  points: number;
+  /** The PO team's reason, on adjustment and reversal rows. The person the row belongs to sees it too. */
+  reason?: string | null;
+  reversesReference?: string | null;
+  actorId?: string;
+  createdAt: string;
+  status?: "HELD" | "PAID" | null;
+  /** History rows only: the title of the post the points were earned on. */
+  campaignTitle?: string | null;
+  /** History rows only: the reference of the row that reversed this one; null when it stands. */
+  reversedBy?: string | null;
+  /** History rows only: where the row stands for Coins. */
+  settlement?: LedgerSettlement;
+  /** History rows only: when the conversion paid this row; null while it is held. */
+  paidAt?: string | null;
+  /** History rows only: the `CNV-` reference of the conversion that paid this row. */
+  coinReference?: string | null;
+}
+
+/** A Coins conversion's transfer: SENT, or IN_PROGRESS while the WSO2 Coins transfer isn't confirmed. */
+export type CoinConversionStatus = "SENT" | "IN_PROGRESS";
+
+/** One Coins conversion in GET /team/{employeeId}/history: `points` converted became `coins`. */
+export interface CoinConversion {
+  kind: "COIN_CONVERSION";
+  /** The conversion's `CNV-` reference; the ledger rows it paid carry it as `coinReference`. */
+  reference: string;
+  employeeId: string;
+  /** Points converted (whole blocks). */
+  points: number;
+  /** When the Coins were sent, else when the transfer was attempted. */
+  createdAt: string;
+  coins: number;
+  conversionStatus: CoinConversionStatus;
+  /** The WSO2 Coins transfer reference once SENT; null for teammates. */
+  transferReference?: string | null;
+}
+
+/** One row of GET /team/{employeeId}/history: a ledger row or a Coins conversion. */
+export type HistoryItem = LedgerEntry | CoinConversion;
+
+/** GET /team/{employeeId}/history: one page of a person's ledger rows, newest first. `total` counts rows. */
+export interface PointsHistory {
+  employeeId: string;
+  page: number;
+  size: number;
+  total: number;
+  /** The person's all-time points: every row, not only this page. */
+  totalPoints?: number;
+  /** Their points not yet paid out as Coins. */
+  heldPoints?: number;
+  items: HistoryItem[];
+}
+
+/** POST /po/points/adjustments. */
+export interface PointsAdjustment {
+  employeeId: string;
+  /** Signed, not zero, within ±10,000. */
+  points: number;
+  reason: string;
+}
+
+/** One match from GET /po/people: someone who has used Amplify. */
+export interface AmplifyPersonMatch {
+  employeeId: string;
+  displayName: string | null;
+  email: string;
+}
+
+// ---- Coins and settings (amplify-api /me/points, /point-values, /po/settings, /admin/settings) -------------
+
+/** How often points become Coins: on the 1st of each month, every Monday, or every day. */
+export type CoinSchedule = "MONTHLY" | "WEEKLY" | "DAILY";
+
+/** POST /me/coins/wallet, and GET /me/points `coins.wallet`: the caller's WSO2 Coins wallet as Amplify captured it. */
+export interface CoinWallet {
+  /** Masked: the first 6 and last 4 characters, e.g. `0x12ab…9f3c`. */
+  walletAddress: string;
+  capturedAt: string;
+}
+
+/** GET /me/points `coins`: the conversion rate and schedule, and the caller's progress toward the next Coins. */
+export interface CoinsStanding {
+  /** False while Coins aren't sent to wallets yet; points keep counting. */
+  walletsEnabled: boolean;
+  /** Points in one conversion block. */
+  blockPoints: number;
+  /** Coins one block becomes. */
+  blockCoins: number;
+  schedule: CoinSchedule;
+  /** Points not yet paid out as Coins. */
+  heldPoints: number;
+  /** What the last conversion carried over (a part block, or what a cap held back); counts toward the next block. */
+  carryPoints: number;
+  /** Points toward the next block (held plus carry), 0 to `blockPoints - 1`. */
+  pointsTowardNext: number;
+  /** Coins the conversion has sent to the caller. */
+  coinsReceived: number;
+  /** The captured wallet (masked); null until POST /me/coins/wallet has found one. */
+  wallet: CoinWallet | null;
+}
+
+/** GET /me/points: the caller's standing for one period, and their Coins. */
+export interface MyPoints {
+  /** The period asked for: `ALL`, `YYYY-MM` or `YYYY-Qn`. */
+  period: string;
+  standing: PersonalStanding;
+  coins: CoinsStanding;
+  monthly: { month: string; points: number; actions: number }[];
+}
+
+/** GET /point-values `values`: the points each action earns today, by action. Actions without a rule are absent. */
+export type PointValues = Partial<Record<PointAction, number>>;
+
+/** One setting as GET /po/settings and GET /admin/settings list it. */
+export interface AmplifySetting {
+  key: string;
+  /** A JSON number, boolean or string. */
+  value: unknown;
+  /** Sent back with a change; a stale one is refused with 409 VERSION_CONFLICT. */
+  version: number;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/** GET and PUT /po/settings and /admin/settings. */
+export interface SettingList {
+  settings: AmplifySetting[];
+  /** Only on a PUT that changed a schedule setting. */
+  schedulerSync?: "SYNCED" | "PENDING" | "NOT_CONFIGURED";
+  /** `/admin/settings` only: whether the WSO2 Coins service is set up (shown beside Send Coins to wallets). */
+  coins?: CoinsServiceStatus;
+}
+
+/** A dependency's circuit breaker; NOT_CONFIGURED = no URL or client in this deployment. */
+export type BreakerState = "CLOSED" | "HALF_OPEN" | "OPEN" | "NOT_CONFIGURED";
+
+/** GET /admin/settings `coins`: whether the WSO2 Coins service is configured, and its breaker. */
+export interface CoinsServiceStatus {
+  connected: boolean;
+  breaker: BreakerState;
+}
+
+/** One change in PUT /po/settings or /admin/settings: the new value and the version it was read at. */
+export interface SettingChange {
+  key: string;
+  value: number | boolean | string;
+  version: number;
+}

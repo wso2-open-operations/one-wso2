@@ -55,8 +55,11 @@ import {
 } from "@features/engineering/api/engineeringAdminVisibility";
 import {
   amplifyVisibility,
+  useAmplifyAdminAccess,
   useAmplifyDashboardAccess,
   useAmplifyEditorAccess,
+  useAmplifyPointsAccess,
+  useAmplifyReviewAccess,
 } from "@features/amplify/api/useAmplifyEditorAccess";
 import { isSriLankaWorkLocation } from "@utils/locationGate";
 import { firstVisibleLeaf as firstVisibleLeafOf, visibleLeavesOf } from "./railActive";
@@ -296,6 +299,13 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   const amplifyEditorGate = useAmplifyEditorAccess(active.key === "amplify");
   // Dashboarding → the five boards need the CAN_DASHBOARD grant.
   const amplifyDashboardGate = useAmplifyDashboardAccess(active.key === "amplify");
+  // The PO team's screens: Review own posts, Points & corrections and Amplify
+  // Admin, each on its own grant. The same /me answer, so no extra request.
+  const amplifyPoGates = {
+    review: useAmplifyReviewAccess(active.key === "amplify"),
+    points: useAmplifyPointsAccess(active.key === "amplify"),
+    admin: useAmplifyAdminAccess(active.key === "amplify"),
+  };
 
   // Both services are a Colombo-office perk, so both screens are Sri-Lanka-only
   // — see isSriLankaWorkLocation. They now sit in different perspectives (self
@@ -372,7 +382,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
           resolving: engineeringAdminGate.isResolving,
         });
       case "amplify":
-        return amplifyVisibility(amplifyEditorGate, amplifyDashboardGate);
+        return amplifyVisibility(amplifyEditorGate, amplifyDashboardGate, amplifyPoGates);
       default: {
         const neverName: never = name;
         return neverName;

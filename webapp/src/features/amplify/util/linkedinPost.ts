@@ -73,7 +73,7 @@ export function postUrnFromUrl(raw: string, origins: readonly string[] = DEFAULT
   if (bare) return `urn:li:${bare[1]}:${bare[2]}`;
   // Anything else is a link (https:, http:, javascript:, a protocol-relative `//host/...`, a bare `host/...`) and
   // must pass the origin check before a URN is read from it.
-  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : value.startsWith("//") ? `https:${value}` : `https://${value}`;
+  const candidate = withScheme(value);
   if (!isAllowedLink(candidate, origins)) return null;
   // Read only its path: LinkedIn's own redirects append `?highlightedUpdateUrn=urn:li:activity:…`, a different id
   // from the one in the path, and the path is the post that was linked.
@@ -89,6 +89,25 @@ export function postUrnFromUrl(raw: string, origins: readonly string[] = DEFAULT
   const slug = POST_SLUG.exec(decoded);
   if (slug && /\/posts\//i.test(decoded)) return `urn:li:${slug[1]}:${slug[2]}`;
   return null;
+}
+
+// The value as a link: as typed when it has a scheme, otherwise with `https:` (or `https://`) in front.
+function withScheme(value: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
+  return value.startsWith("//") ? `https:${value}` : `https://${value}`;
+}
+
+/**
+ * The link to send as an own post's `evidenceUrl`, or null when `raw` isn't a LinkedIn post link.
+ *
+ * Accepts what `postUrnFromUrl` accepts on LinkedIn's own origins. A link is sent as typed (trimmed), with `https://`
+ * added when it has no scheme; a bare URN becomes its feed link, because amplify-api takes only HTTPS URLs.
+ */
+export function ownPostEvidenceUrl(raw: string): string | null {
+  const value = raw.trim();
+  const urn = postUrnFromUrl(value);
+  if (!urn) return null;
+  return BARE_URN.test(decodeOrSame(value)) ? postPermalink(urn) : withScheme(value);
 }
 
 // A stray % (not a valid escape) is read as typed.
