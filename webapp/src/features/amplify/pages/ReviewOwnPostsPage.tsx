@@ -16,8 +16,22 @@
 
 import { useState } from "react";
 import { Link as RouterLink, Navigate, Outlet, useLocation } from "react-router";
-import { Avatar, Box, Button, Chip, Paper, Skeleton, TablePagination, Typography, alpha } from "@wso2/oxygen-ui";
+import {
+  Avatar,
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  Paper,
+  Skeleton,
+  TablePagination,
+  Typography,
+  alpha,
+} from "@wso2/oxygen-ui";
 import { CheckIcon, ExternalLinkIcon } from "@wso2/oxygen-ui-icons-react";
+import { dialogPaperSx } from "@components/confirmation-dialog/dialogPaperSx";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { AMPLIFY_REVIEW_PATH } from "@constants/perspectives";
@@ -32,6 +46,7 @@ import {
 import { useApproveExternalShare, useFeatureExternalShare } from "../api/useAmplifyMutations";
 import { UNKNOWN_EMPLOYEE, usePersonLookup, type ResolvedPerson } from "../api/usePersonLookup";
 import AmplifyShell from "../components/AmplifyShell";
+import { ClosableDialogTitle } from "../components/ShareDialog";
 import DeclineOwnPostForm from "../components/DeclineOwnPostForm";
 import { describeAmplifyError } from "../util/amplifyError";
 import { fullDate, initialsOf } from "../util/dashboardFormat";
@@ -370,7 +385,7 @@ function ReviewCard({
         </Typography>
       )}
 
-      {open && !declining && !confirming && (
+      {open && !declining && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mt: 2 }}>
           {share.status === "PENDING" && (
             <Button variant="contained" onClick={() => setConfirming("approve")} disabled={working || isOwn}>
@@ -399,42 +414,47 @@ function ReviewCard({
         </Box>
       )}
 
-      {confirming && (
-        <Box
-          role="group"
-          aria-label={confirming === "approve" ? "Confirm approval" : "Confirm feature"}
-          sx={{ mt: 2, p: 2, borderRadius: 2, border: "1px solid", borderColor: "divider", bgcolor: "action.hover" }}
-        >
-          <Typography sx={{ fontWeight: 700 }}>
-            {confirming === "approve" ? "Approve this post?" : "Feature this post?"}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {confirming === "approve"
-              ? `${name} gets +${awards.approved} points now.`
-              : share.status === "PENDING"
+      <Dialog
+        open={confirming !== null}
+        onClose={working ? undefined : () => setConfirming(null)}
+        maxWidth="xs"
+        fullWidth
+        aria-labelledby={`confirm-${share.id}`}
+        slotProps={{ paper: { sx: dialogPaperSx } }}
+      >
+        <ClosableDialogTitle id={`confirm-${share.id}`} onClose={() => setConfirming(null)} disabled={working}>
+          {confirming === "feature" ? "Feature this post?" : "Approve this post?"}
+        </ClosableDialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            {confirming === "feature"
+              ? share.status === "PENDING"
                 ? `It's approved and featured: ${name} gets +${awards.featured} points now.`
-                : `${name} gets +${awards.topUp} more points now.`}{" "}
+                : `${name} gets +${awards.topUp} more points now.`
+              : `${name} gets +${awards.approved} points now.`}{" "}
             Points can only be taken back by a PO correction.
           </Typography>
-          <Box sx={{ display: "flex", gap: 1.5, mt: 1.5, flexWrap: "wrap" }}>
-            <Button
-              variant="contained"
-              color={confirming === "approve" ? "primary" : "warning"}
-              disabled={working}
-              onClick={() => {
-                const step = confirming === "approve" ? approveOnly : share.status === "PENDING" ? approveAndFeature : featureApproved;
-                setConfirming(null);
-                void step();
-              }}
-            >
-              {confirming === "approve" ? `Yes, approve · +${awards.approved}` : `Yes, feature · +${share.status === "PENDING" ? awards.featured : awards.topUp}`}
-            </Button>
-            <Button variant="text" onClick={() => setConfirming(null)} disabled={working}>
-              Cancel
-            </Button>
-          </Box>
-        </Box>
-      )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button variant="text" onClick={() => setConfirming(null)} disabled={working}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={confirming === "feature" ? "warning" : "primary"}
+            disabled={working}
+            onClick={() => {
+              const step = confirming === "feature" ? (share.status === "PENDING" ? approveAndFeature : featureApproved) : approveOnly;
+              setConfirming(null);
+              void step();
+            }}
+          >
+            {confirming === "feature"
+              ? `Yes, feature · +${share.status === "PENDING" ? awards.featured : awards.topUp}`
+              : `Yes, approve · +${awards.approved}`}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {declining && (
         <DeclineOwnPostForm

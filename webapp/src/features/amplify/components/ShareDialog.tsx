@@ -49,13 +49,15 @@ export function ClosableDialogTitle({
   children,
   onClose,
   disabled,
+  id,
 }: {
   children: ReactNode;
   onClose: () => void;
   disabled?: boolean;
+  id?: string;
 }) {
   return (
-    <DialogTitle sx={{ fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", gap: 1, pr: 1.5 }}>
+    <DialogTitle id={id} sx={{ fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", gap: 1, pr: 1.5 }}>
       <Box component="span" sx={{ flex: 1, minWidth: 0 }}>
         {children}
       </Box>

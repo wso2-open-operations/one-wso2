@@ -141,6 +141,18 @@ describe("a waiting post", () => {
     expect(screen.getByRole("button", { name: "Decline…" })).toBeTruthy();
   });
 
+  it("confirms in a modal that names only the post whose button was pressed", async () => {
+    showList([share("x-1", "PENDING"), share("x-2", "PENDING")]);
+    render(<ReviewTab status="PENDING" />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Approve · +10" })[1]!);
+    const dialog = screen.getByRole("dialog", { name: "Approve this post?" });
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    fireEvent.click(within(dialog).getByRole("button", { name: /Yes, approve/ }));
+    await waitFor(() => expect(h.approve).toHaveBeenCalledWith({ id: "x-2", employeeId: "e-9" }));
+    expect(h.approve).toHaveBeenCalledTimes(1);
+  });
+
   it("approves by id and says so", async () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
@@ -376,12 +388,13 @@ describe("ReviewOwnPostsPage", () => {
     expect(screen.getByText(AUDIT_NOTE)).toBeTruthy();
   });
 
-  it("asks before approving: Cancel decides nothing", () => {
+  it("asks before approving in a modal: Cancel decides nothing", async () => {
     showList([share("x-1", "PENDING")]);
     render(<ReviewTab status="PENDING" />);
     fireEvent.click(screen.getByRole("button", { name: "Approve · +10" }));
-    expect(screen.getByText("Approve this post?")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const dialog = screen.getByRole("dialog", { name: "Approve this post?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(h.approve).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Approve · +10" })).toBeTruthy();
   });
