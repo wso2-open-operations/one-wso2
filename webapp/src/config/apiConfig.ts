@@ -1531,13 +1531,6 @@ export function isIsacConfigured(): boolean {
   return Boolean(isacUrl);
 }
 
-// CSM — a separate application this webapp does not host. Its launcher tile
-// opens it in a new tab rather than routing anywhere, which is why it needs no
-// route of its own and never appears as a landing choice or a favourite: there
-// is nothing here to land on.
-//
-// Empty string = not configured, and the tile then stays in its unbuilt state
-// rather than becoming a link to nowhere.
 export const legalBackendUrl: string = (
   window.config?.ONE_WSO2_LEGAL_BACKEND_URL ?? ""
 ).replace(/\/+$/, "");
@@ -1554,6 +1547,15 @@ export const legalServiceUrls = {
   ndas: `${legalBackendUrl}/ndas`,
 };
 
+// CSM — a separate application with its own deployment. Its launcher tile
+// reaches it one of two ways. With ONE_WSO2_CSM_REMOTE_ENTRY_URL set (below) the
+// tile routes to /csm, where CSM is loaded from that deployment and rendered
+// inside this app. Without it, the tile is a link that opens this URL in a new
+// tab, and CSM is then neither a landing choice nor a favourite: there is
+// nothing here to land on.
+//
+// Empty string = not configured. With neither key set the tile stays in its
+// unbuilt state rather than becoming a link to nowhere.
 export const csmUrl: string = window.config?.ONE_WSO2_CSM_URL ?? "";
 
 export function isCsmConfigured(): boolean {
@@ -1561,10 +1563,17 @@ export function isCsmConfigured(): boolean {
 }
 
 // CSM as a microfrontend: the URL of the remoteEntry.js its own deployment
-// serves. When set, /csm loads CSM from there and renders it inside this app.
-// Separate from ONE_WSO2_CSM_URL above, which stays the link that opens CSM on
-// its own.
+// serves. When set, /csm loads CSM from there and renders it inside this app,
+// and the launcher tile goes there instead of opening ONE_WSO2_CSM_URL in a new
+// tab. That URL is still used as the way out if the remote fails to load.
 export const csmRemoteEntryUrl: string = window.config?.ONE_WSO2_CSM_REMOTE_ENTRY_URL ?? "";
+
+export function isCsmRemoteConfigured(): boolean {
+  return Boolean(csmRemoteEntryUrl);
+}
+
+/** Where CSM is mounted in this app. CSM builds its own links underneath it. */
+export const CSM_BASE_PATH = "/csm";
 
 // Infra Portal backend (infra-operations/apps/infra-portal/backend).
 // Same Choreo Bearer → x-jwt-assertion rewrite as leave. Empty string =

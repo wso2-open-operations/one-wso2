@@ -17,7 +17,15 @@
 // Central perspective registry. The waffle switcher and left rail both read
 // from this — one edit here changes every entry point.
 
-import { csmUrl, isCsmConfigured, isEngagementAppBackendConfigured, isIsacConfigured, isacUrl } from "@config/apiConfig";
+import {
+  CSM_BASE_PATH,
+  csmUrl,
+  isCsmConfigured,
+  isCsmRemoteConfigured,
+  isEngagementAppBackendConfigured,
+  isIsacConfigured,
+  isacUrl,
+} from "@config/apiConfig";
 import { isPreviewEnabled } from "@config/previewFeatures";
 import { CADO2_APPS } from "@constants/cado2Apps";
 import { ENGAGEMENT_APPS, MY_ENGAGEMENT_APPS } from "@constants/engagementApps";
@@ -884,15 +892,21 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
       ...appsToSections(DUE_DILIGENCE_APPS),
     ],
   },
-  // A separate application, opened in a new tab. `access` follows the URL being
-  // configured: without one the tile stays in its unbuilt state rather than
-  // becoming a link to nowhere.
+  // A separate application. With its remote entry configured it is loaded into
+  // this app at /csm, so the tile routes there like any other; it takes over the
+  // whole page, which is why it has no sections for the rail. `externallyGated`
+  // because who may use it is decided by CSM's own backend. Without the remote
+  // entry the tile opens CSM's URL in a new tab instead. `access` follows one of
+  // the two being configured: with neither the tile stays in its unbuilt state
+  // rather than becoming a link to nowhere.
   {
     key: "csm",
     label: "CSM",
     icon: LifeBuoyIcon,
-    access: isCsmConfigured(),
-    externalUrl: csmUrl || undefined,
+    access: isCsmRemoteConfigured() || isCsmConfigured(),
+    ...(isCsmRemoteConfigured()
+      ? { path: CSM_BASE_PATH, externallyGated: true }
+      : { externalUrl: csmUrl || undefined }),
   },
   // Sales — auto-recorded meetings. One screen so far: the meeting history
   // ported from meet-app. Create Meeting stayed behind (scheduling happens in
@@ -906,8 +920,8 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
   // notice is the right answer.
   //
   // `access: true` regardless of whether the backend URL is set, unlike CSM
-  // just above. The difference is that CSM is somewhere else — with no URL its
-  // tile could only ever be a link to nowhere — whereas Sales is a page we host,
+  // just above. The difference is that CSM is deployed somewhere else — with no
+  // URL its tile could only ever be a link to nowhere — whereas Sales is a page we host,
   // and that page explains its own not-connected state. Menu is the precedent:
   // it stays in the rail unconfigured and says what is missing, which is how an
   // operator finds out a key is unset. Hiding it instead would make a missing

@@ -19,13 +19,20 @@ import { useNavigate } from "react-router";
 import { useAsgardeo } from "@asgardeo/react";
 import { Alert, Box, CircularProgress, Link } from "@wso2/oxygen-ui";
 import { exchangeTokens, type ExchangedTokens, type TokenExchangeRequest } from "@api/tokenExchange";
-import { csmRemoteEntryUrl, csmUrl } from "@config/apiConfig";
-import { landingPath } from "@config/landingConfig";
+import { CSM_BASE_PATH, csmRemoteEntryUrl, csmUrl } from "@config/apiConfig";
+import { landingPath, landingPathFor } from "@config/landingConfig";
 import { remoteComponent } from "@/remotes/remoteComponent";
 import RemoteBoundary from "@/remotes/RemoteBoundary";
 
-/** Where this page is mounted. CSM builds its own links underneath it. */
-export const CSM_BASE_PATH = "/csm";
+/**
+ * Where "Back to One WSO2" goes: the person's landing page, unless that is CSM
+ * itself, in which case the link would lead straight back here.
+ */
+function exitPath(): string {
+  const landing = landingPath();
+  const isCsm = landing === CSM_BASE_PATH || landing.startsWith(`${CSM_BASE_PATH}/`);
+  return isCsm ? landingPathFor(undefined) : landing;
+}
 
 // What CSM's exposed component accepts. Kept in step by hand with
 // RemoteEntry.tsx in the CSM portal, since the two are built separately.
@@ -52,7 +59,7 @@ export default function CsmRemotePage() {
   const host = useMemo(
     () => ({
       name: "One WSO2",
-      onExit: () => navigate(landingPath()),
+      onExit: () => navigate(exitPath()),
       // CSM says which client id and scopes it needs; this app's own token is
       // never handed to it.
       getTokens: (request: TokenExchangeRequest) => exchangeTokens(request, getAccessToken),
