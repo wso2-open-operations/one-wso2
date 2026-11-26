@@ -19,21 +19,34 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-vi.mock("@api/http", () => ({
-  authedPost: vi.fn(async () => ({ run: "STARTED" })),
-  authedPatch: vi.fn(async () => ({})),
-  authedDelete: vi.fn(async () => undefined),
-}));
+vi.mock("@api/http", async () => {
+  const actual = await vi.importActual<typeof import("@api/http")>("@api/http");
+  return {
+    HttpError: actual.HttpError,
+    authedPost: vi.fn(async () => ({ run: "STARTED" })),
+    authedPatch: vi.fn(async () => ({})),
+    authedPut: vi.fn(async () => ({ settings: [] })),
+    authedDelete: vi.fn(async () => undefined),
+  };
+});
 vi.mock("@hooks/useAccessToken", () => ({ useAccessToken: () => async () => "token" }));
 vi.mock("@hooks/useAsgardeoSub", () => ({ useAsgardeoSub: () => ({ state: { status: "ready", sub: "sub-1" } }) }));
 
-import { authedDelete, authedPost } from "@api/http";
+import { HttpError, authedDelete, authedPost, authedPut } from "@api/http";
 import {
+  useAdjustPoints,
+  useApproveExternalShare,
   useArchiveCampaign,
+  useClaimOwnPost,
+  useDeclineExternalShare,
+  useFeatureExternalShare,
   useRegisterCampaign,
   useRemoveLinkedInConnection,
   useRetryAnnouncement,
+  useReversePoints,
+  useSaveSettings,
   useSendAnnouncement,
+  useSetPointRule,
 } from "./useAmplifyMutations";
 import type { CampaignDraft } from "./amplifyTypes";
 
@@ -156,5 +169,171 @@ describe("re-queuing an announcement", () => {
     // The refetch then replaces it with the server's answer.
     await act(async () => release({ campaigns: [{ campaignId: "c1", announcement: { status: "SENT" } }, { campaignId: "c2", announcement: { status: "SENT" } }] }));
     await waitFor(() => expect(qc.getQueryData<Board>(key)?.campaigns[0].announcement.status).toBe("SENT"));
+  });
+});
+
+// Seeds a cached query no page is showing; the mutation must refetch it itself (refetchOnMount is off).
+async function setupWithCached(...keys: unknown[][]) {
+  const qc = new QueryClient({ defaultOptions: { queries: { refetchOnMount: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+  const loads = keys.map(() => vi.fn(async () => ({})));
+  for (const [i, queryKey] of keys.entries()) await qc.fetchQuery({ queryKey, queryFn: loads[i] });
+  return { wrapper, loads };
+}
+
+describe("submitting an own post", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("sends the claim to POST /external-shares and refetches the caller's own claims", async () => {
+    const { wrapper, loads } = await setupWithCached(["amplify", "my-external-shares", "sub-1"]);
+    const { result } = renderHook(() => useClaimOwnPost(), { wrapper });
+    const claim = { evidenceUrl: "https://www.linkedin.com/posts/x-activity-1-a", certified: true as const, note: "Hi" };
+    await act(async () => {
+      await result.current.mutateAsync(claim);
+    });
+    expect(vi.mocked(authedPost).mock.calls[0]).toEqual(["/external-shares", "token", claim]);
+    expect(loads[0]).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("review decisions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const lists = [
+    ["amplify", "external-shares-review", "sub-1", "PENDING", 0],
+    ["amplify", "external-shares-review", "sub-1", "PENDING", "count"],
+    ["amplify", "points-history", "sub-1", "e-9"],
+  ];
+
+  it("approves by id, then refetches the review lists, the waiting count and the person's points", async () => {
+    const { wrapper, loads } = await setupWithCached(...lists);
+    const { result } = renderHook(() => useApproveExternalShare(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ id: "x 1", employeeId: "e-9" });
+    });
+    expect(vi.mocked(authedPost).mock.calls[0][0]).toBe("/po/external-shares/x%201/approve");
+    for (const load of loads) expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("features by id, then refetches the same", async () => {
+    const { wrapper, loads } = await setupWithCached(...lists);
+    const { result } = renderHook(() => useFeatureExternalShare(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ id: "x-1", employeeId: "e-9" });
+    });
+    expect(vi.mocked(authedPost).mock.calls[0][0]).toBe("/po/external-shares/x-1/amplified");
+    for (const load of loads) expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("declines with the reason in the body", async () => {
+    const { wrapper, loads } = await setupWithCached(lists[0]);
+    const { result } = renderHook(() => useDeclineExternalShare(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ id: "x-1", reason: "Other — not a post" });
+    });
+    expect(vi.mocked(authedPost).mock.calls[0]).toEqual([
+      "/po/external-shares/x-1/reject",
+      "token",
+      { reason: "Other — not a post" },
+    ]);
+    expect(loads[0]).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("points corrections", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reverses a row by reference with the reason, then refetches that person's history", async () => {
+    const { wrapper, loads } = await setupWithCached(["amplify", "points-history", "sub-1", "e-9"]);
+    const { result } = renderHook(() => useReversePoints(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ reference: "ENG-1", employeeId: "e-9", reason: "Duplicate" });
+    });
+    expect(vi.mocked(authedPost).mock.calls[0]).toEqual(["/po/points/ENG-1/reverse", "token", { reason: "Duplicate" }]);
+    expect(loads[0]).toHaveBeenCalledTimes(2);
+  });
+
+  it("adds a signed correction for the person, then refetches their history", async () => {
+    const { wrapper, loads } = await setupWithCached(["amplify", "points-history", "sub-1", "e-9"]);
+    const { result } = renderHook(() => useAdjustPoints(), { wrapper });
+    const body = { employeeId: "e-9", points: -2, reason: "Double count" };
+    await act(async () => {
+      await result.current.mutateAsync(body);
+    });
+    expect(vi.mocked(authedPost).mock.calls[0]).toEqual(["/po/points/adjustments", "token", body]);
+    expect(loads[0]).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("point values", () => {
+  it("posts the new value for one action and refetches the rules and the values employees read", async () => {
+    vi.clearAllMocks();
+    const { wrapper, loads } = await setupWithCached(["amplify", "point-rules", "sub-1"], ["amplify", "point-values", "sub-1"]);
+    const { result } = renderHook(() => useSetPointRule(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ action: "REPOST", points: 6 });
+    });
+    expect(vi.mocked(authedPost).mock.calls[0]).toEqual(["/po/point-rules", "token", { action: "REPOST", points: 6 }]);
+    expect(loads[0]).toHaveBeenCalledTimes(2);
+    expect(loads[1]).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("saving settings", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const changes = [
+    { key: "coin.block_points", value: 200, version: 3 },
+    { key: "coin.schedule", value: "WEEKLY", version: 1 },
+  ];
+  const cached = [
+    ["amplify", "settings", "sub-1", "po"],
+    ["amplify", "settings", "sub-1", "admin"],
+    ["amplify", "my-points", "sub-1", "ALL"],
+  ];
+
+  it.each([
+    ["po", "/po/settings"],
+    ["admin", "/admin/settings"],
+  ] as const)("PUTs the %s changes with their versions to %s, then refetches the settings and my points", async (scope, url) => {
+    const { wrapper, loads } = await setupWithCached(...cached);
+    const { result } = renderHook(() => useSaveSettings(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ scope, changes });
+    });
+    expect(vi.mocked(authedPut).mock.calls[0]).toEqual([url, "token", { changes }]);
+    for (const load of loads) expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetches the settings before a 409 VERSION_CONFLICT reaches the caller", async () => {
+    vi.mocked(authedPut).mockRejectedValueOnce(
+      new HttpError("/po/settings", 409, JSON.stringify({ status: 409, code: "VERSION_CONFLICT" })),
+    );
+    const { wrapper, loads } = await setupWithCached(...cached);
+    const { result } = renderHook(() => useSaveSettings(), { wrapper });
+    let caught: unknown;
+    await act(async () => {
+      await result.current.mutateAsync({ scope: "po", changes }).catch((err: unknown) => {
+        caught = err;
+        // The refetch has already happened when the caller hears of the conflict.
+        expect(loads[0]).toHaveBeenCalledTimes(2);
+      });
+    });
+    expect(caught).toBeInstanceOf(HttpError);
+    expect(loads[2]).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the settings alone on any other failure", async () => {
+    vi.mocked(authedPut).mockRejectedValueOnce(
+      new HttpError("/po/settings", 422, JSON.stringify({ status: 422, code: "INVALID_SETTING" })),
+    );
+    const { wrapper, loads } = await setupWithCached(...cached);
+    const { result } = renderHook(() => useSaveSettings(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ scope: "po", changes }).catch(() => undefined);
+    });
+    expect(loads[0]).toHaveBeenCalledTimes(1);
   });
 });

@@ -16,11 +16,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Skeleton } from "@wso2/oxygen-ui";
-import { Volume2Icon } from "@wso2/oxygen-ui-icons-react";
 import { useNavigate, useSearchParams } from "react-router";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
-import { AMPLIFY_CELEBRATE_PATH } from "@constants/perspectives";
+import { AMPLIFY_CELEBRATE_PATH, AMPLIFY_MY_POINTS_PATH } from "@constants/perspectives";
 import type { Campaign } from "../api/amplifyTypes";
 import {
   useAmplifyCampaigns,
@@ -29,24 +28,39 @@ import {
   useAmplifyLeaderboard,
   useAmplifyMe,
   useAmplifyTopBoard,
+  useMyNativeIntents,
   useMyShares,
+  useNativeRepostEnabled,
+  usePointValues,
 } from "../api/useAmplifyData";
 import { useAmplifyPeople } from "../api/useAmplifyPeople";
 import AmplifyShell from "../components/AmplifyShell";
 import { TeamLeaderboardPanel, TopAmplifiersPanel } from "../components/LeaderboardPanels";
 import LinkLinkedInDialog from "../components/LinkLinkedInDialog";
+import NativeRepostActions from "../components/NativeRepostActions";
+import OwnPostPanel from "../components/OwnPostPanel";
+import PointsTiles from "../components/PointsTiles";
 import PostCard, { CategoryChip, PriorityChip } from "../components/PostCard";
-import PostCarousel from "../components/PostCarousel";
-import ShareDialog from "../components/ShareDialog";
+import PostGrid from "../components/PostGrid";
+import ShareDialog, { WITH_THOUGHTS_POINTS } from "../components/ShareDialog";
 import { campaignForShareParam } from "../util/linkedinPost";
+import { intentsByCampaign, nativeRepostState } from "../util/nativeRepost";
 
-// Celebrate: every employee's Amplify page. In order (phase 1 UX review):
-//  1. Posts to amplify, priority first then newest. Gone once you've shared
-//     them all ("all caught up").
-//  2. Top three leaders, company wide, this month by default (leaderboard.top_scope).
-//  3. My position, for the same scope.
-//  4. Team leaderboard.
-// No My Coins section in phase 1.
+/** Points a plain repost earns at the default rule, until GET /point-values answers. */
+export const REPOST_POINTS = 2;
+
+/**
+ * Celebrate: every employee's Amplify page. In order:
+ *  1. Four tiles: points and rank this month, all time, Coins received and progress to the next Coins, with a History
+ *     link to My points & Coins.
+ *  2. Posts to amplify, a grid of six, priority first then newest, with filter chips and Show all. Each card's
+ *     "Post it for me" opens the share dialog. When `sharing.native_repost_default` is on, "Repost on LinkedIn" sits
+ *     above it: it opens the post on LinkedIn and the card then says whether Amplify found the repost. Gone once
+ *     you've shared them all.
+ *  3. Wrote your own post: submit one you wrote for review.
+ *  4. Top three leaders, company wide, this month by default (leaderboard.top_scope), and my position.
+ *  5. Team leaderboard.
+ */
 export default function CelebratePage() {
   const me = useAmplifyMe();
   const campaigns = useAmplifyCampaigns("open");
@@ -59,6 +73,14 @@ export default function CelebratePage() {
   const navigate = useNavigate();
   const { showSuccess } = useNotifications();
   const { campaignLinkOrigins } = useAmplifyConfig();
+  const pointValues = usePointValues().data;
+  const repostPoints = pointValues?.REPOST ?? REPOST_POINTS;
+  const thoughtsPoints = pointValues?.REPOST_COMMENTARY ?? WITH_THOUGHTS_POINTS;
+
+  // "Repost on LinkedIn" on each card, when `sharing.native_repost_default` is on.
+  const nativeRepost = useNativeRepostEnabled();
+  const nativeIntents = useMyNativeIntents(nativeRepost);
+  const intents = useMemo(() => intentsByCampaign(nativeIntents.data), [nativeIntents.data]);
 
   const [linking, setLinking] = useState<Campaign | null>(null);
   const [sharing, setSharing] = useState<Campaign | null>(null);
@@ -165,6 +187,8 @@ export default function CelebratePage() {
 
   return (
     <AmplifyShell title="Celebrate" subtitle="Share Choreo Labs' posts on LinkedIn, earn points, and see where you rank.">
+      <PointsTiles historyTo={AMPLIFY_MY_POINTS_PATH} />
+
       {postsLoading ? (
         <Skeleton variant="rounded" height={320} sx={{ mb: 3 }} />
       ) : postsError ? (
@@ -181,9 +205,15 @@ export default function CelebratePage() {
         </ErrorNotice>
       ) : (
         toAmplify.length > 0 && (
-          <PostCarousel
-            title="Posts to amplify"
+          <PostGrid
             items={toAmplify}
+            categories={categories.data}
+            note={
+              <>
+                Priority first, then newest · Repost <strong>+{repostPoints}</strong> · with your thoughts{" "}
+                <strong>+{thoughtsPoints}</strong>
+              </>
+            }
             renderItem={(campaign) => (
               <PostCard
                 campaign={campaign}
@@ -194,20 +224,26 @@ export default function CelebratePage() {
                   </>
                 }
                 action={
-                  <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<Volume2Icon size={14} />}
-                    onClick={() => amplify(campaign)}
-                  >
-                    Amplify
-                  </Button>
+                  nativeRepost ? (
+                    <NativeRepostActions
+                      campaign={campaign}
+                      state={nativeRepostState(intents, campaign.id)}
+                      foundPoints={pointValues?.REPOST}
+                      onPostForMe={() => amplify(campaign)}
+                    />
+                  ) : (
+                    <Button variant="outlined" onClick={() => amplify(campaign)}>
+                      Post it for me
+                    </Button>
+                  )
                 }
               />
             )}
           />
         )
       )}
+
+      <OwnPostPanel />
 
       {topBoard.isPending ? (
         <Skeleton variant="rounded" height={320} sx={{ mb: 3 }} />

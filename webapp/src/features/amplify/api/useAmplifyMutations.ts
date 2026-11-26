@@ -24,11 +24,12 @@
 // here is a final answer.
 
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { authedDelete, authedPatch, authedPost } from "@api/http";
+import { authedDelete, authedPatch, authedPost, authedPut } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
 import { amplifyServiceUrls } from "@config/apiConfig";
 import { useAsgardeoSub } from "@hooks/useAsgardeoSub";
-import { amplifyKey } from "./useAmplifyData";
+import { amplifyProblemCode } from "../util/amplifyError";
+import { amplifyKey, settingsUrl, type SettingsScope } from "./useAmplifyData";
 import type {
   Campaign,
   CampaignDraft,
@@ -36,7 +37,17 @@ import type {
   CampaignRegistration,
   DashboardOperations,
   ConnectAuthorization,
+  ExternalShare,
+  ExternalShareClaim,
+  LedgerEntry,
   LinkedInConnection,
+  LinkedInPage,
+  NativeIntent,
+  PointAction,
+  PointRule,
+  PointsAdjustment,
+  SettingChange,
+  SettingList,
   Share,
   ShareKind,
 } from "./amplifyTypes";
@@ -62,6 +73,15 @@ function markAnnouncementQueued(qc: QueryClient, campaignId: string): void {
       : old,
   );
   void qc.invalidateQueries({ queryKey: ["amplify", "dashboard-operations"], refetchType: "all" });
+}
+
+// After a change to someone's points: their history, and the boards their total ranks on.
+function refreshPointsOf(qc: QueryClient, sub: string | undefined, employeeId: string): Promise<unknown> {
+  return Promise.all([
+    refreshNow(qc, amplifyKey("points-history", sub, employeeId)),
+    refreshNow(qc, amplifyKey("leaderboard", sub)),
+    refreshNow(qc, amplifyKey("leaderboard-top", sub)),
+  ]);
 }
 
 function useAmplifySub(): string | undefined {
@@ -221,6 +241,217 @@ export function useCompleteLinkedInConnect() {
       ),
     onSuccess: async () => {
       await refreshNow(qc, amplifyKey("me", sub));
+    },
+  });
+}
+
+/** POST /external-shares: the caller's own post, sent for review. Then refetches the caller's own claims. */
+export function useClaimOwnPost() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ExternalShare | null, Error, ExternalShareClaim>({
+    mutationFn: async (claim) =>
+      authedPost<ExternalShare>(amplifyServiceUrls.externalShares, await getAccessToken(), claim),
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("my-external-shares", sub));
+    },
+  });
+}
+
+/** What a review decision needs: the claim, and whose points it changes. */
+interface ClaimRef {
+  id: string;
+  employeeId: string;
+}
+
+// After a review decision: every review list and the waiting count, then the person's points.
+async function refreshAfterDecision(qc: QueryClient, sub: string | undefined, employeeId: string): Promise<void> {
+  await refreshNow(qc, amplifyKey("external-shares-review", sub));
+  await refreshPointsOf(qc, sub, employeeId);
+}
+
+/** POST /po/external-shares/{id}/approve (CAN_REVIEW_SHARES): approves a waiting claim and awards its points. */
+export function useApproveExternalShare() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ExternalShare | null, Error, ClaimRef>({
+    mutationFn: async ({ id }) =>
+      authedPost<ExternalShare>(amplifyServiceUrls.poExternalShareApprove(id), await getAccessToken(), {}),
+    onSuccess: async (_data, vars) => refreshAfterDecision(qc, sub, vars.employeeId),
+  });
+}
+
+/** POST /po/external-shares/{id}/amplified (CAN_REVIEW_SHARES): features an approved claim and adds the top-up. */
+export function useFeatureExternalShare() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ExternalShare | null, Error, ClaimRef>({
+    mutationFn: async ({ id }) =>
+      authedPost<ExternalShare>(amplifyServiceUrls.poExternalShareAmplified(id), await getAccessToken(), {}),
+    onSuccess: async (_data, vars) => refreshAfterDecision(qc, sub, vars.employeeId),
+  });
+}
+
+/** POST /po/external-shares/{id}/reject (CAN_REVIEW_SHARES): declines a waiting claim with a reason. */
+export function useDeclineExternalShare() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ExternalShare | null, Error, { id: string; reason: string }>({
+    mutationFn: async ({ id, reason }) =>
+      authedPost<ExternalShare>(amplifyServiceUrls.poExternalShareReject(id), await getAccessToken(), { reason }),
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("external-shares-review", sub));
+    },
+  });
+}
+
+/** POST /po/points/{reference}/reverse (CAN_ADJUST_POINTS): cancels one ledger row with a reason. */
+export function useReversePoints() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<LedgerEntry | null, Error, { reference: string; employeeId: string; reason: string }>({
+    mutationFn: async ({ reference, reason }) =>
+      authedPost<LedgerEntry>(amplifyServiceUrls.poPointsReverse(reference), await getAccessToken(), { reason }),
+    onSuccess: async (_data, vars) => {
+      await refreshPointsOf(qc, sub, vars.employeeId);
+    },
+  });
+}
+
+/** POST /po/points/adjustments (CAN_ADJUST_POINTS): adds or removes points with a reason. */
+export function useAdjustPoints() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<LedgerEntry | null, Error, PointsAdjustment>({
+    mutationFn: async (body) =>
+      authedPost<LedgerEntry>(amplifyServiceUrls.poPointsAdjustments, await getAccessToken(), body),
+    onSuccess: async (_data, vars) => {
+      await refreshPointsOf(qc, sub, vars.employeeId);
+    },
+  });
+}
+
+/**
+ * POST /po/point-rules (CAN_POINT_RULES): a new value for one action, from now on. Then refetches the rules and the
+ * values every employee reads.
+ */
+export function useSetPointRule() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<PointRule | null, Error, { action: PointAction; points: number }>({
+    mutationFn: async (body) => authedPost<PointRule>(amplifyServiceUrls.poPointRules, await getAccessToken(), body),
+    onSuccess: async () => {
+      await Promise.all([refreshNow(qc, amplifyKey("point-rules", sub)), refreshNow(qc, amplifyKey("point-values", sub))]);
+    },
+  });
+}
+
+/**
+ * PUT /po/settings or /admin/settings: changes the given keys in one go, each with the version it was read at. Then
+ * refetches both settings lists and the caller's Coins. A 409 VERSION_CONFLICT (someone else saved first) refetches
+ * the settings before the error reaches the caller, so the screen shows the latest values.
+ */
+export function useSaveSettings() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<SettingList | null, Error, { scope: SettingsScope; changes: SettingChange[] }>({
+    mutationFn: async ({ scope, changes }) =>
+      authedPut<SettingList>(settingsUrl(scope), await getAccessToken(), { changes }),
+    onSuccess: async () => {
+      await Promise.all([refreshNow(qc, amplifyKey("settings", sub)), refreshNow(qc, amplifyKey("my-points", sub))]);
+    },
+    onError: async (err) => {
+      if (amplifyProblemCode(err) === "VERSION_CONFLICT") await refreshNow(qc, amplifyKey("settings", sub));
+    },
+  });
+}
+
+/**
+ * POST /campaigns/{id}/native-intent: the caller opened the post on LinkedIn to repost it themselves. The answer
+ * (LOOKING) goes straight into the caller's intents, so the card shows "Looking for your repost" at once.
+ */
+export function useRecordNativeIntent() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<NativeIntent | null, Error, { campaignId: string }>({
+    mutationFn: async ({ campaignId }) =>
+      authedPost<NativeIntent>(amplifyServiceUrls.nativeIntent(campaignId), await getAccessToken(), {}),
+    onSuccess: async (intent, { campaignId }) => {
+      if (intent) {
+        qc.setQueryData<NativeIntent[]>(amplifyKey("native-intents", sub), (old) => [
+          intent,
+          ...(old ?? []).filter((i) => i.campaignId !== campaignId),
+        ]);
+      }
+      await refreshNow(qc, amplifyKey("native-intents", sub));
+    },
+  });
+}
+
+/** POST /admin/linkedin-page/connect/start (CAN_ADMIN). The caller sends the browser to `authorizationUrl`. */
+export function useStartLinkedInPageConnect() {
+  const getAccessToken = useAccessToken();
+  return useMutation<ConnectAuthorization | null, Error, void>({
+    mutationFn: async () =>
+      authedPost<ConnectAuthorization>(amplifyServiceUrls.linkedinPageConnectStart, await getAccessToken(), {}),
+  });
+}
+
+/** POST /admin/linkedin-page/connect/complete with the code and state LinkedIn sent back (CAN_ADMIN). */
+export function useCompleteLinkedInPageConnect() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<LinkedInPage | null, Error, { code: string; state: string; redirectUri: string }>({
+    mutationFn: async (body) =>
+      authedPost<LinkedInPage>(amplifyServiceUrls.linkedinPageConnectComplete, await getAccessToken(), body),
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("linkedin-page", sub));
+    },
+  });
+}
+
+/** DELETE /admin/linkedin-page: Amplify revokes the page token at LinkedIn and stops reading the page (CAN_ADMIN). */
+export function useDisconnectLinkedInPage() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<null, Error, void>({
+    mutationFn: async () => {
+      await authedDelete(amplifyServiceUrls.linkedinPage, await getAccessToken());
+      return null;
+    },
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("linkedin-page", sub));
+    },
+  });
+}
+
+/**
+ * POST /po/points/{reference}/settlement `{status: HELD}` (CAN_ADJUST_POINTS): clears an action-required row, which
+ * then converts to Coins at the next conversion without another check. Refetches the list and that person's points.
+ */
+export function useClearActionRequired() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<LedgerEntry | null, Error, { reference: string; employeeId: string }>({
+    mutationFn: async ({ reference }) =>
+      authedPost<LedgerEntry>(amplifyServiceUrls.poPointsSettlement(reference), await getAccessToken(), { status: "HELD" }),
+    onSuccess: async (_data, vars) => {
+      await Promise.all([
+        refreshNow(qc, amplifyKey("action-required", sub)),
+        refreshNow(qc, amplifyKey("points-history", sub, vars.employeeId)),
+      ]);
     },
   });
 }
