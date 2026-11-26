@@ -76,6 +76,13 @@ vi.mock("../components/ReversePointsPanel", () => ({
     </div>
   ),
 }));
+vi.mock("../components/RemoveActivityPanel", () => ({
+  default: ({ entry, total }: { entry: LedgerEntry; total: number | null }) => (
+    <div>
+      remove dialog: {entry.reference} total {String(total)}
+    </div>
+  ),
+}));
 vi.mock("../components/AdjustPointsPanel", () => ({
   default: ({ employeeId, total }: { employeeId: string; total: number | null }) => (
     <div>
@@ -281,5 +288,39 @@ describe("a picked person", () => {
     pick();
     expect(screen.getByText(/Couldn't load this person's points/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+});
+
+describe("removing an invalid activity", () => {
+  it("is offered only on a LinkedIn engagement that still stands, and opens beside the list", () => {
+    render(<PointsCorrectionsPage />);
+    pick();
+    const rows = within(screen.getByRole("table", { name: "Every activity" })).getAllByRole("row").slice(1);
+    expect(within(rows[0]).queryByRole("button", { name: /^Remove invalid/ })).toBeNull();
+    expect(within(rows[1]).queryByRole("button", { name: /^Remove invalid/ })).toBeNull();
+    expect(within(rows[2]).queryByRole("button", { name: /^Remove invalid/ })).toBeNull();
+    fireEvent.click(within(rows[3]).getByRole("button", { name: /^Remove invalid/ }));
+    expect(screen.getByText("remove dialog: ENG-1 total 1040")).toBeTruthy();
+    expect(within(rows[3]).getByRole("button", { name: /^Remove invalid/ }).textContent).toBe("Removing");
+    // One panel at a time.
+    fireEvent.click(within(rows[3]).getByRole("button", { name: /Reverse/ }));
+    expect(screen.queryByText(/remove dialog/)).toBeNull();
+    expect(screen.getByText("reverse dialog: ENG-1 total 1040")).toBeTruthy();
+  });
+
+  it("shows the PO team a removal row's reason code and note", () => {
+    h.history.data!.items = [
+      row("REV-9", -2, { sourceType: "REVERSAL", reversesReference: "ENG-9", removalReason: "DUPLICATE", reason: "Same repost twice" }),
+    ];
+    render(<PointsCorrectionsPage />);
+    pick();
+    expect(screen.getByText("Removed: Duplicate — Same repost twice")).toBeTruthy();
+  });
+
+  it("isn't offered on the caller's own points", () => {
+    h.myId = "e-9";
+    render(<PointsCorrectionsPage />);
+    pick();
+    expect(screen.queryByRole("button", { name: /^Remove invalid/ })).toBeNull();
   });
 });

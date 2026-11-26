@@ -52,11 +52,28 @@ export function forgetPageConnect(): void {
   }
 }
 
-/** "By Ruwan Jayasinghe (page admin), Nov 20 · read-only" for a connected page. */
-export function connectedByText(page: Pick<LinkedInPage, "connectedByName" | "connectedAt">): string {
-  const parts = [page.connectedByName ? `By ${page.connectedByName} (page admin)` : "By a page admin"];
-  if (page.connectedAt) parts[0] += `, ${shortDate(page.connectedAt)}`;
-  return `${parts[0]} · read-only`;
+/** "2 hours ago": how long before `now` the sync last ran, in the largest whole unit. */
+export function agoText(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const minutes = Math.max(0, Math.floor((now.getTime() - then) / 60_000));
+  if (minutes < 1) return "just now";
+  const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"} ago`;
+  if (minutes < 60) return unit(minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return unit(hours, "hour");
+  return unit(Math.floor(hours / 24), "day");
+}
+
+/** "By Ruwan Jayasinghe (page admin), Nov 20 · read-only · last sync 2 hours ago" for a connected page. */
+export function connectedByText(
+  page: Pick<LinkedInPage, "connectedByName" | "connectedAt" | "lastSyncAt">,
+  now: Date = new Date(),
+): string {
+  let who = page.connectedByName ? `By ${page.connectedByName} (page admin)` : "By a page admin";
+  if (page.connectedAt) who += `, ${shortDate(page.connectedAt)}`;
+  const sync = page.lastSyncAt ? `last sync ${agoText(page.lastSyncAt, now)}` : "not synced yet";
+  return `${who} · read-only · ${sync}`;
 }
 
 /** The share of today's budget used, 0–100; 0 when there is no budget. */

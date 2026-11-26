@@ -26,6 +26,14 @@ export const COIN_SCHEDULE = "coin.schedule";
 export const COIN_WALLETS_ENABLED = "coin.wallets_enabled";
 /** "Amplify posting": off stops every "Post it for me" share at once (`/admin/settings` only). */
 export const SHARING_ENABLED = "sharing.enabled";
+/** LinkedIn posts per UTC day, all employees (amplify-jobs' own ceiling still applies). */
+export const MAX_POSTS_PER_DAY = "sharing.max_posts_per_day";
+/** LinkedIn posts in any rolling hour, all employees; 0 = off. */
+export const MAX_POSTS_PER_HOUR = "sharing.max_posts_per_hour";
+/** Minutes after a post opens that its reposts are spread over; 0 = off. Amplify Admin shows it in hours. */
+export const SPREAD_MINUTES = "sharing.spread_minutes";
+/** Least minutes between two posts of one employee; 0 = off. */
+export const PUBLISH_GAP_MINUTES = "sharing.publish_gap_minutes";
 /** Own posts one person may submit per UTC day; 0 = no limit. */
 export const OWN_POST_DAILY_LIMIT = "external_share.daily_limit";
 
@@ -40,6 +48,11 @@ export const SETTING_RANGES = {
   [COIN_BLOCK_POINTS]: { min: 1, max: 100_000 },
   [COIN_BLOCK_COINS]: { min: 1, max: 100_000 },
   [OWN_POST_DAILY_LIMIT]: { min: 0, max: 50 },
+  [MAX_POSTS_PER_DAY]: { min: 0, max: 10_000 },
+  [MAX_POSTS_PER_HOUR]: { min: 0, max: 10_000 },
+  [PUBLISH_GAP_MINUTES]: { min: 0, max: 1440 },
+  /** In hours, as Amplify Admin shows it: 0 to 24 (`sharing.spread_minutes` allows 0–1440). */
+  [SPREAD_MINUTES]: { min: 0, max: 24 },
 } as const satisfies Record<string, SettingRange>;
 
 /** The setting with `key`, if the list has it. */
@@ -92,4 +105,10 @@ export function settingChanges(
 /** A key for a settings form that changes whenever any setting's version does, so the form starts again. */
 export function settingsFormKey(settings: readonly AmplifySetting[]): string {
   return settings.map((s) => `${s.key}@${s.version}`).join("|");
+}
+
+/** The spread field's text for a saved number of minutes: whole hours when it divides, else hours with decimals. */
+export function spreadHoursText(minutes: number | null): string {
+  if (minutes === null) return "";
+  return String(Math.round((minutes / 60) * 100) / 100);
 }

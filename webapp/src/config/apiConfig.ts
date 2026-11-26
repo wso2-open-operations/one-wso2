@@ -1946,6 +1946,8 @@ export const amplifyServiceUrls = {
   // GET the ledger rows waiting for the PO team (ACTION_REQUIRED), oldest first (CAN_ADJUST_POINTS only).
   poPointsActionRequired: `${amplifyBackendUrl}/po/points/action-required`,
   // POST {status: HELD} clears an action-required row; it then converts to Coins without another check.
+  // POST {reasonCode, note?}: removes an invalid engagement (reverses its points, never scored again).
+  poPointsRemove: (reference: string) => `${amplifyBackendUrl}/po/points/${encodeURIComponent(reference)}/remove`,
   poPointsSettlement: (reference: string) => `${amplifyBackendUrl}/po/points/${encodeURIComponent(reference)}/settlement`,
 };
 

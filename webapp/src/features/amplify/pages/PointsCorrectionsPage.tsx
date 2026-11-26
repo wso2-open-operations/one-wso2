@@ -48,10 +48,12 @@ import ActionRequiredPanel from "../components/ActionRequiredPanel";
 import AdjustPointsPanel from "../components/AdjustPointsPanel";
 import AmplifyShell from "../components/AmplifyShell";
 import { PlainStatus, SoftPill } from "../components/AmplifyTone";
+import RemoveActivityPanel from "../components/RemoveActivityPanel";
 import ReversePointsPanel from "../components/ReversePointsPanel";
 import { activityText, isCorrection } from "../util/activity";
 import { initialsOf, num, shortDate } from "../util/dashboardFormat";
 import { canReverse, isReversed, signedPoints } from "../util/points";
+import { canRemove, removalRowText } from "../util/removal";
 
 /** How long the search box waits after the last keystroke before it asks. */
 export const PEOPLE_SEARCH_DEBOUNCE_MS = 300;
@@ -75,7 +77,8 @@ function matchLabel(p: AmplifyPersonMatch): string {
 /**
  * Points & corrections (CAN_ADJUST_POINTS, checked by AmplifyPointsRoute): find a person, see their points and every
  * activity, and reverse one or add or remove points in a panel beside it. Every correction carries a reason the
- * person sees. Above the search, the points waiting for the PO team (Action required), each with a Clear button.
+ * person sees; a LinkedIn engagement that shouldn't count can be removed as invalid with a reason code. Above the
+ * search, the points waiting for the PO team (Action required), each with a Clear button.
  */
 export default function PointsCorrectionsPage() {
   const [selected, setSelected] = useState<AmplifyPersonMatch | null>(null);
@@ -198,6 +201,7 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
   const lookup = usePersonLookup();
   const [reversing, setReversing] = useState<LedgerEntry | null>(null);
   const [adjusting, setAdjusting] = useState(false);
+  const [removing, setRemoving] = useState<LedgerEntry | null>(null);
 
   const who = lookup({ employeeId: person.employeeId, email: person.email, displayName: person.displayName });
   const known = who.name !== UNKNOWN_EMPLOYEE;
@@ -209,15 +213,22 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
   const total = history.data?.totalPoints ?? null;
   const held = history.data?.heldPoints ?? null;
   const rowCount = history.data?.total ?? 0;
-  const panelOpen = reversing !== null || adjusting;
+  const panelOpen = reversing !== null || adjusting || removing !== null;
 
   const startReverse = (e: LedgerEntry) => {
     setAdjusting(false);
+    setRemoving(null);
     setReversing(e);
   };
   const startAdjust = () => {
     setReversing(null);
+    setRemoving(null);
     setAdjusting(true);
+  };
+  const startRemove = (e: LedgerEntry) => {
+    setReversing(null);
+    setAdjusting(false);
+    setRemoving(e);
   };
 
   return (
@@ -294,12 +305,13 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
                 <TableBody>
                   {items.map((e) => {
                     const active = reversing?.reference === e.reference;
+                    const removingThis = removing?.reference === e.reference;
                     const what = activityText(e, { forPerson: true });
-                    const reason = isCorrection(e) ? e.reason?.trim() : undefined;
+                    const reason = removalRowText(e) ?? (isCorrection(e) ? e.reason?.trim() : undefined);
                     return (
                       <TableRow
                         key={e.reference}
-                        sx={active ? { bgcolor: (t) => alpha(t.palette.primary.main, 0.08) } : undefined}
+                        sx={active || removingThis ? { bgcolor: (t) => alpha(t.palette.primary.main, 0.08) } : undefined}
                       >
                         <TableCell sx={{ whiteSpace: "nowrap", color: "text.secondary" }}>{shortDate(e.createdAt)}</TableCell>
                         <TableCell>
@@ -326,6 +338,18 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
                               aria-label={`Reverse ${what} on ${shortDate(e.createdAt)}`}
                             >
                               {active ? "Reversing" : "Reverse…"}
+                            </Button>
+                          )}
+                          {!isSelf && canRemove(e) && (
+                            <Button
+                              size="small"
+                              variant={removingThis ? "contained" : "outlined"}
+                              color="error"
+                              onClick={() => startRemove(e)}
+                              aria-label={`Remove invalid ${what} on ${shortDate(e.createdAt)}`}
+                              sx={{ ml: 1 }}
+                            >
+                              {removingThis ? "Removing" : "Remove invalid activity…"}
                             </Button>
                           )}
                         </TableCell>
@@ -392,6 +416,15 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
           firstName={firstName}
           total={total}
           onClose={() => setReversing(null)}
+        />
+      )}
+      {removing && (
+        <RemoveActivityPanel
+          key={removing.reference}
+          entry={removing}
+          personName={name}
+          total={total}
+          onClose={() => setRemoving(null)}
         />
       )}
       {adjusting && (

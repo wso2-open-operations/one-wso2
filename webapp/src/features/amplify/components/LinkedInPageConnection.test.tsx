@@ -40,7 +40,7 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
 }));
 
 import LinkedInPageConnection, { CALLS_HELP, PAGE_DISCONNECTED_MESSAGE } from "./LinkedInPageConnection";
-import { callsPercent, connectedByText, isPageConnectState } from "../util/pageConnect";
+import { agoText, callsPercent, connectedByText, isPageConnectState } from "../util/pageConnect";
 
 const status = (over: Partial<LinkedInPage> = {}): LinkedInPage => ({
   connected: true,
@@ -49,6 +49,7 @@ const status = (over: Partial<LinkedInPage> = {}): LinkedInPage => ({
   accessExpiresAt: "2027-01-19T08:00:00Z",
   callsToday: 212,
   dailyBudget: 500,
+  lastSyncAt: "2026-11-26T08:00:00Z",
   ...over,
 });
 const loaded = (data: LinkedInPage) => ({ data, isPending: false, isError: false, isFetching: false, error: null, refetch: h.refetch });
@@ -63,9 +64,22 @@ beforeEach(() => {
 });
 
 describe("connectedByText and callsPercent", () => {
-  it("names who connected the page and when", () => {
-    expect(connectedByText(status())).toBe("By Ruwan Jayasinghe (page admin), Nov 20 · read-only");
-    expect(connectedByText(status({ connectedByName: null }))).toBe("By a page admin, Nov 20 · read-only");
+  it("names who connected the page and when, and when it last synced", () => {
+    const now = new Date("2026-11-26T10:00:00Z");
+    expect(connectedByText(status(), now)).toBe("By Ruwan Jayasinghe (page admin), Nov 20 · read-only · last sync 2 hours ago");
+    expect(connectedByText(status({ connectedByName: null, lastSyncAt: null }), now)).toBe(
+      "By a page admin, Nov 20 · read-only · not synced yet",
+    );
+  });
+
+  it("says how long ago in the largest whole unit", () => {
+    const now = new Date("2026-11-26T10:00:00Z");
+    expect(agoText("2026-11-26T09:59:40Z", now)).toBe("just now");
+    expect(agoText("2026-11-26T09:59:00Z", now)).toBe("1 minute ago");
+    expect(agoText("2026-11-26T09:15:00Z", now)).toBe("45 minutes ago");
+    expect(agoText("2026-11-26T09:00:00Z", now)).toBe("1 hour ago");
+    expect(agoText("2026-11-24T09:00:00Z", now)).toBe("2 days ago");
+    expect(agoText("nope", now)).toBe("");
   });
 
   it("caps the bar at the budget, and shows none without a budget", () => {
@@ -80,7 +94,7 @@ describe("LinkedInPageConnection", () => {
     h.page = loaded(status());
     render(<LinkedInPageConnection />);
     expect(screen.getByText("Connected to the Choreo Labs page")).toBeTruthy();
-    expect(screen.getByText("By Ruwan Jayasinghe (page admin), Nov 20 · read-only")).toBeTruthy();
+    expect(screen.getByText(/^By Ruwan Jayasinghe \(page admin\), Nov 20 · read-only · last sync /)).toBeTruthy();
     expect(screen.getByText("212 of 500")).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "LinkedIn calls today" }).getAttribute("aria-valuenow")).toBe("42");
     expect(screen.getByText(CALLS_HELP)).toBeTruthy();

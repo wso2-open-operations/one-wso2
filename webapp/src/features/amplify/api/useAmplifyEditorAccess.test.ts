@@ -60,7 +60,7 @@ describe("hasAmplifyGrant", () => {
     grants,
     capabilities: [],
     linkedin: { status: "NOT_CONNECTED" },
-    config: { linkedinOrgUrn: "", privacyNoticeUrl: "", campaignLinkOrigins: [] },
+    config: { linkedinOrgUrn: "", privacyNoticeUrl: "", campaignLinkOrigins: [], nativeRepostDefault: false },
   });
 
   it("answers from GET /me grants, not group names", () => {

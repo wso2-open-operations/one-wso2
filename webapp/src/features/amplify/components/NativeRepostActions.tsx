@@ -78,7 +78,7 @@ export default function NativeRepostActions({
 }: {
   campaign: RepostTarget;
   state: NativeRepostState;
-  /** What a plain repost earns (GET /point-values), for "Found your repost · +N". */
+  /** What the found repost earned (the intent's `points`), for "Found your repost · +N"; unknown until it is scored. */
   foundPoints?: number;
   onPostForMe: () => void;
 }) {

@@ -203,6 +203,32 @@ describe("the activity list", () => {
     expect(first.textContent).toContain("Declined");
   });
 
+  it("shows a removed activity as removed after review, never its reason code or note", () => {
+    h.activity = {
+      ...h.activity,
+      data: {
+        pages: [
+          {
+            items: [
+              row("REV-9", -2, {
+                sourceType: "REVERSAL",
+                action: "REPOST",
+                reason: "Looks automated",
+                removalReason: "SPAM",
+                reversesReference: "ENG-9",
+              }),
+            ],
+          },
+        ],
+      },
+    };
+    render(<MyPointsPage />);
+    const rows = items().slice(1);
+    expect(rows[0].textContent).toContain("Removed after review by the PO team");
+    expect(rows[0].textContent).not.toContain("Looks automated");
+    expect(rows[0].textContent).not.toContain("SPAM");
+  });
+
   it("shows the date, what happened, the post, the signed points and the status of each row", () => {
     render(<MyPointsPage />);
     expect(within(table()).getAllByRole("columnheader").map((c) => c.textContent)).toEqual([

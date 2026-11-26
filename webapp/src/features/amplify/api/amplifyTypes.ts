@@ -48,11 +48,8 @@ export interface AmplifyMe {
     linkedinOrgUrn: string;
     privacyNoticeUrl: string;
     campaignLinkOrigins: string[];
-    /**
-     * Whether post cards offer "Repost on LinkedIn" (the `sharing.native_repost_default` setting). Not in amplify-api's
-     * contract yet: until /me sends it, the button stays hidden.
-     */
-    nativeRepostDefault?: boolean;
+    /** Admin setting `sharing.native_repost_default`: post cards and the share dialog offer "Repost on LinkedIn". */
+    nativeRepostDefault: boolean;
   };
 }
 
@@ -212,6 +209,8 @@ export interface NativeIntent {
   detectedAt: string | null;
   /** LOOKING for 24 hours after the last click, then NOT_FOUND unless the engagement sync found the repost. */
   nativeStatus: NativeRepostStatus;
+  /** Points the found repost earned, net of a reversal or removal; null until it is found and scored. */
+  points?: number | null;
 }
 
 /** GET /admin/linkedin-page: the company page connection (Community Management) and today's LinkedIn calls. */
@@ -225,6 +224,8 @@ export interface LinkedInPage {
   callsToday: number;
   /** `engagement.daily_call_budget`. */
   dailyBudget: number;
+  /** When the engagement sync last read LinkedIn; null if it never ran. */
+  lastSyncAt: string | null;
 }
 
 export interface LinkedInConnection {
@@ -550,7 +551,12 @@ export interface LedgerEntry {
   verification?: LedgerVerification | null;
   /** UNVERIFIABLE only: why the row couldn't be checked. */
   verificationReason?: VerificationReason | null;
+  /** On the reversal that removed an invalid activity, for the PO team only (everyone else gets null). */
+  removalReason?: RemovalReason | null;
 }
+
+/** Why the PO team removed an invalid activity. */
+export type RemovalReason = "DUPLICATE" | "NOT_A_REAL_REPOST" | "SPAM" | "OTHER";
 
 /** Whether the LinkedIn activity behind a row was checked before it converts to Coins. */
 export type LedgerVerification = "VERIFIED" | "REMOVED" | "UNVERIFIABLE" | "PO_CLEARED";

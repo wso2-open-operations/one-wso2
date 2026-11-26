@@ -31,7 +31,7 @@ export function nativeRepostState(byCampaign: ReadonlyMap<string, NativeIntent>,
   return byCampaign.get(campaignId)?.nativeStatus ?? "NONE";
 }
 
-/** The headline when Amplify has found the repost, with the points a plain repost earns when known. */
+/** The headline when Amplify has found the repost, with the points it earned once scored. */
 export function foundRepostText(points: number | undefined): string {
   return points === undefined ? "Found your repost" : `Found your repost · +${points}`;
 }

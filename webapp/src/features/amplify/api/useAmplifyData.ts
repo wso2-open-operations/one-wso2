@@ -477,7 +477,7 @@ export function usePointRules(enabled = true) {
 
 /**
  * Whether post cards offer "Repost on LinkedIn" (`sharing.native_repost_default`, sent in GET /me `config`). False
- * until /me answers, and while amplify-api doesn't send it.
+ * until /me answers.
  */
 export function useNativeRepostEnabled(): boolean {
   const { data } = useAmplifyMe();

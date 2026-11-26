@@ -70,6 +70,7 @@ const MESSAGES: Record<string, string> = {
   UNKNOWN_SETTING: "That setting can't be changed here.",
   NOT_PAGE_ADMIN:
     "Your LinkedIn account isn't an administrator of the Choreo Labs page. Ask a page admin to connect it.",
+  NOT_REMOVABLE: "Only a LinkedIn activity can be removed. Reverse or adjust this one instead.",
   ALREADY_PAID: "These points have already become Coins. Reload to see where they are now.",
   PAID_NOT_ALLOWED: "Points become Coins only through the conversion.",
   OAUTH_REDIRECT_MISMATCH: "This LinkedIn sign-in didn't come back to Amplify's page. Start again.",
@@ -84,6 +85,13 @@ export const PAGE_CONNECTION_MESSAGES: Readonly<Record<string, string>> = {
 /** What `DEPENDENCY_UNAVAILABLE` means on Disconnect: LinkedIn didn't confirm the revoke, so the page stays connected. */
 export const PAGE_DISCONNECT_UNAVAILABLE =
   "LinkedIn couldn't be reached, so the page is still connected. Try again shortly.";
+
+/** What the removal's failures mean on Points & corrections, checked before the shared messages. */
+export const REMOVAL_MESSAGES: Readonly<Record<string, string>> = {
+  SELF_REVIEW: "You can't remove your own activity.",
+  ALREADY_REVERSED: "This activity has already been reversed or removed. Reload to see where it is now.",
+  REASON_REQUIRED: "Pick a reason, and add a note when it's Other.",
+};
 
 /** What `SELF_REVIEW` means on Points & corrections, where the refused change is to the caller's own points. */
 export const SELF_CORRECTION_MESSAGE = "You can't correct your own points.";

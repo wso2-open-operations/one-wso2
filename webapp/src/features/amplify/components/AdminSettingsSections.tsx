@@ -33,13 +33,18 @@ import {
   COIN_SCHEDULE,
   COIN_WALLETS_ENABLED,
   OWN_POST_DAILY_LIMIT,
+  MAX_POSTS_PER_DAY,
+  MAX_POSTS_PER_HOUR,
+  PUBLISH_GAP_MINUTES,
   SETTING_RANGES,
   SHARING_ENABLED,
+  SPREAD_MINUTES,
   booleanSetting,
   numberSetting,
   parseWholeNumber,
   settingChanges,
   settingsFormKey,
+  spreadHoursText,
   stringSetting,
 } from "../util/settings";
 import { CoinMark } from "./AmplifyTone";
@@ -57,6 +62,16 @@ export const NEW_ACTIVITY_ONLY_NOTE = "New values apply to new activity; points 
 
 /** The help text under Amplify posting. */
 export const POSTING_HELP = "Turn off to stop all posting at once. Repost on LinkedIn still works.";
+
+/** The posting limits Amplify Admin edits as plain numbers, in the order design 07 draws them. */
+const POSTING_LIMITS = [MAX_POSTS_PER_DAY, MAX_POSTS_PER_HOUR, PUBLISH_GAP_MINUTES] as const;
+type PostingLimit = (typeof POSTING_LIMITS)[number];
+
+/** The help under Posts a day. */
+export const POSTS_PER_DAY_HELP = "LinkedIn allows 500 for the app; keep a margin.";
+
+/** The help under the rows that 0 turns off. */
+export const ZERO_IS_OFF = "0 turns it off.";
 
 /** The toast after Save changes. */
 export const SAVED_MESSAGE = "Changes saved. They apply from the next run.";
@@ -284,6 +299,19 @@ function AdminForm({
   const [wallets, setWallets] = useState(savedWallets ?? false);
   const [limitText, setLimitText] = useState(savedLimit === null ? "" : String(savedLimit));
   const [posting, setPosting] = useState(savedPosting ?? true);
+  // Posting limits (admins only): posts a day and an hour, the gap between one person's posts, and the spread.
+  const savedLimits = Object.fromEntries(
+    POSTING_LIMITS.map((k) => [k, scope === "admin" ? numberSetting(settings, k) : null]),
+  ) as Record<PostingLimit, number | null>;
+  const [limitTexts, setLimitTexts] = useState<Record<PostingLimit, string>>(
+    () =>
+      Object.fromEntries(POSTING_LIMITS.map((k) => [k, savedLimits[k] === null ? "" : String(savedLimits[k])])) as Record<
+        PostingLimit,
+        string
+      >,
+  );
+  const savedSpread = scope === "admin" ? numberSetting(settings, SPREAD_MINUTES) : null;
+  const [spreadText, setSpreadText] = useState(spreadHoursText(savedSpread));
   const [valueTexts, setValueTexts] = useState<ValueTexts>(() => savedValueTexts(savedValues));
 
   const coinsAvailable = savedPoints !== null && savedCoins !== null && isCoinSchedule(savedSchedule);
@@ -294,9 +322,18 @@ function AdminForm({
   const limit = savedLimit === null ? null : parseWholeNumber(limitText, limitRange);
   const limitValid = savedLimit === null || limit !== null;
   const canSwitch = scope === "admin" && savedWallets !== null;
+  const parsedLimits = Object.fromEntries(
+    POSTING_LIMITS.map((k) => [k, savedLimits[k] === null ? null : parseWholeNumber(limitTexts[k], SETTING_RANGES[k])]),
+  ) as Record<PostingLimit, number | null>;
+  const limitsValid = POSTING_LIMITS.every((k) => savedLimits[k] === null || parsedLimits[k] !== null);
+  // A spread saved in minutes that aren't whole hours stays as it is until the field is changed.
+  const spreadUnchanged = spreadText === spreadHoursText(savedSpread);
+  const spreadHours = spreadUnchanged ? null : parseWholeNumber(spreadText, SETTING_RANGES[SPREAD_MINUTES]);
+  const spreadValid = savedSpread === null || spreadUnchanged || spreadHours !== null;
+  const postingCard = savedPosting !== null || savedSpread !== null || POSTING_LIMITS.some((k) => savedLimits[k] !== null);
 
   const settingsChanges =
-    rateValid && limitValid
+    rateValid && limitValid && limitsValid && spreadValid
       ? settingChanges(settings, {
           ...(coinsAvailable && blockPoints !== null && blockCoins !== null
             ? { [COIN_BLOCK_POINTS]: blockPoints, [COIN_BLOCK_COINS]: blockCoins, [COIN_SCHEDULE]: schedule }
@@ -304,10 +341,12 @@ function AdminForm({
           ...(canSwitch ? { [COIN_WALLETS_ENABLED]: wallets } : {}),
           ...(limit !== null ? { [OWN_POST_DAILY_LIMIT]: limit } : {}),
           ...(savedPosting !== null ? { [SHARING_ENABLED]: posting } : {}),
+          ...Object.fromEntries(POSTING_LIMITS.flatMap((k) => (parsedLimits[k] === null ? [] : [[k, parsedLimits[k]]]))),
+          ...(savedSpread !== null && spreadHours !== null ? { [SPREAD_MINUTES]: spreadHours * 60 } : {}),
         })
       : [];
   const ruleChanges = canEditValues ? pointValueChanges(savedValues, valueTexts) : [];
-  const valid = rateValid && limitValid && ruleChanges !== null;
+  const valid = rateValid && limitValid && limitsValid && spreadValid && ruleChanges !== null;
   const dirty = settingsChanges.length > 0 || (ruleChanges?.length ?? 0) > 0;
   const example = blockPoints !== null && blockCoins !== null ? rateExample(blockPoints, blockCoins) : null;
 
@@ -481,19 +520,73 @@ function AdminForm({
         </Card>
       )}
 
-      {savedPosting !== null && (
+      {postingCard && (
         <Card title={'"Post it for me" posting'}>
-          <Row first label="Amplify posting" help={POSTING_HELP}>
-            <Switch
-              checked={posting}
-              onChange={(e) => setPosting(e.target.checked)}
-              disabled={busy}
-              slotProps={{ input: { role: "switch", "aria-label": "Amplify posting" } }}
-            />
-            <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 28 }}>
-              {posting ? "On" : "Off"}
+          {savedPosting !== null && (
+            <Row first label="Amplify posting" help={POSTING_HELP}>
+              <Switch
+                checked={posting}
+                onChange={(e) => setPosting(e.target.checked)}
+                disabled={busy}
+                slotProps={{ input: { role: "switch", "aria-label": "Amplify posting" } }}
+              />
+              <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 28 }}>
+                {posting ? "On" : "Off"}
+              </Typography>
+            </Row>
+          )}
+          {POSTING_LIMITS.map((k, i) => {
+            if (savedLimits[k] === null) return null;
+            const label =
+              k === MAX_POSTS_PER_DAY
+                ? "Posts a day, all employees"
+                : k === MAX_POSTS_PER_HOUR
+                  ? "Posts an hour, all employees"
+                  : "Gap between one person's posts";
+            return (
+              <Row
+                key={k}
+                first={savedPosting === null && i === 0}
+                label={label}
+                help={k === MAX_POSTS_PER_DAY ? POSTS_PER_DAY_HELP : ZERO_IS_OFF}
+              >
+                <NumberBox
+                  label={label}
+                  value={limitTexts[k]}
+                  onChange={(v) => setLimitTexts((t) => ({ ...t, [k]: v }))}
+                  error={parsedLimits[k] === null}
+                  disabled={busy}
+                  min={SETTING_RANGES[k].min}
+                  max={SETTING_RANGES[k].max}
+                />
+                {k === PUBLISH_GAP_MINUTES && <Typography variant="body2">min</Typography>}
+              </Row>
+            );
+          })}
+          {!limitsValid && (
+            <Typography variant="caption" color="error" sx={{ display: "block", mb: 1 }}>
+              Use whole numbers: up to 10,000 posts, and up to 1,440 minutes.
             </Typography>
-          </Row>
+          )}
+          {savedSpread !== null && (
+            <Row label="Spread each post's reposts over" help={ZERO_IS_OFF}>
+              <NumberBox
+                label="Spread each post's reposts over"
+                value={spreadText}
+                onChange={setSpreadText}
+                error={!spreadValid}
+                disabled={busy}
+                min={SETTING_RANGES[SPREAD_MINUTES].min}
+                max={SETTING_RANGES[SPREAD_MINUTES].max}
+              />
+              <Typography variant="body2">hours</Typography>
+            </Row>
+          )}
+          {!spreadValid && (
+            <Typography variant="caption" color="error">
+              Use whole hours from 0 to 24.
+            </Typography>
+          )}
         </Card>
       )}
 

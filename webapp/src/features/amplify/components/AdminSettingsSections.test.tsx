@@ -382,3 +382,69 @@ describe("admin-only sections", () => {
     });
   });
 });
+
+describe("posting limits", () => {
+  const limits = () => [
+    ...adminSettings(),
+    setting("sharing.enabled", true, 7),
+    setting("sharing.max_posts_per_day", 450, 1),
+    setting("sharing.max_posts_per_hour", 60, 1),
+    setting("sharing.publish_gap_minutes", 10, 1),
+    setting("sharing.spread_minutes", 120, 1),
+  ];
+
+  it("shows an admin the four limits, the spread in hours", () => {
+    h.grants = ["CAN_ADMIN"];
+    load(limits());
+    render(<AdminSettingsForm />);
+    expect(field("Posts a day, all employees").value).toBe("450");
+    expect(field("Posts an hour, all employees").value).toBe("60");
+    expect(field("Gap between one person's posts").value).toBe("10");
+    expect(field("Spread each post's reposts over").value).toBe("2");
+    expect(screen.getByText("LinkedIn allows 500 for the app; keep a margin.")).toBeTruthy();
+  });
+
+  it("saves changed limits, the spread back in minutes", async () => {
+    h.grants = ["CAN_ADMIN"];
+    load(limits());
+    render(<AdminSettingsForm />);
+    fireEvent.change(field("Posts a day, all employees"), { target: { value: "400" } });
+    fireEvent.change(field("Spread each post's reposts over"), { target: { value: "3" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.saveSettings).toHaveBeenCalled());
+    expect(h.saveSettings.mock.calls[0][0]).toEqual({
+      scope: "admin",
+      changes: [
+        { key: "sharing.max_posts_per_day", value: 400, version: 1 },
+        { key: "sharing.spread_minutes", value: 180, version: 1 },
+      ],
+    });
+  });
+
+  it("won't save a limit out of range or a spread over a day", () => {
+    h.grants = ["CAN_ADMIN"];
+    load(limits());
+    render(<AdminSettingsForm />);
+    fireEvent.change(field("Gap between one person's posts"), { target: { value: "2000" } });
+    expect(saveButton().disabled).toBe(true);
+    fireEvent.change(field("Gap between one person's posts"), { target: { value: "15" } });
+    expect(saveButton().disabled).toBe(false);
+    fireEvent.change(field("Spread each post's reposts over"), { target: { value: "25" } });
+    expect(saveButton().disabled).toBe(true);
+    expect(screen.getByText("Use whole hours from 0 to 24.")).toBeTruthy();
+  });
+
+  it("keeps a spread that isn't whole hours until it is changed", () => {
+    h.grants = ["CAN_ADMIN"];
+    load([...adminSettings(), setting("sharing.spread_minutes", 90, 1)]);
+    render(<AdminSettingsForm />);
+    expect(field("Spread each post's reposts over").value).toBe("1.5");
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("shows the PO team none of them", () => {
+    load([...poSettings(), setting("sharing.max_posts_per_day", 450, 1)]);
+    render(<AdminSettingsForm />);
+    expect(screen.queryByLabelText("Posts a day, all employees")).toBeNull();
+  });
+});

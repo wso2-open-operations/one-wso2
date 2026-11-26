@@ -373,12 +373,15 @@ describe("CelebratePage and Repost on LinkedIn", () => {
     expect(h.state.intentsAskedWith.every((enabled) => !enabled)).toBe(true);
   });
 
-  it("gives each card its repost state, with the plain repost points for Found", () => {
+  it("gives each card its repost state, with the points the found repost earned", () => {
     h.state.nativeRepost = true;
-    h.state.intents = [{ campaignId: "c2", openedAt: "2026-11-20T10:00:00Z", detectedAt: null, nativeStatus: "LOOKING" }];
+    h.state.intents = [
+      { campaignId: "c2", openedAt: "2026-11-20T10:00:00Z", detectedAt: "2026-11-20T12:00:00Z", nativeStatus: "DETECTED", points: 5 },
+      { campaignId: "c1", openedAt: "2026-11-20T10:00:00Z", detectedAt: null, nativeStatus: "LOOKING", points: null },
+    ];
     render(<CelebratePage />);
-    expect(within(screen.getByRole("article", { name: "Launch week" })).getByText("native: NONE +2")).toBeTruthy();
-    expect(within(screen.getByRole("article", { name: "Integrator 5" })).getByText("native: LOOKING +2")).toBeTruthy();
+    expect(within(screen.getByRole("article", { name: "Launch week" })).getByText("native: LOOKING +")).toBeTruthy();
+    expect(within(screen.getByRole("article", { name: "Integrator 5" })).getByText("native: DETECTED +5")).toBeTruthy();
   });
 
   it("still opens the share dialog from Post it for me", () => {

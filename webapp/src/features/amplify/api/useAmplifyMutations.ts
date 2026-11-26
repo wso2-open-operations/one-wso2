@@ -46,6 +46,7 @@ import type {
   PointAction,
   PointRule,
   PointsAdjustment,
+  RemovalReason,
   SettingChange,
   SettingList,
   Share,
@@ -452,6 +453,32 @@ export function useClearActionRequired() {
         refreshNow(qc, amplifyKey("action-required", sub)),
         refreshNow(qc, amplifyKey("points-history", sub, vars.employeeId)),
       ]);
+    },
+  });
+}
+
+/**
+ * POST /po/points/{reference}/remove (CAN_ADJUST_POINTS): removes an invalid engagement with a reason code (and a
+ * note, required for OTHER). Its points are reversed and it is never scored again. Then refetches that person's
+ * history, the boards and the action-required list.
+ */
+export function useRemoveActivity() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<
+    LedgerEntry | null,
+    Error,
+    { reference: string; employeeId: string; reasonCode: RemovalReason; note?: string }
+  >({
+    mutationFn: async ({ reference, reasonCode, note }) =>
+      authedPost<LedgerEntry>(
+        amplifyServiceUrls.poPointsRemove(reference),
+        await getAccessToken(),
+        note ? { reasonCode, note } : { reasonCode },
+      ),
+    onSuccess: async (_data, vars) => {
+      await Promise.all([refreshPointsOf(qc, sub, vars.employeeId), refreshNow(qc, amplifyKey("action-required", sub))]);
     },
   });
 }

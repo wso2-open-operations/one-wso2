@@ -228,7 +228,7 @@ export default function CelebratePage() {
                     <NativeRepostActions
                       campaign={campaign}
                       state={nativeRepostState(intents, campaign.id)}
-                      foundPoints={pointValues?.REPOST}
+                      foundPoints={intents.get(campaign.id)?.points ?? undefined}
                       onPostForMe={() => amplify(campaign)}
                     />
                   ) : (

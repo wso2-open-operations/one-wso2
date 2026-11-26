@@ -58,6 +58,7 @@ import {
 import { num, shortDate } from "../util/dashboardFormat";
 import { OWN_POST_STATUS_LABELS } from "../util/ownPosts";
 import { signedPoints } from "../util/points";
+import { employeeReason } from "../util/removal";
 
 /** The line under the activity list. */
 export const ACTIVITY_FOOTNOTE = "Something look wrong? Ask the PO team. Reactions and comments appear within 24 hours.";
@@ -362,9 +363,12 @@ function Row({
   );
 }
 
-/** One ledger row: the post it was for, and the PO team's reason on a correction. */
+/**
+ * One ledger row: the post it was for, and the PO team's reason on a correction ("Removed after review by the PO
+ * team" on a removed activity, never its reason code).
+ */
 function LedgerRow({ entry }: { entry: LedgerEntry }) {
-  const reason = isCorrection(entry) ? entry.reason?.trim() : undefined;
+  const reason = isCorrection(entry) ? employeeReason(entry) : undefined;
   return (
     <Row
       date={shortDate(entry.createdAt)}
