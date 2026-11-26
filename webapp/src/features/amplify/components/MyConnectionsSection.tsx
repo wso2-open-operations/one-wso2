@@ -22,6 +22,7 @@ import { useAmplifyMe } from "../api/useAmplifyData";
 import type { LinkedInStatus } from "../api/amplifyTypes";
 import LinkLinkedInDialog from "./LinkLinkedInDialog";
 import RemoveLinkedInDialog from "./RemoveLinkedInDialog";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 const SETTINGS_PATH = "/settings";
 
@@ -63,7 +64,7 @@ export default function MyConnectionsSection() {
           p: 2,
           border: 1,
           borderColor: "divider",
-          borderRadius: 1,
+          borderRadius: AMPLIFY_RADIUS,
         }}
       >
         <Box sx={{ color: "primary.main", display: "flex" }}>

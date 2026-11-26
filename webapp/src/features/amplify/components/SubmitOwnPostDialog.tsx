@@ -39,6 +39,7 @@ import { describeAmplifyError } from "../util/amplifyError";
 import { isLinkedInShortLink, ownPostEvidenceUrl } from "../util/linkedinPost";
 import { OWN_POST_NOTE_MAX_LENGTH, ownPostAwards } from "../util/ownPosts";
 import { ClosableDialogTitle } from "./ShareDialog";
+import { AMPLIFY_INNER_RADIUS, amplifyRadiusSx } from "../util/radius";
 
 /** The toast after a post is sent for review. */
 export const OWN_POST_SUBMITTED_MESSAGE = "Thanks! Your post is waiting for review.";
@@ -137,7 +138,7 @@ export default function SubmitOwnPostDialog({ open, onClose }: { open: boolean; 
       onClose={busy ? undefined : close}
       maxWidth="sm"
       fullWidth
-      slotProps={{ paper: { sx: dialogPaperSx } }}
+      slotProps={{ paper: { sx: { ...dialogPaperSx, ...amplifyRadiusSx } } }}
     >
       <ClosableDialogTitle onClose={close} disabled={busy}>
         Submit your own post
@@ -213,7 +214,7 @@ export default function SubmitOwnPostDialog({ open, onClose }: { open: boolean; 
             />
           </Box>
 
-          <Box sx={{ bgcolor: "action.hover", borderRadius: 2, px: 1.5, py: 1 }}>
+          <Box sx={{ bgcolor: "action.hover", borderRadius: AMPLIFY_INNER_RADIUS, px: 1.5, py: 1 }}>
             <FormControlLabel
               control={
                 <Checkbox checked={certified} onChange={(e) => setCertified(e.target.checked)} disabled={busy} required />

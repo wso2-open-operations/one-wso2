@@ -25,6 +25,7 @@ import { shortDate } from "../util/dashboardFormat";
 import { signedPoints } from "../util/points";
 import { REMOVAL_NOTE_MAX_LENGTH, REMOVAL_REASONS, REMOVED_AFTER_REVIEW, removalReady } from "../util/removal";
 import { CorrectionEffect, CorrectionPanel } from "./CorrectionParts";
+import { AMPLIFY_INNER_RADIUS } from "../util/radius";
 
 /** Under the reason: what the removal does, and what the person reads. */
 export const REMOVAL_HELP =
@@ -84,7 +85,7 @@ export default function RemoveActivityPanel({
       onCancel={onClose}
       busy={busy}
     >
-      <Box sx={{ bgcolor: "action.hover", borderRadius: 1, px: 2, py: 1.5 }}>
+      <Box sx={{ bgcolor: "action.hover", borderRadius: AMPLIFY_INNER_RADIUS, px: 2, py: 1.5 }}>
         <Typography sx={{ fontWeight: 700 }}>
           {what} · {signedPoints(entry.points)}
         </Typography>

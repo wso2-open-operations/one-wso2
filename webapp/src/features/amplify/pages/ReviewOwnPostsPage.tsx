@@ -52,6 +52,7 @@ import { describeAmplifyError } from "../util/amplifyError";
 import { fullDate, initialsOf } from "../util/dashboardFormat";
 import { originOf } from "../util/linkedinPost";
 import { REVIEW_TABS, ownPostAwards, type OwnPostAwards } from "../util/ownPosts";
+import { AMPLIFY_INNER_RADIUS, AMPLIFY_RADIUS, amplifyRadiusSx } from "../util/radius";
 
 /** The error when Feature approved a post but couldn't feature it. */
 export const FEATURE_AFTER_APPROVE_FAILED =
@@ -306,7 +307,7 @@ function ReviewCard({
       variant="outlined"
       component="article"
       aria-label={`Post from ${name}`}
-      sx={{ p: 2.5, borderRadius: 2, ...(declining && { borderColor: "error.light" }) }}
+      sx={{ p: 2.5, borderRadius: AMPLIFY_RADIUS, ...(declining && { borderColor: "error.light" }) }}
     >
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, flexWrap: "wrap" }}>
         <Avatar src={who.photoUrl ?? undefined} alt="" sx={{ width: 44, height: 44, fontSize: 15 }}>
@@ -351,7 +352,7 @@ function ReviewCard({
       {share.note?.trim() && (
         <Box
           aria-label="Note for the reviewer"
-          sx={{ mt: 2, px: 2, py: 1.25, borderRadius: 2, bgcolor: "action.hover" }}
+          sx={{ mt: 2, px: 2, py: 1.25, borderRadius: AMPLIFY_INNER_RADIUS, bgcolor: "action.hover" }}
         >
           <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
             <Box component="span" sx={{ color: "text.secondary" }}>
@@ -420,7 +421,7 @@ function ReviewCard({
         maxWidth="xs"
         fullWidth
         aria-labelledby={`confirm-${share.id}`}
-        slotProps={{ paper: { sx: dialogPaperSx } }}
+        slotProps={{ paper: { sx: { ...dialogPaperSx, ...amplifyRadiusSx } } }}
       >
         <ClosableDialogTitle id={`confirm-${share.id}`} onClose={() => setConfirming(null)} disabled={working}>
           {confirming === "feature" ? "Feature this post?" : "Approve this post?"}
@@ -440,7 +441,7 @@ function ReviewCard({
               mt: 2,
               px: 2,
               py: 1.5,
-              borderRadius: 2,
+              borderRadius: AMPLIFY_RADIUS,
               bgcolor: "action.hover",
               display: "flex",
               alignItems: "center",

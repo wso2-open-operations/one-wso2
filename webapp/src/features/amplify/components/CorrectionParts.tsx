@@ -17,6 +17,7 @@
 import type { ReactNode } from "react";
 import { Box, Button, Divider, TextField, Typography } from "@wso2/oxygen-ui";
 import { CORRECTION_REASONS, correctionNoteMaxLength, effectPreview, signedPoints } from "../util/points";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /** Under the effect: what happens to points that already became Coins. */
 export const COINS_KEPT_NOTE =
@@ -140,7 +141,7 @@ export function CorrectionPanel({
       sx={{
         border: "2px solid",
         borderColor: "primary.dark",
-        borderRadius: 2,
+        borderRadius: AMPLIFY_RADIUS,
         p: 2.5,
         display: "flex",
         flexDirection: "column",

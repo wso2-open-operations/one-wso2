@@ -21,6 +21,7 @@ import { LinkedinIcon } from "@components/icons/LinkedinIcon";
 import type { Campaign } from "../api/amplifyTypes";
 import { useOpenOnLinkedIn } from "../api/useOpenOnLinkedIn";
 import { foundRepostText, type NativeRepostState } from "../util/nativeRepost";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 type RepostTarget = Pick<Campaign, "id" | "resourceUrn" | "resourceUrl">;
 
@@ -45,7 +46,7 @@ function Notice({
         display: "flex",
         gap: 1.25,
         border: "1px solid",
-        borderRadius: 2,
+        borderRadius: AMPLIFY_RADIUS,
         px: 1.5,
         py: 1.25,
         bgcolor: (t: Theme) => alpha(t.palette[tone].main, 0.07),

@@ -19,6 +19,7 @@ import { Box, Chip, Link, Paper, Typography } from "@wso2/oxygen-ui";
 import type { Campaign } from "../api/amplifyTypes";
 import { useAmplifyConfig } from "../api/useAmplifyData";
 import { linkedInPostUrl } from "../util/linkedinPost";
+import { AMPLIFY_INNER_RADIUS, AMPLIFY_RADIUS } from "../util/radius";
 
 // Choreo Labs logo, drawn inline so there is nothing to fetch. White on the black card.
 function ChoreoLabsLogo() {
@@ -93,7 +94,7 @@ export default function PostCard({
 }) {
   const { campaignLinkOrigins } = useAmplifyConfig();
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, height: "100%", display: "flex", flexDirection: "column", gap: 1 }}>
+    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: AMPLIFY_RADIUS, height: "100%", display: "flex", flexDirection: "column", gap: 1 }}>
       <Box sx={{ minWidth: 0 }}>
         <Link
           href={linkedInPostUrl(campaign.resourceUrn, campaign.resourceUrl, campaignLinkOrigins)}
@@ -110,7 +111,7 @@ export default function PostCard({
         </Typography>
       </Box>
 
-      <Box sx={{ aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", bgcolor: "common.black" }}>
+      <Box sx={{ aspectRatio: "16 / 9", borderRadius: AMPLIFY_INNER_RADIUS, overflow: "hidden", bgcolor: "common.black" }}>
         <PostImage url={campaign.imageUrl} />
       </Box>
 

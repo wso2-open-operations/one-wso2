@@ -23,6 +23,7 @@ import { coinsText, progressFraction } from "../util/coins";
 import { num } from "../util/dashboardFormat";
 import { CoinMark, warmSurfaceSx } from "./AmplifyTone";
 import { SectionLabel } from "./DashboardParts";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /** One tile: a label, the value, a line of context and any extra content (a progress bar). */
 function Tile({
@@ -46,7 +47,7 @@ function Tile({
       sx={{
         border: "1px solid",
         borderColor: "divider",
-        borderRadius: 2,
+        borderRadius: AMPLIFY_RADIUS,
         p: 2,
         minWidth: 0,
         height: "100%",

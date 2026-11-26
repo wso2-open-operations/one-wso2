@@ -37,6 +37,7 @@ import { SoftPill } from "./AmplifyTone";
 import { PostImage, postDate } from "./PostCard";
 import { describeAmplifyError } from "../util/amplifyError";
 import { OWN_WORDS_THRESHOLD, countOwnWords, ownWordsText } from "../util/ownWords";
+import { AMPLIFY_INNER_RADIUS, AMPLIFY_RADIUS, amplifyRadiusSx } from "../util/radius";
 
 export const COMMENTARY_MAX_LENGTH = 3000;
 
@@ -125,7 +126,7 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
       onClose={busy ? undefined : close}
       maxWidth="sm"
       fullWidth
-      slotProps={{ paper: { sx: dialogPaperSx } }}
+      slotProps={{ paper: { sx: { ...dialogPaperSx, ...amplifyRadiusSx } } }}
     >
       <ClosableDialogTitle onClose={close} disabled={busy}>
         Amplify this post
@@ -140,11 +141,11 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
                 gap: 2,
                 border: "1px solid",
                 borderColor: "divider",
-                borderRadius: 2,
+                borderRadius: AMPLIFY_RADIUS,
                 p: 1.5,
               }}
             >
-              <Box sx={{ width: 96, height: 54, flexShrink: 0, borderRadius: 1, overflow: "hidden", bgcolor: "common.black" }}>
+              <Box sx={{ width: 96, height: 54, flexShrink: 0, borderRadius: AMPLIFY_INNER_RADIUS, overflow: "hidden", bgcolor: "common.black" }}>
                 <PostImage url={campaign.imageUrl} />
               </Box>
               <Box sx={{ minWidth: 0 }}>
@@ -162,7 +163,7 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
               <Box
                 component="section"
                 aria-label="Repost it on LinkedIn yourself"
-                sx={{ border: "2px solid", borderColor: "primary.main", borderRadius: 2, p: 2 }}
+                sx={{ border: "2px solid", borderColor: "primary.main", borderRadius: AMPLIFY_RADIUS, p: 2 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 0.75 }}>
                   <Typography component="h3" sx={{ fontWeight: 700, fontSize: 16 }}>
@@ -199,7 +200,7 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
           <Box
             component="section"
             aria-label="Let Amplify post it for you"
-            sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}
+            sx={{ border: "1px solid", borderColor: "divider", borderRadius: AMPLIFY_RADIUS, p: 2 }}
           >
             <Typography component="h3" sx={{ fontWeight: 700, fontSize: 16, mb: 0.75 }}>
               Let Amplify post it for you

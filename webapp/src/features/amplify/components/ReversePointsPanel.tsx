@@ -24,6 +24,7 @@ import { describeAmplifyError, SELF_CORRECTION_MESSAGE } from "../util/amplifyEr
 import { shortDate } from "../util/dashboardFormat";
 import { correctionReasonText, signedPoints } from "../util/points";
 import { CorrectionEffect, CorrectionPanel, ReasonFields } from "./CorrectionParts";
+import { AMPLIFY_INNER_RADIUS } from "../util/radius";
 
 /**
  * "Reverse this activity" (POST /po/points/{reference}/reverse), beside the person's activity: the row, a reason
@@ -77,7 +78,7 @@ export default function ReversePointsPanel({
       onCancel={onClose}
       busy={busy}
     >
-      <Box sx={{ bgcolor: "action.hover", borderRadius: 2, px: 2, py: 1.5 }}>
+      <Box sx={{ bgcolor: "action.hover", borderRadius: AMPLIFY_INNER_RADIUS, px: 2, py: 1.5 }}>
         <Typography sx={{ fontWeight: 700 }}>
           {what} · {signedPoints(entry.points)}
         </Typography>

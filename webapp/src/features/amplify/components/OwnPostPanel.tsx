@@ -20,6 +20,7 @@ import { PencilIcon } from "@wso2/oxygen-ui-icons-react";
 import { usePointValues } from "../api/useAmplifyData";
 import { ownPostAwards } from "../util/ownPosts";
 import SubmitOwnPostDialog from "./SubmitOwnPostDialog";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /**
  * Celebrate's own-post prompt: "Wrote your own post about Choreo Labs?", the points an approved and a featured post
@@ -41,7 +42,7 @@ export default function OwnPostPanel() {
         flexWrap: { xs: "wrap", sm: "nowrap" },
         border: "1px solid",
         borderColor: "divider",
-        borderRadius: 2,
+        borderRadius: AMPLIFY_RADIUS,
         p: 2.5,
         mb: 3,
       }}

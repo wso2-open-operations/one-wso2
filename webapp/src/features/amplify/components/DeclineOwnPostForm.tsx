@@ -26,6 +26,7 @@ import {
   declineReasonText,
   type DeclineReason,
 } from "../util/ownPosts";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /**
  * "Decline this post", inside the post's card: a reason is required; the optional message to the person follows it
@@ -72,7 +73,7 @@ export default function DeclineOwnPostForm({
     <Box
       component="fieldset"
       disabled={busy}
-      sx={{ border: "1px solid", borderColor: "error.light", borderRadius: 2, px: 2.5, pt: 1, pb: 2.5, m: 0, mt: 2, minWidth: 0 }}
+      sx={{ border: "1px solid", borderColor: "error.light", borderRadius: AMPLIFY_RADIUS, px: 2.5, pt: 1, pb: 2.5, m: 0, mt: 2, minWidth: 0 }}
     >
       <Typography component="legend" sx={{ px: 0.75, color: "error.main", fontWeight: 700, fontSize: 15 }}>
         Decline this post

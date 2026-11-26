@@ -59,6 +59,7 @@ import { num, shortDate } from "../util/dashboardFormat";
 import { OWN_POST_STATUS_LABELS } from "../util/ownPosts";
 import { signedPoints } from "../util/points";
 import { employeeReason } from "../util/removal";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /** The line under the activity list. */
 export const ACTIVITY_FOOTNOTE = "Something look wrong? Ask the PO team. Reactions and comments appear within 24 hours.";
@@ -123,7 +124,7 @@ function CoinsBand() {
         alignItems: "center",
         gap: 3,
         border: "1px solid",
-        borderRadius: 2,
+        borderRadius: AMPLIFY_RADIUS,
         p: 3,
         mb: 3,
         ...warmSurfaceSx,
@@ -286,7 +287,7 @@ function ActivityPanel() {
     <Box
       component="section"
       aria-label="Activity"
-      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, pt: 2, pb: 2, mb: 3 }}
+      sx={{ border: "1px solid", borderColor: "divider", borderRadius: AMPLIFY_RADIUS, pt: 2, pb: 2, mb: 3 }}
     >
       <Box
         sx={{

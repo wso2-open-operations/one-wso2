@@ -23,6 +23,7 @@ import { PAGE_CONNECTION_MESSAGES, PAGE_DISCONNECT_UNAVAILABLE, describeAmplifyE
 import { num } from "../util/dashboardFormat";
 import { isAllowedLink } from "../util/linkedinPost";
 import { callsPercent, connectedByText, rememberPageConnect } from "../util/pageConnect";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /** The toast after Disconnect. */
 export const PAGE_DISCONNECTED_MESSAGE = "Disconnected from the Choreo Labs page. Amplify stops reading it.";
@@ -88,7 +89,7 @@ export default function LinkedInPageConnection() {
           gap: 1.5,
           flexWrap: "wrap",
           border: "1px solid",
-          borderRadius: 2,
+          borderRadius: AMPLIFY_RADIUS,
           px: 2,
           py: 1.5,
           bgcolor: (t: Theme) => alpha(t.palette[tone].main, 0.08),

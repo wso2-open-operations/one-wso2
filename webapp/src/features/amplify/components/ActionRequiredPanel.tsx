@@ -37,6 +37,7 @@ import { SELF_CORRECTION_MESSAGE, describeAmplifyError } from "../util/amplifyEr
 import { num, shortDate } from "../util/dashboardFormat";
 import { signedPoints } from "../util/points";
 import { SoftPill } from "./AmplifyTone";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /** The line under the Action required title. */
 export const ACTION_REQUIRED_HELP =
@@ -92,7 +93,7 @@ export default function ActionRequiredPanel() {
     <Box
       component="section"
       aria-label="Action required"
-      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, mb: 3, overflow: "hidden" }}
+      sx={{ border: "1px solid", borderColor: "divider", borderRadius: AMPLIFY_RADIUS, mb: 3, overflow: "hidden" }}
     >
       <Box sx={{ px: 2.5, pt: 2.5, pb: 1.5 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

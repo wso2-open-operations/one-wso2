@@ -54,6 +54,7 @@ import { activityText, isCorrection } from "../util/activity";
 import { initialsOf, num, shortDate } from "../util/dashboardFormat";
 import { canReverse, isReversed, signedPoints } from "../util/points";
 import { canRemove, removalRowText } from "../util/removal";
+import { AMPLIFY_RADIUS } from "../util/radius";
 
 /** How long the search box waits after the last keystroke before it asks. */
 export const PEOPLE_SEARCH_DEBOUNCE_MS = 300;
@@ -243,7 +244,7 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
       <Box
         component="section"
         aria-label={name}
-        sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, minWidth: 0, overflow: "hidden" }}
+        sx={{ border: "1px solid", borderColor: "divider", borderRadius: AMPLIFY_RADIUS, minWidth: 0, overflow: "hidden" }}
       >
         <Box sx={{ p: 2.5 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
