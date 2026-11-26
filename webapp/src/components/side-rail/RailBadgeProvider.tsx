@@ -18,6 +18,7 @@
 
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
 import { useCcRailBadges } from "@features/finance/cc/useCcRailBadges";
+import { useAmplifyRailBadges } from "@features/amplify/api/useAmplifyRailBadges";
 import type { ReactNode } from "react";
 import type { RailBadgeMap } from "./railBadge";
 import { RailBadgeContext, type RailBadges } from "./useRailBadges";
@@ -30,7 +31,10 @@ import { RailBadgeContext, type RailBadges } from "./useRailBadges";
 export function RailBadgeProvider({ children }: { children: ReactNode }) {
   const perspective = useActivePerspective().key;
   // Each feature's badge hook, enabled only in its own perspective.
-  const sources: RailBadgeMap[] = [useCcRailBadges(perspective === "finance")];
+  const sources: RailBadgeMap[] = [
+    useCcRailBadges(perspective === "finance"),
+    useAmplifyRailBadges(perspective === "amplify"),
+  ];
   const badges: RailBadgeMap = Object.assign({}, ...sources);
   const value: RailBadges = { resolveBadge: (id) => badges[id] };
   return <RailBadgeContext.Provider value={value}>{children}</RailBadgeContext.Provider>;

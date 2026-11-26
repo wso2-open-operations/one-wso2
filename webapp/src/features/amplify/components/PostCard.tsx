@@ -46,7 +46,7 @@ function ChoreoLabsLogo() {
 }
 
 // The post's own image, or the default when the URL is empty or fails to load.
-function PostImage({ url }: { url?: string | null }) {
+export function PostImage({ url }: { url?: string | null }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const useDefault = !url || failedUrl === url;
   const onError = () => {
@@ -72,7 +72,7 @@ function PostImage({ url }: { url?: string | null }) {
   );
 }
 
-function postDate(iso: string): string {
+export function postDate(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
