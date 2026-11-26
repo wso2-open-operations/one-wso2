@@ -46,6 +46,7 @@ import type {
   PointAction,
   PointRule,
   PointsAdjustment,
+  ReachConnection,
   RemovalReason,
   SettingChange,
   SettingList,
@@ -479,6 +480,48 @@ export function useRemoveActivity() {
       ),
     onSuccess: async (_data, vars) => {
       await Promise.all([refreshPointsOf(qc, sub, vars.employeeId), refreshNow(qc, amplifyKey("action-required", sub))]);
+    },
+  });
+}
+
+/**
+ * POST /me/connections/reach/start: the caller allows Reach. The caller sends the browser to `authorizationUrl`;
+ * LinkedIn comes back to /amplify/connect/callback with a state that starts `reach-`.
+ */
+export function useStartReachConnect() {
+  const getAccessToken = useAccessToken();
+  return useMutation<ConnectAuthorization | null, Error, void>({
+    mutationFn: async () =>
+      authedPost<ConnectAuthorization>(amplifyServiceUrls.reachConnectStart, await getAccessToken(), {}),
+  });
+}
+
+/** POST /me/connections/reach/complete with the code and the `reach-` state LinkedIn sent back. */
+export function useCompleteReachConnect() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<ReachConnection | null, Error, { code: string; state: string; redirectUri: string }>({
+    mutationFn: async (body) =>
+      authedPost<ReachConnection>(amplifyServiceUrls.reachConnectComplete, await getAccessToken(), body),
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("reach-connection", sub));
+    },
+  });
+}
+
+/** DELETE /me/connections/reach: Amplify stops reading the caller's analytics (readings already taken stay). */
+export function useDisconnectReach() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<null, Error, void>({
+    mutationFn: async () => {
+      await authedDelete(amplifyServiceUrls.reachConnection, await getAccessToken());
+      return null;
+    },
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("reach-connection", sub));
     },
   });
 }

@@ -70,6 +70,7 @@ const MESSAGES: Record<string, string> = {
   UNKNOWN_SETTING: "That setting can't be changed here.",
   NOT_PAGE_ADMIN:
     "Your LinkedIn account isn't an administrator of the Choreo Labs page. Ask a page admin to connect it.",
+  REACH_SCOPE_MISSING: "LinkedIn didn't allow Amplify to read your posts' reach. Try again and allow it.",
   NOT_REMOVABLE: "Only a LinkedIn activity can be removed. Reverse or adjust this one instead.",
   ALREADY_PAID: "These points have already become Coins. Reload to see where they are now.",
   PAID_NOT_ALLOWED: "Points become Coins only through the conversion.",
@@ -85,6 +86,12 @@ export const PAGE_CONNECTION_MESSAGES: Readonly<Record<string, string>> = {
 /** What `DEPENDENCY_UNAVAILABLE` means on Disconnect: LinkedIn didn't confirm the revoke, so the page stays connected. */
 export const PAGE_DISCONNECT_UNAVAILABLE =
   "LinkedIn couldn't be reached, so the page is still connected. Try again shortly.";
+
+/** What a failed Reach call means, checked before the shared messages. */
+export const REACH_MESSAGES: Readonly<Record<string, string>> = {
+  OAUTH_STATE_INVALID: "That LinkedIn sign-in expired or was already used. Allow reach again from My points & Coins.",
+  DEPENDENCY_UNAVAILABLE: "LinkedIn couldn't be reached. Try again shortly.",
+};
 
 /** What the removal's failures mean on Points & corrections, checked before the shared messages. */
 export const REMOVAL_MESSAGES: Readonly<Record<string, string>> = {

@@ -66,6 +66,7 @@ vi.mock("../api/useAmplifyData", () => ({
     },
   }),
 }));
+vi.mock("../components/ReachPanels", () => ({ ReachCard: () => <div>reach card</div>, ReachConnectionRow: () => <div>reach row</div> }));
 vi.mock("../components/SubmitOwnPostDialog", () => ({
   default: ({ open }: { open: boolean }) => (open ? <div>submit dialog</div> : null),
 }));

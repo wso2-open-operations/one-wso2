@@ -16,6 +16,8 @@
 import { describe, expect, it } from "vitest";
 import type { ScorecardMeasure } from "../api/amplifyTypes";
 import {
+  compactNum,
+  reachNote,
   announcementLabel,
   commentedReposts,
   plainReposts,
@@ -176,5 +178,21 @@ describe("fullDate and initialsOf", () => {
     expect(initialsOf("Jane van Doe")).toBe("JD");
     expect(initialsOf("  cher ")).toBe("C");
     expect(initialsOf("")).toBe("?");
+  });
+});
+
+describe("compactNum and reachNote", () => {
+  it("shortens large counts, and keeps small ones in full", () => {
+    expect(compactNum(412_000)).toBe("412k");
+    expect(compactNum(168_499)).toBe("168k");
+    expect(compactNum(1_250_000)).toBe("1.3M");
+    expect(compactNum(9_850)).toBe("9,850");
+    expect(compactNum(undefined)).toBe("0");
+  });
+
+  it("says reach is approximate, with who it counts", () => {
+    expect(reachNote(188)).toBe(
+      "Reach is approximate: it counts only employees who allowed it in My points & Coins (188 this month).",
+    );
   });
 });

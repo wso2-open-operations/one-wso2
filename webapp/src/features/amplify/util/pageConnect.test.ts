@@ -15,7 +15,7 @@
 // under the License.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { forgetPageConnect, isPageConnectState, rememberPageConnect } from "./pageConnect";
+import { forgetPageConnect, isPageConnectState, isReachState, rememberPageConnect } from "./pageConnect";
 
 describe("page connect state", () => {
   afterEach(() => {
@@ -46,5 +46,13 @@ describe("page connect state", () => {
     });
     expect(() => rememberPageConnect("s-1")).not.toThrow();
     expect(isPageConnectState("s-1")).toBe(false);
+  });
+});
+
+describe("isReachState", () => {
+  it("is true only for a state that starts reach-", () => {
+    expect(isReachState("reach-abc")).toBe(true);
+    expect(isReachState("abc-reach-")).toBe(false);
+    expect(isReachState(null)).toBe(false);
   });
 });

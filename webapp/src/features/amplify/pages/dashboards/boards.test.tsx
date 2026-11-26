@@ -26,7 +26,7 @@ import type {
 import { exportRange, exportRangeProblem, nextSort } from "../../util/dashboardFormat";
 import { GlanceBoard } from "./GlanceBoard";
 import { OperationsBoard } from "./OperationsBoard";
-import { ExportPanel, Funnel, HouseTable, TeamTable } from "./ParticipationBoard";
+import { ExportPanel, Funnel, HouseTable, LocationTable, TeamTable } from "./ParticipationBoard";
 import { PostPerformanceBoard } from "./PostPerformanceBoard";
 import PersonDetailDialog from "./PersonDetailDialog";
 import { ScorecardBoard } from "./ScorecardBoard";
@@ -590,5 +590,75 @@ describe("Export", () => {
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-10-22" } });
     fireEvent.click(screen.getByRole("button", { name: "Download CSV" }));
     await waitFor(() => expect(showError).toHaveBeenCalledWith("boom"));
+  });
+});
+
+describe("reach, reactions and comments", () => {
+  const reach = (impressions: number) => ({ impressions, membersReached: Math.round(impressions / 3), measuredReposts: 4, approximate: true as const });
+  const withReach: DashboardCampaigns = {
+    ...campaigns,
+    campaigns: [
+      { ...campaigns.campaigns[0], reactions: 640, comments: 88, reach: reach(168_000) },
+      { ...campaigns.campaigns[1], reactions: 0, comments: 0 },
+    ],
+    monthTotals: { month: "2026-10", reposts: 613, reactions: 1535, comments: 192, reach: reach(412_000), reachConsenting: 188 },
+  };
+
+  it("shows this month's reposts, reactions, comments and reach", () => {
+    render(<PostPerformanceBoard data={withReach} onSelect={() => {}} />);
+    expect(within(screen.getByRole("region", { name: "Reposts" })).getByText("613")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Reactions" })).getByText("1,535")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Comments" })).getByText("192")).toBeTruthy();
+    const tile = screen.getByRole("region", { name: "Reach" });
+    expect(within(tile).getByText("412k")).toBeTruthy();
+    expect(within(tile).getByText("Impressions on employee reposts")).toBeTruthy();
+  });
+
+  it("lists each post's reposts, reactions, comments and reach, approximate with the consenting count", () => {
+    const onSelect = vi.fn();
+    render(<PostPerformanceBoard data={withReach} onSelect={onSelect} />);
+    const table = screen.getByRole("table", { name: "Reactions, comments and reach per post" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows[0].textContent).toBe("Launch11264088168k");
+    expect(rows[1].textContent).toBe("Hiring2200—");
+    expect(
+      screen.getByText("Reach is approximate: it counts only employees who allowed it in My points & Coins (188 this month)."),
+    ).toBeTruthy();
+    fireEvent.click(within(rows[1]).getByRole("button", { name: "Hiring" }));
+    expect(onSelect).toHaveBeenCalledWith("c2");
+  });
+
+  it("leaves the tiles and the table out while the API sends none of it", () => {
+    render(<PostPerformanceBoard data={campaigns} onSelect={() => {}} />);
+    expect(screen.queryByRole("region", { name: "Reach" })).toBeNull();
+    expect(screen.queryByRole("table", { name: "Reactions, comments and reach per post" })).toBeNull();
+  });
+
+  it("shows participation by location, with the group size note", () => {
+    const data: DashboardParticipation = {
+      asOf: "2026-10-22T09:15:00Z",
+      funnel: { employees: 830, connected: 150, reposted: 128, active30Days: 104, expired: 4 },
+      minGroupSize: 5,
+      reachConsenting: 40,
+      byLocation: [
+        { location: "Colombo", size: 540, connected: 400, reposted: 356, active30Days: 300, pointsThisMonth: 900, reach: { membersReached: 1000, approximate: true } },
+        { location: "Other", size: 12, connected: 4, reposted: 0, active30Days: 0, pointsThisMonth: 0, reach: { membersReached: 0, approximate: true } },
+      ],
+    };
+    render(<LocationTable data={data} />);
+    const rows = within(screen.getByRole("table", { name: "Participation by location" })).getAllByRole("row");
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "LocationHeadcountParticipantsParticipation",
+      "Colombo54035666%",
+      "Other1200%",
+    ]);
+    expect(screen.getByText(/Locations under 5 people are grouped into Other\./)).toBeTruthy();
+  });
+
+  it("leaves the location board out without locations", () => {
+    const { container } = render(
+      <LocationTable data={{ asOf: "x", funnel: { connected: 1, reposted: 1, active30Days: 1, expired: 0 } }} />,
+    );
+    expect(container.textContent).toBe("");
   });
 });

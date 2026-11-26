@@ -20,6 +20,19 @@ export function num(n: number | null | undefined): string {
   return (n ?? 0).toLocaleString("en-US");
 }
 
+/** A large count in short form, as the reach tiles show it: 412k, 1.2M; under 10,000 in full (9,850). */
+export function compactNum(n: number | null | undefined): string {
+  const v = n ?? 0;
+  if (Math.abs(v) >= 1_000_000) return `${(Math.round(v / 100_000) / 10).toLocaleString("en-US")}M`;
+  if (Math.abs(v) >= 10_000) return `${Math.round(v / 1000).toLocaleString("en-US")}k`;
+  return num(v);
+}
+
+/** The note under reach: approximate, and measured only for the people who allowed it. */
+export function reachNote(consenting: number | null | undefined, when = "this month"): string {
+  return `Reach is approximate: it counts only employees who allowed it in My points & Coins (${num(consenting)} ${when}).`;
+}
+
 /** A 0..1 rate as a whole percent, e.g. 0.667 -> "67%". */
 export function rate(r: number | null | undefined): string {
   return `${Math.round((r ?? 0) * 100)}%`;

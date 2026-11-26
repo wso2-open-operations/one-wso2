@@ -24,6 +24,11 @@ import { shortDate } from "./dashboardFormat";
  */
 const PAGE_CONNECT_STATE_KEY = "amplify.linkedinPageConnectState";
 
+/** True for a Reach consent's state: amplify-api starts every one with `reach-`. */
+export function isReachState(state: string | null): boolean {
+  return Boolean(state?.startsWith("reach-"));
+}
+
 /** Remembers `state` as a page connection's, just before the browser leaves for LinkedIn. */
 export function rememberPageConnect(state: string): void {
   try {

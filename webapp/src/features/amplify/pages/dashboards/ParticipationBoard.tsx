@@ -33,6 +33,45 @@ import {
   type ExportPeriod,
 } from "../../util/dashboardFormat";
 
+/**
+ * Participation by work location (people directory), largest first and Other last: headcount, people who reposted
+ * at least once, and that as a share of the headcount. Locations under `minGroupSize` people are merged into Other.
+ */
+export function LocationTable({ data }: { data: DashboardParticipation }) {
+  const rows = data.byLocation ?? [];
+  if (rows.length === 0) return null;
+  return (
+    <Block title="Participation board · by location">
+      <Box sx={{ overflowX: "auto" }}>
+        <Table size="small" aria-label="Participation by location">
+          <TableHead>
+            <TableRow>
+              <TableCell>Location</TableCell>
+              <TableCell align="right">Headcount</TableCell>
+              <TableCell align="right">Participants</TableCell>
+              <TableCell align="right">Participation</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.location}>
+                <TableCell>{r.location}</TableCell>
+                <TableCell align="right">{num(r.size)}</TableCell>
+                <TableCell align="right">{num(r.reposted)}</TableCell>
+                <TableCell align="right">{percentOf(r.reposted, r.size)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+        Participants reposted at least once.
+        {data.minGroupSize ? ` Locations under ${num(data.minGroupSize)} people are grouped into Other.` : ""}
+      </Typography>
+    </Block>
+  );
+}
+
 /** Employees, connected, reposted, active: how many people are at each stage (separate counts, not a strict funnel). */
 export function Funnel({ data }: { data: DashboardParticipation }) {
   const f = data.funnel;
@@ -328,6 +367,7 @@ export default function ParticipationPage() {
               {updatedStamp(funnel.data.asOf)}
             </Typography>
             <Funnel data={funnel.data} />
+            <LocationTable data={funnel.data} />
             <BoardState queries={[teams]}>
               <TeamTable
                 board={teams.data}

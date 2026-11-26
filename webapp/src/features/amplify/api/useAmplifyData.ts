@@ -49,6 +49,7 @@ import type {
   LinkedInPage,
   MyPoints,
   NativeIntent,
+  ReachConnection,
   PointRule,
   PointValues,
   PointsHistory,
@@ -550,6 +551,19 @@ export function useActionRequired(page: number) {
     },
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** The caller's Reach consent (GET /me/connections/reach): whether Amplify reads their own reposts' analytics. */
+export function useReachConnection() {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<ReachConnection>({
+    queryKey: amplifyKey("reach-connection", userSub),
+    enabled: ready,
+    queryFn: async () => authedGet<ReachConnection>(amplifyServiceUrls.reachConnection, await getAccessToken()),
+    staleTime: 60 * 1000,
     retry: amplifyRetry,
   });
   return foldIdentityError(query, subState, retryIdentity);

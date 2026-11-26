@@ -264,7 +264,24 @@ export interface DashboardCampaignRow {
   reposts: number;
   /** Of `reposts`, the ones posted with the employee's own comment. Absent until the API sends it. */
   repostsWithCommentary?: number;
+  /** Employees' reactions on the post (engagement sync). Absent until the API sends it. */
+  reactions?: number;
+  /** Employees' comments on the post (engagement sync). */
+  comments?: number;
+  /** Reach of the employees' reposts of it. */
+  reach?: DashboardReach;
   announcement?: DashboardAnnouncement;
+}
+
+/**
+ * Reach of employees' reposts from LinkedIn's member post analytics, latest reading of each. Always approximate: only
+ * reposts of employees who allowed Reach are measured, and a member reached by two reposts counts twice.
+ */
+export interface DashboardReach {
+  impressions: number;
+  membersReached: number;
+  measuredReposts: number;
+  approximate: true;
 }
 
 export interface DashboardOperations {
@@ -368,6 +385,29 @@ export interface DashboardCampaigns {
   campaigns: DashboardCampaignRow[];
   selected?: DashboardCampaignDetail | null;
   byCategory: { code: string; label: string; reposts: number; repostsWithCommentary?: number }[];
+  /** This calendar month (UTC): reposts, reactions, comments and the reach of the month's reposts. */
+  monthTotals?: {
+    month: string;
+    reposts: number;
+    reactions: number;
+    comments: number;
+    reach: DashboardReach;
+    /** Employees with a Reach connection (reach is measured for them only). */
+    reachConsenting: number;
+  };
+}
+
+/** One work location on the Participation board (people directory); small ones are merged into Other. */
+export interface DashboardLocation {
+  location: string;
+  /** Directory headcount; at least `minGroupSize` except Other. */
+  size: number;
+  employees?: number | null;
+  connected: number;
+  reposted: number;
+  active30Days: number;
+  pointsThisMonth: number;
+  reach: { membersReached: number; approximate: true };
 }
 
 export interface DashboardParticipation {
@@ -379,6 +419,20 @@ export interface DashboardParticipation {
     active30Days: number;
     expired: number;
   };
+  /** Largest first, Other last. Absent until the API sends it. */
+  byLocation?: DashboardLocation[];
+  /** `dashboards.min_group_size`. */
+  minGroupSize?: number;
+  reachConsenting?: number;
+}
+
+/** GET /me/connections/reach: the caller's consent to Amplify reading their own posts' analytics. */
+export interface ReachConnection {
+  connected: boolean;
+  /** EXPIRED: the token lapsed and can't be renewed; connect again. */
+  status: "NOT_CONNECTED" | "CONNECTED" | "EXPIRED";
+  connectedAt: string | null;
+  accessExpiresAt: string | null;
 }
 
 export interface DashboardGlance {

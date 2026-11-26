@@ -31,6 +31,7 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
 import type { ExternalShare, LedgerEntry } from "../api/amplifyTypes";
 import { useAmplifyMe, useMyActivity, useMyExternalShares, useMyPoints } from "../api/useAmplifyData";
 import AmplifyShell from "../components/AmplifyShell";
+import { ReachCard } from "../components/ReachPanels";
 import { CoinMark, PlainStatus, SoftPill, warmSurfaceSx } from "../components/AmplifyTone";
 import { SectionLabel } from "../components/DashboardParts";
 import FilterChips from "../components/FilterChips";
@@ -65,8 +66,9 @@ import { AMPLIFY_RADIUS } from "../util/radius";
 export const ACTIVITY_FOOTNOTE = "Something look wrong? Ask the PO team. Reactions and comments appear within 24 hours.";
 
 /**
- * My points & Coins (every employee): the caller's Coins and progress at the top, then everything they did, the
- * points it earned and where those points stand, newest first. Submit your own post sits at the top right.
+ * My points & Coins (every employee): the caller's Coins and progress at the top, the Reach card (allow Amplify to
+ * read their reposts' impressions), then everything they did, the points it earned and where those points stand,
+ * newest first. Submit your own post sits at the top right.
  */
 export default function MyPointsPage() {
   const [submitting, setSubmitting] = useState(false);
@@ -81,6 +83,7 @@ export default function MyPointsPage() {
       }
     >
       <CoinsBand />
+      <ReachCard />
       <ActivityPanel />
       <SubmitOwnPostDialog open={submitting} onClose={() => setSubmitting(false)} />
     </AmplifyShell>

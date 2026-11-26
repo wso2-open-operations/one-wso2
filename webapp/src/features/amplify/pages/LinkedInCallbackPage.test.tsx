@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   navigate: vi.fn(),
   completeMember: vi.fn(),
   completePage: vi.fn(),
+  completeReach: vi.fn(),
   showSuccess: vi.fn(),
 }));
 vi.mock("react-router", () => ({
@@ -32,12 +33,13 @@ vi.mock("react-router", () => ({
 vi.mock("../api/useAmplifyMutations", () => ({
   useCompleteLinkedInConnect: () => ({ mutateAsync: h.completeMember }),
   useCompleteLinkedInPageConnect: () => ({ mutateAsync: h.completePage }),
+  useCompleteReachConnect: () => ({ mutateAsync: h.completeReach }),
 }));
 vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showSuccess: h.showSuccess, showError: vi.fn() }),
 }));
 
-import LinkedInCallbackPage, { PAGE_CONNECTED_MESSAGE } from "./LinkedInCallbackPage";
+import LinkedInCallbackPage, { PAGE_CONNECTED_MESSAGE, REACH_ON_MESSAGE } from "./LinkedInCallbackPage";
 import { isPageConnectState, rememberPageConnect } from "../util/pageConnect";
 
 const STATE = "s".repeat(40);
@@ -47,6 +49,7 @@ beforeEach(() => {
   h.navigate.mockReset();
   h.completeMember.mockReset();
   h.completePage.mockReset();
+  h.completeReach.mockReset();
   h.showSuccess.mockReset();
   window.sessionStorage.clear();
   h.params = new URLSearchParams({ code: "code-1", state: STATE });
@@ -107,5 +110,32 @@ describe("LinkedInCallbackPage", () => {
     render(<LinkedInCallbackPage />);
     expect(screen.getByText("LinkedIn wasn't linked. You can try again any time.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Back to Celebrate" })).toBeTruthy();
+  });
+
+  it("completes a Reach consent (a reach- state), then returns to My points & Coins", async () => {
+    const reachState = `reach-${"r".repeat(40)}`;
+    h.params = new URLSearchParams({ code: "code-1", state: reachState });
+    h.completeReach.mockResolvedValue({ connected: true, status: "CONNECTED" });
+    render(<LinkedInCallbackPage />);
+    expect(screen.getByText("Turning on reach…")).toBeTruthy();
+    await waitFor(() => expect(h.navigate).toHaveBeenCalledWith("/amplify/my-points", { replace: true }));
+    expect(h.completeReach).toHaveBeenCalledWith({ code: "code-1", state: reachState, redirectUri });
+    expect(h.completeMember).not.toHaveBeenCalled();
+    expect(h.completePage).not.toHaveBeenCalled();
+    expect(h.showSuccess).toHaveBeenCalledWith(REACH_ON_MESSAGE);
+  });
+
+  it("explains a Reach grant without the analytics scope", async () => {
+    h.params = new URLSearchParams({ code: "code-1", state: "reach-x" });
+    h.completeReach.mockRejectedValue(new HttpError("/x", 422, JSON.stringify({ status: 422, code: "REACH_SCOPE_MISSING" })));
+    render(<LinkedInCallbackPage />);
+    expect(await screen.findByText("LinkedIn didn't allow Amplify to read your posts' reach. Try again and allow it.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back to My points & Coins" })).toBeTruthy();
+  });
+
+  it("says reach wasn't turned on when the employee cancels", () => {
+    h.params = new URLSearchParams({ error: "user_cancelled_authorize", state: "reach-x" });
+    render(<LinkedInCallbackPage />);
+    expect(screen.getByText("Reach wasn't turned on. You can allow it any time from My points & Coins.")).toBeTruthy();
   });
 });

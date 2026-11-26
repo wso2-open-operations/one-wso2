@@ -41,6 +41,9 @@ vi.mock("@config/apiConfig", () => ({
     linkedinPageConnectStart: "/admin/linkedin-page/connect/start",
     linkedinPageConnectComplete: "/admin/linkedin-page/connect/complete",
     poPointsActionRequired: "/po/points/action-required",
+    reachConnection: "/me/connections/reach",
+    reachConnectStart: "/me/connections/reach/start",
+    reachConnectComplete: "/me/connections/reach/complete",
     poPointsSettlement: (reference: string) => `/po/points/${reference}/settlement`,
   },
   isAmplifyBackendConfigured: () => true,
@@ -52,12 +55,16 @@ import {
   NATIVE_LOOKING_POLL_MS,
   pollWhileLooking,
   useActionRequired,
+  useReachConnection,
   useLinkedInPage,
   useMyNativeIntents,
   useNativeRepostEnabled,
 } from "./useAmplifyData";
 import {
   useClearActionRequired,
+  useCompleteReachConnect,
+  useDisconnectReach,
+  useStartReachConnect,
   useCompleteLinkedInPageConnect,
   useDisconnectLinkedInPage,
   useRecordNativeIntent,
@@ -220,5 +227,40 @@ describe("action required", () => {
     const { result } = renderHook(() => useActionRequired(1), { wrapper });
     await waitFor(() => expect(result.current.data?.total).toBe(12));
     expect(vi.mocked(authedGet)).toHaveBeenCalledWith("/po/points/action-required?page=1&size=10", "token");
+  });
+});
+
+describe("reach", () => {
+  it("reads the caller's reach status", async () => {
+    vi.mocked(authedGet).mockResolvedValue({ connected: true, status: "CONNECTED", connectedAt: null, accessExpiresAt: null });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useReachConnection(), { wrapper });
+    await waitFor(() => expect(result.current.data?.status).toBe("CONNECTED"));
+    expect(vi.mocked(authedGet)).toHaveBeenCalledWith("/me/connections/reach", "token");
+  });
+
+  it("starts with an empty body, completes and refetches, and disconnects with DELETE", async () => {
+    const { qc, wrapper } = setup();
+    const load = vi.fn(async () => ({ connected: false }));
+    await qc.fetchQuery({ queryKey: ["amplify", "reach-connection", "sub-1"], queryFn: load });
+    vi.mocked(authedPost).mockResolvedValue({});
+    const start = renderHook(() => useStartReachConnect(), { wrapper });
+    await act(async () => {
+      await start.result.current.mutateAsync();
+    });
+    expect(vi.mocked(authedPost)).toHaveBeenCalledWith("/me/connections/reach/start", "token", {});
+    const complete = renderHook(() => useCompleteReachConnect(), { wrapper });
+    const body = { code: "c", state: "reach-s", redirectUri: "https://one.test/amplify/connect/callback" };
+    await act(async () => {
+      await complete.result.current.mutateAsync(body);
+    });
+    expect(vi.mocked(authedPost)).toHaveBeenCalledWith("/me/connections/reach/complete", "token", body);
+    expect(load).toHaveBeenCalledTimes(2);
+    const off = renderHook(() => useDisconnectReach(), { wrapper });
+    await act(async () => {
+      await off.result.current.mutateAsync();
+    });
+    expect(vi.mocked(authedDelete)).toHaveBeenCalledWith("/me/connections/reach", "token");
+    expect(load).toHaveBeenCalledTimes(3);
   });
 });
