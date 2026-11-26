@@ -436,9 +436,6 @@ function ReviewCard({
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button variant="text" onClick={() => setConfirming(null)} disabled={working}>
-            Cancel
-          </Button>
           <Button
             variant="contained"
             color={confirming === "feature" ? "warning" : "primary"}
@@ -452,6 +449,9 @@ function ReviewCard({
             {confirming === "feature"
               ? `Yes, feature · +${share.status === "PENDING" ? awards.featured : awards.topUp}`
               : `Yes, approve · +${awards.approved}`}
+          </Button>
+          <Button variant="text" onClick={() => setConfirming(null)} disabled={working}>
+            Cancel
           </Button>
         </DialogActions>
       </Dialog>
