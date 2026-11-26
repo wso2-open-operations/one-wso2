@@ -176,13 +176,16 @@ window.config = {
   // an API. When absent, the rail item is omitted entirely.
   // ONE_WSO2_MARKETINGOPS_ISAC_URL: "<your-isac-url>",
 
-  // CSM base URL — a separate application, reached from its launcher tile and
-  // opened in a new tab. There is no route for it, so it is never a landing
-  // choice or a favourite. When absent, the tile stays in its unbuilt state.
+  // CSM base URL — a separate application. Unless the remote entry below is
+  // set, its launcher tile opens this URL in a new tab, and CSM is then never a
+  // landing choice or a favourite. With neither key set, the tile stays in its
+  // unbuilt state.
   // ONE_WSO2_CSM_URL: "<your-csm-url>",
 
   // CSM as a microfrontend — the remoteEntry.js its own deployment serves.
-  // When set, /csm loads CSM from there and renders it inside this app.
+  // When set, the launcher tile goes to /csm, which loads CSM from there and
+  // renders it inside this app on the same sign-in. ONE_WSO2_CSM_URL is then
+  // only the link offered if CSM fails to load.
   // ONE_WSO2_CSM_REMOTE_ENTRY_URL: "<your-csm-url>/remoteEntry.js",
 
   // Infra Portal backend. Privileges come from this backend's own /user-info

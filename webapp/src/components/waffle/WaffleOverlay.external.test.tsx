@@ -19,7 +19,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import type { ReactNode } from "react";
 
 // A perspective that lives in another application. Its URL is read at module
@@ -81,7 +81,7 @@ function show(WaffleOverlay: (p: { anchorEl: HTMLElement; onClose: () => void })
 
 const panel = () => screen.getByRole("dialog", { name: "All apps" });
 
-describe("with the URL configured", () => {
+describe("with only the standalone URL configured", () => {
   it("offers the tile as something that opens in a new tab", async () => {
     const { WaffleOverlay } = await loadLauncher({ ONE_WSO2_CSM_URL: CSM_URL });
     show(WaffleOverlay);
@@ -136,6 +136,49 @@ describe("with the URL configured", () => {
     const { favourites, landing } = await loadLauncher({ ONE_WSO2_CSM_URL: CSM_URL });
     expect(favourites.isFavouritable("csm")).toBe(false);
     expect(landing.isLandingKey("csm")).toBe(false);
+  });
+});
+
+// CSM loaded into this app from its own deployment. The tile then routes like
+// any other, whether or not the standalone URL is set as well.
+describe("with the remote entry configured", () => {
+  const REMOTE = { ONE_WSO2_CSM_REMOTE_ENTRY_URL: "https://csm.example.test/remoteEntry.js" };
+
+  it.each([
+    ["on its own", REMOTE],
+    ["alongside the standalone URL", { ...REMOTE, ONE_WSO2_CSM_URL: CSM_URL }],
+  ])("offers the tile as a switch inside the app, %s", async (_label, config) => {
+    const { WaffleOverlay } = await loadLauncher(config);
+    show(WaffleOverlay);
+
+    expect(within(panel()).getByRole("button", { name: "Switch to CSM" })).toBeEnabled();
+    expect(within(panel()).queryByRole("link", { name: /CSM/ })).not.toBeInTheDocument();
+  });
+
+  it("goes to /csm and closes the launcher, opening no tab", async () => {
+    const { WaffleOverlay } = await loadLauncher({ ...REMOTE, ONE_WSO2_CSM_URL: CSM_URL });
+    const onClose = vi.fn();
+    const anchor = document.createElement("button");
+    document.body.appendChild(anchor);
+    render(
+      <MemoryRouter initialEntries={["/me"]}>
+        <Routes>
+          <Route path="/csm" element={<div>csm page</div>} />
+          <Route path="*" element={<WaffleOverlay anchorEl={anchor} onClose={onClose} />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(within(panel()).getByRole("button", { name: "Switch to CSM" }));
+    expect(screen.getByText("csm page")).toBeInTheDocument();
+    expect(onClose).toHaveBeenCalled();
+    expect(openCalls).toHaveLength(0);
+  });
+
+  it("can be a favourite and a landing choice, now that there is a route", async () => {
+    const { favourites, landing } = await loadLauncher(REMOTE);
+    expect(favourites.isFavouritable("csm")).toBe(true);
+    expect(landing.landingPathFor("csm")).toBe("/csm");
   });
 });
 
