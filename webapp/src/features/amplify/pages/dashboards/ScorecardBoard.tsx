@@ -15,21 +15,23 @@
 // under the License.
 
 import { Box, Typography } from "@wso2/oxygen-ui";
+import { AMPLIFY_BAR } from "../../config/themeConfig";
 import type { DashboardScorecard } from "../../api/amplifyTypes";
 import { useDashboardScorecard } from "../../api/useAmplifyDashboards";
 import AmplifyShell from "../../components/AmplifyShell";
-import { Block, BoardState, Empty, StateChip } from "../../components/DashboardParts";
+import { Block, BoardState, Empty, IncludeArchivedToggle, StateChip } from "../../components/DashboardParts";
 import type { ScorecardMeasure } from "../../api/amplifyTypes";
 import { updatedStamp, fraction, measureValue, scoreBar, targetText } from "../../util/dashboardFormat";
+import { useIncludeArchived } from "../../util/includeArchived";
 
 /**
- * A measure's value against its target: blue when on track, orange on watch (the status chip says it in
+ * A measure's value against its target: green when on track, red when below target (the status chip says it in
  * words too, so colour is never the only signal). The line marks the target, or the ceiling for AT_MOST,
  * on the same scale as the fill, with its value written under it.
  */
 export function MeasureBar({ measure }: { measure: ScorecardMeasure }) {
   const bar = scoreBar(measure);
-  const color = measure.status === "ON_TRACK" ? "#60A5FA" : "#FF7300";
+  const color = measure.status === "ON_TRACK" ? AMPLIFY_BAR.positive : AMPLIFY_BAR.negative;
   // Keep the label inside the card when the mark is near an end.
   const align = bar.tick < 0.12 ? "left" : bar.tick > 0.88 ? "right" : "center";
   const shift = align === "left" ? "0" : align === "right" ? "-100%" : "-50%";
@@ -153,9 +155,11 @@ export function ScorecardBoard({ data }: { data: DashboardScorecard }) {
 }
 
 export default function ScorecardPage() {
-  const q = useDashboardScorecard();
+  const [includeArchived, setIncludeArchived] = useIncludeArchived();
+  const q = useDashboardScorecard(includeArchived);
   return (
     <AmplifyShell title="Scorecard" subtitle="How participation is tracking against its targets.">
+      <IncludeArchivedToggle checked={includeArchived} onChange={setIncludeArchived} />
       <BoardState queries={[q]}>{q.data && <ScorecardBoard data={q.data} />}</BoardState>
     </AmplifyShell>
   );

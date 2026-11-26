@@ -565,8 +565,11 @@ export const AMPLIFY_DASHBOARD_GLANCE_PATH = `${AMPLIFY_DASHBOARDS_PATH}/glance`
 export const AMPLIFY_DASHBOARD_OPERATIONS_PATH = `${AMPLIFY_DASHBOARDS_PATH}/operations`;
 export const AMPLIFY_DASHBOARD_POSTS_PATH = `${AMPLIFY_DASHBOARDS_PATH}/posts`;
 export const AMPLIFY_DASHBOARD_PARTICIPATION_PATH = `${AMPLIFY_DASHBOARDS_PATH}/participation`;
+export const AMPLIFY_DASHBOARD_TEAM_PATH = `${AMPLIFY_DASHBOARDS_PATH}/team`;
 export const AMPLIFY_DASHBOARD_SCORECARD_PATH = `${AMPLIFY_DASHBOARDS_PATH}/scorecard`;
 export const AMPLIFY_DASHBOARDING_GROUP_ID = "amplify-dashboarding";
+export const AMPLIFY_MARKETING_GROUP_ID = "amplify-marketing";
+export const AMPLIFY_PEOPLE_OPERATIONS_GROUP_ID = "amplify-people-operations";
 
 const AMPLIFY_DASHBOARD_SECTIONS: PerspectiveSection[] = [
   { id: "amplify-dashboard-glance", label: "At A Glance", icon: EyeIcon, path: AMPLIFY_DASHBOARD_GLANCE_PATH },
@@ -575,17 +578,42 @@ const AMPLIFY_DASHBOARD_SECTIONS: PerspectiveSection[] = [
   { id: "amplify-dashboard-participation", label: "Participation", icon: UsersIcon, path: AMPLIFY_DASHBOARD_PARTICIPATION_PATH },
   { id: "amplify-dashboard-scorecard", label: "Scorecard", icon: GaugeIcon, path: AMPLIFY_DASHBOARD_SCORECARD_PATH },
 ];
-export const AMPLIFY_DASHBOARD_ITEM_IDS: ReadonlySet<string> = new Set(AMPLIFY_DASHBOARD_SECTIONS.map((s) => s.id));
 
-// Celebrate and the editor rows stay flat, like Knowledge: the rail is always
-// open on Amplify's screens. Dashboarding is the one collapsible group.
+// People Operations: the Team board moved out of Dashboards. It keeps its id and route but has its own
+// grant, CAN_PEOPLE_OPS (see useAmplifyPeopleOpsAccess and AmplifyPeopleOpsRoute).
+const AMPLIFY_PEOPLE_OPERATIONS_SECTIONS: PerspectiveSection[] = [
+  { id: "amplify-dashboard-team", label: "Team", icon: UserRoundIcon, path: AMPLIFY_DASHBOARD_TEAM_PATH },
+];
+export const AMPLIFY_DASHBOARD_ITEM_IDS: ReadonlySet<string> = new Set(AMPLIFY_DASHBOARD_SECTIONS.map((s) => s.id));
+export const AMPLIFY_PEOPLE_OPS_ITEM_IDS: ReadonlySet<string> = new Set(
+  AMPLIFY_PEOPLE_OPERATIONS_SECTIONS.map((s) => s.id),
+);
+
+// Celebrate stays flat. Marketing (New Post, Current Posts), People Operations (Team) and Dashboards are
+// collapsible groups. `alwaysGroup` keeps People Operations a group while it holds one screen, so the rail
+// still names it; each group hides when its gate shows none of its children.
 const AMPLIFY_SECTIONS: PerspectiveSection[] = [
   { id: "amplify-celebrate", label: "Celebrate", icon: TrophyIcon, path: AMPLIFY_CELEBRATE_PATH },
-  { id: AMPLIFY_NEW_POST_ITEM_ID, label: "New Post", icon: CirclePlusIcon, path: AMPLIFY_NEW_POST_PATH },
-  { id: AMPLIFY_CURRENT_POSTS_ITEM_ID, label: "Current Posts", icon: Volume2Icon, path: AMPLIFY_CURRENT_POSTS_PATH },
+  {
+    id: AMPLIFY_MARKETING_GROUP_ID,
+    label: "Marketing",
+    icon: MegaphoneIcon,
+    alwaysGroup: true,
+    children: [
+      { id: AMPLIFY_NEW_POST_ITEM_ID, label: "New Post", icon: CirclePlusIcon, path: AMPLIFY_NEW_POST_PATH },
+      { id: AMPLIFY_CURRENT_POSTS_ITEM_ID, label: "Current Posts", icon: Volume2Icon, path: AMPLIFY_CURRENT_POSTS_PATH },
+    ],
+  },
+  {
+    id: AMPLIFY_PEOPLE_OPERATIONS_GROUP_ID,
+    label: "People Operations",
+    icon: UsersRoundIcon,
+    alwaysGroup: true,
+    children: AMPLIFY_PEOPLE_OPERATIONS_SECTIONS,
+  },
   {
     id: AMPLIFY_DASHBOARDING_GROUP_ID,
-    label: "Dashboarding",
+    label: "Dashboards",
     icon: LayoutDashboardIcon,
     alwaysGroup: true,
     children: AMPLIFY_DASHBOARD_SECTIONS,

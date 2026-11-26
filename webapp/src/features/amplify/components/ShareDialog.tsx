@@ -15,17 +15,31 @@
 // under the License.
 
 import { useMemo, useState } from "react";
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, TextField } from "@wso2/oxygen-ui";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider } from "@wso2/oxygen-ui";
 import { dialogPaperSx } from "@components/confirmation-dialog/dialogPaperSx";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import type { Campaign } from "../api/amplifyTypes";
 import { useAmplifyCategories } from "../api/useAmplifyData";
 import { useRequestShare } from "../api/useAmplifyMutations";
 import PostCard, { CategoryChip, PriorityChip } from "./PostCard";
-import { describeAmplifyError } from "../util/amplifyError";
+import CommentaryEditor from "./CommentaryEditor";
+import { describeAmplifyError, needsLinkedInReconnect } from "../util/amplifyError";
+import {
+  COMMENTARY_MAX_LENGTH,
+  MAX_MENTIONS,
+  activeMentions,
+  buildCommentary,
+  linkedInLength,
+  type TrackedMention,
+} from "../util/linkedinMarkdown";
 
-// Matches the API cap (COMMENTARY_MAX_LENGTH). LinkedIn states no limit of its own; too long returns 400.
-export const COMMENTARY_MAX_LENGTH = 3000;
+interface ShareDialogProps {
+  campaign: Campaign | null;
+  onClose: () => void;
+  /** POST /shares said the LinkedIn link is broken: the page takes the employee to link it again. */
+  onNeedsReconnect?: (campaign: Campaign) => void;
+  "data-componentid"?: string;
+}
 
 // Amplify posts each person's shares one at a time, a few minutes apart (amplify-jobs pacing), so a share
 // queued after others can take a while to appear on LinkedIn.
@@ -36,26 +50,39 @@ export const SHARE_QUEUED_MESSAGE =
  * "Amplify, share this for me." A repost of Choreo Labs' post on the employee's
  * LinkedIn. Text in "Add your thoughts" makes it a REPOST_COMMENTARY; empty
  * stays a plain REPOST. The repost is queued; the next Amplify run publishes it.
+ *
+ * The thoughts are markdown with `@` mentions; on send they become LinkedIn
+ * text with mention tokens (`buildCommentary`). The text is never logged.
  */
-export default function ShareDialog({ campaign, onClose }: { campaign: Campaign | null; onClose: () => void }) {
+export default function ShareDialog({
+  campaign,
+  onClose,
+  onNeedsReconnect,
+  "data-componentid": componentId = "amplify-share-dialog",
+}: ShareDialogProps) {
   const share = useRequestShare();
   const { showError, showSuccess } = useNotifications();
   const categories = useAmplifyCategories();
   const [thoughts, setThoughts] = useState("");
+  const [mentions, setMentions] = useState<TrackedMention[]>([]);
 
   const categoryLabel = useMemo(() => {
     const labels = new Map((categories.data ?? []).map((c) => [c.code, c.label]));
     return (code: string) => labels.get(code) ?? code;
   }, [categories.data]);
 
+  const commentary = useMemo(() => buildCommentary(thoughts, mentions), [thoughts, mentions]);
+  const tooLong = linkedInLength(commentary) > COMMENTARY_MAX_LENGTH;
+  const tooManyMentions = activeMentions(thoughts, mentions).length > MAX_MENTIONS;
+
   const close = () => {
     setThoughts("");
+    setMentions([]);
     onClose();
   };
 
   const submit = () => {
-    if (!campaign) return;
-    const commentary = thoughts.trim();
+    if (!campaign || tooLong || tooManyMentions) return;
     share.mutate(
       commentary ? { campaignId: campaign.id, kind: "REPOST_COMMENTARY", commentary } : { campaignId: campaign.id, kind: "REPOST" },
       {
@@ -63,7 +90,14 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
           showSuccess(SHARE_QUEUED_MESSAGE);
           close();
         },
-        onError: (err) => showError(describeAmplifyError(err)),
+        onError: (err) => {
+          if (needsLinkedInReconnect(err) && onNeedsReconnect) {
+            close();
+            onNeedsReconnect(campaign);
+            return;
+          }
+          showError(describeAmplifyError(err));
+        },
       },
     );
   };
@@ -72,9 +106,10 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
     <Dialog
       open={campaign !== null}
       onClose={share.isPending ? undefined : close}
-      maxWidth="sm"
+      maxWidth="md"
       fullWidth
       slotProps={{ paper: { sx: dialogPaperSx } }}
+      data-componentid={componentId}
     >
       <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>Amplify this post</DialogTitle>
       <DialogContent dividers>
@@ -91,18 +126,12 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
             />
           )}
           <Divider />
-          <TextField
-            label="Add your thoughts (optional)"
-            placeholder="Say why this matters to you, in your own words. It shows above the repost on your LinkedIn."
+          <CommentaryEditor
             value={thoughts}
-            onChange={(e) => setThoughts(e.target.value)}
-            multiline
-            minRows={3}
-            maxRows={8}
-            fullWidth
+            onChange={setThoughts}
+            mentions={mentions}
+            onMentionsChange={setMentions}
             disabled={share.isPending}
-            helperText={`${thoughts.length} / ${COMMENTARY_MAX_LENGTH}`}
-            slotProps={{ htmlInput: { maxLength: COMMENTARY_MAX_LENGTH } }}
           />
         </Box>
       </DialogContent>
@@ -110,7 +139,7 @@ export default function ShareDialog({ campaign, onClose }: { campaign: Campaign 
         <Button onClick={close} disabled={share.isPending}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={submit} disabled={share.isPending}>
+        <Button variant="contained" onClick={submit} disabled={share.isPending || tooLong || tooManyMentions}>
           {share.isPending ? "Sharing…" : "Amplify"}
         </Button>
       </DialogActions>

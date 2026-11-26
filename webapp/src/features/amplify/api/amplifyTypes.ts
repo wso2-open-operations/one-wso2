@@ -26,6 +26,7 @@ export type AmplifyGrant =
   | "EMPLOYEE"
   | "CAN_CAMPAIGN"
   | "CAN_DASHBOARD"
+  | "CAN_PEOPLE_OPS"
   | "CAN_EXPORT"
   | "CAN_REVIEW_SHARES"
   | "CAN_POINT_RULES"
@@ -122,10 +123,24 @@ export interface Category {
 // The API requires text for it and refuses text on a plain REPOST. SHARE_COMMENTARY stays unused.
 export type ShareKind = "REPOST" | "REPOST_COMMENTARY" | "SHARE";
 
+/** Why a share ended FAILED. NEEDS_RECONNECT means LinkedIn refused the token: the employee has to link again. */
+export type ShareFailureReason = "NEEDS_RECONNECT" | "PROVIDER_REJECTED" | "RETRIES_EXHAUSTED";
+
 export interface Share {
   id: string;
   campaignId: string;
   status: "QUEUED" | "PUBLISHED" | "FAILED";
+  /** Set when `status` is FAILED (GET /me/shares). */
+  failureReason?: ShareFailureReason | null;
+  failedAt?: string | null;
+}
+
+/** One GET /mentions candidate: a colleague who linked LinkedIn in Amplify, or the company page. */
+export interface MentionCandidate {
+  /** Opaque, sent back in the mention token: `person:<employeeId>` or `org:<key>`. Never shown. */
+  ref: string;
+  kind: "PERSON" | "ORGANIZATION";
+  displayName: string;
 }
 
 export interface LeaderboardEntry {
@@ -162,6 +177,45 @@ export interface TeamEntry {
   /** The member's house from the people directory; absent when they have none. */
   houseName?: string | null;
   isMe: boolean;
+}
+
+/**
+ * One row of GET /team. `employeeId` is null for a roster member nobody has recorded points for, so there is no
+ * person page or history to link to. `rank` (company rank) is null for the same members.
+ */
+export interface TeamPageEntry {
+  employeeId: string | null;
+  displayName: string;
+  email: string;
+  points: number;
+  rank: number | null;
+  teamRank: number;
+  previousRank: number | null;
+  /** ISO timestamp of the last recorded point, or null. */
+  lastActivityAt: string | null;
+  /** The person's house from the people directory; null or absent when they have none. */
+  houseName?: string | null;
+  actions: { canAdjust: boolean; canReverse: boolean };
+}
+
+export interface TeamPageSummary {
+  /** Roster size from the people directory; null when the directory can't supply it. */
+  headcount: number | null;
+  /** People in the roster with points (not the search match count). */
+  activeCount: number;
+}
+
+/** GET /team: the roster for the caller's team, or the whole company for PO, `CAN_ADJUST_POINTS` or COMPANY visibility. */
+export interface TeamPage {
+  period: string;
+  scope: "TEAM" | "COMPANY";
+  page: number;
+  size: number;
+  /** Matching roster entries (after the search), across all pages. */
+  total: number;
+  summary: TeamPageSummary;
+  entries: TeamPageEntry[];
+  teamStatus: "OK" | "NO_TEAM" | "UNAVAILABLE";
 }
 
 export interface Leaderboard {
@@ -224,6 +278,8 @@ export interface DashboardCampaignRow {
   categoryLabel: string;
   isPriority: boolean;
   status?: "SCHEDULED" | "OPEN" | "CLOSED" | "ARCHIVED";
+  /** The post was archived (deleted from the Posts page); the boards still list it. */
+  archived?: boolean;
   opensAt: string;
   closesAt: string;
   reposts: number;
@@ -232,7 +288,15 @@ export interface DashboardCampaignRow {
   announcement?: DashboardAnnouncement;
 }
 
-export interface DashboardOperations {
+/** Which posts a board's numbers count, echoed by the API. */
+export interface DashboardScope {
+  /** Archived posts count in the summary numbers (the `includeArchived` query parameter). */
+  includeArchived?: boolean;
+  /** Posts that opened more than this many months ago are left out. */
+  retentionMonths?: number;
+}
+
+export interface DashboardOperations extends DashboardScope {
   asOf: string;
   headcount?: number | null;
   kpis: {
@@ -293,6 +357,9 @@ export interface DashboardPersonBoard {
     categoryCode: string;
     categoryLabel: string;
     isPriority: boolean;
+    status?: "SCHEDULED" | "OPEN" | "CLOSED" | "ARCHIVED";
+    /** The post was archived; still listed. */
+    archived?: boolean;
     opensAt: string;
     closesAt: string;
     reposts: number;
@@ -309,6 +376,9 @@ export interface DashboardCampaignDetail {
   categoryCode: string;
   categoryLabel: string;
   isPriority: boolean;
+  status?: "SCHEDULED" | "OPEN" | "CLOSED" | "ARCHIVED";
+  /** The post was archived; it still opens here. */
+  archived?: boolean;
   opensAt: string;
   closesAt: string;
   reposts: number;
@@ -326,7 +396,7 @@ export interface DashboardCampaignDetail {
   repostsWithCommentary?: number;
 }
 
-export interface DashboardCampaigns {
+export interface DashboardCampaigns extends DashboardScope {
   asOf: string;
   windowDays: number;
   peopleConnected?: number;
@@ -346,7 +416,7 @@ export interface DashboardParticipation {
   };
 }
 
-export interface DashboardGlance {
+export interface DashboardGlance extends DashboardScope {
   asOf: string;
   month: string;
   reposts: { thisMonth: number; previousMonth: number };
@@ -379,7 +449,7 @@ export interface ScorecardMeasure {
   note?: string | null;
 }
 
-export interface DashboardScorecard {
+export interface DashboardScorecard extends DashboardScope {
   asOf: string;
   measures: ScorecardMeasure[];
 }

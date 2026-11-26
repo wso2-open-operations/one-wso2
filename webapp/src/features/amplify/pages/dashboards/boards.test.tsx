@@ -61,7 +61,10 @@ vi.mock("../../api/useAmplifyDashboards", () => ({
       reposts: 1,
       repostsWithCommentary: 1,
       pointsThisMonth: 40,
-      campaigns: [{ campaignId: "c1", title: "Launch", categoryCode: "PRODUCT", categoryLabel: "Product", isPriority: true, opensAt: "2026-10-19T00:00:00Z", closesAt: "2026-11-18T00:00:00Z", reposts: 1, repostsWithCommentary: 1, points: 25 }],
+      campaigns: [
+        { campaignId: "c1", title: "Launch", categoryCode: "PRODUCT", categoryLabel: "Product", isPriority: true, opensAt: "2026-10-19T00:00:00Z", closesAt: "2026-11-18T00:00:00Z", reposts: 1, repostsWithCommentary: 1, points: 25 },
+        { campaignId: "c9", title: "Pulled post", categoryCode: "PRODUCT", categoryLabel: "Product", isPriority: false, status: "ARCHIVED", archived: true, opensAt: "2026-10-01T00:00:00Z", closesAt: "2026-10-31T00:00:00Z", reposts: 0, repostsWithCommentary: 0, points: 0 },
+      ],
       byCategory: [{ code: "PRODUCT", label: "Product", reposts: 1, repostsWithCommentary: 1, points: 25 }],
     },
   }),
@@ -206,6 +209,22 @@ describe("OperationsBoard", () => {
     expect(within(tile).getByText("0")).toBeTruthy();
   });
 
+  it("puts an Archived pill after an archived post's name, and only there", () => {
+    render(
+      <OperationsBoard
+        data={{
+          ...operations,
+          campaigns: [...operations.campaigns, { ...operations.campaigns[0], campaignId: "c9", title: "Pulled post", isPriority: false, status: "ARCHIVED", archived: true }],
+        }}
+      />,
+    );
+    const rows = screen.getAllByRole("row");
+    const pulled = rows.find((r) => within(r).queryByText("Pulled post"))!;
+    const live = rows.find((r) => within(r).queryByText("Choreo Labs at KubeCon"))!;
+    expect(within(pulled).getByText("Archived")).toBeTruthy();
+    expect(within(live).queryByText("Archived")).toBeNull();
+  });
+
   it("says so when there are no posts", () => {
     render(<OperationsBoard data={{ ...operations, campaigns: [] }} />);
     expect(screen.getByText(/No posts are live/)).toBeTruthy();
@@ -267,6 +286,22 @@ describe("PostPerformanceBoard", () => {
     expect(onSelect).toHaveBeenCalledWith("c2");
   });
 
+  it("puts an Archived pill on an archived post in the list and in its popup", () => {
+    const archived = { ...campaigns.campaigns[1], status: "ARCHIVED" as const, archived: true };
+    render(
+      <PostPerformanceBoard
+        data={{ ...withPeople, campaigns: [campaigns.campaigns[0], archived], selected: { ...withPeople.selected!, archived: true } }}
+        onSelect={() => undefined}
+        detailOpen
+      />,
+    );
+    // The open popup hides the board from the accessibility tree, so look past that.
+    const table = screen.getByRole("table", { name: "Reposts per post", hidden: true });
+    expect(within(table).getByRole("button", { name: /Hiring/, hidden: true }).textContent).toContain("Archived");
+    expect(within(table).getByRole("button", { name: /Launch/, hidden: true }).textContent).not.toContain("Archived");
+    expect(within(screen.getByRole("dialog")).getByText("Archived")).toBeTruthy();
+  });
+
   it("shows the normal post card with the default image, the numbers box and who reposted, never a bare id", () => {
     const onClose = vi.fn();
     render(<PostPerformanceBoard data={withPeople} onSelect={() => undefined} detailOpen onClose={onClose} />);
@@ -315,6 +350,23 @@ describe("PostPerformanceBoard", () => {
     expect(within(categoryRow).getByText("25")).toBeTruthy();
   });
 
+  it("opens the post's popup from a post title in the person popup", () => {
+    const onSelect = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <PostPerformanceBoard
+        data={withPeople}
+        onSelect={onSelect}
+        onClose={onClose}
+        person={{ employeeId: "e1", displayName: "Ada Lovelace", email: "ada@example.com" }}
+      />,
+    );
+    const table = screen.getByRole("table", { name: "Posts reposted by this person" });
+    fireEvent.click(within(table).getByRole("button", { name: "Launch" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith(expect.any(String));
+  });
+
   it("says nobody yet when no one reposted", () => {
     render(<PostPerformanceBoard data={{ ...campaigns, selected: { ...campaigns.selected!, people: { reposts: [], withComments: [] } } }} onSelect={() => undefined} detailOpen />);
     expect(screen.getAllByText("Nobody yet.")).toHaveLength(2);
@@ -352,6 +404,13 @@ describe("PersonDetailDialog", () => {
     render(<PersonDetailDialog person={{ employeeId: "e1", displayName: "Ada Lovelace", email: "ada@example.com" }} onClose={() => undefined} />);
     expect(screen.queryByText("Amplify has no activity for this person yet.")).toBeNull();
     expect(screen.getByText("Points this month")).toBeTruthy();
+  });
+
+  it("lists an archived post with the Archived pill", () => {
+    render(<PersonDetailDialog person={{ employeeId: "e1", displayName: "Ada Lovelace", email: "ada@example.com" }} onClose={() => undefined} />);
+    const rows = screen.getAllByRole("row");
+    expect(within(rows.find((r) => within(r).queryByText("Pulled post"))!).getByText("Archived")).toBeTruthy();
+    expect(within(rows.find((r) => within(r).queryByText("Launch"))!).queryByText("Archived")).toBeNull();
   });
 });
 

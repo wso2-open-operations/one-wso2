@@ -50,6 +50,12 @@ declare global {
       // Amplify API proxy (amplify-api behind the cell edge). Optional — when
       // absent the Amplify screens show a not-connected state.
       ONE_WSO2_AMPLIFY_BACKEND_URL?: string;
+      // Amplify dashboard colours: positive (on-track bars and lines) and
+      // negative (failed shares, expired connections). Optional CSS hex
+      // colours (#rgb, #rrggbb, with or without alpha); anything else, or
+      // unset, keeps the defaults #089c2f and #d92c16.
+      ONE_WSO2_AMPLIFY_POSITIVE_COLOR?: string;
+      ONE_WSO2_AMPLIFY_NEGATIVE_COLOR?: string;
       // Base URL for the digiops-hr subscription-app backend (PickMe Commute
       // and LaaS opt-in/opt-out). Optional — when absent the Subscriptions
       // screens show a not-connected state.

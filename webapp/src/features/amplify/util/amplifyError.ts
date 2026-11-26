@@ -43,6 +43,10 @@ const MESSAGES: Record<string, string> = {
   CAMPAIGN_CLOSED: "This post isn't open for sharing anymore.",
   LINKEDIN_NOT_CONNECTED: "Link your LinkedIn account first.",
   NEEDS_RECONNECT: "Your LinkedIn link expired. Link it again to keep sharing.",
+  CONNECTION_NEEDS_RECONNECT: "Your LinkedIn link was disconnected. Link LinkedIn again to amplify this post.",
+  COMMENTARY_REQUIRED: "Add your thoughts, or send a plain repost.",
+  COMMENTARY_TOO_LONG: "Your thoughts are too long for LinkedIn. Shorten them and try again.",
+  TOO_MANY_MENTIONS: "You can mention up to 20 people or pages in one post.",
   DUPLICATE_ACTION: "You've already shared this post.",
   COMMENTARY_NOT_OWN_WORDS:
     "Add a few more words of your own. Words copied from the post don't count. Or share it without thoughts.",
@@ -52,6 +56,15 @@ const MESSAGES: Record<string, string> = {
   MISSING_SCOPE: "LinkedIn didn't grant sharing permission. Try again and allow it.",
   DEPENDENCY_UNAVAILABLE: "Something went wrong, please try again.",
 };
+
+/** The codes that mean LinkedIn no longer accepts the employee's link, so they must link again. */
+const RECONNECT_CODES = new Set(["CONNECTION_NEEDS_RECONNECT", "NEEDS_RECONNECT"]);
+
+/** True when a failed Amplify call means "link LinkedIn again". */
+export function needsLinkedInReconnect(err: unknown): boolean {
+  const code = amplifyProblemCode(err);
+  return code !== undefined && RECONNECT_CODES.has(code);
+}
 
 /** A sentence a person can act on, for a failed Amplify call. */
 export function describeAmplifyError(err: unknown): string {

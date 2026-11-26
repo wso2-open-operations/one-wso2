@@ -17,9 +17,10 @@
 import { Box, Button, Chip, Dialog, DialogContent, Divider, IconButton, Typography } from "@wso2/oxygen-ui";
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "@wso2/oxygen-ui-icons-react";
 import { dialogPaperSx } from "@components/confirmation-dialog/dialogPaperSx";
+import { AMPLIFY_BAR } from "../../config/themeConfig";
 import type { DashboardCampaignDetail, DashboardCampaignRow, DashboardPerson } from "../../api/amplifyTypes";
 import { usePersonLookup, type PersonRef } from "../../api/usePersonLookup";
-import { SectionLabel } from "../../components/DashboardParts";
+import { ArchivedPill, SectionLabel } from "../../components/DashboardParts";
 import PersonLink from "../../components/PersonLink";
 import PostCard, { CategoryChip, PriorityChip } from "../../components/PostCard";
 import { announcementLabel, commentedReposts, num, plainReposts, rate } from "../../util/dashboardFormat";
@@ -33,7 +34,7 @@ function DayChart({ byDay }: { byDay: { day: number; reposts: number }[] }) {
       <line x1="0" y1="100" x2="400" y2="100" stroke="currentColor" strokeOpacity="0.25" />
       {byDay.map((d, i) => {
         const h = (d.reposts / max) * 88;
-        return <rect key={d.day} x={i * w + w * 0.15} y={100 - h} width={w * 0.7} height={h} rx="4" fill="#60A5FA" />;
+        return <rect key={d.day} x={i * w + w * 0.15} y={100 - h} width={w * 0.7} height={h} rx="4" fill={AMPLIFY_BAR.positive} />;
       })}
     </svg>
   );
@@ -167,6 +168,7 @@ export default function CampaignDetailDialog({
               chips={
                 <>
                   {sel.isPriority && <PriorityChip />}
+                  {sel.archived && <ArchivedPill />}
                   <CategoryChip label={sel.categoryLabel} />
                 </>
               }

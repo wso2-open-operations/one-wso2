@@ -52,6 +52,17 @@ describe("PostCard image", () => {
     expect(hasDefault(container)).toBe(true);
   });
 
+  it("shows the default at 80% size so it has space around it, and a post's own image at full size", () => {
+    const own = render(<PostCard campaign={campaign("https://example.com/a.png")} action={null} />);
+    const ownImg = own.container.querySelector("img")!;
+    expect(getComputedStyle(ownImg).width).toBe("100%");
+    own.unmount();
+    const { container } = render(<PostCard campaign={campaign(undefined)} action={null} />);
+    const logo = container.querySelector("[data-testid=default-post-image]") as SVGElement;
+    expect(logo.style.height).toBe("80%");
+    expect(logo.style.maxWidth).toBe("80%");
+  });
+
   it("falls back to the default when the URL fails to load", () => {
     const { container } = render(<PostCard campaign={campaign("https://example.com/missing.png")} action={null} />);
     fireEvent.error(container.querySelector("img")!);

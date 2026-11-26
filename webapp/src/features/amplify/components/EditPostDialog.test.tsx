@@ -27,7 +27,13 @@ vi.mock("../api/useAmplifyMutations", () => ({
 vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
 }));
+vi.mock("../api/useAmplifyData", () => ({
+  useAmplifyConfig: () => ({ campaignLinkOrigins: ["https://www.linkedin.com", "https://linkedin.com"] }),
+}));
 vi.mock("./CategoryPicker", () => ({ default: () => <div /> }));
+
+const checkImageUrl = vi.fn();
+vi.mock("../util/imageUrlCheck", () => ({ checkImageUrl: (...args: unknown[]) => checkImageUrl(...args) }));
 
 import EditPostDialog from "./EditPostDialog";
 
@@ -52,21 +58,21 @@ describe("EditPostDialog post URL", () => {
 
   it("starts with the stored link and sends nothing for it when unchanged", () => {
     render(<EditPostDialog campaign={campaign} onClose={vi.fn()} />);
-    expect((screen.getByLabelText(/Post URL/) as HTMLInputElement).value).toBe(campaign.resourceUrl);
+    expect((screen.getByRole("textbox", { name: /Post URL/ }) as HTMLInputElement).value).toBe(campaign.resourceUrl);
     save();
     expect(patchOf().resourceUrl).toBeUndefined();
   });
 
   it("sends the edited link trimmed", () => {
     render(<EditPostDialog campaign={campaign} onClose={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText(/Post URL/), { target: { value: "  https://www.linkedin.com/posts/x  " } });
+    fireEvent.change(screen.getByRole("textbox", { name: /Post URL/ }), { target: { value: "  https://www.linkedin.com/posts/x  " } });
     save();
     expect(patchOf().resourceUrl).toBe("https://www.linkedin.com/posts/x");
   });
 
   it("sends a blank string to clear the link", () => {
     render(<EditPostDialog campaign={campaign} onClose={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText(/Post URL/), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /Post URL/ }), { target: { value: "" } });
     save();
     expect(patchOf().resourceUrl).toBe("");
   });
@@ -102,5 +108,78 @@ describe("EditPostDialog delete", () => {
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
     expect(archive.mock.calls[0][0]).toEqual({ id: "c-1" });
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("EditPostDialog image URL check", () => {
+  const withImage = { ...campaign, imageUrl: "https://media.licdn.com/a.png" } as Campaign;
+  beforeEach(() => checkImageUrl.mockReset());
+
+  it("checks the stored image when the dialog opens and shows the preview between headline and summary", async () => {
+    checkImageUrl.mockResolvedValue("ok");
+    render(<EditPostDialog campaign={withImage} onClose={vi.fn()} />);
+    expect(checkImageUrl).toHaveBeenCalledWith("https://media.licdn.com/a.png", expect.anything());
+    const preview = (await screen.findByAltText("Preview of the post image")) as HTMLImageElement;
+    expect(preview.src).toBe("https://media.licdn.com/a.png");
+    expect(screen.getByRole("img", { name: "Image URL is good" })).toBeTruthy();
+    const headline = screen.getByLabelText(/Headline/);
+    const summary = screen.getByLabelText(/Card summary/);
+    expect(headline.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(preview.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("marks a bad stored image and shows no preview", async () => {
+    checkImageUrl.mockResolvedValue("bad");
+    render(<EditPostDialog campaign={withImage} onClose={vi.fn()} />);
+    expect(await screen.findByRole("img", { name: "Image URL has a problem" })).toBeTruthy();
+    expect(screen.queryByAltText("Preview of the post image")).toBeNull();
+  });
+
+  it("checks nothing on open when there is no image, and checks an edited value on blur", async () => {
+    checkImageUrl.mockResolvedValue("ok");
+    render(<EditPostDialog campaign={campaign} onClose={vi.fn()} />);
+    expect(checkImageUrl).not.toHaveBeenCalled();
+    expect(screen.queryByRole("img", { name: /Image URL/ })).toBeNull();
+    const box = screen.getByRole("textbox", { name: /Image URL/ });
+    fireEvent.change(box, { target: { value: "https://media.licdn.com/c.png" } });
+    fireEvent.blur(box);
+    expect(await screen.findByAltText("Preview of the post image")).toBeTruthy();
+  });
+
+  it("still sends the image URL on save", () => {
+    checkImageUrl.mockResolvedValue("ok");
+    mutate.mockClear();
+    render(<EditPostDialog campaign={withImage} onClose={vi.fn()} />);
+    save();
+    expect(patchOf().imageUrl).toBe("https://media.licdn.com/a.png");
+  });
+});
+
+describe("EditPostDialog post URL format check", () => {
+  beforeEach(() => checkImageUrl.mockReset());
+  const box = () => screen.getByRole("textbox", { name: /Post URL/ });
+
+  it("marks the stored link as a valid format when the dialog opens, without claiming it exists", async () => {
+    render(<EditPostDialog campaign={campaign} onClose={vi.fn()} />);
+    const tick = await screen.findByRole("img", { name: /Post URL format is valid/ });
+    expect(tick.getAttribute("aria-label")).toContain("doesn't confirm the post exists");
+    expect(checkImageUrl).not.toHaveBeenCalled();
+  });
+
+  it("flags a link on another site with a reason, on blur", async () => {
+    render(<EditPostDialog campaign={campaign} onClose={vi.fn()} />);
+    await screen.findByRole("img", { name: /Post URL format is valid/ });
+    fireEvent.change(box(), { target: { value: "https://example.com/x" } });
+    fireEvent.blur(box());
+    expect(await screen.findByRole("img", { name: "Post URL format is not valid" })).toBeTruthy();
+    expect(screen.getAllByText(/Use a link on linkedin.com/).some((n) => n.tagName === "P")).toBe(true);
+    expect(box().getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("shows nothing for a blank link (blank clears it)", () => {
+    render(<EditPostDialog campaign={{ ...campaign, resourceUrl: "" } as Campaign} onClose={vi.fn()} />);
+    fireEvent.change(box(), { target: { value: "  " } });
+    fireEvent.blur(box());
+    expect(screen.queryByRole("img", { name: /Post URL/ })).toBeNull();
   });
 });

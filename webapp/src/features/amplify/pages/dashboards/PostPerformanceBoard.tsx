@@ -20,9 +20,10 @@ import type { DashboardCampaigns } from "../../api/amplifyTypes";
 import { useDashboardCampaigns } from "../../api/useAmplifyDashboards";
 import type { PersonRef } from "../../api/usePersonLookup";
 import AmplifyShell from "../../components/AmplifyShell";
-import { Block, BoardState, Empty } from "../../components/DashboardParts";
+import { Block, BoardState, Empty, IncludeArchivedToggle } from "../../components/DashboardParts";
 import RepostGrid from "../../components/RepostGrid";
 import { commentedReposts, plainReposts, updatedStamp } from "../../util/dashboardFormat";
+import { useIncludeArchived } from "../../util/includeArchived";
 import CampaignDetailDialog from "./CampaignDetailDialog";
 import PersonDetailDialog from "./PersonDetailDialog";
 
@@ -66,6 +67,7 @@ export function PostPerformanceBoard({
                 key: p.campaignId,
                 title: p.title,
                 subtitle: `${p.categoryLabel}${p.isPriority ? " · Priority" : ""}`,
+                archived: p.archived === true,
                 total: p.reposts,
                 plain: plainReposts(p),
                 commented: commentedReposts(p),
@@ -103,7 +105,13 @@ export function PostPerformanceBoard({
           onClose={onClose}
         />
       )}
-      {person && <PersonDetailDialog person={person} onClose={onClose} />}
+      {person && (
+        // A post title in the person's list opens that post's popup: close the person popup, then select the post.
+        <PersonDetailDialog person={person} onClose={onClose} onPost={(id) => {
+          onClose();
+          onSelect(id);
+        }} />
+      )}
     </Box>
   );
 }
@@ -114,9 +122,11 @@ export default function PostPerformancePage() {
   // Popup state lives here, not in the board: picking another post swaps the data under the board.
   const [detailOpen, setDetailOpen] = useState(false);
   const [person, setPerson] = useState<PersonRef | null>(null);
-  const q = useDashboardCampaigns(campaignId);
+  const [includeArchived, setIncludeArchived] = useIncludeArchived();
+  const q = useDashboardCampaigns(campaignId, includeArchived);
   return (
     <AmplifyShell title="Post Performance" subtitle="Which posts people are reposting, and how fast.">
+      <IncludeArchivedToggle checked={includeArchived} onChange={setIncludeArchived} />
       <BoardState queries={[q]}>
         {q.data && (
           <PostPerformanceBoard

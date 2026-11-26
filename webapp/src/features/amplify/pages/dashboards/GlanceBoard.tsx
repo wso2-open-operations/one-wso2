@@ -15,6 +15,7 @@
 // under the License.
 
 import { Box, Typography } from "@wso2/oxygen-ui";
+import { AMPLIFY_BAR } from "../../config/themeConfig";
 import type { DashboardGlance, GroupBoardEntry, LeaderboardEntry } from "../../api/amplifyTypes";
 import { useAmplifyLeaderboard } from "../../api/useAmplifyData";
 import { useAmplifyPeople, type PeopleByEmail } from "../../api/useAmplifyPeople";
@@ -22,8 +23,9 @@ import { useDashboardGlance, useGroupBoard } from "../../api/useAmplifyDashboard
 import { nameOrUnknown, type PersonRef } from "../../api/usePersonLookup";
 import AmplifyShell from "../../components/AmplifyShell";
 import PersonLink from "../../components/PersonLink";
-import { Block, BoardState, Empty, MedalRank, StatCard } from "../../components/DashboardParts";
+import { Block, BoardState, Empty, IncludeArchivedToggle, MedalRank, StatCard } from "../../components/DashboardParts";
 import { updatedStamp, changePercent, monthLabel, num, percentOf } from "../../util/dashboardFormat";
+import { useIncludeArchived } from "../../util/includeArchived";
 
 function MonthlyLine({ monthly }: { monthly: DashboardGlance["monthly"] }) {
   if (monthly.length === 0) return <Empty>No reposts recorded yet.</Empty>;
@@ -44,12 +46,12 @@ function MonthlyLine({ monthly }: { monthly: DashboardGlance["monthly"] }) {
         <polyline
           points={pts.map(([x, y]) => `${x},${y}`).join(" ")}
           fill="none"
-          stroke="#60A5FA"
+          stroke={AMPLIFY_BAR.positive}
           strokeWidth="3"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
-        <circle cx={last[0]} cy={last[1]} r="6" fill="#FF7300" />
+        <circle cx={last[0]} cy={last[1]} r="6" fill={AMPLIFY_BAR.positive} />
       </svg>
       <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "text.secondary" }}>
         <span>{monthLabel(monthly[0].monthStart)}</span>
@@ -189,12 +191,14 @@ export function GlanceBoard({
 }
 
 export default function GlancePage() {
-  const glance = useDashboardGlance();
+  const [includeArchived, setIncludeArchived] = useIncludeArchived();
+  const glance = useDashboardGlance(includeArchived);
   const board = useAmplifyLeaderboard();
   const teams = useGroupBoard("TEAM");
   const directory = useAmplifyPeople();
   return (
     <AmplifyShell title="At A Glance" subtitle="One screen for the leadership check-in.">
+      <IncludeArchivedToggle checked={includeArchived} onChange={setIncludeArchived} />
       <BoardState queries={[glance]}>
         {glance.data && (
           <GlanceBoard data={glance.data} people={board.data?.company ?? []} teams={teams.data?.entries ?? []} directory={directory} />

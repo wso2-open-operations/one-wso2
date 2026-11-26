@@ -37,6 +37,7 @@ import {
   QUEUED_SHARE_POLL_MS,
   pollWhileQueued,
   sharePublishedSince,
+  sharesFailedSince,
   useAmplifyLeaderboard,
   useAmplifyTopBoard,
   useMyShares,
@@ -51,6 +52,15 @@ describe("sharePublishedSince", () => {
     expect(sharePublishedSince([share("s1", "QUEUED")], [share("s1", "FAILED")])).toBe(false);
     expect(sharePublishedSince([share("s1", "QUEUED")], [share("s1", "QUEUED")])).toBe(false);
     expect(sharePublishedSince(undefined, [share("s1", "PUBLISHED")])).toBe(false);
+  });
+});
+
+describe("sharesFailedSince", () => {
+  it("lists only shares that went from QUEUED to FAILED", () => {
+    const failed = { ...share("s1", "FAILED"), failureReason: "NEEDS_RECONNECT" as const };
+    expect(sharesFailedSince([share("s1", "QUEUED")], [failed])).toEqual([failed]);
+    expect(sharesFailedSince([share("s1", "FAILED")], [failed])).toEqual([]);
+    expect(sharesFailedSince(undefined, [failed])).toEqual([]);
   });
 });
 
@@ -130,6 +140,40 @@ describe("useMyShares", () => {
       unmount();
       vi.useRealTimers();
     }
+  });
+
+  it("refetches /me when a queued share fails NEEDS_RECONNECT", async () => {
+    const { qc, wrapper } = setup();
+    const loadMe = vi.fn(async () => ({}));
+    await qc.fetchQuery({ queryKey: ["amplify", "me", "sub-1"], queryFn: loadMe });
+    vi.mocked(authedGet)
+      .mockResolvedValueOnce({ items: [share("s1", "QUEUED")] })
+      .mockResolvedValueOnce({ items: [{ ...share("s1", "FAILED"), failureReason: "NEEDS_RECONNECT" }] });
+
+    const { result } = renderHook(() => useMyShares(), { wrapper });
+    await waitFor(() => expect(result.current.data?.items[0].status).toBe("QUEUED"));
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    await waitFor(() => expect(loadMe).toHaveBeenCalledTimes(2));
+  });
+
+  it("leaves /me alone when a share fails for another reason", async () => {
+    const { qc, wrapper } = setup();
+    const loadMe = vi.fn(async () => ({}));
+    await qc.fetchQuery({ queryKey: ["amplify", "me", "sub-1"], queryFn: loadMe });
+    vi.mocked(authedGet)
+      .mockResolvedValueOnce({ items: [share("s1", "QUEUED")] })
+      .mockResolvedValueOnce({ items: [{ ...share("s1", "FAILED"), failureReason: "PROVIDER_REJECTED" }] });
+
+    const { result } = renderHook(() => useMyShares(), { wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(loadMe).toHaveBeenCalledTimes(1);
   });
 
   it("leaves the boards alone when nothing was published", async () => {

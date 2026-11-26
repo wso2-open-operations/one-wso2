@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { AMPLIFY_CURRENT_POSTS_ITEM_ID, AMPLIFY_NEW_POST_ITEM_ID } from "@constants/perspectives";
-import { AMPLIFY_DASHBOARD_ITEM_IDS } from "@constants/perspectives";
+import { AMPLIFY_DASHBOARD_ITEM_IDS, AMPLIFY_PEOPLE_OPS_ITEM_IDS } from "@constants/perspectives";
 import type { AmplifyMe } from "./amplifyTypes";
 import { amplifyEditorVisibility, amplifyVisibility, hasAmplifyGrant } from "./useAmplifyEditorAccess";
 
@@ -73,25 +73,41 @@ describe("amplifyVisibility", () => {
   const no = { hasAccess: false, isResolving: false, retry };
   const resolving = { hasAccess: true, isResolving: true, retry };
 
-  it("shows the Dashboarding boards to a dashboard role and not New Post to an SLT", () => {
-    const v = amplifyVisibility(no, yes);
+  it("shows the Dashboards boards to a dashboard role and not New Post to an SLT", () => {
+    const v = amplifyVisibility(no, yes, no);
     for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(true);
     expect(v.canSee(AMPLIFY_NEW_POST_ITEM_ID)).toBe(false);
   });
 
   it("hides every board from a plain employee", () => {
-    const v = amplifyVisibility(no, no);
+    const v = amplifyVisibility(no, no, no);
     for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(false);
   });
 
   it("keeps the editor rows on their own gate", () => {
-    const v = amplifyVisibility(yes, no);
+    const v = amplifyVisibility(yes, no, no);
     expect(v.canSee(AMPLIFY_NEW_POST_ITEM_ID)).toBe(true);
     for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(false);
   });
 
+  it("gates Team on its own grant, not the dashboard grant", () => {
+    const peopleOnly = amplifyVisibility(no, no, yes);
+    for (const id of AMPLIFY_PEOPLE_OPS_ITEM_IDS) expect(peopleOnly.canSee(id)).toBe(true);
+    for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(peopleOnly.canSee(id)).toBe(false);
+    const dashboardsOnly = amplifyVisibility(no, yes, no);
+    for (const id of AMPLIFY_PEOPLE_OPS_ITEM_IDS) expect(dashboardsOnly.canSee(id)).toBe(false);
+  });
+
+  it("gates Team on its own grant, not the dashboard grant", () => {
+    const peopleOnly = amplifyVisibility(no, no, yes);
+    for (const id of AMPLIFY_PEOPLE_OPS_ITEM_IDS) expect(peopleOnly.canSee(id)).toBe(true);
+    for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(peopleOnly.canSee(id)).toBe(false);
+    const dashboardsOnly = amplifyVisibility(no, yes, no);
+    for (const id of AMPLIFY_PEOPLE_OPS_ITEM_IDS) expect(dashboardsOnly.canSee(id)).toBe(false);
+  });
+
   it("fails closed while /me is loading", () => {
-    const v = amplifyVisibility(resolving, resolving);
+    const v = amplifyVisibility(resolving, resolving, resolving);
     for (const id of AMPLIFY_DASHBOARD_ITEM_IDS) expect(v.canSee(id)).toBe(false);
     expect(v.resolving).toBe(true);
   });

@@ -1885,12 +1885,16 @@ export const amplifyServiceUrls = {
   // POST "share this for me" — one per campaign per employee.
   shares: (id: string) => `${amplifyBackendUrl}/campaigns/${encodeURIComponent(id)}/shares`,
   myShares: `${amplifyBackendUrl}/me/shares`,
+  // Mention typeahead: colleagues who linked LinkedIn, plus the company page.
+  mentions: `${amplifyBackendUrl}/mentions`,
   categories: `${amplifyBackendUrl}/categories`,
   // Company top N, the caller's standing and My Team.
   leaderboard: `${amplifyBackendUrl}/leaderboard`,
   // Teams or BUs ranked against each other (open to every employee, ADR-035).
   leaderboardTop: `${amplifyBackendUrl}/leaderboard/top`,
   leaderboardGroups: `${amplifyBackendUrl}/leaderboard/groups`,
+  // The full team page: the whole roster from the people directory, paged, searched and sorted.
+  team: `${amplifyBackendUrl}/team`,
   // The boards under Dashboarding (CAN_DASHBOARD only, 403 for anyone else).
   dashboardOperations: `${amplifyBackendUrl}/dashboards/operations`,
   dashboardCampaigns: `${amplifyBackendUrl}/dashboards/campaigns`,

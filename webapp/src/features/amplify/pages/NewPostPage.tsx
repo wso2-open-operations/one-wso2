@@ -23,7 +23,12 @@ import { useAmplifyCategories, useAmplifyConfig } from "../api/useAmplifyData";
 import { useRegisterCampaign } from "../api/useAmplifyMutations";
 import AmplifyShell, { AmplifyPanel } from "../components/AmplifyShell";
 import CategoryPicker from "../components/CategoryPicker";
+import ImagePreview from "../components/ImagePreview";
+import UrlCheckField from "../components/UrlCheckField";
 import { describeAmplifyError } from "../util/amplifyError";
+import { checkImageUrl } from "../util/imageUrlCheck";
+import { POST_ID_HELP, checkPostIdFormat, postIdCheckKey } from "../util/postIdCheck";
+import { useUrlCheck } from "../util/useUrlCheck";
 import {
   DEFAULT_POST_KIND,
   POST_KINDS,
@@ -41,8 +46,8 @@ const TITLE_MAX = 200;
 const SUMMARY_MAX = 2000;
 
 // New Post: PO and Marketing register an official Choreo Labs LinkedIn post, with a
-// category and a priority flag. Save queues it for the next Amplify run;
-// Save & Share Now starts a run straight away. Only callers granted
+// category and a priority flag. Save & share now registers it and starts an
+// Amplify run straight away. Only callers granted
 // CAN_CAMPAIGN reach this page (AmplifyEditorRoute), and amplify-api
 // refuses POST /campaigns from anyone else.
 export default function NewPostPage() {
@@ -60,6 +65,9 @@ export default function NewPostPage() {
   const [isPriority, setIsPriority] = useState(false);
   const [trackUntil, setTrackUntil] = useState("");
   const [touched, setTouched] = useState(false);
+  const imageCheck = useUrlCheck(checkImageUrl, imageUrl);
+  const postIdKey = postIdCheckKey(postKind, postId);
+  const postIdCheck = useUrlCheck(checkPostIdFormat, postIdKey);
 
   // The first category until one is chosen, so there is always a choice.
   const category = chosenCategory || categories.data?.[0]?.code || "";
@@ -76,17 +84,18 @@ export default function NewPostPage() {
     if (pasted) {
       setPostKind(pasted.kind);
       setPostId(pasted.id);
+      postIdCheck.check(postIdCheckKey(pasted.kind, pasted.id));
     } else {
       setPostId(value);
     }
   };
 
-  const save = (shareNow: boolean) => {
+  const save = () => {
     setTouched(true);
     if (!valid || !resourceUrn) return;
     register.mutate(
       {
-        shareNow,
+        shareNow: true,
         draft: {
           resourceUrn,
           ownerUrn: linkedinOrgUrn,
@@ -103,9 +112,7 @@ export default function NewPostPage() {
       {
         onSuccess: (result) => {
           showSuccess(
-            shareNow && result?.run === "STARTED"
-              ? "Saved. Sharing it now."
-              : "Saved. It goes out with the next Amplify run.",
+            result?.run === "STARTED" ? "Saved. Sharing it now." : "Saved. It goes out with the next Amplify run.",
           );
           navigate(AMPLIFY_CURRENT_POSTS_PATH);
         },
@@ -116,7 +123,7 @@ export default function NewPostPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    save(true);
+    save();
   };
 
   const busy = register.isPending;
@@ -147,7 +154,11 @@ export default function NewPostPage() {
                 label="Post type"
                 value={postKind}
                 onChange={(e) => {
-                  if (isPostKind(e.target.value)) setPostKind(e.target.value);
+                  const next = e.target.value;
+                  if (!isPostKind(next)) return;
+                  setPostKind(next);
+                  // A filled id is re-checked against the new type; an empty one stays quiet.
+                  postIdCheck.check(postIdCheckKey(next, postId));
                 }}
                 sx={{ minWidth: 170 }}
                 disabled={busy}
@@ -161,18 +172,21 @@ export default function NewPostPage() {
               <Typography component="span" sx={{ pt: 2, color: "text.secondary" }}>
                 :
               </Typography>
-              <TextField
+              <UrlCheckField
                 label="Post ID"
+                subject="Post ID"
+                labels={{
+                  ok: "Post ID format is valid. This doesn't confirm the post exists on LinkedIn",
+                  bad: "Post ID format is not valid",
+                }}
                 placeholder="7123456789012345678"
                 value={postId}
                 onChange={(e) => onPostIdChange(e.target.value)}
+                checkValue={postIdKey}
+                urlCheck={postIdCheck}
                 required
-                error={idError}
-                helperText={
-                  idError
-                    ? "Enter the post's numeric ID (the digits after the last colon)."
-                    : "Must be a post on the Choreo Labs company page."
-                }
+                errorText={idError && postIdCheck.state !== "bad" ? POST_ID_HELP : undefined}
+                hint="Checks the format only, not that the post exists. Must be a post on the Choreo Labs company page."
                 sx={{ flex: 1, minWidth: 220 }}
                 disabled={busy}
               />
@@ -188,6 +202,7 @@ export default function NewPostPage() {
               slotProps={{ htmlInput: { maxLength: TITLE_MAX } }}
               disabled={busy}
             />
+            {imageCheck.state === "ok" && <ImagePreview url={imageUrl.trim()} />}
             <TextField
               label="Card summary"
               placeholder="2-3 lines shown on the Amplify cards in One App and Google Chat"
@@ -199,13 +214,14 @@ export default function NewPostPage() {
               slotProps={{ htmlInput: { maxLength: SUMMARY_MAX } }}
               disabled={busy}
             />
-            <TextField
+            <UrlCheckField
               label="Image URL (optional)"
+              subject="Image URL"
               placeholder="https://…"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
-              fullWidth
-              helperText="An HTTPS link to the post's image."
+              urlCheck={imageCheck}
+              hint="An HTTPS link to the post's image."
               disabled={busy}
             />
           </Box>
@@ -237,12 +253,6 @@ export default function NewPostPage() {
         </AmplifyPanel>
 
         <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 1.5 }}>
-          <Typography variant="caption" color="text.secondary">
-            Saved but not shared? It goes out with the next Amplify run.
-          </Typography>
-          <Button variant="outlined" onClick={() => save(false)} disabled={busy || !orgConfigured}>
-            Save
-          </Button>
           <Button type="submit" variant="contained" disabled={busy || !orgConfigured}>
             {busy ? "Saving…" : "Save & share now"}
           </Button>

@@ -39,6 +39,11 @@ window.config = {
   // Amplify API proxy — the Amplify app (Celebrate, New Post, Current Posts).
   // Shown only while `amplify` is on in ONE_WSO2_PREVIEW_FEATURES below.
   // ONE_WSO2_AMPLIFY_BACKEND_URL: "<your-amplify-api-proxy-url>",
+  // Amplify dashboard colours. Optional CSS hex colours; leave unset for the
+  // defaults (positive #089c2f, negative #d92c16). A value that isn't a hex
+  // colour is ignored and the default is used.
+  // ONE_WSO2_AMPLIFY_POSITIVE_COLOR: "#089c2f",
+  // ONE_WSO2_AMPLIFY_NEGATIVE_COLOR: "#d92c16",
   // The LinkedIn company page, the privacy notice link and the allowed post-link origins are not set here:
   // amplify-api sends them in GET /me (Choreo configs WSO2ORGANIZATIONURN, PRIVACYNOTICEURL, CAMPAIGNLINKORIGINS).
 

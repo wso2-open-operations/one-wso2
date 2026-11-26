@@ -39,7 +39,7 @@ export function Funnel({ data }: { data: DashboardParticipation }) {
   const top = f.employees && f.employees > 0 ? f.employees : Math.max(1, f.connected);
   const steps: { name: string; value: number; detail: string; color?: string }[] = [];
   if (f.employees != null) {
-    steps.push({ name: "Employees", value: f.employees, detail: num(f.employees), color: "text.disabled" });
+    steps.push({ name: "Employees", value: f.employees, detail: num(f.employees) });
   }
   steps.push({
     name: "Connected LinkedIn",
@@ -49,7 +49,7 @@ export function Funnel({ data }: { data: DashboardParticipation }) {
   // Counts only: reposters and active people include those who reposted and then disconnected, so they are not a
   // subset of "connected", and a share of connected could pass 100%.
   steps.push({ name: "Reposted at least once", value: f.reposted, detail: num(f.reposted) });
-  steps.push({ name: "Active in last 30 days", value: f.active30Days, detail: num(f.active30Days), color: "primary.main" });
+  steps.push({ name: "Active in last 30 days", value: f.active30Days, detail: num(f.active30Days) });
   return (
     <Block title="Employee journey">
       <Box component="ol" sx={{ listStyle: "none", m: 0, p: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>

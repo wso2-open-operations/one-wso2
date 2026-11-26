@@ -57,6 +57,7 @@ import {
   amplifyVisibility,
   useAmplifyDashboardAccess,
   useAmplifyEditorAccess,
+  useAmplifyPeopleOpsAccess,
 } from "@features/amplify/api/useAmplifyEditorAccess";
 import { isSriLankaWorkLocation } from "@utils/locationGate";
 import { firstVisibleLeaf as firstVisibleLeafOf, visibleLeavesOf } from "./railActive";
@@ -294,8 +295,10 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
   // Amplify → New Post and Current Posts need amplify-api's CAN_CAMPAIGN grant
   // (GET /me), same shape as the Marketing Ops gate.
   const amplifyEditorGate = useAmplifyEditorAccess(active.key === "amplify");
-  // Dashboarding → the five boards need the CAN_DASHBOARD grant.
+  // Dashboards → the five boards need the CAN_DASHBOARD grant.
   const amplifyDashboardGate = useAmplifyDashboardAccess(active.key === "amplify");
+  // People Operations → the Team board needs its own CAN_PEOPLE_OPS grant.
+  const amplifyPeopleOpsGate = useAmplifyPeopleOpsAccess(active.key === "amplify");
 
   // Both services are a Colombo-office perk, so both screens are Sri-Lanka-only
   // — see isSriLankaWorkLocation. They now sit in different perspectives (self
@@ -372,7 +375,7 @@ export function usePerspectiveVisibility(): PerspectiveVisibility {
           resolving: engineeringAdminGate.isResolving,
         });
       case "amplify":
-        return amplifyVisibility(amplifyEditorGate, amplifyDashboardGate);
+        return amplifyVisibility(amplifyEditorGate, amplifyDashboardGate, amplifyPeopleOpsGate);
       default: {
         const neverName: never = name;
         return neverName;

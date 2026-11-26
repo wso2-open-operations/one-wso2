@@ -15,7 +15,7 @@
 // under the License.
 
 import { describeError } from "@api/errors";
-import { AMPLIFY_DASHBOARD_ITEM_IDS, AMPLIFY_EDITOR_ITEM_IDS } from "@constants/perspectives";
+import { AMPLIFY_DASHBOARD_ITEM_IDS, AMPLIFY_EDITOR_ITEM_IDS, AMPLIFY_PEOPLE_OPS_ITEM_IDS } from "@constants/perspectives";
 import type { VisibilityAnswer } from "@components/side-rail/visibilityFold";
 import type { AmplifyGrant, AmplifyMe } from "./amplifyTypes";
 import { isAmplifyBackendConfigured, useAmplifyMe } from "./useAmplifyData";
@@ -29,6 +29,7 @@ export interface AmplifyAccess {
 
 export type AmplifyEditorAccess = AmplifyAccess;
 export type AmplifyDashboardAccess = AmplifyAccess;
+export type AmplifyPeopleOpsAccess = AmplifyAccess;
 
 /** Whether GET /me granted the caller `grant`. No answer yet is no grant. */
 export function hasAmplifyGrant(me: AmplifyMe | undefined, grant: AmplifyGrant): boolean {
@@ -66,9 +67,14 @@ export function useAmplifyEditorAccess(enabled = true): AmplifyEditorAccess {
   return useAmplifyGrant("CAN_CAMPAIGN", enabled);
 }
 
-/** The Dashboarding boards and the person popup: `CAN_DASHBOARD`, the grant on GET /dashboards/*. */
+/** The Dashboards boards and the person popup: `CAN_DASHBOARD`, the grant on GET /dashboards/*. */
 export function useAmplifyDashboardAccess(enabled = true): AmplifyDashboardAccess {
   return useAmplifyGrant("CAN_DASHBOARD", enabled);
+}
+
+/** The Team board under People Operations: `CAN_PEOPLE_OPS`, the grant on GET /team. */
+export function useAmplifyPeopleOpsAccess(enabled = true): AmplifyPeopleOpsAccess {
+  return useAmplifyGrant("CAN_PEOPLE_OPS", enabled);
 }
 
 /**
@@ -86,14 +92,19 @@ export function amplifyEditorVisibility(gate: AmplifyEditorAccess): VisibilityAn
 
 /**
  * The left-menu answer for Amplify's grant-gated rows: New Post and Current
- * Posts for `CAN_CAMPAIGN`, the Dashboarding boards for `CAN_DASHBOARD`.
+ * Posts for `CAN_CAMPAIGN`, the Dashboards boards for `CAN_DASHBOARD`, Team for `CAN_PEOPLE_OPS`.
  */
-export function amplifyVisibility(editor: AmplifyEditorAccess, dashboards: AmplifyDashboardAccess): VisibilityAnswer {
-  const resolving = editor.isResolving || dashboards.isResolving;
+export function amplifyVisibility(
+  editor: AmplifyEditorAccess,
+  dashboards: AmplifyDashboardAccess,
+  peopleOps: AmplifyPeopleOpsAccess,
+): VisibilityAnswer {
+  const resolving = editor.isResolving || dashboards.isResolving || peopleOps.isResolving;
   return {
     canSee: (id) =>
       (AMPLIFY_EDITOR_ITEM_IDS.has(id) && editor.hasAccess && !editor.isResolving) ||
-      (AMPLIFY_DASHBOARD_ITEM_IDS.has(id) && dashboards.hasAccess && !dashboards.isResolving),
+      (AMPLIFY_DASHBOARD_ITEM_IDS.has(id) && dashboards.hasAccess && !dashboards.isResolving) ||
+      (AMPLIFY_PEOPLE_OPS_ITEM_IDS.has(id) && peopleOps.hasAccess && !peopleOps.isResolving),
     resolving,
     retry: editor.retry,
   };

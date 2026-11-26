@@ -110,7 +110,7 @@ export default function PostCard({
         </Typography>
       </Box>
 
-      <Box sx={{ aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", bgcolor: "common.black" }}>
+      <Box sx={{ position: "relative", aspectRatio: "16 / 9", borderRadius: 1, overflow: "hidden", bgcolor: "common.black" }}>
         <PostImage url={campaign.imageUrl} />
       </Box>
 

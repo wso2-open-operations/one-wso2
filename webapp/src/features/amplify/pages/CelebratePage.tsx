@@ -21,7 +21,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { AMPLIFY_CELEBRATE_PATH } from "@constants/perspectives";
-import type { Campaign } from "../api/amplifyTypes";
+import type { Campaign, Share } from "../api/amplifyTypes";
 import {
   useAmplifyCampaigns,
   useAmplifyConfig,
@@ -29,7 +29,9 @@ import {
   useAmplifyLeaderboard,
   useAmplifyMe,
   useAmplifyTopBoard,
+  sharesFailedSince,
   useMyShares,
+  useRefreshAmplifyMe,
 } from "../api/useAmplifyData";
 import { useAmplifyPeople } from "../api/useAmplifyPeople";
 import AmplifyShell from "../components/AmplifyShell";
@@ -57,10 +59,15 @@ export default function CelebratePage() {
   const people = useAmplifyPeople();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { showSuccess } = useNotifications();
+  const { showSuccess, showError, showWarning } = useNotifications();
+  const refreshMe = useRefreshAmplifyMe();
   const { campaignLinkOrigins } = useAmplifyConfig();
 
-  const [linking, setLinking] = useState<Campaign | null>(null);
+  // The link dialog: `campaign` is the post to carry on with after linking, null when there is none to name.
+  const [linking, setLinking] = useState<{ campaign: Campaign | null } | null>(null);
+  // Set when a share failed with NEEDS_RECONNECT or POST /shares said the link is broken. /me is refetched too,
+  // but this keeps the next Amplify click on the link dialog even before (or if) /me catches up.
+  const [linkBroken, setLinkBroken] = useState(false);
   const [sharing, setSharing] = useState<Campaign | null>(null);
 
   const categoryLabel = useMemo(() => {
@@ -84,12 +91,56 @@ export default function CelebratePage() {
   );
 
   const linkStatus = me.data?.linkedin.status;
-  const linked = linkStatus === "ACTIVE" || linkStatus === "EXPIRING";
+  const linked = (linkStatus === "ACTIVE" || linkStatus === "EXPIRING") && !linkBroken;
+  const reconnect = linkStatus === "NEEDS_RECONNECT" || linkBroken;
 
   const amplify = (campaign: Campaign) => {
     if (linked) setSharing(campaign);
-    else setLinking(campaign);
+    else setLinking({ campaign });
   };
+
+  // LinkedIn stopped accepting the employee's link (they revoked Amplify's access, or the token was refused).
+  // Say so, refetch /me, and open the link dialog in reconnect mode for that post.
+  const askToRelink = (campaign: Campaign | null) => {
+    setLinkBroken(true);
+    setSharing(null);
+    void refreshMe();
+    showWarning("Your LinkedIn link was disconnected. Link LinkedIn again to amplify this post.");
+    setLinking({ campaign });
+  };
+
+  // A queued share that the poll sees come back FAILED. Shares that were already FAILED when the page loaded
+  // are old news: the post is simply back in the list.
+  const seenShares = useRef<Share[] | undefined>(undefined);
+  // What the poll effect reads when the poll answers. Kept in a ref so the effect reruns only on new poll data:
+  // rerunning when these change would report the same failure twice.
+  const pollContext = useRef({ openCampaigns, askToRelink, showError });
+  useEffect(() => {
+    pollContext.current = { openCampaigns, askToRelink, showError };
+  });
+  useEffect(() => {
+    const items = shares.data?.items;
+    if (!items) return;
+    const before = seenShares.current;
+    seenShares.current = items;
+    if (!before) return;
+    const failed = sharesFailedSince(before, items);
+    if (failed.length === 0) return;
+    const latest = pollContext.current;
+    const titleOf = (s: Share) => latest.openCampaigns.find((c) => c.id === s.campaignId)?.title;
+    const disconnected = failed.find((s) => s.failureReason === "NEEDS_RECONNECT");
+    if (disconnected) {
+      latest.askToRelink(latest.openCampaigns.find((c) => c.id === disconnected.campaignId) ?? null);
+      return;
+    }
+    const title = titleOf(failed[0]);
+    const what = title ? `your repost of "${title}"` : "your repost";
+    latest.showError(
+      failed[0].failureReason === "PROVIDER_REJECTED"
+        ? `LinkedIn didn't accept ${what}. Try amplifying it again.`
+        : `We couldn't post ${what} to LinkedIn. Try amplifying it again.`,
+    );
+  }, [shares.data]);
 
   // Back from LinkedIn consent: /amplify/celebrate?share=<id> opens that
   // post's share dialog, so the click that started it carries on. Derived from
@@ -107,7 +158,8 @@ export default function CelebratePage() {
     pendingCampaign && me.data !== undefined && !linked && !sharedCampaignIds.has(pendingCampaign.id)
       ? pendingCampaign
       : null;
-  const linkTarget = linking ?? pendingLink;
+  const linkOpen = linking !== null || pendingLink !== null;
+  const linkTarget = linking ? linking.campaign : pendingLink;
 
   // Novera's card button always opens /amplify/celebrate?share=<id>. When the
   // caller already amplified that post there is no dialog to open, so answer
@@ -230,7 +282,7 @@ export default function CelebratePage() {
       )}
 
       <LinkLinkedInDialog
-        open={linkTarget !== null}
+        open={linkOpen}
         onClose={() => {
           setLinking(null);
           // Closing a popup opened by the URL link clears it, so the page does
@@ -240,9 +292,16 @@ export default function CelebratePage() {
         onDeclined={backToCelebrate}
         returnTo={linkTarget ? `${AMPLIFY_CELEBRATE_PATH}?share=${encodeURIComponent(linkTarget.id)}` : AMPLIFY_CELEBRATE_PATH}
         pendingCampaignId={linkTarget?.id}
-        reconnect={linkStatus === "NEEDS_RECONNECT"}
+        reconnect={reconnect}
       />
-      <ShareDialog campaign={shareTarget} onClose={closeShare} />
+      <ShareDialog
+        campaign={shareTarget}
+        onClose={closeShare}
+        onNeedsReconnect={(campaign) => {
+          closeShare();
+          askToRelink(campaign);
+        }}
+      />
     </AmplifyShell>
   );
 }

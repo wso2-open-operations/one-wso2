@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -29,11 +29,17 @@ import {
 import { dialogPaperSx } from "@components/confirmation-dialog/dialogPaperSx";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import type { Campaign } from "../api/amplifyTypes";
+import { useAmplifyConfig } from "../api/useAmplifyData";
 import { useEditCampaign } from "../api/useAmplifyMutations";
 import { describeAmplifyError } from "../util/amplifyError";
 import { closesAtFromDateInput } from "../util/linkedinPost";
+import { checkImageUrl } from "../util/imageUrlCheck";
+import { makePostLinkChecker } from "../util/postIdCheck";
+import { useUrlCheck } from "../util/useUrlCheck";
 import CategoryPicker from "./CategoryPicker";
 import DeletePostDialog from "./DeletePostDialog";
+import ImagePreview from "./ImagePreview";
+import UrlCheckField from "./UrlCheckField";
 
 /**
  * Update Post: the card fields Amplify owns (headline, summary, post link, image,
@@ -53,6 +59,12 @@ export default function EditPostDialog({ campaign, onClose }: { campaign: Campai
   const [isPriority, setIsPriority] = useState(campaign.isPriority);
   const [trackUntil, setTrackUntil] = useState(campaign.closesAt.slice(0, 10));
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // The stored image is checked as the dialog opens, and again whenever the box loses focus.
+  const imageCheck = useUrlCheck(checkImageUrl, imageUrl, campaign.imageUrl ?? "");
+  // Format only: a link on an allowed origin. The tick does not mean LinkedIn has the post.
+  const { campaignLinkOrigins } = useAmplifyConfig();
+  const postLinkChecker = useMemo(() => makePostLinkChecker(campaignLinkOrigins), [campaignLinkOrigins]);
+  const postLinkCheck = useUrlCheck(postLinkChecker, resourceUrl, campaign.resourceUrl ?? "");
   const busy = edit.isPending;
 
   const save = () => {
@@ -97,6 +109,7 @@ export default function EditPostDialog({ campaign, onClose }: { campaign: Campai
             slotProps={{ htmlInput: { maxLength: 200 } }}
             disabled={busy}
           />
+          {imageCheck.state === "ok" && <ImagePreview url={imageUrl.trim()} />}
           <TextField
             label="Card summary"
             value={summary}
@@ -107,20 +120,27 @@ export default function EditPostDialog({ campaign, onClose }: { campaign: Campai
             slotProps={{ htmlInput: { maxLength: 2000 } }}
             disabled={busy}
           />
-          <TextField
+          <UrlCheckField
             label="Post URL"
+            subject="Post URL"
+            labels={{
+              ok: "Post URL format is valid. This doesn't confirm the post exists on LinkedIn",
+              bad: "Post URL format is not valid",
+            }}
             placeholder="https://www.linkedin.com/feed/update/urn:li:share:…"
             value={resourceUrl}
             onChange={(e) => setResourceUrl(e.target.value)}
-            fullWidth
+            urlCheck={postLinkCheck}
+            hint="Checks the link format only, not that the post exists."
             slotProps={{ htmlInput: { maxLength: 2048 } }}
             disabled={busy}
           />
-          <TextField
+          <UrlCheckField
             label="Image URL (optional)"
+            subject="Image URL"
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
-            fullWidth
+            urlCheck={imageCheck}
             disabled={busy}
           />
           <CategoryPicker value={category} onChange={setCategory} disabled={busy} />

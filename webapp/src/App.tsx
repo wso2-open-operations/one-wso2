@@ -127,6 +127,7 @@ import PerspectiveLanding from "@components/perspective-landing/PerspectiveLandi
 import SriLankaRoute from "@components/route-guards/SriLankaRoute";
 import AmplifyEditorRoute from "@components/route-guards/AmplifyEditorRoute";
 import AmplifyDashboardRoute from "@components/route-guards/AmplifyDashboardRoute";
+import AmplifyPeopleOpsRoute from "@components/route-guards/AmplifyPeopleOpsRoute";
 import CelebratePage from "@features/amplify/pages/CelebratePage";
 import NewPostPage from "@features/amplify/pages/NewPostPage";
 import CurrentPostsPage from "@features/amplify/pages/CurrentPostsPage";
@@ -135,6 +136,7 @@ import GlancePage from "@features/amplify/pages/dashboards/GlanceBoard";
 import OperationsPage from "@features/amplify/pages/dashboards/OperationsBoard";
 import PostPerformancePage from "@features/amplify/pages/dashboards/PostPerformanceBoard";
 import ParticipationPage from "@features/amplify/pages/dashboards/ParticipationBoard";
+import TeamPage from "@features/amplify/pages/dashboards/TeamBoard";
 import ScorecardPage from "@features/amplify/pages/dashboards/ScorecardBoard";
 import MasterDataRoute from "@components/route-guards/MasterDataRoute";
 import AdCampaignsAnalyticsPage from "@features/marketing-ops/ad-campaigns/pages/AdCampaignsAnalyticsPage";
@@ -1194,7 +1196,7 @@ export default function App() {
                   </AmplifyEditorRoute>
                 }
               />
-              {/* Dashboarding: CAN_DASHBOARD only (GET /me).
+              {/* Dashboards: CAN_DASHBOARD only (GET /me).
                   AmplifyDashboardRoute sends everyone else to Celebrate. */}
               <Route path="amplify/dashboards" element={<Navigate to="/amplify/dashboards/glance" replace />} />
               {(
@@ -1216,6 +1218,16 @@ export default function App() {
                   }
                 />
               ))}
+              {/* People Operations: the Team board needs its own grant, CAN_PEOPLE_OPS. The route keeps its
+                  /amplify/dashboards/team path so existing links work. */}
+              <Route
+                path="amplify/dashboards/team"
+                element={
+                  <AmplifyPeopleOpsRoute>
+                    <TeamPage />
+                  </AmplifyPeopleOpsRoute>
+                }
+              />
               <Route path="amplify/connect/callback" element={<LinkedInCallbackPage />} />
             </>
           )}

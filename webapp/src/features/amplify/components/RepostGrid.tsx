@@ -17,7 +17,7 @@
 
 import type { ReactNode } from "react";
 import { Box, ButtonBase, Typography } from "@wso2/oxygen-ui";
-import { Bar, SectionLabel } from "./DashboardParts";
+import { ArchivedPill, Bar, SectionLabel } from "./DashboardParts";
 import { num } from "../util/dashboardFormat";
 
 export interface RepostRow {
@@ -32,6 +32,8 @@ export interface RepostRow {
   commented: number;
   /** Points earned; the POINTS column shows when any row has it. */
   points?: number;
+  /** The post was archived: an Archived pill follows the title. */
+  archived?: boolean;
 }
 
 /**
@@ -79,6 +81,7 @@ export default function RepostGrid({
             {onPick ? (
               <ButtonBase onClick={() => onPick(r.key)} aria-haspopup="dialog" sx={{ textAlign: "left", display: "block", width: "100%", font: "inherit" }}>
                 {r.title}
+                {r.archived && <ArchivedPill />}
                 {r.subtitle && (
                   <Typography variant="body2" color="text.secondary" component="div">
                     {r.subtitle}
@@ -88,6 +91,7 @@ export default function RepostGrid({
             ) : (
               <>
                 {r.title}
+                {r.archived && <ArchivedPill />}
                 {r.subtitle && (
                   <Typography variant="body2" color="text.secondary" component="div">
                     {r.subtitle}

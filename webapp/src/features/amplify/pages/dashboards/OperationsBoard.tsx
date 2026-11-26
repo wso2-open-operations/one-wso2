@@ -14,15 +14,18 @@
 // specific language governing permissions and limitations
 
 import { useState } from "react";
+import { AMPLIFY_BAR } from "../../config/themeConfig";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import { Box, Chip, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
 import type { DashboardCampaignRow, DashboardOperations } from "../../api/amplifyTypes";
 import { useDashboardOperations } from "../../api/useAmplifyDashboards";
 import AmplifyShell from "../../components/AmplifyShell";
-import { Block, BoardState, Empty, PriorityPill, StackedBar, StatCard, StateChip } from "../../components/DashboardParts";
+import { ArchivedPill, Block, BoardState, Empty, IncludeArchivedToggle, PriorityPill, StackedBar, StatCard, StateChip } from "../../components/DashboardParts";
+import PostLink from "../../components/PostLink";
 import { useAmplifyGrant } from "../../api/useAmplifyEditorAccess";
 import { useRetryAnnouncement, useSendAnnouncement } from "../../api/useAmplifyMutations";
 import { describeAmplifyError } from "../../util/amplifyError";
+import { useIncludeArchived } from "../../util/includeArchived";
 import { announcementLabel, commentedReposts, plainReposts, updatedStamp, deltaText, num, percentOf, windowText } from "../../util/dashboardFormat";
 
 const ANNOUNCEMENT_TONE = { SENT: "info", QUEUED: "warning", FAILED: "error", NONE: "default" } as const;
@@ -132,9 +135,9 @@ export function OperationsBoard({ data }: { data: DashboardOperations }) {
             <StackedBar
               label={`${shareHealth.published} published, ${shareHealth.queued} queued, ${shareHealth.failed} failed`}
               segments={[
-                { label: "published", value: shareHealth.published, color: "#60A5FA" },
+                { label: "published", value: shareHealth.published, color: AMPLIFY_BAR.positive },
                 { label: "queued", value: shareHealth.queued, color: "#94A3B8" },
-                { label: "failed", value: shareHealth.failed, color: "#F9A8D4" },
+                { label: "failed", value: shareHealth.failed, color: AMPLIFY_BAR.negative },
               ]}
             />
             <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.5, fontSize: 13 }}>
@@ -157,9 +160,9 @@ export function OperationsBoard({ data }: { data: DashboardOperations }) {
             <StackedBar
               label={`${connections.active} active, ${connections.expiring} expiring, ${connections.expired} expired, ${connections.revoked} revoked`}
               segments={[
-                { label: "active", value: connections.active, color: "#60A5FA" },
+                { label: "active", value: connections.active, color: AMPLIFY_BAR.positive },
                 { label: "expiring", value: connections.expiring, color: "#FF7300" },
-                { label: "expired", value: connections.expired, color: "#F9A8D4" },
+                { label: "expired", value: connections.expired, color: AMPLIFY_BAR.negative },
                 { label: "revoked", value: connections.revoked, color: "#94A3B8" },
               ]}
             />
@@ -198,8 +201,9 @@ export function OperationsBoard({ data }: { data: DashboardOperations }) {
                 {data.campaigns.map((p) => (
                   <TableRow key={p.campaignId}>
                     <TableCell>
-                      {p.title}
+                      <PostLink campaignId={p.campaignId}>{p.title}</PostLink>
                       {p.isPriority && <PriorityPill />}
+                      {p.archived && <ArchivedPill />}
                     </TableCell>
                     <TableCell>{p.categoryLabel}</TableCell>
                     <TableCell>{windowText(p.opensAt, p.closesAt)}</TableCell>
@@ -220,9 +224,11 @@ export function OperationsBoard({ data }: { data: DashboardOperations }) {
 }
 
 export default function OperationsPage() {
-  const q = useDashboardOperations();
+  const [includeArchived, setIncludeArchived] = useIncludeArchived();
+  const q = useDashboardOperations(includeArchived);
   return (
     <AmplifyShell title="Operations" subtitle="What's live, who's sharing, and whether anything is stuck.">
+      <IncludeArchivedToggle checked={includeArchived} onChange={setIncludeArchived} />
       <BoardState queries={[q]}>{q.data && <OperationsBoard data={q.data} />}</BoardState>
     </AmplifyShell>
   );

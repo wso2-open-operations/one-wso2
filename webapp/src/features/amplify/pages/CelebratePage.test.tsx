@@ -23,6 +23,9 @@ import type { ReactNode } from "react";
 // page answers with a thank-you instead of ignoring the click.
 const h = vi.hoisted(() => ({
   showSuccess: vi.fn(),
+  showError: vi.fn(),
+  showWarning: vi.fn(),
+  refreshMe: vi.fn(async () => {}),
   setSearchParams: vi.fn(),
   navigate: vi.fn(),
   state: {
@@ -42,10 +45,12 @@ vi.mock("react-router", () => ({
 }));
 
 vi.mock("@context/notifications/NotificationsContext", () => ({
-  useNotifications: () => ({ showSuccess: h.showSuccess, showError: vi.fn(), showWarning: vi.fn() }),
+  useNotifications: () => ({ showSuccess: h.showSuccess, showError: h.showError, showWarning: h.showWarning }),
 }));
 
-vi.mock("../api/useAmplifyData", () => ({
+vi.mock("../api/useAmplifyData", async (importOriginal) => ({
+  sharesFailedSince: (await importOriginal<typeof import("../api/useAmplifyData")>()).sharesFailedSince,
+  useRefreshAmplifyMe: () => h.refreshMe,
   useAmplifyMe: () => ({
     data: h.state.mePending ? undefined : { linkedin: { status: h.state.linkStatus } },
     isPending: h.state.mePending,
@@ -103,8 +108,21 @@ vi.mock("../components/LinkLinkedInDialog", () => ({
     ) : null,
 }));
 vi.mock("../components/ShareDialog", () => ({
-  default: ({ campaign }: { campaign: { title: string } | null }) =>
-    campaign ? <div>share dialog: {campaign.title}</div> : null,
+  default: ({
+    campaign,
+    onNeedsReconnect,
+  }: {
+    campaign: { title: string } | null;
+    onNeedsReconnect?: (c: { title: string }) => void;
+  }) =>
+    campaign ? (
+      <div>
+        share dialog: {campaign.title}
+        <button type="button" onClick={() => onNeedsReconnect?.(campaign)}>
+          post says reconnect
+        </button>
+      </div>
+    ) : null,
 }));
 
 import CelebratePage from "./CelebratePage";
@@ -122,10 +140,11 @@ const campaign = (id: string, title: string, resourceUrn = `urn:li:share:${id}`)
   version: 1,
 });
 
-const share = (campaignId: string, status = "PUBLISHED") => ({
+const share = (campaignId: string, status = "PUBLISHED", failureReason: string | null = null) => ({
   id: `share-${campaignId}`,
   campaignId,
   status,
+  failureReason,
 });
 
 describe("CelebratePage and the Novera share link", () => {
@@ -247,5 +266,86 @@ describe("CelebratePage and the Novera share link", () => {
     render(<CelebratePage />);
     expect(h.showSuccess).not.toHaveBeenCalled();
     expect(h.setSearchParams).not.toHaveBeenCalled();
+  });
+});
+
+// Staging report: "I revoked the Amplify app access from my LinkedIn account and tried to amplify a post. But the
+// app didn't prompt me to sign in to LinkedIn again." A share that fails NEEDS_RECONNECT now says so, refetches
+// /me and opens the link dialog in reconnect mode, and the next Amplify click does the same.
+describe("CelebratePage when LinkedIn stops accepting the link", () => {
+  beforeEach(() => {
+    h.showSuccess.mockClear();
+    h.showError.mockClear();
+    h.showWarning.mockClear();
+    h.refreshMe.mockClear();
+    h.setSearchParams.mockClear();
+    h.state.params = new URLSearchParams();
+    h.state.campaigns = [campaign("c1", "Launch week")];
+    h.state.shares = [share("c1", "QUEUED")];
+    h.state.sharesPending = false;
+    h.state.campaignsPending = false;
+    h.state.linkStatus = "ACTIVE";
+    h.state.mePending = false;
+  });
+
+  it("refetches /me, says so and opens the reconnect dialog when a queued share fails NEEDS_RECONNECT", () => {
+    const { rerender } = render(<CelebratePage />);
+    expect(screen.queryByText(/link dialog/)).toBeNull();
+    h.state.shares = [share("c1", "FAILED", "NEEDS_RECONNECT")];
+    rerender(<CelebratePage />);
+    expect(h.refreshMe).toHaveBeenCalledTimes(1);
+    expect(h.showWarning).toHaveBeenCalledWith(
+      "Your LinkedIn link was disconnected. Link LinkedIn again to amplify this post.",
+    );
+    expect(screen.getByText(/link dialog: c1 reconnect/)).toBeTruthy();
+  });
+
+  it("keeps the next Amplify click on the reconnect dialog even while /me still says ACTIVE", () => {
+    const { rerender } = render(<CelebratePage />);
+    h.state.shares = [share("c1", "FAILED", "NEEDS_RECONNECT")];
+    rerender(<CelebratePage />);
+    fireEvent.click(screen.getByRole("button", { name: "close link" }));
+    expect(screen.queryByText(/link dialog/)).toBeNull();
+    // The Novera link path decides the same way the card's Amplify button does.
+    h.state.params = new URLSearchParams({ share: "c1" });
+    rerender(<CelebratePage />);
+    expect(screen.getByText(/link dialog: c1 reconnect/)).toBeTruthy();
+    expect(screen.queryByText("share dialog: Launch week")).toBeNull();
+  });
+
+  it("shows a short message for a share LinkedIn rejected, without asking to relink", () => {
+    const { rerender } = render(<CelebratePage />);
+    h.state.shares = [share("c1", "FAILED", "PROVIDER_REJECTED")];
+    rerender(<CelebratePage />);
+    expect(h.showError).toHaveBeenCalledWith('LinkedIn didn\'t accept your repost of "Launch week". Try amplifying it again.');
+    expect(h.refreshMe).not.toHaveBeenCalled();
+    expect(screen.queryByText(/link dialog/)).toBeNull();
+  });
+
+  it("shows a short message when the retries ran out", () => {
+    const { rerender } = render(<CelebratePage />);
+    h.state.shares = [share("c1", "FAILED", "RETRIES_EXHAUSTED")];
+    rerender(<CelebratePage />);
+    expect(h.showError).toHaveBeenCalledWith('We couldn\'t post your repost of "Launch week" to LinkedIn. Try amplifying it again.');
+  });
+
+  it("stays quiet about shares that had already failed when the page loaded", () => {
+    h.state.shares = [share("c1", "FAILED", "NEEDS_RECONNECT")];
+    render(<CelebratePage />);
+    expect(h.showWarning).not.toHaveBeenCalled();
+    expect(h.showError).not.toHaveBeenCalled();
+  });
+
+  it("treats a POST /shares CONNECTION_NEEDS_RECONNECT the same way", () => {
+    h.state.shares = [];
+    h.state.params = new URLSearchParams({ share: "c1" });
+    render(<CelebratePage />);
+    fireEvent.click(screen.getByRole("button", { name: "post says reconnect" }));
+    expect(h.refreshMe).toHaveBeenCalledTimes(1);
+    expect(h.showWarning).toHaveBeenCalledWith(
+      "Your LinkedIn link was disconnected. Link LinkedIn again to amplify this post.",
+    );
+    expect(screen.getByText(/link dialog: c1 reconnect/)).toBeTruthy();
+    expect(screen.queryByText("share dialog: Launch week")).toBeNull();
   });
 });

@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 
 import type { ReactNode } from "react";
-import { Box, Chip, Skeleton, Typography } from "@wso2/oxygen-ui";
+import { AMPLIFY_BAR } from "../config/themeConfig";
+import { Box, Checkbox, Chip, FormControlLabel, Skeleton, Typography } from "@wso2/oxygen-ui";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { HttpError } from "@api/http";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
@@ -128,13 +129,13 @@ export function Block({ title, action, children }: { title: string; action?: Rea
 }
 
 /** A horizontal bar, `fraction` of the track (0..1). */
-export function Bar({ fraction, label, color = "primary.main" }: { fraction: number; label: string; color?: string }) {
+export function Bar({ fraction, label, color = AMPLIFY_BAR.positive }: { fraction: number; label: string; color?: string }) {
   const w = Math.max(0, Math.min(1, fraction)) * 100;
   return (
     <Box
       role="img"
       aria-label={label}
-      sx={{ height: 10, borderRadius: 5, bgcolor: "action.hover", overflow: "hidden", minWidth: 60, flex: "1 1 120px" }}
+      sx={{ height: 12, borderRadius: 6, bgcolor: "action.hover", overflow: "hidden", minWidth: 60, flex: "1 1 120px" }}
     >
       <Box sx={{ width: `${w}%`, height: "100%", bgcolor: color }} />
     </Box>
@@ -171,6 +172,29 @@ export function PriorityPill() {
     <Box component="span" sx={{ ml: 1, display: "inline-block" }}>
       <StateChip label="Priority" tone="primary" />
     </Box>
+  );
+}
+
+/** The Archived pill after a post title: the post was deleted from the Posts page but still counts here. */
+export function ArchivedPill() {
+  return (
+    <Box component="span" sx={{ ml: 1, display: "inline-block" }}>
+      <StateChip label="Archived" tone="default" />
+    </Box>
+  );
+}
+
+/**
+ * The "Include archived posts" checkbox above a board. Ticked, the summary cards count archived posts too;
+ * the post lists show them (with the Archived pill) either way.
+ */
+export function IncludeArchivedToggle({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <FormControlLabel
+      sx={{ m: 0, mb: 1 }}
+      control={<Checkbox size="small" checked={checked} onChange={(e) => onChange(e.target.checked)} />}
+      label={<Typography variant="body2">Include archived posts</Typography>}
+    />
   );
 }
 

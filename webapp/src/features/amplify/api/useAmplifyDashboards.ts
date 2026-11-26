@@ -54,20 +54,36 @@ function useBoard<T>(name: string, url: string, enabled: boolean, ...keyRest: un
   return useBoardQuery<T>(name, url, enabled, keyRest, false);
 }
 
-export function useDashboardOperations() {
-  return useBoard<DashboardOperations>("dashboard-operations", amplifyServiceUrls.dashboardOperations, true);
+/** `url` with `includeArchived=true` when archived posts should count; the API defaults to leaving them out. */
+export function withIncludeArchived(url: string, includeArchived: boolean): string {
+  if (!includeArchived) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}includeArchived=true`;
 }
 
-/** Post performance. `campaignId` picks the selected post; the API defaults to the one with the most reposts. */
-export function useDashboardCampaigns(campaignId?: string) {
+/** Operations. `includeArchived` counts archived posts in the summary cards; the post list always shows them. */
+export function useDashboardOperations(includeArchived = false) {
+  return useBoard<DashboardOperations>(
+    "dashboard-operations",
+    withIncludeArchived(amplifyServiceUrls.dashboardOperations, includeArchived),
+    true,
+    includeArchived,
+  );
+}
+
+/**
+ * Post performance. `campaignId` picks the selected post; the API defaults to the one with the most reposts.
+ * `includeArchived` counts archived posts in reposts by category; the post list always shows them.
+ */
+export function useDashboardCampaigns(campaignId?: string, includeArchived = false) {
   const params = new URLSearchParams();
   if (campaignId) params.set("campaignId", campaignId);
+  if (includeArchived) params.set("includeArchived", "true");
   const qs = params.toString();
   return useBoardQuery<DashboardCampaigns>(
     "dashboard-campaigns",
     qs ? `${amplifyServiceUrls.dashboardCampaigns}?${qs}` : amplifyServiceUrls.dashboardCampaigns,
     true,
-    [campaignId ?? ""],
+    [campaignId ?? "", includeArchived],
     true,
   );
 }
@@ -91,12 +107,22 @@ export function useDashboardParticipation() {
   return useBoard<DashboardParticipation>("dashboard-participation", amplifyServiceUrls.dashboardParticipation, true);
 }
 
-export function useDashboardGlance() {
-  return useBoard<DashboardGlance>("dashboard-glance", amplifyServiceUrls.dashboardGlance, true);
+export function useDashboardGlance(includeArchived = false) {
+  return useBoard<DashboardGlance>(
+    "dashboard-glance",
+    withIncludeArchived(amplifyServiceUrls.dashboardGlance, includeArchived),
+    true,
+    includeArchived,
+  );
 }
 
-export function useDashboardScorecard() {
-  return useBoard<DashboardScorecard>("dashboard-scorecard", amplifyServiceUrls.dashboardScorecard, true);
+export function useDashboardScorecard(includeArchived = false) {
+  return useBoard<DashboardScorecard>(
+    "dashboard-scorecard",
+    withIncludeArchived(amplifyServiceUrls.dashboardScorecard, includeArchived),
+    true,
+    includeArchived,
+  );
 }
 
 /**
