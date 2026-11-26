@@ -17,7 +17,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import type { ExternalShare, LedgerEntry } from "../api/amplifyTypes";
+import { HttpError } from "@api/http";
+import type { CoinWallet, ExternalShare, LedgerEntry } from "../api/amplifyTypes";
 
 const h = vi.hoisted(() => ({
   myId: "e-1" as string | undefined,
@@ -35,6 +36,8 @@ const h = vi.hoisted(() => ({
   },
   claims: { data: [] as unknown[] | undefined, isError: false, error: null as unknown, refetch: vi.fn() },
   walletsEnabled: false,
+  wallet: null as CoinWallet | null,
+  capture: { mutate: vi.fn(), isSuccess: false, isError: false, error: null as unknown },
 }));
 
 vi.mock("../api/useAmplifyData", () => ({
@@ -58,14 +61,17 @@ vi.mock("../api/useAmplifyData", () => ({
         blockPoints: 100,
         blockCoins: 10,
         schedule: "WEEKLY",
-        heldPoints: 240,
+        heldPoints: 0,
+        carryPoints: 40,
         pointsTowardNext: 40,
         coinsReceived: 120,
+        wallet: h.wallet,
       },
       monthly: [],
     },
   }),
 }));
+vi.mock("../api/useAmplifyMutations", () => ({ useCaptureCoinsWallet: () => h.capture }));
 vi.mock("../components/SubmitOwnPostDialog", () => ({
   default: ({ open }: { open: boolean }) => (open ? <div>submit dialog</div> : null),
 }));
@@ -134,7 +140,12 @@ beforeEach(() => {
   };
   h.claims = { data: [claim("x-1", "PENDING"), claim("x-2", "APPROVED")], isError: false, error: null, refetch: vi.fn() };
   h.walletsEnabled = false;
+  h.wallet = null;
+  h.capture = { mutate: vi.fn(), isSuccess: false, isError: false, error: null };
 });
+
+const problem = (status: number, code: string) =>
+  new HttpError("/me/coins/wallet", status, JSON.stringify({ status, code }));
 
 const table = () => screen.getByRole("table", { name: "Your activity" });
 const items = () => within(table()).getAllByRole("row").slice(1);
@@ -149,7 +160,7 @@ describe("the top of My points & Coins", () => {
     expect(band.textContent).toContain("40 of 100 points toward your next 10 Coins");
     expect(band.textContent).toContain("Every 100 points becomes 10 Coins, automatically.");
     expect(band.textContent).toContain("All-time points1,240");
-    expect(band.textContent).toContain("Converted to Coins1,000");
+    expect(band.textContent).toContain("Converted to Coins1,200");
     expect(band.textContent).toContain("Next conversion");
     expect(within(band).getByRole("progressbar").getAttribute("aria-valuenow")).toBe("40");
   });
@@ -164,6 +175,51 @@ describe("the top of My points & Coins", () => {
     render(<MyPointsPage />);
     expect(screen.queryByText(/Coins aren't being sent yet/)).toBeNull();
     expect(screen.getByText("Sent to your WSO2 Coins wallet")).toBeTruthy();
+  });
+
+  it("checks the caller's wallet once when the page opens, not on every render", () => {
+    const { rerender } = render(<MyPointsPage />);
+    rerender(<MyPointsPage />);
+    fireEvent.click(chip("Reposts"));
+    expect(h.capture.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the band while the wallet check runs, with no wallet line yet", () => {
+    render(<MyPointsPage />);
+    const band = screen.getByRole("region", { name: "Your Coins" });
+    expect(band.textContent).toContain("120 Coins");
+    expect(band.textContent).not.toMatch(/wallet 0x|Set up your WSO2 Coins wallet|couldn't be checked/);
+  });
+
+  it("names the wallet the Coins go to, masked", () => {
+    h.walletsEnabled = true;
+    h.wallet = { walletAddress: "0x12ab…9f3c", capturedAt: "2026-11-26T08:00:00Z" };
+    h.capture = { ...h.capture, isSuccess: true };
+    render(<MyPointsPage />);
+    expect(screen.getByText("Sent to your WSO2 Coins wallet")).toBeTruthy();
+    expect(screen.getByText("Coins go to wallet 0x12ab…9f3c")).toBeTruthy();
+  });
+
+  it("guides the caller to set up a WSO2 Coins wallet when they have none", () => {
+    h.capture = { ...h.capture, isError: true, error: problem(404, "NO_WALLET") };
+    render(<MyPointsPage />);
+    expect(screen.getByText("Set up your WSO2 Coins wallet to receive Coins. Your points keep counting.")).toBeTruthy();
+  });
+
+  it("shows a neutral note when the Coins service can't be asked and no wallet is on record", () => {
+    h.capture = { ...h.capture, isError: true, error: problem(503, "COINS_UNAVAILABLE") };
+    render(<MyPointsPage />);
+    expect(
+      screen.getByText("Your WSO2 Coins wallet couldn't be checked just now. Your points keep counting."),
+    ).toBeTruthy();
+  });
+
+  it("keeps the wallet on record when the Coins service can't be asked", () => {
+    h.wallet = { walletAddress: "0x12ab…9f3c", capturedAt: "2026-11-20T08:00:00Z" };
+    h.capture = { ...h.capture, isError: true, error: problem(503, "COINS_UNAVAILABLE") };
+    render(<MyPointsPage />);
+    expect(screen.getByText("Coins go to wallet 0x12ab…9f3c")).toBeTruthy();
+    expect(screen.queryByText(/couldn't be checked/)).toBeNull();
   });
 
   it("opens Submit your own post from the top right", () => {

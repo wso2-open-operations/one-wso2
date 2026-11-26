@@ -16,6 +16,9 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  NO_WALLET_NOTE,
+  WALLET_UNKNOWN_NOTE,
+  walletLine,
   convertedPoints,
   nextConversion,
   rateSentence,
@@ -121,5 +124,31 @@ describe("the My points & Coins band", () => {
   it("counts converted points as all points less the held ones, never below zero", () => {
     expect(convertedPoints(1240, 40)).toBe(1200);
     expect(convertedPoints(10, 40)).toBe(0);
+  });
+
+  it("leaves out the carry of the last conversion too, which still counts toward the next Coins", () => {
+    expect(convertedPoints(1240, 0, 40)).toBe(1200);
+    expect(convertedPoints(1240, 100, 40)).toBe(1100);
+  });
+});
+
+describe("walletLine", () => {
+  const wallet = { walletAddress: "0x12ab…9f3c", capturedAt: "2026-11-26T08:00:00Z" };
+
+  it("names the wallet on record", () => {
+    expect(walletLine(wallet, "captured")).toBe("Coins go to wallet 0x12ab…9f3c");
+    expect(walletLine(wallet, "checking")).toBe("Coins go to wallet 0x12ab…9f3c");
+    expect(walletLine(wallet, "unavailable")).toBe("Coins go to wallet 0x12ab…9f3c");
+  });
+
+  it("guides the caller to set up a wallet when the check found none", () => {
+    expect(walletLine(null, "no-wallet")).toBe(NO_WALLET_NOTE);
+    expect(walletLine(wallet, "no-wallet")).toBe(NO_WALLET_NOTE);
+  });
+
+  it("is neutral when the check couldn't run and nothing is on record, and silent while it runs", () => {
+    expect(walletLine(null, "unavailable")).toBe(WALLET_UNKNOWN_NOTE);
+    expect(walletLine(null, "checking")).toBeNull();
+    expect(walletLine(undefined, "captured")).toBeNull();
   });
 });

@@ -71,6 +71,8 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
 import AdminSettingsForm, {
   MANAGED_BY_ADMINS,
   NEW_ACTIVITY_ONLY_NOTE,
+  PER_PERSON_CAP_LABEL,
+  PER_RUN_CAP_LABEL,
   SAVED_MESSAGE,
   WALLETS_HELP,
   pointValueChanges,
@@ -180,6 +182,55 @@ describe("Coins", () => {
     expect(screen.getByText(/Couldn't load the settings/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(h.settings.refetch).toHaveBeenCalled();
+  });
+});
+
+describe("Coins limits", () => {
+  const withCaps = (): AmplifySetting[] => [
+    ...adminSettings(),
+    setting("coin.max_coins_per_person", 500, 6),
+    setting("coin.max_coins_per_run", 50000, 7),
+  ];
+
+  it("shows an admin the per-person and per-run Coins limits", () => {
+    h.grants = ["CAN_ADMIN"];
+    load(withCaps());
+    render(<AdminSettingsForm />);
+    expect(field(PER_PERSON_CAP_LABEL).value).toBe("500");
+    expect(field(PER_RUN_CAP_LABEL).value).toBe("50000");
+  });
+
+  it("leaves them out for the PO team, whose settings don't list them", () => {
+    load([...poSettings(), setting("coin.max_coins_per_person", 500, 6), setting("coin.max_coins_per_run", 50000, 7)]);
+    render(<AdminSettingsForm />);
+    expect(screen.queryByRole("spinbutton", { name: PER_PERSON_CAP_LABEL })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: PER_RUN_CAP_LABEL })).toBeNull();
+  });
+
+  it("saves changed limits to /admin/settings with their versions", async () => {
+    h.grants = ["CAN_ADMIN"];
+    load(withCaps());
+    render(<AdminSettingsForm />);
+    fireEvent.change(field(PER_PERSON_CAP_LABEL), { target: { value: "200" } });
+    fireEvent.change(field(PER_RUN_CAP_LABEL), { target: { value: "20000" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.saveSettings).toHaveBeenCalled());
+    expect(h.saveSettings.mock.calls[0][0]).toEqual({
+      scope: "admin",
+      changes: [
+        { key: "coin.max_coins_per_person", value: 200, version: 6 },
+        { key: "coin.max_coins_per_run", value: 20000, version: 7 },
+      ],
+    });
+  });
+
+  it("won't save a limit below 1", () => {
+    h.grants = ["CAN_ADMIN"];
+    load(withCaps());
+    render(<AdminSettingsForm />);
+    fireEvent.change(field(PER_PERSON_CAP_LABEL), { target: { value: "0" } });
+    expect(saveButton().disabled).toBe(true);
+    expect(screen.getByText("Use a whole number of at least 1.")).toBeTruthy();
   });
 });
 

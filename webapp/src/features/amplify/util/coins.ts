@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type { CoinSchedule } from "../api/amplifyTypes";
+import type { CoinSchedule, CoinWallet } from "../api/amplifyTypes";
 import { num } from "./dashboardFormat";
 
 /** Shown while Coins aren't sent to wallets yet (`coins.walletsEnabled` false). */
@@ -126,7 +126,38 @@ export function nextConversion(schedule: CoinSchedule, now: Date = new Date()): 
   return new Date(Date.UTC(y, m, d + daysToMonday));
 }
 
-/** The points that have become Coins so far: all points less the ones still held. Never negative. */
-export function convertedPoints(allTimePoints: number, heldPoints: number): number {
-  return Math.max(0, allTimePoints - heldPoints);
+/**
+ * The points that have become Coins so far: all points less the ones still held and the carry of the last conversion
+ * (both still count toward the next Coins). Never negative.
+ */
+export function convertedPoints(allTimePoints: number, heldPoints: number, carryPoints = 0): number {
+  return Math.max(0, allTimePoints - Math.max(0, heldPoints) - Math.max(0, carryPoints));
+}
+
+/**
+ * How this visit's wallet check (POST /me/coins/wallet) went: still checking, found the wallet, the caller has no
+ * WSO2 Coins wallet (NO_WALLET), or the Coins service couldn't be asked (COINS_UNAVAILABLE or any other failure).
+ */
+export type WalletCheck = "checking" | "captured" | "no-wallet" | "unavailable";
+
+/** Under the Coins received when the caller has no WSO2 Coins wallet. */
+export const NO_WALLET_NOTE = "Set up your WSO2 Coins wallet to receive Coins. Your points keep counting.";
+
+/** Under the Coins received when the wallet couldn't be checked and none is on record. */
+export const WALLET_UNKNOWN_NOTE = "Your WSO2 Coins wallet couldn't be checked just now. Your points keep counting.";
+
+/** "Coins go to wallet 0x12ab…9f3c", for the masked address amplify-api answers. */
+export function walletText(wallet: CoinWallet): string {
+  return `Coins go to wallet ${wallet.walletAddress}`;
+}
+
+/**
+ * The wallet line under the Coins received: the wallet on record, or guidance when the check found none, or a neutral
+ * note when it couldn't be asked and none is on record. Nothing while the check runs and nothing is on record yet.
+ */
+export function walletLine(wallet: CoinWallet | null | undefined, check: WalletCheck): string | null {
+  if (check === "no-wallet") return NO_WALLET_NOTE;
+  if (wallet) return walletText(wallet);
+  if (check === "unavailable") return WALLET_UNKNOWN_NOTE;
+  return null;
 }

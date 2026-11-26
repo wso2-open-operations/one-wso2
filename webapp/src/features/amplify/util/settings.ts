@@ -24,6 +24,10 @@ export const COIN_BLOCK_COINS = "coin.block_coins";
 export const COIN_SCHEDULE = "coin.schedule";
 /** Whether Coins are sent to wallets (`/admin/settings` only). */
 export const COIN_WALLETS_ENABLED = "coin.wallets_enabled";
+/** Most Coins one person gets in one conversion run (`/admin/settings` only). */
+export const COIN_MAX_PER_PERSON = "coin.max_coins_per_person";
+/** Most Coins one period's conversion sends in all (`/admin/settings` only). */
+export const COIN_MAX_PER_RUN = "coin.max_coins_per_run";
 /** Own posts one person may submit per UTC day; 0 = no limit. */
 export const OWN_POST_DAILY_LIMIT = "external_share.daily_limit";
 
@@ -37,6 +41,8 @@ export interface SettingRange {
 export const SETTING_RANGES = {
   [COIN_BLOCK_POINTS]: { min: 1, max: 100_000 },
   [COIN_BLOCK_COINS]: { min: 1, max: 100_000 },
+  [COIN_MAX_PER_PERSON]: { min: 1, max: 1_000_000 },
+  [COIN_MAX_PER_RUN]: { min: 1, max: 100_000_000 },
   [OWN_POST_DAILY_LIMIT]: { min: 0, max: 50 },
 } as const satisfies Record<string, SettingRange>;
 
@@ -66,7 +72,7 @@ export function stringSetting(settings: readonly AmplifySetting[], key: string):
 /** The whole number a field holds, within `range`. Null for anything else (blank, a fraction, out of range). */
 export function parseWholeNumber(text: string, range: SettingRange): number | null {
   const value = text.trim();
-  if (!/^\d{1,7}$/.test(value)) return null;
+  if (!/^\d{1,9}$/.test(value)) return null;
   const n = Number(value);
   return n >= range.min && n <= range.max ? n : null;
 }

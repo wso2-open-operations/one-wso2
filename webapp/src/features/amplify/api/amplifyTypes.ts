@@ -547,6 +547,13 @@ export interface AmplifyPersonMatch {
 /** How often points become Coins: on the 1st of each month, every Monday, or every day. */
 export type CoinSchedule = "MONTHLY" | "WEEKLY" | "DAILY";
 
+/** POST /me/coins/wallet, and GET /me/points `coins.wallet`: the caller's WSO2 Coins wallet as Amplify captured it. */
+export interface CoinWallet {
+  /** Masked: the first 6 and last 4 characters, e.g. `0x12ab…9f3c`. */
+  walletAddress: string;
+  capturedAt: string;
+}
+
 /** GET /me/points `coins`: the conversion rate and schedule, and the caller's progress toward the next Coins. */
 export interface CoinsStanding {
   /** False while Coins aren't sent to wallets yet; points keep counting. */
@@ -558,10 +565,14 @@ export interface CoinsStanding {
   schedule: CoinSchedule;
   /** Points not yet paid out as Coins. */
   heldPoints: number;
-  /** Points toward the next block, 0 to `blockPoints - 1`. */
+  /** What the last conversion carried over (a part block, or what a cap held back); counts toward the next block. */
+  carryPoints: number;
+  /** Points toward the next block (held plus carry), 0 to `blockPoints - 1`. */
   pointsTowardNext: number;
-  /** Coins the caller has received so far. */
+  /** Coins the conversion has sent to the caller. */
   coinsReceived: number;
+  /** The captured wallet (masked); null until POST /me/coins/wallet has found one. */
+  wallet: CoinWallet | null;
 }
 
 /** GET /me/points: the caller's standing for one period, and their Coins. */

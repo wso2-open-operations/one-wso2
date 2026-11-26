@@ -28,6 +28,15 @@ describe("describeAmplifyError", () => {
     );
   });
 
+  it("explains a missing WSO2 Coins wallet and an unreachable Coins service", () => {
+    expect(describeAmplifyError(problem(404, "NO_WALLET"))).toBe(
+      "You don't have a WSO2 Coins wallet yet. Set one up to receive your Coins.",
+    );
+    expect(describeAmplifyError(problem(503, "COINS_UNAVAILABLE"))).toBe(
+      "The WSO2 Coins service isn't reachable right now. Your points keep counting.",
+    );
+  });
+
   it("falls back to a generic line for a code it has no copy for", () => {
     expect(describeAmplifyError(problem(422, "SOMETHING_NEW"))).toBe("Something went wrong, please try again.");
     expect(describeAmplifyError(new Error("network"))).toBe("Something went wrong, please try again.");

@@ -29,6 +29,8 @@ import { MAX_RULE_POINTS, parseRulePoints } from "../util/points";
 import {
   COIN_BLOCK_COINS,
   COIN_BLOCK_POINTS,
+  COIN_MAX_PER_PERSON,
+  COIN_MAX_PER_RUN,
   COIN_SCHEDULE,
   COIN_WALLETS_ENABLED,
   OWN_POST_DAILY_LIMIT,
@@ -45,6 +47,12 @@ import { CoinMark } from "./AmplifyTone";
 /** The help text under Send Coins to wallets. */
 export const WALLETS_HELP =
   "Off until the WSO2 Coins service is ready. Points keep counting and convert on the first run after it's on.";
+
+/** The two Coins limits admins set under Send Coins to wallets. */
+export const PER_PERSON_CAP_LABEL = "Coins per run, one person";
+export const PER_RUN_CAP_LABEL = "Coins per run, all employees";
+/** The help under the per-person limit. */
+export const CAPS_HELP = "Points a limit holds back carry over to the next run.";
 
 /** Beside the wallet switch for the PO team, who see it but can't change it. */
 export const MANAGED_BY_ADMINS = "Managed by admins";
@@ -200,7 +208,7 @@ function NumberBox({
 }
 
 /**
- * Amplify Admin's settings: Coins, Point values and the own-post daily limit, with one Discard and one Save changes
+ * Amplify Admin's settings: Coins (with the per-run Coins limits, admins only), Point values and the own-post daily limit, with one Discard and one Save changes
  * for all of them. Coins and the own-post limit show to `CAN_POINT_RULES` or `CAN_ADMIN`, through `/admin/settings`
  * for an admin and `/po/settings` otherwise (the PO team sees the wallet switch but only admins change it). Point
  * values are edited by `CAN_POINT_RULES` (POST /po/point-rules); an admin without it sees them read-only.
@@ -270,11 +278,15 @@ function AdminForm({
   const savedSchedule = stringSetting(settings, COIN_SCHEDULE);
   const savedWallets = booleanSetting(settings, COIN_WALLETS_ENABLED);
   const savedLimit = numberSetting(settings, OWN_POST_DAILY_LIMIT);
+  const savedPerPerson = scope === "admin" ? numberSetting(settings, COIN_MAX_PER_PERSON) : null;
+  const savedPerRun = scope === "admin" ? numberSetting(settings, COIN_MAX_PER_RUN) : null;
   const [pointsText, setPointsText] = useState(savedPoints === null ? "" : String(savedPoints));
   const [coinsText, setCoinsText] = useState(savedCoins === null ? "" : String(savedCoins));
   const [schedule, setSchedule] = useState<CoinSchedule>(isCoinSchedule(savedSchedule) ? savedSchedule : "MONTHLY");
   const [wallets, setWallets] = useState(savedWallets ?? false);
   const [limitText, setLimitText] = useState(savedLimit === null ? "" : String(savedLimit));
+  const [perPersonText, setPerPersonText] = useState(savedPerPerson === null ? "" : String(savedPerPerson));
+  const [perRunText, setPerRunText] = useState(savedPerRun === null ? "" : String(savedPerRun));
   const [valueTexts, setValueTexts] = useState<ValueTexts>(() => savedValueTexts(savedValues));
 
   const coinsAvailable = savedPoints !== null && savedCoins !== null && isCoinSchedule(savedSchedule);
@@ -285,19 +297,24 @@ function AdminForm({
   const limit = savedLimit === null ? null : parseWholeNumber(limitText, limitRange);
   const limitValid = savedLimit === null || limit !== null;
   const canSwitch = scope === "admin" && savedWallets !== null;
+  const perPerson = savedPerPerson === null ? null : parseWholeNumber(perPersonText, SETTING_RANGES[COIN_MAX_PER_PERSON]);
+  const perRun = savedPerRun === null ? null : parseWholeNumber(perRunText, SETTING_RANGES[COIN_MAX_PER_RUN]);
+  const capsValid = (savedPerPerson === null || perPerson !== null) && (savedPerRun === null || perRun !== null);
 
   const settingsChanges =
-    rateValid && limitValid
+    rateValid && limitValid && capsValid
       ? settingChanges(settings, {
           ...(coinsAvailable && blockPoints !== null && blockCoins !== null
             ? { [COIN_BLOCK_POINTS]: blockPoints, [COIN_BLOCK_COINS]: blockCoins, [COIN_SCHEDULE]: schedule }
             : {}),
           ...(canSwitch ? { [COIN_WALLETS_ENABLED]: wallets } : {}),
+          ...(perPerson !== null ? { [COIN_MAX_PER_PERSON]: perPerson } : {}),
+          ...(perRun !== null ? { [COIN_MAX_PER_RUN]: perRun } : {}),
           ...(limit !== null ? { [OWN_POST_DAILY_LIMIT]: limit } : {}),
         })
       : [];
   const ruleChanges = canEditValues ? pointValueChanges(savedValues, valueTexts) : [];
-  const valid = rateValid && limitValid && ruleChanges !== null;
+  const valid = rateValid && limitValid && capsValid && ruleChanges !== null;
   const dirty = settingsChanges.length > 0 || (ruleChanges?.length ?? 0) > 0;
   const example = blockPoints !== null && blockCoins !== null ? rateExample(blockPoints, blockCoins) : null;
 
@@ -403,6 +420,37 @@ function AdminForm({
             </Typography>
           </Box>
         </Box>
+        {savedPerPerson !== null && (
+          <Row label={PER_PERSON_CAP_LABEL} help={CAPS_HELP}>
+            <NumberBox
+              label={PER_PERSON_CAP_LABEL}
+              value={perPersonText}
+              onChange={setPerPersonText}
+              error={perPerson === null}
+              disabled={busy}
+              min={SETTING_RANGES[COIN_MAX_PER_PERSON].min}
+              max={SETTING_RANGES[COIN_MAX_PER_PERSON].max}
+            />
+          </Row>
+        )}
+        {savedPerRun !== null && (
+          <Row label={PER_RUN_CAP_LABEL}>
+            <NumberBox
+              label={PER_RUN_CAP_LABEL}
+              value={perRunText}
+              onChange={setPerRunText}
+              error={perRun === null}
+              disabled={busy}
+              min={SETTING_RANGES[COIN_MAX_PER_RUN].min}
+              max={SETTING_RANGES[COIN_MAX_PER_RUN].max}
+            />
+          </Row>
+        )}
+        {!capsValid && (
+          <Typography variant="caption" color="error" sx={{ display: "block", mb: 1 }}>
+            Use a whole number of at least 1.
+          </Typography>
+        )}
         {example && (
           <Box
             role="status"

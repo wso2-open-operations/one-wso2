@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Box,
   Button,
@@ -30,6 +30,7 @@ import {
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import type { ExternalShare, LedgerEntry } from "../api/amplifyTypes";
 import { useAmplifyMe, useMyActivity, useMyExternalShares, useMyPoints } from "../api/useAmplifyData";
+import { useCaptureCoinsWallet } from "../api/useAmplifyMutations";
 import AmplifyShell from "../components/AmplifyShell";
 import { CoinMark, PlainStatus, SoftPill, warmSurfaceSx } from "../components/AmplifyTone";
 import { SectionLabel } from "../components/DashboardParts";
@@ -47,6 +48,7 @@ import {
   type ActivityFilter,
   type ActivityStatus,
 } from "../util/activity";
+import { amplifyProblemCode } from "../util/amplifyError";
 import {
   WALLETS_OFF_NOTE,
   coinsText,
@@ -54,6 +56,8 @@ import {
   nextConversion,
   progressFraction,
   rateSentence,
+  walletLine,
+  type WalletCheck,
 } from "../util/coins";
 import { num, shortDate } from "../util/dashboardFormat";
 import { OWN_POST_STATUS_LABELS } from "../util/ownPosts";
@@ -68,6 +72,7 @@ export const ACTIVITY_FOOTNOTE = "Something look wrong? Ask the PO team. Reactio
  */
 export default function MyPointsPage() {
   const [submitting, setSubmitting] = useState(false);
+  const walletCheck = useWalletCheckOnVisit();
   return (
     <AmplifyShell
       title="My points & Coins"
@@ -78,11 +83,30 @@ export default function MyPointsPage() {
         </Button>
       }
     >
-      <CoinsBand />
+      <CoinsBand walletCheck={walletCheck} />
       <ActivityPanel />
       <SubmitOwnPostDialog open={submitting} onClose={() => setSubmitting(false)} />
     </AmplifyShell>
   );
+}
+
+/**
+ * Captures the caller's WSO2 Coins wallet once per visit to the page (POST /me/coins/wallet), so a wallet set up since
+ * the last visit is picked up before the next conversion. It never holds up the page; a failure only changes the
+ * wallet line. The ref keeps it to one call when React runs the effect twice in development.
+ */
+function useWalletCheckOnVisit(): WalletCheck {
+  const capture = useCaptureCoinsWallet();
+  const { mutate } = capture;
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    mutate();
+  }, [mutate]);
+  if (capture.isSuccess) return "captured";
+  if (capture.isError) return amplifyProblemCode(capture.error) === "NO_WALLET" ? "no-wallet" : "unavailable";
+  return "checking";
 }
 
 /** One line of the band's right column: a label and its number. */
@@ -100,7 +124,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 /** Coins received, progress to the next Coins and the rule, and all-time points, converted points and the next run. */
-function CoinsBand() {
+function CoinsBand({ walletCheck }: { walletCheck: WalletCheck }) {
   const all = useMyPoints("ALL");
   if (all.isError) {
     return (
@@ -112,6 +136,7 @@ function CoinsBand() {
   if (!all.data) return <Skeleton variant="rounded" height={140} sx={{ mb: 3 }} />;
   const { coins, standing } = all.data;
   const allTime = standing.points ?? 0;
+  const wallet = walletLine(coins.wallet, walletCheck);
   return (
     <Box
       component="section"
@@ -137,6 +162,11 @@ function CoinsBand() {
           <Typography variant="body2" sx={{ color: "warning.dark" }}>
             {coins.walletsEnabled ? "Sent to your WSO2 Coins wallet" : WALLETS_OFF_NOTE}
           </Typography>
+          {wallet && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, overflowWrap: "anywhere" }}>
+              {wallet}
+            </Typography>
+          )}
         </Box>
       </Box>
       <Box>
@@ -156,7 +186,7 @@ function CoinsBand() {
       </Box>
       <Box component="dl" sx={{ m: 0, display: "flex", flexDirection: "column", gap: 0.75 }}>
         <Fact label="All-time points" value={num(allTime)} />
-        <Fact label="Converted to Coins" value={num(convertedPoints(allTime, coins.heldPoints))} />
+        <Fact label="Converted to Coins" value={num(convertedPoints(allTime, coins.heldPoints, coins.carryPoints))} />
         <Fact label="Next conversion" value={shortDate(nextConversion(coins.schedule).toISOString())} />
       </Box>
     </Box>

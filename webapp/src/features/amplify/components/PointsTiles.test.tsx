@@ -48,8 +48,10 @@ const coins = {
   blockCoins: 10,
   schedule: "MONTHLY" as const,
   heldPoints: 240,
+  carryPoints: 0,
   pointsTowardNext: 40,
   coinsReceived: 120,
+  wallet: null,
 };
 
 const loaded = (period: string, points: number | null, rank: number | null): Query => ({

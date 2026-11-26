@@ -1929,6 +1929,8 @@ export const amplifyServiceUrls = {
   pointsHistory: (employeeId: string) => `${amplifyBackendUrl}/team/${encodeURIComponent(employeeId)}/history`,
   // GET the caller's standing for a period (period=ALL or YYYY-MM) and their Coins.
   myPoints: `${amplifyBackendUrl}/me/points`,
+  // POST (no body): captures the caller's default WSO2 Coins wallet with their own token; answers it masked.
+  myCoinsWallet: `${amplifyBackendUrl}/me/coins/wallet`,
   // GET the points each action earns today (every employee).
   pointValues: `${amplifyBackendUrl}/point-values`,
   // GET and PUT the Coins rate, schedule and own-post daily limit (CAN_POINT_RULES only).

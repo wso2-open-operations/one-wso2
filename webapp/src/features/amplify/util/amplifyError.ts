@@ -68,6 +68,8 @@ const MESSAGES: Record<string, string> = {
   RULE_VERSION_EXISTS: "Someone has just changed this value. Reload and try again.",
   INVALID_SETTING: "Check the values and try again.",
   UNKNOWN_SETTING: "That setting can't be changed here.",
+  NO_WALLET: "You don't have a WSO2 Coins wallet yet. Set one up to receive your Coins.",
+  COINS_UNAVAILABLE: "The WSO2 Coins service isn't reachable right now. Your points keep counting.",
 };
 
 /** What `SELF_REVIEW` means on Points & corrections, where the refused change is to the caller's own points. */

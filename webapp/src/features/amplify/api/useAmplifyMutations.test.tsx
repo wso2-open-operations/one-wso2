@@ -37,6 +37,7 @@ import {
   useAdjustPoints,
   useApproveExternalShare,
   useArchiveCampaign,
+  useCaptureCoinsWallet,
   useClaimOwnPost,
   useDeclineExternalShare,
   useFeatureExternalShare,
@@ -335,5 +336,52 @@ describe("saving settings", () => {
       await result.current.mutateAsync({ scope: "po", changes }).catch(() => undefined);
     });
     expect(loads[0]).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("capturing the caller's Coins wallet", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const myPoints = (wallet: unknown) => ({
+    period: "ALL",
+    standing: { employeeId: "e-1", points: 1240 },
+    coins: { walletsEnabled: true, blockPoints: 100, blockCoins: 10, schedule: "MONTHLY", heldPoints: 0, carryPoints: 40, pointsTowardNext: 40, coinsReceived: 120, wallet },
+    monthly: [],
+  });
+
+  async function setup() {
+    const qc = new QueryClient({ defaultOptions: { queries: { refetchOnMount: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const loadPoints = vi.fn(async () => myPoints(null));
+    await qc.fetchQuery({ queryKey: ["amplify", "my-points", "sub-1", "ALL"], queryFn: loadPoints });
+    return { qc, wrapper, loadPoints };
+  }
+
+  it("POSTs with no body and puts the masked wallet into the cached points without another read", async () => {
+    const wallet = { walletAddress: "0x12ab…9f3c", capturedAt: "2026-11-26T08:00:00Z" };
+    vi.mocked(authedPost).mockResolvedValueOnce(wallet);
+    const { qc, wrapper, loadPoints } = await setup();
+    const { result } = renderHook(() => useCaptureCoinsWallet(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+    expect(vi.mocked(authedPost).mock.calls[0]).toEqual(["/me/coins/wallet", "token", {}]);
+    expect(qc.getQueryData<ReturnType<typeof myPoints>>(["amplify", "my-points", "sub-1", "ALL"])?.coins.wallet).toEqual(wallet);
+    expect(loadPoints).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [404, "NO_WALLET"],
+    [503, "COINS_UNAVAILABLE"],
+  ])("hands a %s %s back to the caller and leaves the cached points alone", async (status, code) => {
+    vi.mocked(authedPost).mockRejectedValueOnce(new HttpError("/me/coins/wallet", status, JSON.stringify({ status, code })));
+    const { qc, wrapper } = await setup();
+    const { result } = renderHook(() => useCaptureCoinsWallet(), { wrapper });
+    act(() => result.current.mutate());
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(JSON.parse((result.current.error as HttpError).responseBody ?? "{}").code).toBe(code);
+    expect(qc.getQueryData<ReturnType<typeof myPoints>>(["amplify", "my-points", "sub-1", "ALL"])?.coins.wallet).toBeNull();
   });
 });

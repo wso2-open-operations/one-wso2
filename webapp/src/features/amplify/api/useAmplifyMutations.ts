@@ -35,12 +35,14 @@ import type {
   CampaignDraft,
   CampaignPatch,
   CampaignRegistration,
+  CoinWallet,
   DashboardOperations,
   ConnectAuthorization,
   ExternalShare,
   ExternalShareClaim,
   LedgerEntry,
   LinkedInConnection,
+  MyPoints,
   PointAction,
   PointRule,
   PointsAdjustment,
@@ -368,6 +370,27 @@ export function useSaveSettings() {
     },
     onError: async (err) => {
       if (amplifyProblemCode(err) === "VERSION_CONFLICT") await refreshNow(qc, amplifyKey("settings", sub));
+    },
+  });
+}
+
+/**
+ * POST /me/coins/wallet (no body): amplify-api asks the WSO2 Coins service for the caller's default wallet with the
+ * caller's own token and keeps it for the automatic conversion. On success the wallet goes straight into every cached
+ * GET /me/points, so the band shows it without another read. 404 NO_WALLET (no wallet) and 503 COINS_UNAVAILABLE (the
+ * Coins service isn't configured or didn't answer) reach the caller; read them with `amplifyProblemCode`.
+ */
+export function useCaptureCoinsWallet() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<CoinWallet | null, Error, void>({
+    mutationFn: async () => authedPost<CoinWallet>(amplifyServiceUrls.myCoinsWallet, await getAccessToken(), {}),
+    onSuccess: (wallet) => {
+      if (!wallet) return;
+      qc.setQueriesData<MyPoints>({ queryKey: amplifyKey("my-points", sub) }, (old) =>
+        old ? { ...old, coins: { ...old.coins, wallet } } : old,
+      );
     },
   });
 }
