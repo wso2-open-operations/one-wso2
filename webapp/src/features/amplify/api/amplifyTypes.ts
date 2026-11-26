@@ -493,6 +493,8 @@ export type LedgerSettlement = "HELD" | "PAID" | "ACTION_REQUIRED";
 
 /** One points ledger row. A reversal row cancels the row named in `reversesReference`. */
 export interface LedgerEntry {
+  /** History rows only: always LEDGER (a Coins conversion is a `CoinConversion`). */
+  kind?: "LEDGER";
   reference: string;
   employeeId: string;
   campaignId?: string | null;
@@ -512,7 +514,33 @@ export interface LedgerEntry {
   reversedBy?: string | null;
   /** History rows only: where the row stands for Coins. */
   settlement?: LedgerSettlement;
+  /** History rows only: when the conversion paid this row; null while it is held. */
+  paidAt?: string | null;
+  /** History rows only: the `CNV-` reference of the conversion that paid this row. */
+  coinReference?: string | null;
 }
+
+/** A Coins conversion's transfer: SENT, or IN_PROGRESS while the WSO2 Coins transfer isn't confirmed. */
+export type CoinConversionStatus = "SENT" | "IN_PROGRESS";
+
+/** One Coins conversion in GET /team/{employeeId}/history: `points` converted became `coins`. */
+export interface CoinConversion {
+  kind: "COIN_CONVERSION";
+  /** The conversion's `CNV-` reference; the ledger rows it paid carry it as `coinReference`. */
+  reference: string;
+  employeeId: string;
+  /** Points converted (whole blocks). */
+  points: number;
+  /** When the Coins were sent, else when the transfer was attempted. */
+  createdAt: string;
+  coins: number;
+  conversionStatus: CoinConversionStatus;
+  /** The WSO2 Coins transfer reference once SENT; null for teammates. */
+  transferReference?: string | null;
+}
+
+/** One row of GET /team/{employeeId}/history: a ledger row or a Coins conversion. */
+export type HistoryItem = LedgerEntry | CoinConversion;
 
 /** GET /team/{employeeId}/history: one page of a person's ledger rows, newest first. `total` counts rows. */
 export interface PointsHistory {
@@ -524,7 +552,7 @@ export interface PointsHistory {
   totalPoints?: number;
   /** Their points not yet paid out as Coins. */
   heldPoints?: number;
-  items: LedgerEntry[];
+  items: HistoryItem[];
 }
 
 /** POST /po/points/adjustments. */
@@ -603,6 +631,17 @@ export interface SettingList {
   settings: AmplifySetting[];
   /** Only on a PUT that changed a schedule setting. */
   schedulerSync?: "SYNCED" | "PENDING" | "NOT_CONFIGURED";
+  /** `/admin/settings` only: whether the WSO2 Coins service is set up (shown beside Send Coins to wallets). */
+  coins?: CoinsServiceStatus;
+}
+
+/** A dependency's circuit breaker; NOT_CONFIGURED = no URL or client in this deployment. */
+export type BreakerState = "CLOSED" | "HALF_OPEN" | "OPEN" | "NOT_CONFIGURED";
+
+/** GET /admin/settings `coins`: whether the WSO2 Coins service is configured, and its breaker. */
+export interface CoinsServiceStatus {
+  connected: boolean;
+  breaker: BreakerState;
 }
 
 /** One change in PUT /po/settings or /admin/settings: the new value and the version it was read at. */

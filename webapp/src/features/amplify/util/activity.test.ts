@@ -15,13 +15,16 @@
 // under the License.
 
 import { describe, expect, it } from "vitest";
-import type { LedgerEntry } from "../api/amplifyTypes";
+import type { CoinConversion, LedgerEntry } from "../api/amplifyTypes";
 import {
   ACTIVITY_FILTERS,
   ACTIVITY_STATUS_LABELS,
   activityStatus,
   activityText,
+  conversionStatusText,
+  conversionText,
   historyRows,
+  ledgerRowsOf,
   matchesActivityFilter,
   type ActivityFilter,
 } from "./activity";
@@ -130,5 +133,36 @@ describe("historyRows", () => {
     const pages = [{ items: [row("R-3"), row("R-2")] }, { items: [row("R-2"), row("R-1")] }];
     expect(historyRows(pages).map((r) => r.reference)).toEqual(["R-3", "R-2", "R-1"]);
     expect(historyRows([])).toEqual([]);
+  });
+});
+
+describe("Coins conversions in the history", () => {
+  const conversion = (reference: string, conversionStatus: "SENT" | "IN_PROGRESS" = "SENT"): CoinConversion => ({
+    kind: "COIN_CONVERSION",
+    reference,
+    employeeId: "e-1",
+    points: 800,
+    coins: 80,
+    createdAt: "2026-11-01T02:00:00Z",
+    conversionStatus,
+    transferReference: conversionStatus === "SENT" ? "TX-1" : null,
+  });
+
+  it("show only under All and Coins", () => {
+    const c = conversion("CNV-1");
+    expect((["all", "reposts", "reactions", "own-posts", "coins"] as const).filter((f) => matchesActivityFilter(c, f))).toEqual([
+      "all",
+      "coins",
+    ]);
+  });
+
+  it("read as points to Coins, with Coins sent or a sending pill", () => {
+    expect(conversionText(conversion("CNV-1"))).toBe("800 points → 80 Coins");
+    expect(conversionStatusText(conversion("CNV-1"))).toBe("80 Coins sent");
+    expect(conversionStatusText(conversion("CNV-2", "IN_PROGRESS"))).toBe("Sending 80 Coins");
+  });
+
+  it("are left out of the ledger rows", () => {
+    expect(ledgerRowsOf([row("R-1"), conversion("CNV-1"), row("R-2")]).map((r) => r.reference)).toEqual(["R-1", "R-2"]);
   });
 });

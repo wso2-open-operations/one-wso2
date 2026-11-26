@@ -14,7 +14,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import type { LedgerEntry, LedgerSettlement, PointAction, PointsHistory } from "../api/amplifyTypes";
+import type {
+  CoinConversion,
+  HistoryItem,
+  LedgerEntry,
+  LedgerSettlement,
+  PointAction,
+  PointsHistory,
+} from "../api/amplifyTypes";
+import { coinsText, pointsText } from "./coins";
 
 /** The filter chips over My points & Coins' activity list. */
 export type ActivityFilter = "all" | "reposts" | "reactions" | "own-posts" | "coins";
@@ -37,15 +45,36 @@ export function isCorrection(entry: Pick<LedgerEntry, "sourceType">): boolean {
   return entry.sourceType === "ADJUSTMENT" || entry.sourceType === "REVERSAL";
 }
 
+/** Whether a history row is a Coins conversion. */
+export function isCoinConversion(item: HistoryItem): item is CoinConversion {
+  return item.kind === "COIN_CONVERSION";
+}
+
+/** The ledger rows of a history page, without its Coins conversions. */
+export function ledgerRowsOf(items: readonly HistoryItem[]): LedgerEntry[] {
+  return items.filter((i): i is LedgerEntry => !isCoinConversion(i));
+}
+
+/** What a conversion row says under "Converted to Coins", e.g. "800 points → 80 Coins". */
+export function conversionText(c: Pick<CoinConversion, "points" | "coins">): string {
+  return `${pointsText(c.points)} → ${coinsText(c.coins)}`;
+}
+
+/** A conversion's status pill: "80 Coins sent", or "Sending 80 Coins" while the transfer isn't confirmed. */
+export function conversionStatusText(c: Pick<CoinConversion, "coins" | "conversionStatus">): string {
+  return c.conversionStatus === "SENT" ? `${coinsText(c.coins)} sent` : `Sending ${coinsText(c.coins)}`;
+}
+
 /**
  * Whether a row belongs under `filter`. A correction shows only under All, whatever its action. Coins lists the
- * activity whose points became Coins (GET /team/{id}/history has no conversion rows of its own).
+ * conversions and the activity whose points became Coins.
  */
 export function matchesActivityFilter(
-  entry: Pick<LedgerEntry, "sourceType" | "action" | "settlement">,
+  entry: HistoryItem,
   filter: ActivityFilter,
 ): boolean {
   if (filter === "all") return true;
+  if (isCoinConversion(entry)) return filter === "coins";
   if (filter === "coins") return entry.settlement === "PAID";
   if (isCorrection(entry)) return false;
   const action = entry.action ?? "";
@@ -111,9 +140,9 @@ export function activityStatus(
  * The rows of every page loaded so far, newest first. A row that moved onto the next page while paging (a newer row
  * arrived in between) is kept once.
  */
-export function historyRows(pages: readonly Pick<PointsHistory, "items">[]): LedgerEntry[] {
+export function historyRows(pages: readonly Pick<PointsHistory, "items">[]): HistoryItem[] {
   const seen = new Set<string>();
-  const rows: LedgerEntry[] = [];
+  const rows: HistoryItem[] = [];
   for (const page of pages) {
     for (const row of page.items) {
       if (seen.has(row.reference)) continue;

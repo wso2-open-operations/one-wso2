@@ -40,6 +40,7 @@ const h = vi.hoisted(() => ({
   setRule: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn(),
+  coinsService: null as { connected: boolean; breaker: string } | null,
 }));
 
 vi.mock("../api/useAmplifyData", async () => {
@@ -53,6 +54,7 @@ vi.mock("../api/useAmplifyData", async () => {
       h.scopes.push(scope);
       return useSyncExternalStore(subscribe, () => h.settings);
     },
+    useCoinsServiceStatus: () => ({ data: h.coinsService }),
     usePointRules: () => h.rules,
     usePointValues: () => h.values,
   };
@@ -69,6 +71,7 @@ vi.mock("@context/notifications/NotificationsContext", () => ({
 }));
 
 import AdminSettingsForm, {
+  COINS_NOT_CONNECTED,
   MANAGED_BY_ADMINS,
   NEW_ACTIVITY_ONLY_NOTE,
   PER_PERSON_CAP_LABEL,
@@ -129,6 +132,7 @@ beforeEach(() => {
   h.setRule.mockReset().mockResolvedValue({});
   h.showSuccess.mockClear();
   h.showError.mockClear();
+  h.coinsService = null;
 });
 
 const field = (name: string) => screen.getByRole("spinbutton", { name }) as HTMLInputElement;
@@ -182,6 +186,25 @@ describe("Coins", () => {
     expect(screen.getByText(/Couldn't load the settings/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(h.settings.refetch).toHaveBeenCalled();
+  });
+});
+
+describe("the Coins service beside Send Coins to wallets", () => {
+  it("tells an admin the switch is off and the Coins service isn't connected", () => {
+    h.grants = ["CAN_ADMIN"];
+    h.coinsService = { connected: false, breaker: "NOT_CONFIGURED" };
+    load(adminSettings());
+    render(<AdminSettingsForm />);
+    expect(screen.getByText(`Off · ${COINS_NOT_CONNECTED}`)).toBeTruthy();
+  });
+
+  it("shows only On or Off once the service is connected", () => {
+    h.grants = ["CAN_ADMIN"];
+    h.coinsService = { connected: true, breaker: "CLOSED" };
+    load([...poSettings(), setting("coin.wallets_enabled", true, 4)]);
+    render(<AdminSettingsForm />);
+    expect(screen.getByText("On")).toBeTruthy();
+    expect(screen.queryByText(new RegExp(COINS_NOT_CONNECTED))).toBeNull();
   });
 });
 

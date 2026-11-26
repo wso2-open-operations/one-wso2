@@ -19,7 +19,13 @@ import { Box, Button, Divider, Skeleton, Switch, TextField, Typography } from "@
 import ErrorNotice from "@components/error-notice/ErrorNotice";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import type { AmplifySetting, CoinSchedule, PointAction, PointRule, PointValues } from "../api/amplifyTypes";
-import { useAmplifySettings, usePointRules, usePointValues, type SettingsScope } from "../api/useAmplifyData";
+import {
+  useAmplifySettings,
+  useCoinsServiceStatus,
+  usePointRules,
+  usePointValues,
+  type SettingsScope,
+} from "../api/useAmplifyData";
 import { useAmplifyGrant } from "../api/useAmplifyEditorAccess";
 import { useSaveSettings, useSetPointRule } from "../api/useAmplifyMutations";
 import { SETTINGS_CONFLICT_MESSAGE, describeAmplifyError } from "../util/amplifyError";
@@ -53,6 +59,9 @@ export const PER_PERSON_CAP_LABEL = "Coins per run, one person";
 export const PER_RUN_CAP_LABEL = "Coins per run, all employees";
 /** The help under the per-person limit. */
 export const CAPS_HELP = "Points a limit holds back carry over to the next run.";
+
+/** Beside the wallet switch, for an admin, while the WSO2 Coins service isn't set up (`coins.connected` false). */
+export const COINS_NOT_CONNECTED = "Coins service not connected";
 
 /** Beside the wallet switch for the PO team, who see it but can't change it. */
 export const MANAGED_BY_ADMINS = "Managed by admins";
@@ -218,6 +227,7 @@ export default function AdminSettingsForm() {
   const po = useAmplifyGrant("CAN_POINT_RULES");
   const scope: SettingsScope = admin.hasAccess ? "admin" : "po";
   const settings = useAmplifySettings(scope, admin.hasAccess || po.hasAccess);
+  const coinsService = useCoinsServiceStatus(admin.hasAccess);
   const rules = usePointRules(po.hasAccess);
   const values = usePointValues();
   const [resets, setResets] = useState(0);
@@ -249,6 +259,7 @@ export default function AdminSettingsForm() {
       scope={scope}
       savedValues={saved}
       canEditValues={po.hasAccess}
+      coinsNotConnected={admin.hasAccess && coinsService.data?.connected === false}
       onDiscard={() => setResets((n) => n + 1)}
     />
   );
@@ -260,12 +271,15 @@ function AdminForm({
   scope,
   savedValues,
   canEditValues,
+  coinsNotConnected,
   onDiscard,
 }: {
   settings: AmplifySetting[];
   scope: SettingsScope;
   savedValues: PointValues;
   canEditValues: boolean;
+  /** An admin's view while the WSO2 Coins service isn't set up. */
+  coinsNotConnected: boolean;
   onDiscard: () => void;
 }) {
   const saveSettings = useSaveSettings();
@@ -416,6 +430,7 @@ function AdminForm({
             />
             <Typography variant="body2" sx={{ fontWeight: 700, color: (canSwitch ? wallets : savedWallets) ? "success.main" : "warning.dark" }}>
               {(canSwitch ? wallets : savedWallets) ? "On" : "Off"}
+              {coinsNotConnected && ` · ${COINS_NOT_CONNECTED}`}
               {!canSwitch && ` · ${MANAGED_BY_ADMINS}`}
             </Typography>
           </Box>

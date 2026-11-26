@@ -228,6 +228,28 @@ describe("a picked person", () => {
     expect(within(rows[0]).queryByRole("button")).toBeNull();
   });
 
+  it("lists only the ledger rows, not the Coins conversions, and offers no Reverse on a conversion", () => {
+    const conversion = {
+      kind: "COIN_CONVERSION",
+      reference: "CNV-1",
+      employeeId: "e-9",
+      points: 800,
+      coins: 80,
+      createdAt: "2026-11-01T02:00:00Z",
+      conversionStatus: "SENT",
+      transferReference: null,
+    };
+    h.history = {
+      ...h.history,
+      data: { page: 0, size: 5, total: 2, totalPoints: 5, items: [conversion, row("ENG-8", 5, { kind: "LEDGER" })] },
+    };
+    render(<PointsCorrectionsPage />);
+    pick();
+    const rows = within(screen.getByRole("table", { name: "Every activity" })).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).not.toContain("Converted to Coins");
+  });
+
   it("falls back to a plain label when a post has no title", () => {
     h.history = {
       ...h.history,

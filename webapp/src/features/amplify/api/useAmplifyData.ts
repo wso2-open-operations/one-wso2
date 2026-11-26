@@ -49,6 +49,7 @@ import type {
   PointRule,
   PointValues,
   PointsHistory,
+  CoinsServiceStatus,
   SettingList,
   Share,
   TopBoard,
@@ -443,11 +444,28 @@ export function settingsUrl(scope: SettingsScope): string {
  * @param enabled - false asks nothing (a caller without the scope's grant)
  */
 export function useAmplifySettings(scope: SettingsScope, enabled = true) {
+  return useSettingList(scope, enabled, selectSettings);
+}
+
+const selectSettings = (list: SettingList): AmplifySetting[] => list.settings;
+const selectCoinsService = (list: SettingList): CoinsServiceStatus | null => list.coins ?? null;
+
+/**
+ * Whether the WSO2 Coins service is set up, from GET /admin/settings `coins` (admins only). It shares the settings
+ * read, so it costs no extra call. Null when the answer has no `coins` block.
+ */
+export function useCoinsServiceStatus(enabled = true) {
+  return useSettingList("admin", enabled, selectCoinsService);
+}
+
+/** GET /po/settings or /admin/settings, cached whole under one key, read through `select`. */
+function useSettingList<T>(scope: SettingsScope, enabled: boolean, select: (list: SettingList) => T) {
   const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
-  const query = useQuery<AmplifySetting[]>({
+  const query = useQuery<SettingList, Error, T>({
     queryKey: amplifyKey("settings", userSub, scope),
     enabled: ready && enabled,
-    queryFn: async () => (await authedGet<SettingList>(settingsUrl(scope), await getAccessToken())).settings,
+    queryFn: async () => (await authedGet<SettingList>(settingsUrl(scope), await getAccessToken())) ?? { settings: [] },
+    select,
     staleTime: 30 * 1000,
     retry: amplifyRetry,
   });

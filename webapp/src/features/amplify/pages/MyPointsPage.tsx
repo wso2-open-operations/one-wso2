@@ -28,7 +28,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
-import type { ExternalShare, LedgerEntry } from "../api/amplifyTypes";
+import type { CoinConversion, ExternalShare, HistoryItem, LedgerEntry } from "../api/amplifyTypes";
 import { useAmplifyMe, useMyActivity, useMyExternalShares, useMyPoints } from "../api/useAmplifyData";
 import { useCaptureCoinsWallet } from "../api/useAmplifyMutations";
 import AmplifyShell from "../components/AmplifyShell";
@@ -42,7 +42,10 @@ import {
   ACTIVITY_STATUS_LABELS,
   activityStatus,
   activityText,
+  conversionStatusText,
+  conversionText,
   historyRows,
+  isCoinConversion,
   isCorrection,
   matchesActivityFilter,
   type ActivityFilter,
@@ -193,16 +196,19 @@ function CoinsBand({ walletCheck }: { walletCheck: WalletCheck }) {
   );
 }
 
-/** A row of the list: a ledger row, or an own post that's waiting or was declined (no ledger row yet). */
-type ActivityItem = { kind: "ledger"; entry: LedgerEntry } | { kind: "claim"; claim: ExternalShare };
+/**
+ * A row of the list: a ledger row or a Coins conversion from the history, or an own post that's waiting or was
+ * declined (no ledger row yet).
+ */
+type ActivityItem = { kind: "history"; entry: HistoryItem } | { kind: "claim"; claim: ExternalShare };
 
-const itemDate = (i: ActivityItem) => Date.parse(i.kind === "ledger" ? i.entry.createdAt : i.claim.createdAt) || 0;
+const itemDate = (i: ActivityItem) => Date.parse(i.kind === "history" ? i.entry.createdAt : i.claim.createdAt) || 0;
 
 /**
  * The list's rows, newest first: the ledger rows loaded so far, and the own posts waiting for review or declined.
  * While older ledger pages remain, a claim older than the oldest loaded row waits for its page, so the order holds.
  */
-function activityItems(rows: LedgerEntry[], claims: ExternalShare[], complete: boolean): ActivityItem[] {
+function activityItems(rows: HistoryItem[], claims: ExternalShare[], complete: boolean): ActivityItem[] {
   const oldest = rows.length ? Math.min(...rows.map((r) => Date.parse(r.createdAt) || 0)) : 0;
   const shownClaims = claims.filter(
     (c) =>
@@ -211,7 +217,7 @@ function activityItems(rows: LedgerEntry[], claims: ExternalShare[], complete: b
   );
   return [
     ...shownClaims.map((claim) => ({ kind: "claim" as const, claim })),
-    ...rows.map((entry) => ({ kind: "ledger" as const, entry })),
+    ...rows.map((entry) => ({ kind: "history" as const, entry })),
   ].sort((a, b) => itemDate(b) - itemDate(a));
 }
 
@@ -287,6 +293,8 @@ function ActivityPanel() {
                 {shown.map((item) =>
                   item.kind === "claim" ? (
                     <ClaimRow key={`claim-${item.claim.id}`} claim={item.claim} />
+                  ) : isCoinConversion(item.entry) ? (
+                    <ConversionRow key={item.entry.reference} conversion={item.entry} />
                   ) : (
                     <LedgerRow key={item.entry.reference} entry={item.entry} />
                   ),
@@ -365,7 +373,7 @@ function Row({
   status,
 }: {
   date: string;
-  what: string;
+  what: ReactNode;
   /** A second line under the activity: the reason on a correction or a decline. */
   sub?: string | null;
   post: ReactNode;
@@ -403,6 +411,24 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
       post={entry.campaignTitle?.trim() || "—"}
       points={signedPoints(entry.points)}
       status={<StatusCell status={activityStatus(entry)} />}
+    />
+  );
+}
+
+/**
+ * A Coins conversion: "Converted to Coins" with "800 points → 80 Coins" under it, the points it took, and an
+ * "80 Coins sent" pill (a grey "Sending 80 Coins" while the transfer isn't confirmed).
+ */
+function ConversionRow({ conversion }: { conversion: CoinConversion }) {
+  const sent = conversion.conversionStatus === "SENT";
+  return (
+    <Row
+      date={shortDate(conversion.createdAt)}
+      what={<Box component="span" sx={{ fontWeight: 700 }}>Converted to Coins</Box>}
+      sub={conversionText(conversion)}
+      post="—"
+      points={signedPoints(-Math.abs(conversion.points))}
+      status={<SoftPill tone={sent ? "warning" : "neutral"}>{conversionStatusText(conversion)}</SoftPill>}
     />
   );
 }

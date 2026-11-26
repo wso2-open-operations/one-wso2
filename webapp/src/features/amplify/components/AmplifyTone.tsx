@@ -49,8 +49,8 @@ export function CoinMark({ size = 22 }: { size?: number }) {
   );
 }
 
-/** A status pill with a soft fill of its tone, e.g. "Waiting for review" or "Coins sent". */
-export function SoftPill({ tone = "warning", children }: { tone?: Tone; children: ReactNode }) {
+/** A status pill with a soft fill of its tone, e.g. "Waiting for review" or "Coins sent"; "neutral" is grey. */
+export function SoftPill({ tone = "warning", children }: { tone?: Tone | "neutral"; children: ReactNode }) {
   return (
     <Box
       component="span"
@@ -62,8 +62,8 @@ export function SoftPill({ tone = "warning", children }: { tone?: Tone; children
         fontSize: 13,
         fontWeight: 600,
         whiteSpace: "nowrap",
-        color: `${tone}.dark`,
-        bgcolor: (t: Theme) => alpha(t.palette[tone].main, 0.12),
+        color: tone === "neutral" ? "text.secondary" : `${tone}.dark`,
+        bgcolor: (t: Theme) => (tone === "neutral" ? t.palette.action.hover : alpha(t.palette[tone].main, 0.12)),
       }}
     >
       {children}

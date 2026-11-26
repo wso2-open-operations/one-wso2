@@ -229,6 +229,68 @@ describe("the top of My points & Coins", () => {
   });
 });
 
+describe("Coins conversions in the activity", () => {
+  const conversion = (reference: string, createdAt: string, points: number, coins: number, conversionStatus = "SENT") => ({
+    kind: "COIN_CONVERSION",
+    reference,
+    employeeId: "e-1",
+    points,
+    coins,
+    createdAt,
+    conversionStatus,
+    transferReference: conversionStatus === "SENT" ? `TX-${reference}` : null,
+  });
+
+  beforeEach(() => {
+    h.claims = { ...h.claims, data: [] };
+    h.activity = {
+      ...h.activity,
+      data: {
+        pages: [
+          {
+            items: [
+              row("ENG-9", 5, { createdAt: "2026-11-21T10:00:00Z", campaignTitle: "KubeCon" }),
+              conversion("CNV-2", "2026-11-01T02:00:00Z", 800, 80),
+              row("ENG-8", 2, { createdAt: "2026-10-20T10:00:00Z", settlement: "PAID", coinReference: "CNV-2" }),
+              conversion("CNV-1", "2026-10-01T02:00:00Z", 400, 40, "IN_PROGRESS"),
+            ],
+          },
+        ],
+      },
+    };
+  });
+
+  it("shows a conversion as Converted to Coins, points to Coins, the points taken and a Coins sent pill", () => {
+    render(<MyPointsPage />);
+    const rows = items();
+    expect(rows).toHaveLength(4);
+    expect(rows[1].textContent).toContain("Nov 1");
+    expect(rows[1].textContent).toContain("Converted to Coins");
+    expect(rows[1].textContent).toContain("800 points → 80 Coins");
+    expect(rows[1].textContent).toContain("—");
+    expect(rows[1].textContent).toContain("−800");
+    expect(rows[1].textContent).toContain("80 Coins sent");
+  });
+
+  it("shows a conversion still being sent with a neutral pill", () => {
+    render(<MyPointsPage />);
+    expect(items()[3].textContent).toContain("Sending 40 Coins");
+    expect(items()[3].textContent).not.toContain("40 Coins sent");
+  });
+
+  it("lists the conversions and the paid activity under Coins", () => {
+    render(<MyPointsPage />);
+    fireEvent.click(chip("Coins"));
+    expect(items().map((r) => r.textContent)).toEqual([
+      expect.stringContaining("80 Coins sent"),
+      expect.stringContaining("Coins sent"),
+      expect.stringContaining("Sending 40 Coins"),
+    ]);
+    fireEvent.click(chip("Reposts"));
+    expect(items()).toHaveLength(2);
+  });
+});
+
 describe("the activity list", () => {
   it("reads the caller's own history by their employee id", () => {
     render(<MyPointsPage />);

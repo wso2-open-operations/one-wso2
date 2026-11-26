@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Autocomplete,
@@ -48,7 +48,7 @@ import AdjustPointsPanel from "../components/AdjustPointsPanel";
 import AmplifyShell from "../components/AmplifyShell";
 import { PlainStatus, SoftPill } from "../components/AmplifyTone";
 import ReversePointsPanel from "../components/ReversePointsPanel";
-import { activityText, isCorrection } from "../util/activity";
+import { activityText, isCorrection, ledgerRowsOf } from "../util/activity";
 import { initialsOf, num, shortDate } from "../util/dashboardFormat";
 import { canReverse, isReversed, signedPoints } from "../util/points";
 
@@ -203,7 +203,8 @@ function PersonPoints({ person }: { person: AmplifyPersonMatch }) {
   const firstName = known ? (who.name.split(/\s+/)[0] ?? null) : null;
   const where = [who.team, who.location].filter(Boolean).join(" · ");
   const isSelf = me.data?.employee.employeeId === person.employeeId;
-  const items = history.data?.items ?? [];
+  // Points & corrections lists the ledger rows; the Coins conversions show on the person's own My points & Coins.
+  const items = useMemo(() => ledgerRowsOf(history.data?.items ?? []), [history.data]);
   const total = history.data?.totalPoints ?? null;
   const held = history.data?.heldPoints ?? null;
   const rowCount = history.data?.total ?? 0;

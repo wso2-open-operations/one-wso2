@@ -46,6 +46,7 @@ import {
   myPointsPeriod,
   nextHistoryPage,
   useAmplifySettings,
+  useCoinsServiceStatus,
   useMyActivity,
   useMyPoints,
   usePointValues,
@@ -127,6 +128,28 @@ describe("useAmplifySettings", () => {
     renderHook(() => useAmplifySettings("admin", false), { wrapper });
     await act(async () => undefined);
     expect(authedGet).not.toHaveBeenCalled();
+  });
+});
+
+describe("useCoinsServiceStatus", () => {
+  it("reads the Coins service status from the same /admin/settings call as the settings", async () => {
+    vi.mocked(authedGet).mockResolvedValue({
+      settings: [{ key: "coin.wallets_enabled", value: false, version: 1 }],
+      coins: { connected: false, breaker: "NOT_CONFIGURED" },
+    });
+    const { result } = renderHook(() => ({ settings: useAmplifySettings("admin"), coins: useCoinsServiceStatus() }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.coins.data).toEqual({ connected: false, breaker: "NOT_CONFIGURED" }));
+    expect(result.current.settings.data).toHaveLength(1);
+    expect(authedGet).toHaveBeenCalledTimes(1);
+  });
+
+  it("is null when the answer has no coins block", async () => {
+    vi.mocked(authedGet).mockResolvedValueOnce({ settings: [] });
+    const { result } = renderHook(() => useCoinsServiceStatus(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBeNull();
   });
 });
 
