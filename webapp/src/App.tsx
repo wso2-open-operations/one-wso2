@@ -276,6 +276,8 @@ import InfraReviewRequestsPage, {
   InfraReviewRequestsIndex,
 } from "@features/infra/pages/InfraReviewRequestsPage";
 
+const CsmRemotePage = lazy(() => import("@features/csm/CsmRemotePage"));
+
 export default function App() {
   return (
     <Routes>
@@ -1362,6 +1364,10 @@ export default function App() {
           {/* Catch-all → landing */}
           <Route path="*" element={<Navigate to={landingPath()} replace />} />
         </Route>
+        {/* CSM, served by its own deployment. Signed in like everything else,
+            but outside AppLayout: it fills the page with its own header and
+            sidebar and routes everything under this path itself. */}
+        <Route path="csm/*" element={<CsmRemotePage />} />
       </Route>
     </Routes>
   );

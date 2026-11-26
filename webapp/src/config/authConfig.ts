@@ -186,6 +186,9 @@ declare global {
       // item is omitted rather than rendered as a dead link.
       ONE_WSO2_MARKETINGOPS_ISAC_URL?: string;
       ONE_WSO2_CSM_URL?: string;
+      // URL of the remoteEntry.js served by the CSM deployment. Optional —
+      // when set, /csm renders CSM inside this app. See apiConfig.ts.
+      ONE_WSO2_CSM_REMOTE_ENTRY_URL?: string;
       // Base URL for the infra-portal Ballerina backend. Optional — when
       // absent, Infra Portal shows a "not connected" state and makes no
       // requests. Privileges on this service (987 / 762 / 123) are not

@@ -1560,6 +1560,12 @@ export function isCsmConfigured(): boolean {
   return Boolean(csmUrl);
 }
 
+// CSM as a microfrontend: the URL of the remoteEntry.js its own deployment
+// serves. When set, /csm loads CSM from there and renders it inside this app.
+// Separate from ONE_WSO2_CSM_URL above, which stays the link that opens CSM on
+// its own.
+export const csmRemoteEntryUrl: string = window.config?.ONE_WSO2_CSM_REMOTE_ENTRY_URL ?? "";
+
 // Infra Portal backend (infra-operations/apps/infra-portal/backend).
 // Same Choreo Bearer → x-jwt-assertion rewrite as leave. Empty string =
 // not configured; the placeholder (and later InfraShell) must not fire
