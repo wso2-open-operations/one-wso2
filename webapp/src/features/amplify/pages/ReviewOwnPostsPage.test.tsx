@@ -148,6 +148,7 @@ describe("a waiting post", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[1]!);
     const dialog = screen.getByRole("dialog", { name: "Approve this post?" });
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(within(dialog).getByRole("note", { name: "Points awarded" }).textContent).toBe("Points awarded+10");
     fireEvent.click(within(dialog).getByRole("button", { name: /Yes, approve/ }));
     await waitFor(() => expect(h.approve).toHaveBeenCalledWith({ id: "x-2", employeeId: "e-9" }));
     expect(h.approve).toHaveBeenCalledTimes(1);

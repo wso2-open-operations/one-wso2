@@ -431,7 +431,31 @@ function ReviewCard({
               ? share.status === "PENDING"
                 ? `${name}'s post will be approved and featured.`
                 : `${name}'s post will be featured.`
-              : `${name}'s post will be approved.`}{" "}
+              : `${name}'s post will be approved.`}
+          </Typography>
+          <Box
+            role="note"
+            aria-label="Points awarded"
+            sx={{
+              mt: 2,
+              px: 2,
+              py: 1.5,
+              borderRadius: 2,
+              bgcolor: "action.hover",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 2,
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              {confirming === "feature" && share.status !== "PENDING" ? "Extra points awarded" : "Points awarded"}
+            </Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 18, color: confirming === "feature" ? "warning.dark" : "primary.main" }}>
+              +{confirming === "feature" ? (share.status === "PENDING" ? awards.featured : awards.topUp) : awards.approved}
+            </Typography>
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
             Only a PO correction can undo this.
           </Typography>
         </DialogContent>
