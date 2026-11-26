@@ -28,19 +28,23 @@ import {
   useAmplifyLeaderboard,
   useAmplifyMe,
   useAmplifyTopBoard,
+  useMyNativeIntents,
   useMyShares,
+  useNativeRepostEnabled,
   usePointValues,
 } from "../api/useAmplifyData";
 import { useAmplifyPeople } from "../api/useAmplifyPeople";
 import AmplifyShell from "../components/AmplifyShell";
 import { TeamLeaderboardPanel, TopAmplifiersPanel } from "../components/LeaderboardPanels";
 import LinkLinkedInDialog from "../components/LinkLinkedInDialog";
+import NativeRepostActions from "../components/NativeRepostActions";
 import OwnPostPanel from "../components/OwnPostPanel";
 import PointsTiles from "../components/PointsTiles";
 import PostCard, { CategoryChip, PriorityChip } from "../components/PostCard";
 import PostGrid from "../components/PostGrid";
 import ShareDialog, { WITH_THOUGHTS_POINTS } from "../components/ShareDialog";
 import { campaignForShareParam } from "../util/linkedinPost";
+import { intentsByCampaign, nativeRepostState } from "../util/nativeRepost";
 
 /** Points a plain repost earns at the default rule, until GET /point-values answers. */
 export const REPOST_POINTS = 2;
@@ -50,7 +54,9 @@ export const REPOST_POINTS = 2;
  *  1. Four tiles: points and rank this month, all time, Coins received and progress to the next Coins, with a History
  *     link to My points & Coins.
  *  2. Posts to amplify, a grid of six, priority first then newest, with filter chips and Show all. Each card's
- *     "Post it for me" opens the share dialog. Gone once you've shared them all.
+ *     "Post it for me" opens the share dialog. When `sharing.native_repost_default` is on, "Repost on LinkedIn" sits
+ *     above it: it opens the post on LinkedIn and the card then says whether Amplify found the repost. Gone once
+ *     you've shared them all.
  *  3. Wrote your own post: submit one you wrote for review.
  *  4. Top three leaders, company wide, this month by default (leaderboard.top_scope), and my position.
  *  5. Team leaderboard.
@@ -70,6 +76,11 @@ export default function CelebratePage() {
   const pointValues = usePointValues().data;
   const repostPoints = pointValues?.REPOST ?? REPOST_POINTS;
   const thoughtsPoints = pointValues?.REPOST_COMMENTARY ?? WITH_THOUGHTS_POINTS;
+
+  // "Repost on LinkedIn" on each card, when `sharing.native_repost_default` is on.
+  const nativeRepost = useNativeRepostEnabled();
+  const nativeIntents = useMyNativeIntents(nativeRepost);
+  const intents = useMemo(() => intentsByCampaign(nativeIntents.data), [nativeIntents.data]);
 
   const [linking, setLinking] = useState<Campaign | null>(null);
   const [sharing, setSharing] = useState<Campaign | null>(null);
@@ -213,9 +224,18 @@ export default function CelebratePage() {
                   </>
                 }
                 action={
-                  <Button variant="outlined" onClick={() => amplify(campaign)}>
-                    Post it for me
-                  </Button>
+                  nativeRepost ? (
+                    <NativeRepostActions
+                      campaign={campaign}
+                      state={nativeRepostState(intents, campaign.id)}
+                      foundPoints={pointValues?.REPOST}
+                      onPostForMe={() => amplify(campaign)}
+                    />
+                  ) : (
+                    <Button variant="outlined" onClick={() => amplify(campaign)}>
+                      Post it for me
+                    </Button>
+                  )
                 }
               />
             )}

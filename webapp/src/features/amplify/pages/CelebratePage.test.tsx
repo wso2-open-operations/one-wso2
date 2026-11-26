@@ -33,6 +33,9 @@ const h = vi.hoisted(() => ({
     campaignsPending: false,
     linkStatus: "ACTIVE",
     mePending: false,
+    nativeRepost: false,
+    intents: [] as Array<Record<string, unknown>>,
+    intentsAskedWith: [] as boolean[],
   },
 }));
 
@@ -59,6 +62,11 @@ vi.mock("../api/useAmplifyData", () => ({
   useAmplifyTopBoard: () => ({ data: undefined, isPending: true }),
   useAmplifyCategories: () => ({ data: [{ code: "PRODUCT", label: "Product", sortOrder: 1 }] }),
   usePointValues: () => ({ data: { REPOST: 2, REPOST_COMMENTARY: 5 } }),
+  useNativeRepostEnabled: () => h.state.nativeRepost,
+  useMyNativeIntents: (enabled: boolean) => {
+    h.state.intentsAskedWith.push(enabled);
+    return { data: enabled ? h.state.intents : undefined };
+  },
   useAmplifyConfig: () => ({
     linkedinOrgUrn: "",
     privacyNoticeUrl: "",
@@ -127,6 +135,16 @@ vi.mock("../components/LinkLinkedInDialog", () => ({
         </button>
       </div>
     ) : null,
+}));
+vi.mock("../components/NativeRepostActions", () => ({
+  default: ({ state, foundPoints, onPostForMe }: { state: string; foundPoints?: number; onPostForMe: () => void }) => (
+    <div>
+      native: {state} +{foundPoints}
+      <button type="button" onClick={onPostForMe}>
+        Post it for me
+      </button>
+    </div>
+  ),
 }));
 vi.mock("../components/ShareDialog", () => ({
   WITH_THOUGHTS_POINTS: 5,
@@ -334,5 +352,39 @@ describe("CelebratePage's tiles and post grid", () => {
     h.state.shares = [share("c1"), share("c2"), share("c3")];
     render(<CelebratePage />);
     expect(screen.queryByRole("region", { name: "post grid" })).toBeNull();
+  });
+});
+
+describe("CelebratePage and Repost on LinkedIn", () => {
+  beforeEach(() => {
+    h.state.params = new URLSearchParams();
+    h.state.campaigns = [campaign("c1", "Launch week"), campaign("c2", "Integrator 5")];
+    h.state.shares = [];
+    h.state.linkStatus = "ACTIVE";
+    h.state.mePending = false;
+    h.state.intents = [];
+    h.state.intentsAskedWith = [];
+  });
+
+  it("keeps the plain Post it for me button, and asks for no intents, while the setting is off", () => {
+    h.state.nativeRepost = false;
+    render(<CelebratePage />);
+    expect(screen.queryByText(/native:/)).toBeNull();
+    expect(h.state.intentsAskedWith.every((enabled) => !enabled)).toBe(true);
+  });
+
+  it("gives each card its repost state, with the plain repost points for Found", () => {
+    h.state.nativeRepost = true;
+    h.state.intents = [{ campaignId: "c2", openedAt: "2026-11-20T10:00:00Z", detectedAt: null, nativeStatus: "LOOKING" }];
+    render(<CelebratePage />);
+    expect(within(screen.getByRole("article", { name: "Launch week" })).getByText("native: NONE +2")).toBeTruthy();
+    expect(within(screen.getByRole("article", { name: "Integrator 5" })).getByText("native: LOOKING +2")).toBeTruthy();
+  });
+
+  it("still opens the share dialog from Post it for me", () => {
+    h.state.nativeRepost = true;
+    render(<CelebratePage />);
+    fireEvent.click(within(screen.getByRole("article", { name: "Launch week" })).getByRole("button", { name: "Post it for me" }));
+    expect(screen.getByText("share dialog: Launch week")).toBeTruthy();
   });
 });

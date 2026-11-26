@@ -35,6 +35,7 @@ import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
 import { amplifyRetry } from "../util/amplifyError";
 import { DEFAULT_POST_LINK_ORIGINS } from "../util/linkedinPost";
 import type {
+  ActionRequiredPage,
   AmplifyAppConfig,
   AmplifyMe,
   AmplifyPersonMatch,
@@ -45,7 +46,9 @@ import type {
   ExternalSharePage,
   ExternalShareStatus,
   Leaderboard,
+  LinkedInPage,
   MyPoints,
+  NativeIntent,
   PointRule,
   PointValues,
   PointsHistory,
@@ -467,6 +470,86 @@ export function usePointRules(enabled = true) {
     queryFn: async () =>
       (await authedGet<{ rules: PointRule[] }>(amplifyServiceUrls.poPointRules, await getAccessToken())).rules,
     staleTime: 60 * 1000,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/**
+ * Whether post cards offer "Repost on LinkedIn" (`sharing.native_repost_default`, sent in GET /me `config`). False
+ * until /me answers, and while amplify-api doesn't send it.
+ */
+export function useNativeRepostEnabled(): boolean {
+  const { data } = useAmplifyMe();
+  return data?.config?.nativeRepostDefault === true;
+}
+
+/** How often the caller's reposts are checked while Amplify is still looking for one. */
+export const NATIVE_LOOKING_POLL_MS = 2 * 60 * 1000;
+
+/** The native intents query's refetch interval: every two minutes while one is LOOKING, otherwise none. */
+export function pollWhileLooking(intents: readonly NativeIntent[] | undefined): number | false {
+  return intents?.some((i) => i.nativeStatus === "LOOKING") ? NATIVE_LOOKING_POLL_MS : false;
+}
+
+/**
+ * The posts the caller opened to repost on LinkedIn themselves, newest first (GET /me/native-intents), each LOOKING,
+ * DETECTED or NOT_FOUND. Checked again every two minutes while one is LOOKING, so the card turns to "Found your
+ * repost" once the engagement sync has seen it.
+ *
+ * @param enabled - false asks nothing (the Repost on LinkedIn button is off)
+ */
+export function useMyNativeIntents(enabled = true) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<NativeIntent[]>({
+    queryKey: amplifyKey("native-intents", userSub),
+    enabled: ready && enabled,
+    queryFn: async () =>
+      (await authedGet<{ items: NativeIntent[] }>(amplifyServiceUrls.myNativeIntents, await getAccessToken())).items,
+    staleTime: 30 * 1000,
+    refetchInterval: (q) => pollWhileLooking(q.state.data),
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/**
+ * The company page connection and today's LinkedIn calls against the daily budget (GET /admin/linkedin-page,
+ * CAN_ADMIN).
+ *
+ * @param enabled - false asks nothing (a caller without CAN_ADMIN)
+ */
+export function useLinkedInPage(enabled = true) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<LinkedInPage>({
+    queryKey: amplifyKey("linkedin-page", userSub),
+    enabled: ready && enabled,
+    queryFn: async () => authedGet<LinkedInPage>(amplifyServiceUrls.linkedinPage, await getAccessToken()),
+    staleTime: 30 * 1000,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** Rows per page in Points & corrections' Action required list. */
+export const ACTION_REQUIRED_PAGE_SIZE = 10;
+
+/**
+ * One page (0-based) of the ledger rows waiting for the PO team, oldest first (GET /po/points/action-required,
+ * CAN_ADJUST_POINTS): rows the pre-coin check couldn't verify on LinkedIn, or that a PO held back. The page on screen
+ * stays while the next one loads.
+ */
+export function useActionRequired(page: number) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<ActionRequiredPage>({
+    queryKey: amplifyKey("action-required", userSub, page),
+    enabled: ready,
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), size: String(ACTION_REQUIRED_PAGE_SIZE) });
+      return authedGet<ActionRequiredPage>(`${amplifyServiceUrls.poPointsActionRequired}?${params}`, await getAccessToken());
+    },
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
     retry: amplifyRetry,
   });
   return foldIdentityError(query, subState, retryIdentity);

@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { HttpError } from "@api/http";
-import { describeAmplifyError, SELF_CORRECTION_MESSAGE } from "./amplifyError";
+import { PAGE_CONNECTION_MESSAGES, describeAmplifyError, SELF_CORRECTION_MESSAGE } from "./amplifyError";
 
 const problem = (status: number, code: string) =>
   new HttpError("https://api.test/amplify/campaigns/c-1/shares", status, JSON.stringify({ status, code }));
@@ -54,6 +54,26 @@ describe("own posts and corrections", () => {
     // An override for another code leaves the shared message alone.
     expect(describeAmplifyError(problem(409, "ALREADY_REVERSED"), { SELF_REVIEW: SELF_CORRECTION_MESSAGE })).toBe(
       "This activity has already been reversed.",
+    );
+  });
+});
+
+describe("LinkedIn page connection", () => {
+  it("tells an admin who isn't a page administrator to ask one", () => {
+    expect(describeAmplifyError(problem(403, "NOT_PAGE_ADMIN"))).toBe(
+      "Your LinkedIn account isn't an administrator of the Choreo Labs page. Ask a page admin to connect it.",
+    );
+  });
+
+  it("sends an expired page sign-in back to Amplify Admin, and says when LinkedIn is down", () => {
+    expect(describeAmplifyError(problem(409, "OAUTH_STATE_INVALID"), PAGE_CONNECTION_MESSAGES)).toBe(
+      "That LinkedIn sign-in expired or was already used. Start again from Amplify Admin.",
+    );
+    expect(describeAmplifyError(problem(503, "DEPENDENCY_UNAVAILABLE"), PAGE_CONNECTION_MESSAGES)).toBe(
+      "LinkedIn couldn't be reached. Try again shortly.",
+    );
+    expect(describeAmplifyError(problem(422, "OAUTH_REDIRECT_MISMATCH"))).toBe(
+      "This LinkedIn sign-in didn't come back to Amplify's page. Start again.",
     );
   });
 });

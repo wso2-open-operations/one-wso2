@@ -44,6 +44,7 @@ import {
   usePointsHistoryPage,
 } from "../api/useAmplifyData";
 import { UNKNOWN_EMPLOYEE, usePersonLookup } from "../api/usePersonLookup";
+import ActionRequiredPanel from "../components/ActionRequiredPanel";
 import AdjustPointsPanel from "../components/AdjustPointsPanel";
 import AmplifyShell from "../components/AmplifyShell";
 import { PlainStatus, SoftPill } from "../components/AmplifyTone";
@@ -74,7 +75,7 @@ function matchLabel(p: AmplifyPersonMatch): string {
 /**
  * Points & corrections (CAN_ADJUST_POINTS, checked by AmplifyPointsRoute): find a person, see their points and every
  * activity, and reverse one or add or remove points in a panel beside it. Every correction carries a reason the
- * person sees.
+ * person sees. Above the search, the points waiting for the PO team (Action required), each with a Clear button.
  */
 export default function PointsCorrectionsPage() {
   const [selected, setSelected] = useState<AmplifyPersonMatch | null>(null);
@@ -86,6 +87,7 @@ export default function PointsCorrectionsPage() {
         "Every change needs a reason, shows in their history, and is audited."
       }
     >
+      <ActionRequiredPanel />
       <PersonSearch value={selected} onChange={setSelected} />
       {selected && <PersonPoints key={selected.employeeId} person={selected} />}
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>

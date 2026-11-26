@@ -1935,6 +1935,18 @@ export const amplifyServiceUrls = {
   poSettings: `${amplifyBackendUrl}/po/settings`,
   // GET and PUT every editable setting, the wallet switch included (CAN_ADMIN only).
   adminSettings: `${amplifyBackendUrl}/admin/settings`,
+  // POST: the caller opened a post to repost it on LinkedIn themselves (the engagement sync looks for it for 24 h).
+  nativeIntent: (campaignId: string) => `${amplifyBackendUrl}/campaigns/${encodeURIComponent(campaignId)}/native-intent`,
+  // GET the caller's own reposts on LinkedIn and whether each was found (LOOKING, DETECTED, NOT_FOUND).
+  myNativeIntents: `${amplifyBackendUrl}/me/native-intents`,
+  // GET (status and today's calls) and DELETE (disconnect) the company page connection (CAN_ADMIN only).
+  linkedinPage: `${amplifyBackendUrl}/admin/linkedin-page`,
+  linkedinPageConnectStart: `${amplifyBackendUrl}/admin/linkedin-page/connect/start`,
+  linkedinPageConnectComplete: `${amplifyBackendUrl}/admin/linkedin-page/connect/complete`,
+  // GET the ledger rows waiting for the PO team (ACTION_REQUIRED), oldest first (CAN_ADJUST_POINTS only).
+  poPointsActionRequired: `${amplifyBackendUrl}/po/points/action-required`,
+  // POST {status: HELD} clears an action-required row; it then converts to Coins without another check.
+  poPointsSettlement: (reference: string) => `${amplifyBackendUrl}/po/points/${encodeURIComponent(reference)}/settlement`,
 };
 
 // ---------------------------------------------------------------------------

@@ -24,6 +24,8 @@ export const COIN_BLOCK_COINS = "coin.block_coins";
 export const COIN_SCHEDULE = "coin.schedule";
 /** Whether Coins are sent to wallets (`/admin/settings` only). */
 export const COIN_WALLETS_ENABLED = "coin.wallets_enabled";
+/** "Amplify posting": off stops every "Post it for me" share at once (`/admin/settings` only). */
+export const SHARING_ENABLED = "sharing.enabled";
 /** Own posts one person may submit per UTC day; 0 = no limit. */
 export const OWN_POST_DAILY_LIMIT = "external_share.daily_limit";
 

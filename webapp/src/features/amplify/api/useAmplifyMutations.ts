@@ -41,6 +41,8 @@ import type {
   ExternalShareClaim,
   LedgerEntry,
   LinkedInConnection,
+  LinkedInPage,
+  NativeIntent,
   PointAction,
   PointRule,
   PointsAdjustment,
@@ -368,6 +370,88 @@ export function useSaveSettings() {
     },
     onError: async (err) => {
       if (amplifyProblemCode(err) === "VERSION_CONFLICT") await refreshNow(qc, amplifyKey("settings", sub));
+    },
+  });
+}
+
+/**
+ * POST /campaigns/{id}/native-intent: the caller opened the post on LinkedIn to repost it themselves. The answer
+ * (LOOKING) goes straight into the caller's intents, so the card shows "Looking for your repost" at once.
+ */
+export function useRecordNativeIntent() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<NativeIntent | null, Error, { campaignId: string }>({
+    mutationFn: async ({ campaignId }) =>
+      authedPost<NativeIntent>(amplifyServiceUrls.nativeIntent(campaignId), await getAccessToken(), {}),
+    onSuccess: async (intent, { campaignId }) => {
+      if (intent) {
+        qc.setQueryData<NativeIntent[]>(amplifyKey("native-intents", sub), (old) => [
+          intent,
+          ...(old ?? []).filter((i) => i.campaignId !== campaignId),
+        ]);
+      }
+      await refreshNow(qc, amplifyKey("native-intents", sub));
+    },
+  });
+}
+
+/** POST /admin/linkedin-page/connect/start (CAN_ADMIN). The caller sends the browser to `authorizationUrl`. */
+export function useStartLinkedInPageConnect() {
+  const getAccessToken = useAccessToken();
+  return useMutation<ConnectAuthorization | null, Error, void>({
+    mutationFn: async () =>
+      authedPost<ConnectAuthorization>(amplifyServiceUrls.linkedinPageConnectStart, await getAccessToken(), {}),
+  });
+}
+
+/** POST /admin/linkedin-page/connect/complete with the code and state LinkedIn sent back (CAN_ADMIN). */
+export function useCompleteLinkedInPageConnect() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<LinkedInPage | null, Error, { code: string; state: string; redirectUri: string }>({
+    mutationFn: async (body) =>
+      authedPost<LinkedInPage>(amplifyServiceUrls.linkedinPageConnectComplete, await getAccessToken(), body),
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("linkedin-page", sub));
+    },
+  });
+}
+
+/** DELETE /admin/linkedin-page: Amplify revokes the page token at LinkedIn and stops reading the page (CAN_ADMIN). */
+export function useDisconnectLinkedInPage() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<null, Error, void>({
+    mutationFn: async () => {
+      await authedDelete(amplifyServiceUrls.linkedinPage, await getAccessToken());
+      return null;
+    },
+    onSuccess: async () => {
+      await refreshNow(qc, amplifyKey("linkedin-page", sub));
+    },
+  });
+}
+
+/**
+ * POST /po/points/{reference}/settlement `{status: HELD}` (CAN_ADJUST_POINTS): clears an action-required row, which
+ * then converts to Coins at the next conversion without another check. Refetches the list and that person's points.
+ */
+export function useClearActionRequired() {
+  const getAccessToken = useAccessToken();
+  const qc = useQueryClient();
+  const sub = useAmplifySub();
+  return useMutation<LedgerEntry | null, Error, { reference: string; employeeId: string }>({
+    mutationFn: async ({ reference }) =>
+      authedPost<LedgerEntry>(amplifyServiceUrls.poPointsSettlement(reference), await getAccessToken(), { status: "HELD" }),
+    onSuccess: async (_data, vars) => {
+      await Promise.all([
+        refreshNow(qc, amplifyKey("action-required", sub)),
+        refreshNow(qc, amplifyKey("points-history", sub, vars.employeeId)),
+      ]);
     },
   });
 }

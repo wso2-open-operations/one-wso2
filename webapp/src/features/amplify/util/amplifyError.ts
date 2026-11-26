@@ -68,7 +68,22 @@ const MESSAGES: Record<string, string> = {
   RULE_VERSION_EXISTS: "Someone has just changed this value. Reload and try again.",
   INVALID_SETTING: "Check the values and try again.",
   UNKNOWN_SETTING: "That setting can't be changed here.",
+  NOT_PAGE_ADMIN:
+    "Your LinkedIn account isn't an administrator of the Choreo Labs page. Ask a page admin to connect it.",
+  ALREADY_PAID: "These points have already become Coins. Reload to see where they are now.",
+  PAID_NOT_ALLOWED: "Points become Coins only through the conversion.",
+  OAUTH_REDIRECT_MISMATCH: "This LinkedIn sign-in didn't come back to Amplify's page. Start again.",
 };
+
+/** What the page connection's failures mean on Amplify Admin, checked before the shared messages. */
+export const PAGE_CONNECTION_MESSAGES: Readonly<Record<string, string>> = {
+  OAUTH_STATE_INVALID: "That LinkedIn sign-in expired or was already used. Start again from Amplify Admin.",
+  DEPENDENCY_UNAVAILABLE: "LinkedIn couldn't be reached. Try again shortly.",
+};
+
+/** What `DEPENDENCY_UNAVAILABLE` means on Disconnect: LinkedIn didn't confirm the revoke, so the page stays connected. */
+export const PAGE_DISCONNECT_UNAVAILABLE =
+  "LinkedIn couldn't be reached, so the page is still connected. Try again shortly.";
 
 /** What `SELF_REVIEW` means on Points & corrections, where the refused change is to the caller's own points. */
 export const SELF_CORRECTION_MESSAGE = "You can't correct your own points.";

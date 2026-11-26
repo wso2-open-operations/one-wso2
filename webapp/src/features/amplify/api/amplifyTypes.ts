@@ -44,7 +44,16 @@ export interface AmplifyMe {
   capabilities: string[];
   linkedin: { status: LinkedInStatus; expiresAt?: string | null };
   /** Deployment settings from amplify-api's Choreo configs (not from `window.config`). */
-  config: { linkedinOrgUrn: string; privacyNoticeUrl: string; campaignLinkOrigins: string[] };
+  config: {
+    linkedinOrgUrn: string;
+    privacyNoticeUrl: string;
+    campaignLinkOrigins: string[];
+    /**
+     * Whether post cards offer "Repost on LinkedIn" (the `sharing.native_repost_default` setting). Not in amplify-api's
+     * contract yet: until /me sends it, the button stays hidden.
+     */
+    nativeRepostDefault?: boolean;
+  };
 }
 
 export interface AmplifyAppConfig {
@@ -191,6 +200,31 @@ export interface ConnectAuthorization {
   authorizationUrl: string;
   state: string;
   expiresAt: string;
+}
+
+/** Where Amplify's look for a repost the employee made on LinkedIn themselves stands. */
+export type NativeRepostStatus = "LOOKING" | "DETECTED" | "NOT_FOUND";
+
+/** POST /campaigns/{id}/native-intent and GET /me/native-intents: one post the caller opened to repost themselves. */
+export interface NativeIntent {
+  campaignId: string;
+  openedAt: string;
+  detectedAt: string | null;
+  /** LOOKING for 24 hours after the last click, then NOT_FOUND unless the engagement sync found the repost. */
+  nativeStatus: NativeRepostStatus;
+}
+
+/** GET /admin/linkedin-page: the company page connection (Community Management) and today's LinkedIn calls. */
+export interface LinkedInPage {
+  connected: boolean;
+  /** Who connected it; kept after it expires or is disconnected. */
+  connectedByName: string | null;
+  /** Null unless connected. */
+  connectedAt: string | null;
+  accessExpiresAt: string | null;
+  callsToday: number;
+  /** `engagement.daily_call_budget`. */
+  dailyBudget: number;
 }
 
 export interface LinkedInConnection {
@@ -512,6 +546,36 @@ export interface LedgerEntry {
   reversedBy?: string | null;
   /** History rows only: where the row stands for Coins. */
   settlement?: LedgerSettlement;
+  /** Pre-coin verification: UNVERIFIABLE rows couldn't be checked on LinkedIn and wait for the PO team. */
+  verification?: LedgerVerification | null;
+  /** UNVERIFIABLE only: why the row couldn't be checked. */
+  verificationReason?: VerificationReason | null;
+}
+
+/** Whether the LinkedIn activity behind a row was checked before it converts to Coins. */
+export type LedgerVerification = "VERIFIED" | "REMOVED" | "UNVERIFIABLE" | "PO_CLEARED";
+
+/** Why a row couldn't be checked on LinkedIn. */
+export type VerificationReason =
+  | "NO_TOKEN"
+  | "TOKEN_EXPIRED"
+  | "NOT_PERMITTED"
+  | "NO_ACTIVITY"
+  | "SOURCE_NOT_FOUND"
+  | "MEMBER_ERASED";
+
+/** GET /po/points/action-required: a row waiting for the PO team, with whose it is. */
+export interface ActionRequiredItem extends LedgerEntry {
+  employeeName?: string | null;
+  employeeEmail?: string | null;
+}
+
+/** One page of action-required rows, oldest first. */
+export interface ActionRequiredPage {
+  items: ActionRequiredItem[];
+  page: number;
+  size: number;
+  total: number;
 }
 
 /** GET /team/{employeeId}/history: one page of a person's ledger rows, newest first. `total` counts rows. */

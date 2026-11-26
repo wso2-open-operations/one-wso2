@@ -62,6 +62,7 @@ vi.mock("../api/usePersonLookup", () => ({
   UNKNOWN_EMPLOYEE: "Unknown employee",
   usePersonLookup: () => () => ({ name: "Jane Doe", photoUrl: null, team: "Engineering", businessUnit: null, location: "Colombo" }),
 }));
+vi.mock("../components/ActionRequiredPanel", () => ({ default: () => <div>action required panel</div> }));
 vi.mock("../components/AmplifyShell", () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   AmplifyPanel: ({ title, children }: { title: string; children: ReactNode }) => (

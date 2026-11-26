@@ -19,8 +19,12 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 const mutate = vi.fn();
 const showSuccess = vi.fn();
+const openOnLinkedIn = vi.fn();
+const native = vi.hoisted(() => ({ enabled: false }));
 vi.mock("../api/useAmplifyMutations", () => ({ useRequestShare: () => ({ mutate, isPending: false }) }));
+vi.mock("../api/useOpenOnLinkedIn", () => ({ useOpenOnLinkedIn: () => ({ open: openOnLinkedIn, busy: false }) }));
 vi.mock("../api/useAmplifyData", () => ({
+  useNativeRepostEnabled: () => native.enabled,
   usePointValues: () => ({ data: { REPOST: 2, REPOST_COMMENTARY: 5 } }),
   useAmplifyConfig: () => ({ linkedinOrgUrn: "urn:li:organization:1", privacyNoticeUrl: "https://example.test/privacy", campaignLinkOrigins: ["https://www.linkedin.com", "https://linkedin.com"] }),
 }));
@@ -43,6 +47,8 @@ describe("ShareDialog", () => {
   beforeEach(() => {
     mutate.mockReset();
     showSuccess.mockClear();
+    openOnLinkedIn.mockClear();
+    native.enabled = false;
   });
 
   it("asks for a REPOST of the post, not a new post that links to it", () => {
@@ -110,5 +116,31 @@ describe("ShareDialog", () => {
   it("caps the text at the API limit", () => {
     render(<ShareDialog campaign={campaign} onClose={() => {}} />);
     expect(thoughts().getAttribute("maxlength")).toBe("3000");
+  });
+
+  it("offers no Repost it on LinkedIn yourself while the setting is off", () => {
+    render(<ShareDialog campaign={campaign} onClose={() => {}} />);
+    expect(screen.queryByRole("region", { name: "Repost it on LinkedIn yourself" })).toBeNull();
+    expect(screen.queryByText(/Both earn the same points/)).toBeNull();
+  });
+
+  it("recommends reposting on LinkedIn yourself when the setting is on, with the points", () => {
+    native.enabled = true;
+    render(<ShareDialog campaign={campaign} onClose={() => {}} />);
+    expect(screen.getByText("Choose how you'd like to share it. Both earn the same points.")).toBeTruthy();
+    const region = screen.getByRole("region", { name: "Repost it on LinkedIn yourself" });
+    expect(region.textContent).toContain("Recommended");
+    expect(region.textContent).toContain("Repost +2 · with your own thoughts +5");
+    expect(region.textContent).toContain("Safest for your account: LinkedIn sees you, not an app");
+  });
+
+  it("opens the post on LinkedIn and closes, from Open on LinkedIn", () => {
+    native.enabled = true;
+    const onClose = vi.fn();
+    render(<ShareDialog campaign={campaign} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open on LinkedIn" }));
+    expect(openOnLinkedIn).toHaveBeenCalledWith(campaign);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mutate).not.toHaveBeenCalled();
   });
 });

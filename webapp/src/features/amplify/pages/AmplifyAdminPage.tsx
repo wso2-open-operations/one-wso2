@@ -24,7 +24,7 @@ export const ADMIN_SUBTITLE =
 
 /**
  * Amplify Admin (AmplifyAdminRoute lets in anyone with `CAN_POINT_RULES` or `CAN_ADMIN`): Coins, Point values and the
- * own-post daily limit, saved together.
+ * own-post daily limit, saved together; admins also get the LinkedIn page connection and the Amplify posting switch.
  */
 export default function AmplifyAdminPage() {
   return (

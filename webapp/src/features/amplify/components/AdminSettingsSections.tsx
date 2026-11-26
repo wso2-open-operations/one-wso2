@@ -17,6 +17,7 @@
 import { useState, type ReactNode } from "react";
 import { Box, Button, Divider, Skeleton, Switch, TextField, Typography } from "@wso2/oxygen-ui";
 import ErrorNotice from "@components/error-notice/ErrorNotice";
+import { LinkedinIcon } from "@components/icons/LinkedinIcon";
 import { useNotifications } from "@context/notifications/NotificationsContext";
 import type { AmplifySetting, CoinSchedule, PointAction, PointRule, PointValues } from "../api/amplifyTypes";
 import { useAmplifySettings, usePointRules, usePointValues, type SettingsScope } from "../api/useAmplifyData";
@@ -33,6 +34,7 @@ import {
   COIN_WALLETS_ENABLED,
   OWN_POST_DAILY_LIMIT,
   SETTING_RANGES,
+  SHARING_ENABLED,
   booleanSetting,
   numberSetting,
   parseWholeNumber,
@@ -41,6 +43,7 @@ import {
   stringSetting,
 } from "../util/settings";
 import { CoinMark } from "./AmplifyTone";
+import LinkedInPageConnection from "./LinkedInPageConnection";
 
 /** The help text under Send Coins to wallets. */
 export const WALLETS_HELP =
@@ -51,6 +54,9 @@ export const MANAGED_BY_ADMINS = "Managed by admins";
 
 /** The note under Point values. */
 export const NEW_ACTIVITY_ONLY_NOTE = "New values apply to new activity; points already earned don't change.";
+
+/** The help text under Amplify posting. */
+export const POSTING_HELP = "Turn off to stop all posting at once. Repost on LinkedIn still works.";
 
 /** The toast after Save changes. */
 export const SAVED_MESSAGE = "Changes saved. They apply from the next run.";
@@ -200,9 +206,10 @@ function NumberBox({
 }
 
 /**
- * Amplify Admin's settings: Coins, Point values and the own-post daily limit, with one Discard and one Save changes
- * for all of them. Coins and the own-post limit show to `CAN_POINT_RULES` or `CAN_ADMIN`, through `/admin/settings`
- * for an admin and `/po/settings` otherwise (the PO team sees the wallet switch but only admins change it). Point
+ * Amplify Admin's settings: Coins, Point values and the own-post daily limit, and for admins the LinkedIn page
+ * connection (its own Connect and Disconnect) and the Amplify posting switch (`sharing.enabled`), with one Discard
+ * and one Save changes for the settings. Coins and the own-post limit show to `CAN_POINT_RULES` or `CAN_ADMIN`,
+ * through `/admin/settings` for an admin and `/po/settings` otherwise (the PO team sees the wallet switch but only admins change it). Point
  * values are edited by `CAN_POINT_RULES` (POST /po/point-rules); an admin without it sees them read-only.
  */
 export default function AdminSettingsForm() {
@@ -270,11 +277,13 @@ function AdminForm({
   const savedSchedule = stringSetting(settings, COIN_SCHEDULE);
   const savedWallets = booleanSetting(settings, COIN_WALLETS_ENABLED);
   const savedLimit = numberSetting(settings, OWN_POST_DAILY_LIMIT);
+  const savedPosting = scope === "admin" ? booleanSetting(settings, SHARING_ENABLED) : null;
   const [pointsText, setPointsText] = useState(savedPoints === null ? "" : String(savedPoints));
   const [coinsText, setCoinsText] = useState(savedCoins === null ? "" : String(savedCoins));
   const [schedule, setSchedule] = useState<CoinSchedule>(isCoinSchedule(savedSchedule) ? savedSchedule : "MONTHLY");
   const [wallets, setWallets] = useState(savedWallets ?? false);
   const [limitText, setLimitText] = useState(savedLimit === null ? "" : String(savedLimit));
+  const [posting, setPosting] = useState(savedPosting ?? true);
   const [valueTexts, setValueTexts] = useState<ValueTexts>(() => savedValueTexts(savedValues));
 
   const coinsAvailable = savedPoints !== null && savedCoins !== null && isCoinSchedule(savedSchedule);
@@ -294,6 +303,7 @@ function AdminForm({
             : {}),
           ...(canSwitch ? { [COIN_WALLETS_ENABLED]: wallets } : {}),
           ...(limit !== null ? { [OWN_POST_DAILY_LIMIT]: limit } : {}),
+          ...(savedPosting !== null ? { [SHARING_ENABLED]: posting } : {}),
         })
       : [];
   const ruleChanges = canEditValues ? pointValueChanges(savedValues, valueTexts) : [];
@@ -462,6 +472,28 @@ function AdminForm({
               Use a whole number from {limitRange.min} to {limitRange.max}.
             </Typography>
           )}
+        </Card>
+      )}
+
+      {scope === "admin" && (
+        <Card title="LinkedIn page connection" icon={<LinkedinIcon size={22} color="#0A66C2" />}>
+          <LinkedInPageConnection />
+        </Card>
+      )}
+
+      {savedPosting !== null && (
+        <Card title={'"Post it for me" posting'}>
+          <Row first label="Amplify posting" help={POSTING_HELP}>
+            <Switch
+              checked={posting}
+              onChange={(e) => setPosting(e.target.checked)}
+              disabled={busy}
+              slotProps={{ input: { role: "switch", "aria-label": "Amplify posting" } }}
+            />
+            <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 28 }}>
+              {posting ? "On" : "Off"}
+            </Typography>
+          </Row>
         </Card>
       )}
 

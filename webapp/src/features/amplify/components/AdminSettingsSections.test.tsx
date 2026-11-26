@@ -67,10 +67,12 @@ vi.mock("../api/useAmplifyMutations", () => ({
 vi.mock("@context/notifications/NotificationsContext", () => ({
   useNotifications: () => ({ showSuccess: h.showSuccess, showError: h.showError }),
 }));
+vi.mock("./LinkedInPageConnection", () => ({ default: () => <div>page connection panel</div> }));
 
 import AdminSettingsForm, {
   MANAGED_BY_ADMINS,
   NEW_ACTIVITY_ONLY_NOTE,
+  POSTING_HELP,
   SAVED_MESSAGE,
   WALLETS_HELP,
   pointValueChanges,
@@ -337,5 +339,46 @@ describe("who sees it", () => {
     h.rules = { ...h.rules, data: undefined, isError: true, error: new Error("down") };
     render(<AdminSettingsForm />);
     expect(screen.getByText(/Couldn't load the point values/)).toBeTruthy();
+  });
+});
+
+describe("admin-only sections", () => {
+  it("shows the PO team neither the page connection nor the posting switch", () => {
+    load([...poSettings(), setting("sharing.enabled", true, 7)]);
+    render(<AdminSettingsForm />);
+    expect(screen.queryByRole("region", { name: "LinkedIn page connection" })).toBeNull();
+    expect(screen.queryByRole("switch", { name: "Amplify posting" })).toBeNull();
+  });
+
+  it("shows an admin the page connection panel", () => {
+    h.grants = ["CAN_ADMIN"];
+    load(adminSettings());
+    render(<AdminSettingsForm />);
+    const region = screen.getByRole("region", { name: "LinkedIn page connection" });
+    expect(within(region).getByText("page connection panel")).toBeTruthy();
+  });
+
+  it("leaves the posting card out when the server doesn't list sharing.enabled", () => {
+    h.grants = ["CAN_ADMIN"];
+    load(adminSettings());
+    render(<AdminSettingsForm />);
+    expect(screen.queryByRole("region", { name: '"Post it for me" posting' })).toBeNull();
+  });
+
+  it("saves the Amplify posting switch to /admin/settings", async () => {
+    h.grants = ["CAN_ADMIN"];
+    load([...adminSettings(), setting("sharing.enabled", true, 7)]);
+    render(<AdminSettingsForm />);
+    const region = screen.getByRole("region", { name: '"Post it for me" posting' });
+    expect(within(region).getByText(POSTING_HELP)).toBeTruthy();
+    expect(within(region).getByText("On")).toBeTruthy();
+    fireEvent.click(screen.getByRole("switch", { name: "Amplify posting" }));
+    expect(within(region).getByText("Off")).toBeTruthy();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.saveSettings).toHaveBeenCalled());
+    expect(h.saveSettings.mock.calls[0][0]).toEqual({
+      scope: "admin",
+      changes: [{ key: "sharing.enabled", value: false, version: 7 }],
+    });
   });
 });
