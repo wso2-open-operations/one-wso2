@@ -44,7 +44,13 @@ export interface AmplifyMe {
   capabilities: string[];
   linkedin: { status: LinkedInStatus; expiresAt?: string | null };
   /** Deployment settings from amplify-api's Choreo configs (not from `window.config`). */
-  config: { linkedinOrgUrn: string; privacyNoticeUrl: string; campaignLinkOrigins: string[] };
+  config: {
+    linkedinOrgUrn: string;
+    privacyNoticeUrl: string;
+    campaignLinkOrigins: string[];
+    /** Admin setting `sharing.native_repost_default`: post cards and the share dialog offer "Repost on LinkedIn". */
+    nativeRepostDefault: boolean;
+  };
 }
 
 export interface AmplifyAppConfig {
@@ -191,6 +197,35 @@ export interface ConnectAuthorization {
   authorizationUrl: string;
   state: string;
   expiresAt: string;
+}
+
+/** Where Amplify's look for a repost the employee made on LinkedIn themselves stands. */
+export type NativeRepostStatus = "LOOKING" | "DETECTED" | "NOT_FOUND";
+
+/** POST /campaigns/{id}/native-intent and GET /me/native-intents: one post the caller opened to repost themselves. */
+export interface NativeIntent {
+  campaignId: string;
+  openedAt: string;
+  detectedAt: string | null;
+  /** LOOKING for 24 hours after the last click, then NOT_FOUND unless the engagement sync found the repost. */
+  nativeStatus: NativeRepostStatus;
+  /** Points the found repost earned, net of a reversal or removal; null until it is found and scored. */
+  points?: number | null;
+}
+
+/** GET /admin/linkedin-page: the company page connection (Community Management) and today's LinkedIn calls. */
+export interface LinkedInPage {
+  connected: boolean;
+  /** Who connected it; kept after it expires or is disconnected. */
+  connectedByName: string | null;
+  /** Null unless connected. */
+  connectedAt: string | null;
+  accessExpiresAt: string | null;
+  callsToday: number;
+  /** `engagement.daily_call_budget`. */
+  dailyBudget: number;
+  /** When the engagement sync last read LinkedIn; null if it never ran. */
+  lastSyncAt: string | null;
 }
 
 export interface LinkedInConnection {
@@ -408,4 +443,230 @@ export interface GroupBoard {
   totals: { headcount: number; participants: number; points: number };
   entries: GroupBoardEntry[];
   unassigned: { participants: number; points: number };
+}
+
+// ---- Own posts (amplify-api /external-shares, /me/external-shares, /po/external-shares) ------------------
+
+/** Where a claim is: waiting for the PO team, approved, featured (AMPLIFIED) or declined (REJECTED). */
+export type ExternalShareStatus = "PENDING" | "APPROVED" | "REJECTED" | "AMPLIFIED";
+
+/** POST /external-shares: an employee's own post, sent for review. */
+export interface ExternalShareClaim {
+  /** The post's public HTTPS link. */
+  evidenceUrl: string;
+  /** "I wrote this post myself, and it's about Choreo Labs." Must be true. */
+  certified: true;
+  /** A note for the reviewer, at most 500 characters. Sent only when there is one. */
+  note?: string;
+}
+
+/** One claim, as the employee and the PO team see it. */
+export interface ExternalShare {
+  id: string;
+  /** Amplify's id for the person who sent it, the same id as GET /me `employee.employeeId`. */
+  employeeId: string;
+  campaignId?: string | null;
+  action: "OWN_POST";
+  evidenceUrl: string;
+  evidenceHost: string;
+  evidenceProvider: "linkedin" | "medium" | "other";
+  status: ExternalShareStatus;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  /** Why it was declined; shown to the employee. */
+  decisionReason?: string | null;
+  amplifiedAt?: string | null;
+  /** The employee's note for the reviewer. Absent until the API sends it. */
+  note?: string | null;
+  /** Who sent it, as Amplify recorded them. On GET /po/external-shares items only; null when unknown. */
+  employeeName?: string | null;
+  /** Their work email. On GET /po/external-shares items only; null when unknown. */
+  employeeEmail?: string | null;
+  createdAt: string;
+  version: number;
+}
+
+/** GET /po/external-shares: one page of claims, oldest first. */
+export interface ExternalSharePage {
+  items: ExternalShare[];
+  page: number;
+  size: number;
+  total: number;
+}
+
+// ---- Points (amplify-api /po/point-rules, /po/points/*, /team/{employeeId}/history, /po/people) ----------
+
+/** What a points rule or a ledger row is for. */
+export type PointAction =
+  | "REPOST"
+  | "REPOST_COMMENTARY"
+  | "SHARE"
+  | "SHARE_COMMENTARY"
+  | "OWN_POST"
+  | "OWN_POST_AMPLIFIED"
+  | "REACTION"
+  | "COMMENT"
+  | "CHALLENGE_ENTRY"
+  | "CHALLENGE_WINNER";
+
+/** One version of a points rule. `inForce` marks the version used for new activity. */
+export interface PointRule {
+  id: string;
+  action: PointAction;
+  points: number;
+  effectiveFrom: string;
+  createdBy: string;
+  createdAt: string;
+  inForce: boolean;
+}
+
+/**
+ * Where a history row stands for Coins: HELD counts toward the next Coins, PAID became Coins, ACTION_REQUIRED waits
+ * for the PO team.
+ */
+export type LedgerSettlement = "HELD" | "PAID" | "ACTION_REQUIRED";
+
+/** One points ledger row. A reversal row cancels the row named in `reversesReference`. */
+export interface LedgerEntry {
+  reference: string;
+  employeeId: string;
+  campaignId?: string | null;
+  sourceType: "ENGAGEMENT" | "EXTERNAL_SHARE" | "ADJUSTMENT" | "REVERSAL";
+  action?: string | null;
+  /** Signed: a removal or a reversal is negative. */
+  points: number;
+  /** The PO team's reason, on adjustment and reversal rows. The person the row belongs to sees it too. */
+  reason?: string | null;
+  reversesReference?: string | null;
+  actorId?: string;
+  createdAt: string;
+  status?: "HELD" | "PAID" | null;
+  /** History rows only: the title of the post the points were earned on. */
+  campaignTitle?: string | null;
+  /** History rows only: the reference of the row that reversed this one; null when it stands. */
+  reversedBy?: string | null;
+  /** History rows only: where the row stands for Coins. */
+  settlement?: LedgerSettlement;
+  /** Pre-coin verification: UNVERIFIABLE rows couldn't be checked on LinkedIn and wait for the PO team. */
+  verification?: LedgerVerification | null;
+  /** UNVERIFIABLE only: why the row couldn't be checked. */
+  verificationReason?: VerificationReason | null;
+  /** On the reversal that removed an invalid activity, for the PO team only (everyone else gets null). */
+  removalReason?: RemovalReason | null;
+}
+
+/** Why the PO team removed an invalid activity. */
+export type RemovalReason = "DUPLICATE" | "NOT_A_REAL_REPOST" | "SPAM" | "OTHER";
+
+/** Whether the LinkedIn activity behind a row was checked before it converts to Coins. */
+export type LedgerVerification = "VERIFIED" | "REMOVED" | "UNVERIFIABLE" | "PO_CLEARED";
+
+/** Why a row couldn't be checked on LinkedIn. */
+export type VerificationReason =
+  | "NO_TOKEN"
+  | "TOKEN_EXPIRED"
+  | "NOT_PERMITTED"
+  | "NO_ACTIVITY"
+  | "SOURCE_NOT_FOUND"
+  | "MEMBER_ERASED";
+
+/** GET /po/points/action-required: a row waiting for the PO team, with whose it is. */
+export interface ActionRequiredItem extends LedgerEntry {
+  employeeName?: string | null;
+  employeeEmail?: string | null;
+}
+
+/** One page of action-required rows, oldest first. */
+export interface ActionRequiredPage {
+  items: ActionRequiredItem[];
+  page: number;
+  size: number;
+  total: number;
+}
+
+/** GET /team/{employeeId}/history: one page of a person's ledger rows, newest first. `total` counts rows. */
+export interface PointsHistory {
+  employeeId: string;
+  page: number;
+  size: number;
+  total: number;
+  /** The person's all-time points: every row, not only this page. */
+  totalPoints?: number;
+  /** Their points not yet paid out as Coins. */
+  heldPoints?: number;
+  items: LedgerEntry[];
+}
+
+/** POST /po/points/adjustments. */
+export interface PointsAdjustment {
+  employeeId: string;
+  /** Signed, not zero, within ±10,000. */
+  points: number;
+  reason: string;
+}
+
+/** One match from GET /po/people: someone who has used Amplify. */
+export interface AmplifyPersonMatch {
+  employeeId: string;
+  displayName: string | null;
+  email: string;
+}
+
+// ---- Coins and settings (amplify-api /me/points, /point-values, /po/settings, /admin/settings) -------------
+
+/** How often points become Coins: on the 1st of each month, every Monday, or every day. */
+export type CoinSchedule = "MONTHLY" | "WEEKLY" | "DAILY";
+
+/** GET /me/points `coins`: the conversion rate and schedule, and the caller's progress toward the next Coins. */
+export interface CoinsStanding {
+  /** False while Coins aren't sent to wallets yet; points keep counting. */
+  walletsEnabled: boolean;
+  /** Points in one conversion block. */
+  blockPoints: number;
+  /** Coins one block becomes. */
+  blockCoins: number;
+  schedule: CoinSchedule;
+  /** Points not yet paid out as Coins. */
+  heldPoints: number;
+  /** Points toward the next block, 0 to `blockPoints - 1`. */
+  pointsTowardNext: number;
+  /** Coins the caller has received so far. */
+  coinsReceived: number;
+}
+
+/** GET /me/points: the caller's standing for one period, and their Coins. */
+export interface MyPoints {
+  /** The period asked for: `ALL`, `YYYY-MM` or `YYYY-Qn`. */
+  period: string;
+  standing: PersonalStanding;
+  coins: CoinsStanding;
+  monthly: { month: string; points: number; actions: number }[];
+}
+
+/** GET /point-values `values`: the points each action earns today, by action. Actions without a rule are absent. */
+export type PointValues = Partial<Record<PointAction, number>>;
+
+/** One setting as GET /po/settings and GET /admin/settings list it. */
+export interface AmplifySetting {
+  key: string;
+  /** A JSON number, boolean or string. */
+  value: unknown;
+  /** Sent back with a change; a stale one is refused with 409 VERSION_CONFLICT. */
+  version: number;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/** GET and PUT /po/settings and /admin/settings. */
+export interface SettingList {
+  settings: AmplifySetting[];
+  /** Only on a PUT that changed a schedule setting. */
+  schedulerSync?: "SYNCED" | "PENDING" | "NOT_CONFIGURED";
+}
+
+/** One change in PUT /po/settings or /admin/settings: the new value and the version it was read at. */
+export interface SettingChange {
+  key: string;
+  value: number | boolean | string;
+  version: number;
 }

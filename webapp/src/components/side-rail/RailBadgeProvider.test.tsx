@@ -29,6 +29,13 @@ vi.mock("@features/finance/cc/useCcRailBadges", () => ({
     return enabled ? { "cc-autofill-rules": { label: "New", showOnGroup: true } } : {};
   },
 }));
+const amplifyAsked: boolean[] = [];
+vi.mock("@features/amplify/api/useAmplifyRailBadges", () => ({
+  useAmplifyRailBadges: (enabled: boolean) => {
+    amplifyAsked.push(enabled);
+    return enabled ? { "amplify-review": { label: "3" } } : {};
+  },
+}));
 vi.mock("@context/perspective/PerspectiveContext", () => ({
   useActivePerspective: () => ({ key: perspective }),
 }));
@@ -50,6 +57,7 @@ function Reader({ name }: { name: string }) {
 
 beforeEach(() => {
   asked.length = 0;
+  amplifyAsked.length = 0;
   perspective = "finance";
 });
 
@@ -75,6 +83,17 @@ describe("RailBadgeProvider", () => {
 
     expect(asked.at(-1)).toBe(false);
     expect(result.current.resolveBadge("cc-autofill-rules")).toBeUndefined();
+  });
+
+  it("asks for Amplify's badges only in Amplify", () => {
+    const finance = renderHook(() => useRailBadges(), { wrapper });
+    expect(amplifyAsked).toEqual([false]);
+    expect(finance.result.current.resolveBadge("amplify-review")).toBeUndefined();
+
+    perspective = "amplify";
+    const { result } = renderHook(() => useRailBadges(), { wrapper });
+    expect(amplifyAsked.at(-1)).toBe(true);
+    expect(result.current.resolveBadge("amplify-review")).toEqual({ label: "3" });
   });
 
   it("asks each source once, however many places show badges", () => {

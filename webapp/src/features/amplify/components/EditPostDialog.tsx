@@ -34,6 +34,7 @@ import { describeAmplifyError } from "../util/amplifyError";
 import { closesAtFromDateInput } from "../util/linkedinPost";
 import CategoryPicker from "./CategoryPicker";
 import DeletePostDialog from "./DeletePostDialog";
+import { amplifyRadiusSx } from "../util/radius";
 
 /**
  * Update Post: the card fields Amplify owns (headline, summary, post link, image,
@@ -83,7 +84,7 @@ export default function EditPostDialog({ campaign, onClose }: { campaign: Campai
   };
 
   return (
-    <Dialog open onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth slotProps={{ paper: { sx: dialogPaperSx } }}>
+    <Dialog open onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { ...dialogPaperSx, ...amplifyRadiusSx } } }}>
       <DialogTitle sx={{ fontSize: 17, fontWeight: 700 }}>Update post</DialogTitle>
       <DialogContent dividers>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>

@@ -1916,6 +1916,46 @@ export const amplifyServiceUrls = {
   connectComplete: `${amplifyBackendUrl}/connections/linkedin/complete`,
   connectRemove: `${amplifyBackendUrl}/connections/linkedin`,
   connectDecline: `${amplifyBackendUrl}/connections/linkedin/decline`,
+  // POST an employee's own post for review (every employee); GET the caller's own claims.
+  externalShares: `${amplifyBackendUrl}/external-shares`,
+  myExternalShares: `${amplifyBackendUrl}/me/external-shares`,
+  // GET a page of claims by status (status, page, size), and decide one (CAN_REVIEW_SHARES only).
+  poExternalShares: `${amplifyBackendUrl}/po/external-shares`,
+  poExternalShareApprove: (id: string) => `${amplifyBackendUrl}/po/external-shares/${encodeURIComponent(id)}/approve`,
+  poExternalShareReject: (id: string) => `${amplifyBackendUrl}/po/external-shares/${encodeURIComponent(id)}/reject`,
+  poExternalShareAmplified: (id: string) =>
+    `${amplifyBackendUrl}/po/external-shares/${encodeURIComponent(id)}/amplified`,
+  // GET every rule version, POST a new value from now on (CAN_POINT_RULES only).
+  poPointRules: `${amplifyBackendUrl}/po/point-rules`,
+  // POST a signed correction, or cancel one ledger row by reference (CAN_ADJUST_POINTS only).
+  poPointsAdjustments: `${amplifyBackendUrl}/po/points/adjustments`,
+  poPointsReverse: (reference: string) => `${amplifyBackendUrl}/po/points/${encodeURIComponent(reference)}/reverse`,
+  // GET people who have used Amplify, by name or email (q, limit; CAN_ADJUST_POINTS only).
+  poPeople: `${amplifyBackendUrl}/po/people`,
+  // GET one person's ledger rows, newest first (page, size). Anyone beyond self and team needs CAN_ADJUST_POINTS.
+  pointsHistory: (employeeId: string) => `${amplifyBackendUrl}/team/${encodeURIComponent(employeeId)}/history`,
+  // GET the caller's standing for a period (period=ALL or YYYY-MM) and their Coins.
+  myPoints: `${amplifyBackendUrl}/me/points`,
+  // GET the points each action earns today (every employee).
+  pointValues: `${amplifyBackendUrl}/point-values`,
+  // GET and PUT the Coins rate, schedule and own-post daily limit (CAN_POINT_RULES only).
+  poSettings: `${amplifyBackendUrl}/po/settings`,
+  // GET and PUT every editable setting, the wallet switch included (CAN_ADMIN only).
+  adminSettings: `${amplifyBackendUrl}/admin/settings`,
+  // POST: the caller opened a post to repost it on LinkedIn themselves (the engagement sync looks for it for 24 h).
+  nativeIntent: (campaignId: string) => `${amplifyBackendUrl}/campaigns/${encodeURIComponent(campaignId)}/native-intent`,
+  // GET the caller's own reposts on LinkedIn and whether each was found (LOOKING, DETECTED, NOT_FOUND).
+  myNativeIntents: `${amplifyBackendUrl}/me/native-intents`,
+  // GET (status and today's calls) and DELETE (disconnect) the company page connection (CAN_ADMIN only).
+  linkedinPage: `${amplifyBackendUrl}/admin/linkedin-page`,
+  linkedinPageConnectStart: `${amplifyBackendUrl}/admin/linkedin-page/connect/start`,
+  linkedinPageConnectComplete: `${amplifyBackendUrl}/admin/linkedin-page/connect/complete`,
+  // GET the ledger rows waiting for the PO team (ACTION_REQUIRED), oldest first (CAN_ADJUST_POINTS only).
+  poPointsActionRequired: `${amplifyBackendUrl}/po/points/action-required`,
+  // POST {status: HELD} clears an action-required row; it then converts to Coins without another check.
+  // POST {reasonCode, note?}: removes an invalid engagement (reverses its points, never scored again).
+  poPointsRemove: (reference: string) => `${amplifyBackendUrl}/po/points/${encodeURIComponent(reference)}/remove`,
+  poPointsSettlement: (reference: string) => `${amplifyBackendUrl}/po/points/${encodeURIComponent(reference)}/settlement`,
 };
 
 // ---------------------------------------------------------------------------

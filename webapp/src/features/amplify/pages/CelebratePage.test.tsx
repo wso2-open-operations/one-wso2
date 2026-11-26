@@ -15,7 +15,7 @@
 // under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 // Novera's card button links to /amplify/celebrate?share=<campaignId>. When the
@@ -33,6 +33,9 @@ const h = vi.hoisted(() => ({
     campaignsPending: false,
     linkStatus: "ACTIVE",
     mePending: false,
+    nativeRepost: false,
+    intents: [] as Array<Record<string, unknown>>,
+    intentsAskedWith: [] as boolean[],
   },
 }));
 
@@ -57,7 +60,13 @@ vi.mock("../api/useAmplifyData", () => ({
   useMyShares: () => ({ data: { items: h.state.shares }, isPending: h.state.sharesPending }),
   useAmplifyLeaderboard: () => ({ data: undefined, isPending: true }),
   useAmplifyTopBoard: () => ({ data: undefined, isPending: true }),
-  useAmplifyCategories: () => ({ data: [] }),
+  useAmplifyCategories: () => ({ data: [{ code: "PRODUCT", label: "Product", sortOrder: 1 }] }),
+  usePointValues: () => ({ data: { REPOST: 2, REPOST_COMMENTARY: 5 } }),
+  useNativeRepostEnabled: () => h.state.nativeRepost,
+  useMyNativeIntents: (enabled: boolean) => {
+    h.state.intentsAskedWith.push(enabled);
+    return { data: enabled ? h.state.intents : undefined };
+  },
   useAmplifyConfig: () => ({
     linkedinOrgUrn: "",
     privacyNoticeUrl: "",
@@ -72,11 +81,36 @@ vi.mock("../components/AmplifyShell", () => ({
   AmplifyPanel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("../components/PostCard", () => ({
-  default: () => null,
+  default: ({ campaign, action }: { campaign: { title: string }; action?: ReactNode }) => (
+    <article aria-label={campaign.title}>{action}</article>
+  ),
   CategoryChip: () => null,
   PriorityChip: () => null,
 }));
-vi.mock("../components/PostCarousel", () => ({ default: () => null }));
+vi.mock("../components/PostGrid", () => ({
+  default: ({
+    items,
+    categories,
+    renderItem,
+    note,
+  }: {
+    items: { id: string }[];
+    categories?: unknown[];
+    renderItem: (c: { id: string }) => ReactNode;
+    note?: ReactNode;
+  }) => (
+    <section aria-label="post grid" data-categories={categories?.length ?? 0}>
+      <p data-testid="grid-note">{note}</p>
+      {items.map((c) => (
+        <div key={c.id}>{renderItem(c)}</div>
+      ))}
+    </section>
+  ),
+}));
+vi.mock("../components/PointsTiles", () => ({
+  default: ({ historyTo }: { historyTo?: string }) => <div>points tiles → {historyTo}</div>,
+}));
+vi.mock("../components/OwnPostPanel", () => ({ default: () => <div>own post panel</div> }));
 vi.mock("../components/LeaderboardPanels", () => ({
   TeamLeaderboardPanel: () => null,
   TopAmplifiersPanel: () => null,
@@ -102,7 +136,18 @@ vi.mock("../components/LinkLinkedInDialog", () => ({
       </div>
     ) : null,
 }));
+vi.mock("../components/NativeRepostActions", () => ({
+  default: ({ state, foundPoints, onPostForMe }: { state: string; foundPoints?: number; onPostForMe: () => void }) => (
+    <div>
+      native: {state} +{foundPoints}
+      <button type="button" onClick={onPostForMe}>
+        Post it for me
+      </button>
+    </div>
+  ),
+}));
 vi.mock("../components/ShareDialog", () => ({
+  WITH_THOUGHTS_POINTS: 5,
   default: ({ campaign }: { campaign: { title: string } | null }) =>
     campaign ? <div>share dialog: {campaign.title}</div> : null,
 }));
@@ -247,5 +292,102 @@ describe("CelebratePage and the Novera share link", () => {
     render(<CelebratePage />);
     expect(h.showSuccess).not.toHaveBeenCalled();
     expect(h.setSearchParams).not.toHaveBeenCalled();
+  });
+});
+
+describe("CelebratePage and own posts", () => {
+  it("offers every employee the own-post panel", () => {
+    render(<CelebratePage />);
+    expect(screen.getByText("own post panel")).toBeTruthy();
+  });
+});
+
+describe("CelebratePage's tiles and post grid", () => {
+  beforeEach(() => {
+    h.state.params = new URLSearchParams();
+    h.state.campaigns = [campaign("c1", "Launch week"), campaign("c2", "Integrator 5"), campaign("c3", "Old news")];
+    h.state.shares = [share("c3")];
+    h.state.sharesPending = false;
+    h.state.campaignsPending = false;
+    h.state.linkStatus = "ACTIVE";
+    h.state.mePending = false;
+  });
+
+  it("shows the points tiles first, with History linking to My points & Coins", () => {
+    render(<CelebratePage />);
+    expect(screen.getByText("points tiles → /amplify/my-points")).toBeTruthy();
+  });
+
+  it("gives the grid the posts not yet amplified, and the categories for its chips", () => {
+    render(<CelebratePage />);
+    const grid = screen.getByRole("region", { name: "post grid" });
+    expect(grid.getAttribute("data-categories")).toBe("1");
+    expect(screen.getByRole("article", { name: "Launch week" })).toBeTruthy();
+    expect(screen.getByRole("article", { name: "Integrator 5" })).toBeTruthy();
+    expect(screen.queryByRole("article", { name: "Old news" })).toBeNull();
+  });
+
+  it("opens the share dialog from a card's Post it for me button when LinkedIn is linked", () => {
+    render(<CelebratePage />);
+    fireEvent.click(within(screen.getByRole("article", { name: "Integrator 5" })).getByRole("button", { name: "Post it for me" }));
+    expect(screen.getByText("share dialog: Integrator 5")).toBeTruthy();
+  });
+
+  it("asks to link LinkedIn first from a card's Post it for me button when it isn't linked", () => {
+    h.state.linkStatus = "NOT_CONNECTED";
+    render(<CelebratePage />);
+    fireEvent.click(within(screen.getByRole("article", { name: "Launch week" })).getByRole("button", { name: "Post it for me" }));
+    expect(screen.getByText(/link dialog: c1 connect/)).toBeTruthy();
+    expect(screen.queryByText(/share dialog/)).toBeNull();
+  });
+
+  it("says the order and the points over the grid", () => {
+    render(<CelebratePage />);
+    expect(screen.getByTestId("grid-note").textContent).toBe(
+      "Priority first, then newest · Repost +2 · with your thoughts +5",
+    );
+  });
+
+  it("leaves the grid out once every post is amplified", () => {
+    h.state.shares = [share("c1"), share("c2"), share("c3")];
+    render(<CelebratePage />);
+    expect(screen.queryByRole("region", { name: "post grid" })).toBeNull();
+  });
+});
+
+describe("CelebratePage and Repost on LinkedIn", () => {
+  beforeEach(() => {
+    h.state.params = new URLSearchParams();
+    h.state.campaigns = [campaign("c1", "Launch week"), campaign("c2", "Integrator 5")];
+    h.state.shares = [];
+    h.state.linkStatus = "ACTIVE";
+    h.state.mePending = false;
+    h.state.intents = [];
+    h.state.intentsAskedWith = [];
+  });
+
+  it("keeps the plain Post it for me button, and asks for no intents, while the setting is off", () => {
+    h.state.nativeRepost = false;
+    render(<CelebratePage />);
+    expect(screen.queryByText(/native:/)).toBeNull();
+    expect(h.state.intentsAskedWith.every((enabled) => !enabled)).toBe(true);
+  });
+
+  it("gives each card its repost state, with the points the found repost earned", () => {
+    h.state.nativeRepost = true;
+    h.state.intents = [
+      { campaignId: "c2", openedAt: "2026-11-20T10:00:00Z", detectedAt: "2026-11-20T12:00:00Z", nativeStatus: "DETECTED", points: 5 },
+      { campaignId: "c1", openedAt: "2026-11-20T10:00:00Z", detectedAt: null, nativeStatus: "LOOKING", points: null },
+    ];
+    render(<CelebratePage />);
+    expect(within(screen.getByRole("article", { name: "Launch week" })).getByText("native: LOOKING +")).toBeTruthy();
+    expect(within(screen.getByRole("article", { name: "Integrator 5" })).getByText("native: DETECTED +5")).toBeTruthy();
+  });
+
+  it("still opens the share dialog from Post it for me", () => {
+    h.state.nativeRepost = true;
+    render(<CelebratePage />);
+    fireEvent.click(within(screen.getByRole("article", { name: "Launch week" })).getByRole("button", { name: "Post it for me" }));
+    expect(screen.getByText("share dialog: Launch week")).toBeTruthy();
   });
 });
