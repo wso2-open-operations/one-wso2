@@ -218,7 +218,7 @@ function Check({ children }: { children: string }) {
 
 /**
  * One claim: who sent it (with their team and location from the people directory), when, the link, their note, and
- * the decision buttons its status allows, each labelled with the points it awards. Decline opens a form in the card.
+ * the decision buttons its status allows. Decline opens a form in the card.
  */
 function ReviewCard({
   share,
@@ -389,7 +389,7 @@ function ReviewCard({
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", mt: 2 }}>
           {share.status === "PENDING" && (
             <Button variant="contained" onClick={() => setConfirming("approve")} disabled={working || isOwn}>
-              Approve · +{awards.approved}
+              Approve
             </Button>
           )}
           <Button
@@ -399,7 +399,7 @@ function ReviewCard({
             disabled={working || isOwn}
             sx={{ color: "warning.dark", bgcolor: (t) => alpha(t.palette.warning.main, 0.1) }}
           >
-            Feature · +{share.status === "PENDING" ? awards.featured : awards.topUp}
+            Feature
           </Button>
           {share.status === "PENDING" && !isOwn && (
             <Button variant="outlined" color="error" onClick={() => setDeclining(true)} disabled={working}>
