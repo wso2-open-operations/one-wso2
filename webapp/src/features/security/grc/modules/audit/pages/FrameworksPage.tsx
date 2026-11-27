@@ -36,6 +36,7 @@ import { useGetAudits } from "@features/security/grc/modules/audit/api/useGetAud
 import { useGetFrameworks } from "@features/security/grc/modules/audit/api/useGetFrameworks";
 import { useUpdateFramework } from "@features/security/grc/modules/audit/api/useUpdateFramework";
 import { useDeleteFramework } from "@features/security/grc/modules/audit/api/useDeleteFramework";
+import FrameworkControlsDialog from "@features/security/grc/modules/audit/components/FrameworkControlsDialog";
 import FrameworkFormDialog from "@features/security/grc/modules/audit/components/FrameworkFormDialog";
 import FrameworkManageCard from "@features/security/grc/modules/audit/components/FrameworkManageCard";
 import { useAuditPrivileges } from "@features/security/grc/modules/audit/hooks/useAuditPrivileges";
@@ -70,6 +71,7 @@ export default function FrameworksPage(): JSX.Element {
   const [formOpen, setFormOpen] = useState(false);
   const [frameworkToEdit, setFrameworkToEdit] = useState<AuditFramework | null>(null);
   const [frameworkToDelete, setFrameworkToDelete] = useState<AuditFramework | null>(null);
+  const [frameworkForControls, setFrameworkForControls] = useState<AuditFramework | null>(null);
   const [snack, setSnack] = useState<{ severity: "success" | "error"; message: string } | null>(null);
 
   const frameworks = frameworksData ?? [];
@@ -225,11 +227,19 @@ export default function FrameworksPage(): JSX.Element {
                 }}
                 onArchiveToggle={() => handleArchiveToggle(f)}
                 onDelete={() => setFrameworkToDelete(f)}
+                onViewControls={() => setFrameworkForControls(f)}
               />
             );
           })}
         </Box>
       )}
+
+      <FrameworkControlsDialog
+        framework={frameworkForControls}
+        canManage={canManage}
+        onClose={() => setFrameworkForControls(null)}
+        onNotify={(message) => setSnack({ severity: "success", message })}
+      />
 
       <FrameworkFormDialog
         open={formOpen}

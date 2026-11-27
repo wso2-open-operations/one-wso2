@@ -49,9 +49,11 @@ interface FrameworkManageCardProps {
   onEdit: () => void;
   onArchiveToggle: () => void;
   onDelete: () => void;
+  /** Opens the framework's control library. Clicking the card (or Enter / Space on it) does this. */
+  onViewControls: () => void;
 }
 
-/** A framework on the Frameworks page, managed from its menu. The card itself is not clickable. */
+/** A framework on the Frameworks page: click it to see its controls; manage it from its menu. */
 export default function FrameworkManageCard({
   framework,
   audits,
@@ -59,6 +61,7 @@ export default function FrameworkManageCard({
   onEdit,
   onArchiveToggle,
   onDelete,
+  onViewControls,
 }: FrameworkManageCardProps): JSX.Element {
   const theme = useTheme();
   const color = theme.palette.primary.main;
@@ -77,9 +80,21 @@ export default function FrameworkManageCard({
   return (
     <Card
       variant="outlined"
+      role="button"
+      tabIndex={0}
+      aria-label={`View controls of ${framework.name}`}
+      onClick={onViewControls}
+      onKeyDown={(e) => {
+        // Only when the card itself has focus — not the actions button inside it.
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onViewControls();
+        }
+      }}
       sx={{
         height: "100%",
         position: "relative",
+        cursor: "pointer",
         borderLeft: `3px solid ${archived || activeAuditCount === 0 ? IDLE_ACCENT : ACTIVE_ACCENT}`,
         transition: "box-shadow 0.2s",
         "&:hover": { boxShadow: 4 },
@@ -91,13 +106,22 @@ export default function FrameworkManageCard({
             <IconButton
               size="small"
               aria-label={`Actions for ${framework.name}`}
-              onClick={(e) => setMenuAnchor(e.currentTarget)}
+              onClick={(e) => {
+                e.stopPropagation(); // don't also open the controls dialog
+                setMenuAnchor(e.currentTarget);
+              }}
               sx={{ color: "text.secondary" }}
             >
               <MoreVertical size={16} />
             </IconButton>
           </Box>
-          <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+          {/* The menu is portalled, but React events still bubble to the card. */}
+          <Menu
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor)}
+            onClose={() => setMenuAnchor(null)}
+            onClick={(e) => e.stopPropagation()}
+          >
             <MenuItem onClick={run(onEdit)}>
               <ListItemIcon>
                 <Pencil size={16} />
