@@ -15,7 +15,7 @@
 // under the License.
 
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import MeetingsTable from "./MeetingsTable";
@@ -60,7 +60,7 @@ function renderTable(
 
 const bodyRows = () => screen.getAllByRole("row").slice(1);
 
-const HEADERS = ["Meeting", "Opportunity", "Opportunity Owner (AM)", "Region", "Start", "Files"];
+const HEADERS = ["Account", "Meeting", "Call type", "Opportunity", "Opportunity Owner (AM)", "Region", "Start", "Files"];
 
 const OPP = "006AA000001aBcDEF1";
 const ACC = "001AA000001aBcDEF1";
@@ -120,7 +120,7 @@ describe("MeetingsTable", () => {
     expect(titles).toEqual(["Newest", "Middle", "Oldest"]);
   });
 
-  it("puts the account, call type and title in one cell, and leaves attendee emails out", () => {
+  it("puts the account, title and call type in their own columns, and leaves attendee emails out", () => {
     renderTable([
       meeting({
         title: "Nordlys – budget sign-off",
@@ -129,16 +129,29 @@ describe("MeetingsTable", () => {
         externalParticipants: "lars.haugen@nordlys.example",
       }),
     ]);
-    const first = within(bodyRows()[0]).getAllByRole("cell")[0];
-    expect(within(first).getByText("Nordlys Energi AS")).toBeInTheDocument();
-    expect(within(first).getByText(/Renewal \/ convert/)).toBeInTheDocument();
-    expect(within(first).getByRole("link")).toHaveTextContent("Nordlys – budget sign-off");
+    const cells = firstRowCells();
+    expect(cells.Account).toHaveTextContent(/^Nordlys Energi AS$/);
+    expect(cells.Meeting).toHaveTextContent(/^Nordlys – budget sign-off$/);
+    expect(within(cells.Meeting).getByRole("link")).toHaveTextContent("Nordlys – budget sign-off");
+    expect(cells["Call type"]).toHaveTextContent(/^Renewal \/ convert/);
     expect(screen.queryByText(/lars\.haugen/)).not.toBeInTheDocument();
   });
 
-  it("leads with the call type when there is no account", () => {
+  it("leaves the account blank for a call with none, and the call type blank when it has none", () => {
     renderTable([meeting({ meetingType: "internal", externalParticipants: null })]);
-    expect(within(bodyRows()[0]).getAllByRole("cell")[0]).toHaveTextContent(/^Internal prep/);
+    expect(firstRowCells().Account).toBeEmptyDOMElement();
+    expect(firstRowCells()["Call type"]).toHaveTextContent(/^Internal prep/);
+
+    cleanup();
+    renderTable([meeting({ accountName: "Nordlys Energi AS", meetingType: null })]);
+    expect(firstRowCells()["Call type"]).toBeEmptyDOMElement();
+  });
+
+  it("marks a lead's company in the Account column", () => {
+    renderTable([meeting({ leadId: "00QAA000001aBcDEF1", leadCompany: "Kestrel Labs" })]);
+    const account = firstRowCells().Account;
+    expect(account).toHaveTextContent("Kestrel Labs");
+    expect(within(account).getByText("Lead")).toBeInTheDocument();
   });
 
   it("shows the host's full email, and no End column", () => {
