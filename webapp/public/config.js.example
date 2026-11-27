@@ -176,10 +176,38 @@ window.config = {
   // an API. When absent, the rail item is omitted entirely.
   // ONE_WSO2_MARKETINGOPS_ISAC_URL: "<your-isac-url>",
 
-  // CSM base URL — a separate application, reached from its launcher tile and
-  // opened in a new tab. There is no route for it, so it is never a landing
-  // choice or a favourite. When absent, the tile stays in its unbuilt state.
+  // CSM base URL — a separate application, linked as "CSM Portal" at the top of
+  // the Customer Success perspective and opened in a new tab (it used to be a
+  // launcher tile of its own). When absent, the link is not shown.
   // ONE_WSO2_CSM_URL: "<your-csm-url>",
+
+  // Addresses of WSO2 tools One WSO2 links to but does not host, keyed by app
+  // id (src/constants/otherApps.ts). Each one with an http(s) address gets a
+  // place in its perspective's rail: inside its group where it has one (e.g.
+  // Engineering's Source Code), else an item of its own, either way opening in
+  // a new tab. Sales Pitstop goes in the Sales Pitstop group. Each also gets an
+  // Ask Novera search result found by its App Marketplace name. Customer
+  // Success holds only these links, and is offered once one of its apps has an
+  // address. An app left out shows nothing.
+  // ONE_WSO2_OTHER_APP_URLS: {
+  //   // People Ops
+  //   "people-app": "<url>", "hr-site": "<url>",
+  //   // Finance
+  //   netsuite: "<url>", "msl-payslip": "<url>",
+  //   // Sales
+  //   salesforce: "<url>", "sales-pitstop": "<url>", "sales-insights-dashboard": "<url>",
+  //   // Customer Success
+  //   explorecs: "<url>", "cs-tools": "<url>", "cs-tooling-site": "<url>",
+  //   // Engineering
+  //   "wso2-github": "<url>", "support-github": "<url>", nexus: "<url>",
+  //   "public-jenkins": "<url>", "support-jenkins": "<url>",
+  //   "connector-store-docs": "<url>", "apim-site": "<url>", "sa-site": "<url>",
+  //   // Digital Operations
+  //   "vpn-setup-guide": "<url>", "guest-wifi": "<url>", "network-printer-guide": "<url>",
+  //   "diy-infra-portal": "<url>", "new-software-request": "<url>",
+  //   // Security and Compliance
+  //   "security-compliance-site": "<url>", "security-self-service-dashboard": "<url>",
+  // },
 
   // Infra Portal backend. Privileges come from this backend's own /user-info
   // (987 employee / 762 approver / 123 admin), not from the People backend.

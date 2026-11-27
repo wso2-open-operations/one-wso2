@@ -19,7 +19,7 @@
 import type { ReactElement } from "react";
 import { AmplifyLogo } from "@features/amplify/components/AmplifyLogo";
 import {
-  CsmMark,
+  CustomerSuccessMark,
   EngineeringMark,
   FinanceMark,
   KnowledgeMark,
@@ -43,7 +43,6 @@ const APP_MARKS: Record<string, (p: MarkProps) => ReactElement> = {
   people: PeopleMark,
   finance: FinanceMark,
   marketing: MarketingMark,
-  csm: CsmMark,
   legal: LegalMark,
   security: SecurityMark,
   sales: SalesMark,
@@ -51,6 +50,7 @@ const APP_MARKS: Record<string, (p: MarkProps) => ReactElement> = {
   infra: InfrastructureMark,
   knowledge: KnowledgeMark,
   procurement: ProcurementMark,
+  "customer-success": CustomerSuccessMark,
 };
 
 /**

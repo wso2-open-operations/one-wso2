@@ -219,26 +219,6 @@ export function SalesMark({ size }: MarkProps) {
   );
 }
 
-/** CSM — a life buoy: ring plus four spokes. */
-export function CsmMark({ size }: MarkProps) {
-  const t = appMarkTones("csm")!;
-  return (
-    <Svg size={size}>
-      <path
-        fillRule="evenodd"
-        d="M24 5.5A18.5 18.5 0 1 0 24 42.5 18.5 18.5 0 0 0 24 5.5zm0 10.5a8 8 0 1 1 0 16 8 8 0 0 1 0-16z"
-        fill={t.field}
-      />
-      <g fill={t.lead}>
-        <rect x="21.6" y="2.5" width="4.8" height="12" rx="2.4" />
-        <rect x="21.6" y="33.5" width="4.8" height="12" rx="2.4" />
-        <rect x="2.5" y="21.6" width="12" height="4.8" rx="2.4" />
-        <rect x="33.5" y="21.6" width="12" height="4.8" rx="2.4" />
-      </g>
-    </Svg>
-  );
-}
-
 /**
  * Legal — scales of justice, traced from the same silhouette as the rail's
  * line icon (lucide's Scale, scaled 2x for this 48-unit grid) rather than
@@ -342,6 +322,24 @@ export function KnowledgeMark({ size }: MarkProps) {
           fill={t.lead}
         />
       </g>
+    </Svg>
+  );
+}
+
+/**
+ * Customer Success — a speech bubble with a heart: looking after the customer.
+ * The bubble in `field`, the heart in `lead`, the bubble's tail in `detail`.
+ */
+export function CustomerSuccessMark({ size }: MarkProps) {
+  const t = appMarkTones("customer-success")!;
+  return (
+    <Svg size={size}>
+      <rect x="5" y="6" width="38" height="29" rx="8" fill={t.field} />
+      <path d="M12 33v9l10-7z" fill={t.detail} />
+      <path
+        d="M24 29.5c-.6 0-1.2-.2-1.7-.6C17 24.9 14 22.1 14 18.7 14 15.8 16.2 13.5 19 13.5c1.9 0 3.6 1 5 2.6 1.4-1.6 3.1-2.6 5-2.6 2.8 0 5 2.3 5 5.2 0 3.4-3 6.2-8.3 10.2-.5.4-1.1.6-1.7.6z"
+        fill={t.lead}
+      />
     </Svg>
   );
 }

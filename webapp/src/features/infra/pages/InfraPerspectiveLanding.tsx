@@ -26,7 +26,7 @@ import InfraShell from "../components/InfraShell";
 export default function InfraPerspectiveLanding() {
   if (!isInfraBackendConfigured()) {
     return (
-      <InfraShell title="Infrastructure" requireAuthorized={false}>
+      <InfraShell title="Digital Operations" requireAuthorized={false}>
         {null}
       </InfraShell>
     );

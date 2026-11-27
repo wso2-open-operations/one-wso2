@@ -153,6 +153,28 @@ export function visibleLeavesOf(
 }
 
 /**
+ * Visible rows that leave One WSO2: a top-level link (`externalUrl`) or a
+ * group's row whose action opens another site (`opensInNewTab`). Never a
+ * landing's destination (only `path` rows are, see `firstVisibleLeaf`), but a
+ * perspective whose only visible rows are these is not empty to its user.
+ */
+export function visibleOutboundRowsOf(
+  sections: readonly PerspectiveSection[],
+  resolveVisible: (s: PerspectiveSection) => boolean,
+): PerspectiveSection[] {
+  const rows: PerspectiveSection[] = [];
+  for (const s of sections) {
+    if (!resolveVisible(s)) continue;
+    if (s.children?.length) {
+      rows.push(...s.children.filter((c) => resolveVisible(c) && !c.path && c.opensInNewTab && c.onSelect));
+    } else if (!s.path && s.externalUrl) {
+      rows.push(s);
+    }
+  }
+  return rows;
+}
+
+/**
  * The first leaf in rail order someone may open — WITHOUT skipping ahead of a
  * higher-ranked one that simply hasn't answered yet.
  *

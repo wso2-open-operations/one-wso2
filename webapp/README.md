@@ -101,7 +101,8 @@ naming the key and makes no requests.
 | Finance MIS | `ONE_WSO2_MIS_ARR_BACKEND_URL` |
 | Infra Portal | `ONE_WSO2_INFRA_BACKEND_URL` |
 | Sales Library (Smart Search over Pitstop content) | `ONE_WSO2_SMART_SEARCH_BACKEND_URL` |
-| CSM (separate app, opened in a new tab) | `ONE_WSO2_CSM_URL` |
+| CSM portal (linked from Customer Success, opened in a new tab) | `ONE_WSO2_CSM_URL` |
+| Other apps (WSO2 tools linked from the rail and found by Ask Novera search, opened in a new tab; an app with no address is not shown) | `ONE_WSO2_OTHER_APP_URLS` |
 
 ## Import aliases
 

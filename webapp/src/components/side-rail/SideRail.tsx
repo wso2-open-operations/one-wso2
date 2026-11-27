@@ -268,11 +268,20 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
     for (const s of sections) {
       if (s.onSelect) map.set(s.id, s.onSelect);
       for (const c of s.children ?? []) {
+        // Kept for link rows too: the collapsed rail's flyout draws a row
+        // without its link and only reports the selection (see onSelect).
         if (c.onSelect) map.set(c.id, c.onSelect);
       }
     }
     return map;
   }, [sections]);
+
+  // Nested rows whose address is known ahead (a linked app): drawn as anchors
+  // in the expanded rail.
+  const linkIds = useMemo(
+    () => new Set(sections.flatMap((s) => (s.children ?? []).filter((c) => c.outboundUrl).map((c) => c.id))),
+    [sections],
+  );
 
   // Top-level route rows navigate through their own wrapping anchor; nested
   // rows and scroll-anchors arrive here.
@@ -289,6 +298,10 @@ export default function SideRail({ collapsed }: SideRailProps): JSX.Element {
       return;
     }
     if (id === OVERVIEW_ID) return;
+    // A link row in the expanded rail: its own anchor opened the site, so
+    // running the action too would open it twice. The collapsed rail's flyout
+    // draws the row without the link, so there the action is what opens it.
+    if (!collapsed && linkIds.has(id)) return;
     const action = actionById.get(id);
     if (action) {
       action({ queryClient });
@@ -534,7 +547,19 @@ function SectionNode({
             // On a collapsed rail, the popup shows only the child's icon and label, so the dot marks the icon.
             const dot = collapsed ? badge : undefined;
             return (
-              <Sidebar.Item key={c.id} id={c.id} sx={{ pl: NESTED_LABEL_PL }}>
+              <Sidebar.Item
+                key={c.id}
+                id={c.id}
+                sx={{ pl: NESTED_LABEL_PL }}
+                // A known address is a real anchor, so the row can be copied,
+                // middle-clicked or opened from the context menu like any link.
+                // Passed as `link` so the row stays `li > a` (see routeLink).
+                link={
+                  c.outboundUrl ? (
+                    <Link href={c.outboundUrl} target="_blank" rel="noopener noreferrer" color="inherit" underline="none" />
+                  ) : undefined
+                }
+              >
                 {Icon || dot ? (
                   <Sidebar.ItemIcon>{railIcon(Icon, Boolean(dot), dot && (dot.reason ?? dot.label))}</Sidebar.ItemIcon>
                 ) : null}

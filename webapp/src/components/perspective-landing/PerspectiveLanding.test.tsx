@@ -31,6 +31,7 @@ const visibility: { current: PerspectiveVisibility } = {
     isResolving: false,
     visibleLeaves: [],
     firstVisibleLeaf: undefined,
+    visibleOutbound: [],
     isError: false,
     retry: () => {},
   },
@@ -46,7 +47,8 @@ vi.mock("@context/perspective/PerspectiveContext", () => ({
   useActivePerspective: () => perspective.current,
 }));
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import PerspectiveLanding from "./PerspectiveLanding";
@@ -83,6 +85,7 @@ beforeEach(() => {
     isResolving: false,
     visibleLeaves: [],
     firstVisibleLeaf: undefined,
+    visibleOutbound: [],
     isError: false,
     retry: () => {},
   };
@@ -191,7 +194,88 @@ describe("a perspective landing that forwards to the first item", () => {
     expect(retry).toHaveBeenCalled();
   });
 
-  // The same sentence for every perspective, naming only the one it is on.
+  // A failed check is about this app's own screens; the rail still shows its
+  // links to other apps, so the error page offers them too, beside Retry.
+  it("keeps the rail's links to other apps beside a failed check", async () => {
+    const retry = vi.fn();
+    visibility.current = {
+      ...visibility.current,
+      isError: true,
+      error: new Error("boom"),
+      retry,
+      visibleOutbound: [{ id: "other-app-wifi", label: "Guest WiFi", externalUrl: "https://wifi.example" }],
+    };
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/security"]}>
+          <Routes>
+            <Route path="/security" element={<PerspectiveLanding />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText(/Couldn't work out what you can open/)).toBeInTheDocument();
+    expect(within(screen.getByRole("list")).getByRole("link", { name: /Guest WiFi/ })).toHaveAttribute(
+      "href",
+      "https://wifi.example",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalled();
+  });
+
+  // The rail can show links to other apps (they never become a landing's
+  // destination). The card offers them instead of saying nothing is open.
+  it("offers the rail's links to other apps instead of saying nothing is open", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    visibility.current = {
+      ...visibility.current,
+      visibleOutbound: [
+        { id: "other-app-site", label: "Team Site", externalUrl: "https://site.example" },
+        {
+          id: "other-app-repo",
+          label: "Repo",
+          opensInNewTab: true,
+          outboundUrl: "https://repo.example",
+          onSelect: () => {},
+        },
+        {
+          id: "docs",
+          label: "Docs",
+          opensInNewTab: true,
+          onSelect: () => {
+            window.open("https://docs.example", "_blank", "noopener,noreferrer");
+          },
+        },
+      ],
+    };
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/security"]}>
+          <Routes>
+            <Route path="/security" element={<PerspectiveLanding />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByText("Nothing here for you yet")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Only links to other apps here for you" })).toBeInTheDocument();
+    const list = screen.getByRole("list");
+    const site = within(list).getByRole("link", { name: /Team Site/ });
+    expect(site).toHaveAttribute("href", "https://site.example");
+    expect(site).toHaveAttribute("target", "_blank");
+    // A grouped app with a known address is a real link too, not a button.
+    const repo = within(list).getByRole("link", { name: /Repo/ });
+    expect(repo).toHaveAttribute("href", "https://repo.example");
+    expect(repo).toHaveAttribute("target", "_blank");
+    // Only a destination resolved at runtime is a button running its action.
+    await userEvent.click(within(list).getByRole("button", { name: /Docs/ }));
+    expect(open).toHaveBeenCalledWith("https://docs.example", "_blank", "noopener,noreferrer");
+    open.mockRestore();
+  });
+
+  // The same sentence for every perspective, naming only the one it is on.  // The same sentence for every perspective, naming only the one it is on.
   it("names the perspective and nothing else", () => {
     perspective.current = { ...perspective.current, key: "finance", label: "Finance" };
     renderLanding();

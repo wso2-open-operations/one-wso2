@@ -17,10 +17,11 @@
 // Central perspective registry. The waffle switcher and left rail both read
 // from this — one edit here changes every entry point.
 
-import { csmUrl, isCsmConfigured, isEngagementAppBackendConfigured, isIsacConfigured, isacUrl } from "@config/apiConfig";
+import { isEngagementAppBackendConfigured, isIsacConfigured, isacUrl } from "@config/apiConfig";
 import { isPreviewEnabled } from "@config/previewFeatures";
 import { CADO2_APPS } from "@constants/cado2Apps";
 import { ENGAGEMENT_APPS, MY_ENGAGEMENT_APPS } from "@constants/engagementApps";
+import { otherAppRow, otherAppsSections } from "@constants/otherApps";
 import {
   ArrowBigUpDash,
   AwardIcon,
@@ -34,7 +35,7 @@ import {
   FileSignatureIcon,
   HouseIcon,
   LandmarkIcon,
-  LifeBuoyIcon,
+  HeartHandshakeIcon,
   LightbulbIcon,
   LayoutDashboard,
   LucideLayoutGrid,
@@ -136,6 +137,11 @@ export interface PerspectiveSection {
   // with the arrow the launcher puts on tiles that leave One WSO2. Only read on
   // a group's children: a top-level row, or a `path` row, ignores it.
   opensInNewTab?: boolean;
+  // The address an `opensInNewTab` row's action opens, when it is known ahead
+  // of time (a linked app's configured address). Lets a place that lists the
+  // row, such as an empty perspective landing, draw a real link instead of a
+  // button. Absent for a row whose destination is only known at runtime.
+  outboundUrl?: string;
   // A nested row whose label may wrap onto two lines — see MenuApp.wrapLabels.
   wrapLabel?: boolean;
 }
@@ -694,7 +700,10 @@ const SALES_PITSTOP_SECTION: PerspectiveSection = {
   label: "Sales Pitstop",
   icon: SalesPitstopLogoIcon,
   alwaysGroup: true,
-  children: [{ id: "sales-library", label: "Ask Sales", icon: BookOpenIcon, path: SMART_SEARCH_LIBRARY_PATH }],
+  children: [
+    { id: "sales-library", label: "Ask Sales", icon: BookOpenIcon, path: SMART_SEARCH_LIBRARY_PATH },
+    ...otherAppRow("sales-pitstop"),
+  ],
 };
 
 const SALES_SECTIONS: PerspectiveSection[] = [
@@ -783,7 +792,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     access: true,
     path: "/people-ops",
     forwardsToFirstItem: true,
-    sections: PEOPLE_OPS_SECTIONS,
+    sections: [...PEOPLE_OPS_SECTIONS, ...otherAppsSections("people")],
   },
   // Submitting a claim and looking up your own stay under Me (see ME_SECTIONS)
   // — those are things you do for yourself. Deciding other people's claims is
@@ -836,6 +845,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
       // also the only group here that most readers never see at all, so
       // keeping it off the path to the screens they do use costs them nothing.
       ...appsToSections(FINANCE_MASTER_DATA_APPS),
+      ...otherAppsSections("finance"),
     ],
   },
   // Legal. Currently just a second entry point into Due Diligence (see the
@@ -884,15 +894,18 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
       ...appsToSections(DUE_DILIGENCE_APPS),
     ],
   },
-  // A separate application, opened in a new tab. `access` follows the URL being
-  // configured: without one the tile stays in its unbuilt state rather than
-  // becoming a link to nowhere.
+  // Customer Success — the CSM portal and the CS team's own sites, all of which
+  // live outside One WSO2 (the CSM portal used to be a launcher tile of its own).
+  // Every row is a link that opens in a new tab, so the landing lists them
+  // rather than forwarding (it has nothing in-app to forward to). Offered only
+  // once at least one of them has an address.
   {
-    key: "csm",
-    label: "CSM",
-    icon: LifeBuoyIcon,
-    access: isCsmConfigured(),
-    externalUrl: csmUrl || undefined,
+    key: "customer-success",
+    label: "Customer Success",
+    icon: HeartHandshakeIcon,
+    access: otherAppsSections("customer-success").length > 0,
+    path: "/customer-success",
+    sections: otherAppsSections("customer-success"),
   },
   // Sales — auto-recorded meetings. One screen so far: the meeting history
   // ported from meet-app. Create Meeting stayed behind (scheduling happens in
@@ -923,7 +936,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     externallyGated: true,
     forwardsToFirstItem: true,
     path: "/sales",
-    sections: SALES_SECTIONS,
+    sections: [...SALES_SECTIONS, ...otherAppsSections("sales")],
   },
   // Knowledge, so far just Today I Learned's feed. Its own perspective rather
   // than nested under Me or People Ops: a company-wide feed is a destination
@@ -986,17 +999,21 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     sections: [
       ...appsToSections(DOWNLOAD_STATS_APPS),
       UMT_SECTION,
+      ...otherAppsSections("engineering"),
     ],
   },
   {
+    // The key and path stay "infra" while the label is "Digital Operations",
+    // for the same reason as Security's: the key threads through the route
+    // prefix, every item id, the gate and the colour.
     key: "infra",
-    label: "Infrastructure",
+    label: "Digital Operations",
     icon: ServerIcon,
     access: true,
     path: "/infra",
     externallyGated: true,
     forwardsToFirstItem: true,
-    sections: appsToSections(INFRA_APPS),
+    sections: [...appsToSections(INFRA_APPS), ...otherAppsSections("infra")],
   },
   // Marketing Ops — UNLOCKED. Ported so far: Utilities (UTM + Asset Name
   // generators and their Marketing Admin panels) and Ad Campaigns → Analytics.
@@ -1056,7 +1073,7 @@ export const PERSPECTIVES: readonly PerspectiveDef[] = [
     // it belongs to neither one's group, and it's fetched from the GRC
     // backend (GET_USER_GUIDE_URL) rather than carried as registry data — see
     // useUserGuideUrl and SideRail's own pinned-to-bottom category.
-    sections: [...appsToSections(SECURITY_APPS)],
+    sections: [...appsToSections(SECURITY_APPS), ...otherAppsSections("security")],
   },
   // "Me" is the Home landing: the person's own profile plus everyday apps —
   // Leave, Menu, and the finance claims.

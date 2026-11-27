@@ -186,6 +186,12 @@ declare global {
       // item is omitted rather than rendered as a dead link.
       ONE_WSO2_MARKETINGOPS_ISAC_URL?: string;
       ONE_WSO2_CSM_URL?: string;
+      // Addresses of WSO2 tools One WSO2 does not host, keyed by app id (see
+      // src/constants/otherApps.ts). Each configured app is linked from its
+      // perspective's rail (inside its group, or as an item of its own) and
+      // from Ask Novera search, and opened in a new tab.
+      // Optional — an app with no http(s) address is left out.
+      ONE_WSO2_OTHER_APP_URLS?: Record<string, string>;
       // Base URL for the infra-portal Ballerina backend. Optional — when
       // absent, Infra Portal shows a "not connected" state and makes no
       // requests. Privileges on this service (987 / 762 / 123) are not

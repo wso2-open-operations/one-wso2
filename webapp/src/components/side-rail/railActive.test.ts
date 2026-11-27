@@ -17,7 +17,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { activeGroupIds, activeItemId, firstVisibleLeaf, onPathOrBelow, visibleLeavesOf } from "./railActive";
+import {
+  activeGroupIds,
+  activeItemId,
+  firstVisibleLeaf,
+  onPathOrBelow,
+  visibleLeavesOf,
+  visibleOutboundRowsOf,
+} from "./railActive";
 import { PERSPECTIVES, type PerspectiveSection } from "@constants/perspectives";
 
 // Driven off the real registry, not a fixture: the bug this covers was a rail
@@ -308,4 +315,30 @@ describe("Download Stats stays selected on every screen", () => {
       expect(activeGroupIds(downloadStats ? [downloadStats] : [], url).size).toBe(0);
     });
   }
+});
+
+describe("visibleOutboundRowsOf", () => {
+  const sections: PerspectiveSection[] = [
+    { id: "home", label: "Home", path: "/x" },
+    { id: "site", label: "Site", externalUrl: "https://site.example" },
+    {
+      id: "group",
+      label: "Group",
+      children: [
+        { id: "page", label: "Page", path: "/x/page" },
+        { id: "tool", label: "Tool", opensInNewTab: true, onSelect: () => {} },
+        { id: "hidden-tool", label: "Hidden", opensInNewTab: true, onSelect: () => {} },
+      ],
+    },
+  ];
+
+  it("lists the visible rows that open another site, and no in-app page", () => {
+    const rows = visibleOutboundRowsOf(sections, (s) => s.id !== "hidden-tool");
+    expect(rows.map((row) => row.id)).toEqual(["site", "tool"]);
+  });
+
+  it("lists nothing under a group the rail hides", () => {
+    const rows = visibleOutboundRowsOf(sections, (s) => s.id !== "group");
+    expect(rows.map((row) => row.id)).toEqual(["site"]);
+  });
 });

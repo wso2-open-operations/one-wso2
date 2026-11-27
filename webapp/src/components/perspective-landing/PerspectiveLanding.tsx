@@ -16,7 +16,9 @@
 
 import type { JSX, ReactNode } from "react";
 import { Box, Button, Card, CircularProgress, Stack, Typography } from "@wso2/oxygen-ui";
-import { ArrowLeftIcon } from "@wso2/oxygen-ui-icons-react";
+import { ArrowLeftIcon, ExternalLinkIcon } from "@wso2/oxygen-ui-icons-react";
+import { useQueryClient } from "@tanstack/react-query";
+import type { PerspectiveSection } from "@constants/perspectives";
 import { Link as RouterLink, Navigate } from "react-router";
 import { useActivePerspective } from "@context/perspective/PerspectiveContext";
 import { usePerspectiveVisibility } from "@components/side-rail/usePerspectiveVisibility";
@@ -64,7 +66,7 @@ import ErrorNotice from "@components/error-notice/ErrorNotice";
  */
 export default function PerspectiveLanding(): JSX.Element {
   const active = useActivePerspective();
-  const { firstVisibleLeaf, isResolving, isError, error, retry } = usePerspectiveVisibility();
+  const { firstVisibleLeaf, visibleOutbound, isResolving, isError, error, retry } = usePerspectiveVisibility();
   const first = firstVisibleLeaf?.path;
 
   // `replace`, so Back leaves the perspective rather than bouncing off this
@@ -96,6 +98,17 @@ export default function PerspectiveLanding(): JSX.Element {
         <ErrorNotice onRetry={retry} error={error} sx={{ mt: 1.5 }}>
           Couldn&apos;t work out what you can open in {active.label}.
         </ErrorNotice>
+        {/* A failed check is about this app's own screens; the rail's links to
+            other apps do not depend on it and stay shown there, so they stay
+            reachable here too. */}
+        {visibleOutbound?.length ? (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              These open other WSO2 apps in a new tab.
+            </Typography>
+            <OutboundLinks links={visibleOutbound} />
+          </Box>
+        ) : null}
       </Box>
     );
   }
@@ -103,7 +116,10 @@ export default function PerspectiveLanding(): JSX.Element {
   return (
     <Box>
       <PageTitle label={active.label} />
-      <NothingHere label={active.label} icon={active.icon} />
+      {/* The rail may still show links to other apps here, which this page is
+          never forwarded to (they open another site). Offer them, so the card
+          does not say there is nothing while the rail shows something. */}
+      <NothingHere label={active.label} icon={active.icon} links={visibleOutbound ?? []} />
     </Box>
   );
 }
@@ -130,11 +146,14 @@ export function PageTitle({ label }: { label: string }): JSX.Element {
 export function NothingHere({
   label,
   icon: Icon,
-  heading = "Nothing here for you yet",
+  links = [],
+  heading,
   children,
 }: {
   label: string;
   icon: React.ComponentType<{ size?: number }>;
+  /** Visible rail rows that open other apps; listed, and the copy says only those are open. */
+  links?: readonly PerspectiveSection[];
   /** Replaces the card's heading. */
   heading?: string;
   /** Replaces the card's one-sentence body. */
@@ -165,7 +184,7 @@ export function NothingHere({
             component="h2"
             sx={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", mb: 0.6 }}
           >
-            {heading}
+            {heading ?? (links.length ? "Only links to other apps here for you" : "Nothing here for you yet")}
           </Typography>
           {children ? (
             <Box sx={{ maxWidth: "52ch" }}>{children}</Box>
@@ -177,10 +196,20 @@ export function NothingHere({
                 actionable, and the rest were "ask whoever runs that" with a
                 different noun in it — the shape of help without the substance.
                 Someone who needs access asks the person who sent them here. */}
-            {label} is here, but none of it is open to you at the moment. When that
-            changes, it&apos;ll appear in the menu on the left.
+            {links.length ? (
+              <>
+                Nothing in {label} inside One WSO2 is open to you at the moment. These open
+                other WSO2 apps in a new tab.
+              </>
+            ) : (
+              <>
+                {label} is here, but none of it is open to you at the moment. When that
+                changes, it&apos;ll appear in the menu on the left.
+              </>
+            )}
           </Typography>
           )}
+          {links.length ? <OutboundLinks links={links} /> : null}
         </Box>
       </Box>
 
@@ -201,3 +230,65 @@ export function NothingHere({
     </Card>
   );
 }
+
+/**
+ * The links of NothingHere, a button each opening its app in a new tab. Its own
+ * component so the query client (a row's `onSelect` is handed it) is only
+ * needed where there are links to open.
+ */
+function OutboundLinks({ links }: { links: readonly PerspectiveSection[] }): JSX.Element {
+  const queryClient = useQueryClient();
+  return (
+    <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, mt: 1.5, display: "flex", flexWrap: "wrap", gap: 1 }}>
+      {links.map((row) => {
+        // A known address is a real link (copy, middle-click, context menu);
+        // only a destination resolved at runtime is a button running the action.
+        const href = row.externalUrl ?? row.outboundUrl;
+        return (
+          <Box component="li" key={row.id}>
+            {href ? (
+              <Button
+                component="a"
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outlined"
+                size="small"
+                endIcon={<ExternalLinkIcon size={13} aria-hidden />}
+                sx={{ textTransform: "none" }}
+              >
+                {row.label}
+                <Box component="span" sx={VISUALLY_HIDDEN_SX}>
+                  (opens in a new tab)
+                </Box>
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => row.onSelect?.({ queryClient })}
+                endIcon={<ExternalLinkIcon size={13} aria-hidden />}
+                sx={{ textTransform: "none" }}
+              >
+                {row.label}
+                <Box component="span" sx={VISUALLY_HIDDEN_SX}>
+                  (opens in a new tab)
+                </Box>
+              </Button>
+            )}
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
+/** Read by a screen reader, not shown. */
+const VISUALLY_HIDDEN_SX = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+} as const;

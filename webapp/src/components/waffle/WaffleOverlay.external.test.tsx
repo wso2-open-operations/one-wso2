@@ -18,14 +18,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import type { ReactNode } from "react";
 
-// A perspective that lives in another application. Its URL is read at module
-// load, so each case imports the launcher fresh against its own window.config —
-// which is also the only way to cover the unconfigured state, the one every
-// other suite in this repo runs in.
+// The CSM portal lives in another application. It used to be a launcher tile of
+// its own and is now the first link of the Customer Success perspective. Its URL
+// is read at module load, so each case imports the launcher fresh against its own
+// window.config, which is also the only way to cover the unconfigured state.
 
 const CSM_URL = "https://csm.example.test/";
 
@@ -81,57 +80,38 @@ function show(WaffleOverlay: (p: { anchorEl: HTMLElement; onClose: () => void })
 
 const panel = () => screen.getByRole("dialog", { name: "All apps" });
 
-describe("with the URL configured", () => {
-  it("offers the tile as something that opens in a new tab", async () => {
+async function customerSuccess(config: Record<string, unknown>) {
+  await loadLauncher(config);
+  const { PERSPECTIVES } = await import("@constants/perspectives");
+  return PERSPECTIVES.find((perspective) => perspective.key === "customer-success");
+}
+
+// Each case imports the whole launcher fresh, which can pass the default 5 s
+// under a busy full run; it is the import, not the assertions, that is slow.
+const FRESH_IMPORT_TIMEOUT = { timeout: 20_000 };
+
+describe("the CSM portal, with its URL configured", FRESH_IMPORT_TIMEOUT, () => {
+  it("has no launcher tile of its own any more", async () => {
     const { WaffleOverlay } = await loadLauncher({ ONE_WSO2_CSM_URL: CSM_URL });
     show(WaffleOverlay);
 
-    const tile = within(panel()).getByRole("link", { name: "Open CSM in a new tab" });
-    expect(tile).toHaveAttribute("href", CSM_URL);
-    expect(tile).toHaveAttribute("target", "_blank");
-    // The opened page must not get a handle back on ours.
-    expect(tile.getAttribute("rel")).toContain("noopener");
+    expect(within(panel()).queryByRole("link", { name: "Open CSM in a new tab" })).not.toBeInTheDocument();
+    expect(within(panel()).queryByRole("button", { name: /^CSM/ })).not.toBeInTheDocument();
   });
 
-  it("marks it with an outbound badge", async () => {
-    const { WaffleOverlay } = await loadLauncher({ ONE_WSO2_CSM_URL: CSM_URL });
-    show(WaffleOverlay);
+  it("is the first link of Customer Success, opening the configured URL", async () => {
+    const cs = await customerSuccess({ ONE_WSO2_CSM_URL: CSM_URL });
 
-    const tile = within(panel()).getByRole("link", { name: "Open CSM in a new tab" });
-    // Two glyphs: the app's own icon and the badge marking it as outbound.
-    expect(tile.querySelectorAll("svg").length).toBe(2);
+    expect(cs).toMatchObject({ access: true, path: "/customer-success" });
+    expect(cs?.sections?.[0]).toMatchObject({ id: "other-app-csm", label: "CSM Portal", externalUrl: CSM_URL });
   });
 
-  // The tile IS the mechanism. Calling window.open from its onClick as well
-  // opened CSM in two tabs on every click — invisible here until this test,
-  // because jsdom does not follow an anchor's href.
-  it("leaves the opening to the anchor rather than opening it a second time", async () => {
-    const { WaffleOverlay } = await loadLauncher({ ONE_WSO2_CSM_URL: CSM_URL });
-    show(WaffleOverlay);
-
-    await userEvent.click(within(panel()).getByRole("link", { name: "Open CSM in a new tab" }));
-    expect(openCalls).toHaveLength(0);
+  it("is dropped when its URL is not an http(s) address", async () => {
+    const cs = await customerSuccess({ ONE_WSO2_CSM_URL: "javascript:alert(1)" });
+    expect(cs?.sections?.some((section) => section.id === "other-app-csm")).toBe(false);
   });
 
-  it("still closes the launcher, so it is not left over the new tab", async () => {
-    const { WaffleOverlay } = await loadLauncher({ ONE_WSO2_CSM_URL: CSM_URL });
-    const { onClose } = show(WaffleOverlay);
-
-    await userEvent.click(within(panel()).getByRole("link", { name: "Open CSM in a new tab" }));
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  // The corner holds one badge. A star there would offer to favourite an app
-  // that favourites cannot resolve, so it appears to work and stores nothing.
-  it("offers no favourite star on it", async () => {
-    const { WaffleOverlay } = await loadLauncher({ ONE_WSO2_CSM_URL: CSM_URL });
-    show(WaffleOverlay);
-    expect(
-      within(panel()).queryByRole("button", { name: /CSM to favourites/ }),
-    ).not.toBeInTheDocument();
-  });
-
-  // Both resolve a perspective to a route, and this one has none.
+  // Both resolve a perspective to a route, and "csm" is no longer one.
   it("is neither a favourite nor a landing choice", async () => {
     const { favourites, landing } = await loadLauncher({ ONE_WSO2_CSM_URL: CSM_URL });
     expect(favourites.isFavouritable("csm")).toBe(false);
@@ -139,21 +119,17 @@ describe("with the URL configured", () => {
   });
 });
 
-describe("with no URL configured", () => {
-  it("leaves the tile in its unbuilt state rather than linking nowhere", async () => {
-    const { WaffleOverlay } = await loadLauncher({});
-    show(WaffleOverlay);
-
-    expect(
-      within(panel()).getByRole("button", { name: "CSM — not available yet" }),
-    ).toBeDisabled();
-    expect(within(panel()).queryByRole("link", { name: /CSM/ })).not.toBeInTheDocument();
+describe("the CSM portal, with no URL configured", FRESH_IMPORT_TIMEOUT, () => {
+  it("leaves Customer Success unoffered when none of its links has an address", async () => {
+    const cs = await customerSuccess({});
+    expect(cs?.access).toBe(false);
+    expect(cs?.sections ?? []).toEqual([]);
   });
 
-  it("opens nothing when the disabled tile is clicked", async () => {
+  it("opens nothing", async () => {
     const { WaffleOverlay } = await loadLauncher({});
     show(WaffleOverlay);
-    await userEvent.click(within(panel()).getByRole("button", { name: "CSM — not available yet" }));
+    expect(within(panel()).queryByRole("link", { name: /CSM/ })).not.toBeInTheDocument();
     expect(openCalls).toHaveLength(0);
   });
 });
