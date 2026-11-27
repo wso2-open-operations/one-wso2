@@ -44,12 +44,15 @@ export class TokenExchangeError extends Error {
   readonly status: number;
   /** The OAuth error code, e.g. "invalid_grant" or "unauthorized_client". */
   readonly code: string;
+  /** The identity provider's own wording, or "" when it gave none. */
+  readonly description: string;
 
   constructor(status: number, code: string, description: string) {
     super(`Token exchange failed (${status} ${code})${description ? `: ${description}` : ""}`);
     this.name = "TokenExchangeError";
     this.status = status;
     this.code = code;
+    this.description = description;
   }
 }
 
@@ -118,16 +121,55 @@ async function requestExchange(subjectToken: string, request: TokenExchangeReque
   return { token: body.access_token, idToken: body.id_token, expiresAt };
 }
 
+/**
+ * Whether the token's own `exp` has passed, to the second.
+ *
+ * Stricter than `classifyToken`, which keeps calling a token live for a short
+ * while after `exp` to allow for a clock that runs fast. The identity provider
+ * makes no such allowance, so a token in that window is refused as a subject.
+ */
+function pastExpiry(token: string): boolean {
+  const status = classifyToken(token);
+  return status.kind !== "unknown" && status.expiresAt <= Date.now();
+}
+
+/**
+ * Whether the identity provider refused the subject token itself, as opposed to
+ * the client, the grant or the scopes.
+ *
+ * It answers this way for a token it has revoked before its `exp`: "Invalid
+ * Subject Token. Subject token is not ACTIVE." That happens when this app's
+ * session was renewed somewhere else, such as another tab, leaving this tab
+ * holding the token the renewal replaced. Nothing in the token shows it, so the
+ * wording is the only sign. The error code is no help: it is `invalid_request`,
+ * the same as for a malformed request.
+ */
+function refusedSubjectToken(error: TokenExchangeError): boolean {
+  return /subject token/i.test(error.description);
+}
+
 async function exchange(request: TokenExchangeRequest, getSubjectToken: () => Promise<string>): Promise<Exchanged> {
   const subjectToken = await getSubjectToken();
   if (!subjectToken) throw new Error("No access token to exchange.");
+
+  // The other application's token usually outlives this app's own, because it
+  // was issued later. So by the time it needs replacing, this app's token has
+  // often expired too, and while the user is inside the other application
+  // nothing here has renewed it. Renew first rather than send a token the
+  // identity provider is certain to refuse.
+  if (pastExpiry(subjectToken)) {
+    return requestExchange(await refreshAccessToken(subjectToken), request);
+  }
+
   try {
     return await requestExchange(subjectToken, request);
   } catch (error) {
-    // Renew this app's own session only when its token really has expired.
+    // Reached with a token that looked live here. Renew this app's session and
+    // try once more when the token is what was refused: it ran out while the
+    // request was on its way, or the identity provider had already revoked it.
     // Any other refusal is a setup problem that signing in again cannot fix.
-    const subjectExpired = classifyToken(subjectToken).kind === "expired";
-    if (!(error instanceof TokenExchangeError) || !subjectExpired) throw error;
+    if (!(error instanceof TokenExchangeError)) throw error;
+    if (!pastExpiry(subjectToken) && !refusedSubjectToken(error)) throw error;
     return requestExchange(await refreshAccessToken(subjectToken), request);
   }
 }
