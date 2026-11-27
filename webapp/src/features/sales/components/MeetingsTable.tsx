@@ -50,11 +50,14 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
  * time on hover.
  */
 const COLUMNS = [
-  // Account, call type and title in one column: `auto`, the column that grows. Nothing of
-  // MEDDPICC here: a call's analysis is on its own page, and a deal's under Opportunities.
+  // The account leads, at every width: it is what people remember a call by.
+  { key: "account", label: "Account", width: 180 },
+  // The title, the way into the call: `auto`, the column that grows. Nothing of MEDDPICC
+  // here: a call's analysis is on its own page, and a deal's under Opportunities.
   { key: "meeting", label: "Meeting", width: "auto" },
-  // The three Salesforce columns give way as the screen narrows, least needed first, from
-  // the breakpoint in `from` up. The Meeting cell keeps the account name at every width.
+  // The columns with a `from` give way as the screen narrows, least needed first, from that
+  // breakpoint up.
+  { key: "type", label: "Call type", width: 170, from: "lg" },
   { key: "opportunity", label: "Opportunity", width: 200, from: "md" },
   // In WSO2's process the opportunity owner is the AM who hosts the call; a call with no
   // opportunity shows its host, marked as such.
@@ -83,47 +86,47 @@ function startMs(meeting: Meeting): number {
 const CLIP = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 
 /**
- * The meeting in one cell: the account and call type on top, the title beneath it.
- *
- * The account leads because it is what people remember a call by; the title is the link
- * into the meeting. No attendee emails: nobody recalls a call by the customer's address.
- * A meeting with no account (an internal one, say) leads with its call type. Blank rather
- * than a dash when there is no Salesforce link at all: a meeting scheduled through the old
- * form was never linked, so there is nothing missing to point at. The call type is plain
- * text, not a chip: a chip reads as a status, but every linked meeting has a call type.
+ * The call's account, in bold. No attendee emails: nobody recalls a call by the customer's
+ * address. Blank rather than a dash when there is none: an internal meeting has no account,
+ * and a meeting scheduled through the old form was never linked, so there is nothing
+ * missing to point at.
  */
-function MeetingCell({ meeting }: { meeting: Meeting }) {
+function AccountCell({ meeting }: { meeting: Meeting }) {
   const account = meetingCustomer(meeting);
-  const isLead = isLeadMeeting(meeting);
+  if (!account) return null;
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+      <Typography variant="body2" sx={{ ...CLIP, fontWeight: 600, color: "text.primary" }} title={account}>
+        {account}
+      </Typography>
+      {/* An Inbound call's name is a lead's company, not a customer's; the chip says so. */}
+      {isLeadMeeting(meeting) && (
+        <Chip label="Lead" size="small" variant="outlined" sx={{ height: 20, fontSize: "0.65rem", flexShrink: 0 }} />
+      )}
+    </Box>
+  );
+}
+
+/**
+ * The call type, as plain text, not a chip: a chip reads as a status, but every linked
+ * meeting has a call type. Blank for a meeting that was never given one.
+ */
+function CallTypeCell({ meeting }: { meeting: Meeting }) {
   const typeLabel = meetingTypeLabel(meeting.meetingType);
+  if (!typeLabel) return null;
+  return (
+    <Typography variant="body2" color="text.secondary" sx={CLIP} title={typeLabel}>
+      {typeLabel}
+    </Typography>
+  );
+}
+
+/** The meeting's title, the link into the call, with an Upcoming chip where it applies. */
+function MeetingCell({ meeting }: { meeting: Meeting }) {
   const isCancelled = meeting.meetingStatus === "CANCELLED";
 
   return (
     <Box sx={{ minWidth: 0 }}>
-      {(account || typeLabel) && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-          <Typography
-            variant="body2"
-            sx={CLIP}
-            title={[account, typeLabel].filter(Boolean).join(" · ")}
-          >
-            {account && (
-              <Box component="span" sx={{ fontWeight: 600, color: "text.primary" }}>
-                {account}
-              </Box>
-            )}
-            {typeLabel && (
-              <Box component="span" sx={{ color: "text.secondary" }}>
-                {account ? ` · ${typeLabel}` : typeLabel}
-              </Box>
-            )}
-          </Typography>
-          {/* An Inbound call's name is a lead's company, not a customer's; the chip says so. */}
-          {isLead && (
-            <Chip label="Lead" size="small" variant="outlined" sx={{ height: 20, fontSize: "0.65rem", flexShrink: 0 }} />
-          )}
-        </Box>
-      )}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
         {/* A link, not a row click: the title is the thing that names this meeting, so it
             is what should look and behave like the way in. A whole-row target would also
@@ -137,7 +140,7 @@ function MeetingCell({ meeting }: { meeting: Meeting }) {
           sx={{
             ...CLIP,
             textDecoration: isCancelled ? "line-through" : "none",
-            color: isCancelled ? "text.disabled" : "text.secondary",
+            color: isCancelled ? "text.disabled" : "text.primary",
           }}
           title={meeting.title}
           onClick={(event) => event.stopPropagation()}
@@ -335,8 +338,18 @@ export default function MeetingsTable({
                       onClick={openMeeting}
                       sx={openMeeting ? { cursor: "pointer" } : undefined}
                     >
-                      <ListingTable.Cell>
+                      <ListingTable.Cell sx={{ maxWidth: 180 }}>
+                        <AccountCell meeting={meeting} />
+                      </ListingTable.Cell>
+
+                      {/* maxWidth 0: the title takes the room the fixed columns leave and
+                          clips to it, rather than widening the table past the screen. */}
+                      <ListingTable.Cell sx={{ maxWidth: 0, minWidth: 140 }}>
                         <MeetingCell meeting={meeting} />
+                      </ListingTable.Cell>
+
+                      <ListingTable.Cell sx={{ maxWidth: 170, ...columnDisplay(COLUMN.type) }}>
+                        <CallTypeCell meeting={meeting} />
                       </ListingTable.Cell>
 
                       <ListingTable.Cell sx={{ maxWidth: 200, ...columnDisplay(COLUMN.opportunity) }}>
