@@ -35,6 +35,7 @@ import { useAmplifyPeople } from "../api/useAmplifyPeople";
 import AmplifyShell from "../components/AmplifyShell";
 import { TeamLeaderboardPanel, TopAmplifiersPanel } from "../components/LeaderboardPanels";
 import LinkLinkedInDialog from "../components/LinkLinkedInDialog";
+import OwnPostPanel from "../components/OwnPostPanel";
 import PostCard, { CategoryChip, PriorityChip } from "../components/PostCard";
 import PostCarousel from "../components/PostCarousel";
 import ShareDialog from "../components/ShareDialog";
@@ -43,9 +44,10 @@ import { campaignForShareParam } from "../util/linkedinPost";
 // Celebrate: every employee's Amplify page. In order (phase 1 UX review):
 //  1. Posts to amplify, priority first then newest. Gone once you've shared
 //     them all ("all caught up").
-//  2. Top three leaders, company wide, this month by default (leaderboard.top_scope).
-//  3. My position, for the same scope.
-//  4. Team leaderboard.
+//  2. Your own posts: submit one you wrote for review, and see where each is.
+//  3. Top three leaders, company wide, this month by default (leaderboard.top_scope).
+//  4. My position, for the same scope.
+//  5. Team leaderboard.
 // No My Coins section in phase 1.
 export default function CelebratePage() {
   const me = useAmplifyMe();
@@ -208,6 +210,8 @@ export default function CelebratePage() {
           />
         )
       )}
+
+      <OwnPostPanel />
 
       {topBoard.isPending ? (
         <Skeleton variant="rounded" height={320} sx={{ mb: 3 }} />

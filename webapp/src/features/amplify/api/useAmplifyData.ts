@@ -19,7 +19,7 @@
 // Every key is scoped to the signed-in subject, same as TIL: a tab switching
 // accounts must not serve the previous user's grants or LinkedIn status from cache.
 
-import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useAsgardeo } from "@asgardeo/react";
 import { authedGet } from "@api/http";
 import { useAccessToken } from "@hooks/useAccessToken";
@@ -27,7 +27,22 @@ import { amplifyServiceUrls, isAmplifyBackendConfigured } from "@config/apiConfi
 import { foldIdentityError, useAsgardeoSub } from "@hooks/useAsgardeoSub";
 import { amplifyRetry } from "../util/amplifyError";
 import { DEFAULT_POST_LINK_ORIGINS } from "../util/linkedinPost";
-import type { AmplifyAppConfig, AmplifyMe, CampaignPage, Category, Leaderboard, Share, TopBoard } from "./amplifyTypes";
+import type {
+  AmplifyAppConfig,
+  AmplifyMe,
+  AmplifyPersonMatch,
+  CampaignPage,
+  Category,
+  ExternalShare,
+  ExternalSharePage,
+  ExternalShareStatus,
+  LedgerEntry,
+  Leaderboard,
+  PointRule,
+  PointsHistory,
+  Share,
+  TopBoard,
+} from "./amplifyTypes";
 
 export { isAmplifyBackendConfigured };
 
@@ -208,6 +223,161 @@ export function useAmplifyCategories() {
       return [...body.categories].sort((a, b) => a.sortOrder - b.sortOrder);
     },
     staleTime: 10 * 60 * 1000,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** The caller's own posts sent for review, newest first (GET /me/external-shares). */
+export function useMyExternalShares() {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<ExternalShare[]>({
+    queryKey: amplifyKey("my-external-shares", userSub),
+    enabled: ready,
+    queryFn: async () =>
+      (await authedGet<{ items: ExternalShare[] }>(amplifyServiceUrls.myExternalShares, await getAccessToken())).items,
+    staleTime: 30 * 1000,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** Claims per page on Review own posts. */
+export const REVIEW_PAGE_SIZE = 10;
+
+/**
+ * One page (0-based) of claims in `status`, oldest first (GET /po/external-shares, CAN_REVIEW_SHARES). The page
+ * on screen stays while the next one loads.
+ */
+export function useExternalSharesForReview(status: ExternalShareStatus, page: number) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<ExternalSharePage>({
+    queryKey: amplifyKey("external-shares-review", userSub, status, page),
+    enabled: ready,
+    queryFn: async () => {
+      const params = new URLSearchParams({ status, page: String(page), size: String(REVIEW_PAGE_SIZE) });
+      return authedGet<ExternalSharePage>(`${amplifyServiceUrls.poExternalShares}?${params}`, await getAccessToken());
+    },
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/**
+ * How many claims are waiting for review: the `total` of a one-row PENDING page. Shares its key prefix with the
+ * review lists, so a decision refreshes it too.
+ *
+ * @param enabled - false asks nothing (a caller without `CAN_REVIEW_SHARES`, or off the Amplify perspective)
+ */
+export function useWaitingReviewCount(enabled: boolean) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<number>({
+    queryKey: amplifyKey("external-shares-review", userSub, "PENDING", "count"),
+    enabled: ready && enabled,
+    queryFn: async () => {
+      const params = new URLSearchParams({ status: "PENDING", page: "0", size: "1" });
+      const url = `${amplifyServiceUrls.poExternalShares}?${params}`;
+      return (await authedGet<ExternalSharePage>(url, await getAccessToken())).total;
+    },
+    staleTime: 60 * 1000,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** The fewest characters GET /po/people searches on. */
+export const PEOPLE_SEARCH_MIN_LENGTH = 2;
+
+/** How many matches the person search asks for. */
+export const PEOPLE_SEARCH_LIMIT = 10;
+
+/**
+ * People who have used Amplify whose name or email matches `q` (GET /po/people, CAN_ADJUST_POINTS). Asks nothing
+ * until the trimmed text has two characters; the caller debounces it.
+ */
+export function usePoPeopleSearch(q: string) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const term = q.trim();
+  const query = useQuery<AmplifyPersonMatch[]>({
+    queryKey: amplifyKey("po-people", userSub, term),
+    enabled: ready && term.length >= PEOPLE_SEARCH_MIN_LENGTH,
+    queryFn: async () => {
+      const params = new URLSearchParams({ q: term, limit: String(PEOPLE_SEARCH_LIMIT) });
+      const url = `${amplifyServiceUrls.poPeople}?${params}`;
+      return (await authedGet<{ items: AmplifyPersonMatch[] }>(url, await getAccessToken())).items;
+    },
+    staleTime: 60 * 1000,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/** Rows per request when reading a person's whole history (amplify-api caps `size` at 100). */
+export const HISTORY_FETCH_SIZE = 100;
+
+/** The most history requests one read makes: the latest 2,000 rows. */
+export const HISTORY_MAX_PAGES = 20;
+
+/** A person's ledger rows, newest first. `complete` is false when there were more rows than one read takes. */
+export interface PersonHistory {
+  items: LedgerEntry[];
+  complete: boolean;
+}
+
+/**
+ * Reads every page of a person's history, newest first, up to `HISTORY_MAX_PAGES`. A row that moved onto the next
+ * page while reading (a new row arrived) is kept once.
+ */
+export async function readWholeHistory(url: string, accessToken: string): Promise<PersonHistory> {
+  const items: LedgerEntry[] = [];
+  const seen = new Set<string>();
+  for (let page = 0; page < HISTORY_MAX_PAGES; page++) {
+    const body = await authedGet<PointsHistory>(`${url}?page=${page}&size=${HISTORY_FETCH_SIZE}`, accessToken);
+    for (const row of body.items) {
+      if (seen.has(row.reference)) continue;
+      seen.add(row.reference);
+      items.push(row);
+    }
+    if (body.items.length < HISTORY_FETCH_SIZE || (page + 1) * HISTORY_FETCH_SIZE >= body.total) {
+      return { items, complete: true };
+    }
+  }
+  return { items, complete: false };
+}
+
+/**
+ * One person's whole points history (GET /team/{employeeId}/history, every page), so the page can sum the all-time
+ * total and tell which rows are reversed: a reversal is always newer than the row it cancels. Asks nothing without
+ * an id.
+ */
+export function usePointsHistory(employeeId: string | null) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const id = employeeId?.trim() || null;
+  const query = useQuery<PersonHistory>({
+    queryKey: amplifyKey("points-history", userSub, id ?? ""),
+    enabled: ready && id !== null,
+    queryFn: async () => readWholeHistory(amplifyServiceUrls.pointsHistory(id ?? ""), await getAccessToken()),
+    staleTime: 30 * 1000,
+    retry: amplifyRetry,
+  });
+  return foldIdentityError(query, subState, retryIdentity);
+}
+
+/**
+ * Every points rule version (GET /po/point-rules, CAN_POINT_RULES).
+ *
+ * @param enabled - false asks nothing (a caller without the grant)
+ */
+export function usePointRules(enabled = true) {
+  const { getAccessToken, subState, retryIdentity, userSub, ready } = useAmplifyQueryBasis();
+  const query = useQuery<PointRule[]>({
+    queryKey: amplifyKey("point-rules", userSub),
+    enabled: ready && enabled,
+    queryFn: async () =>
+      (await authedGet<{ rules: PointRule[] }>(amplifyServiceUrls.poPointRules, await getAccessToken())).rules,
+    staleTime: 60 * 1000,
     retry: amplifyRetry,
   });
   return foldIdentityError(query, subState, retryIdentity);

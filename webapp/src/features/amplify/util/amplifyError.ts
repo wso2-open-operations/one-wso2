@@ -51,11 +51,35 @@ const MESSAGES: Record<string, string> = {
   MEMBER_ALREADY_LINKED: "That LinkedIn account is already linked to another employee.",
   MISSING_SCOPE: "LinkedIn didn't grant sharing permission. Try again and allow it.",
   DEPENDENCY_UNAVAILABLE: "Something went wrong, please try again.",
+  EVIDENCE_ALREADY_CLAIMED: "This post has already been submitted.",
+  DAILY_LIMIT_REACHED: "You've reached today's limit for submitting your own posts. Try again tomorrow.",
+  CERTIFICATION_REQUIRED: "Confirm that you wrote this post yourself and that it's about Choreo Labs.",
+  INVALID_EVIDENCE_URL: "That doesn't look like a LinkedIn post link.",
+  EVIDENCE_URL_NOT_HTTPS: "Use the post's https:// link.",
+  SELF_REVIEW: "You can't decide on your own post; another PO team member will.",
+  NOT_PENDING: "Someone has already decided on this post. Reload to see where it is now.",
+  NOT_APPROVED: "Approve the post before featuring it.",
+  ALREADY_AMPLIFIED: "This post is already featured.",
+  REASON_REQUIRED: "Add a reason.",
+  ALREADY_REVERSED: "This activity has already been reversed.",
+  CANNOT_REVERSE_REVERSAL: "A reversal can't be reversed.",
+  INVALID_LEDGER_REFERENCE: "That activity can't be found. Reload and try again.",
+  INVALID_POINTS: "Check the points and try again.",
+  RULE_VERSION_EXISTS: "Someone has just changed this value. Reload and try again.",
 };
 
-/** A sentence a person can act on, for a failed Amplify call. */
-export function describeAmplifyError(err: unknown): string {
+/** What `SELF_REVIEW` means on Points & corrections, where the refused change is to the caller's own points. */
+export const SELF_CORRECTION_MESSAGE = "You can't correct your own points.";
+
+/**
+ * A sentence a person can act on, for a failed Amplify call.
+ *
+ * @param overrides - copy for codes whose meaning depends on the screen (`SELF_REVIEW` on Points & corrections),
+ *   checked before the shared messages
+ */
+export function describeAmplifyError(err: unknown, overrides?: Readonly<Record<string, string>>): string {
   const code = amplifyProblemCode(err);
+  if (code && overrides?.[code]) return overrides[code];
   if (code && MESSAGES[code]) return MESSAGES[code];
   return "Something went wrong, please try again.";
 }

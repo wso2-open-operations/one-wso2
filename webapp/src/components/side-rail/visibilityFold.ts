@@ -26,8 +26,11 @@ import { BANKING_ITEM_IDS, LEAVE_ITEM_IDS } from "@constants/meApps";
 import { PAR_EMPLOYEE_ITEM_ID } from "@constants/parApps";
 import { PROMOTION_EMPLOYEE_ITEM_ID } from "@constants/promotionApps";
 import {
+  AMPLIFY_ADMIN_ITEM_ID,
   AMPLIFY_DASHBOARD_ITEM_IDS,
   AMPLIFY_EDITOR_ITEM_IDS,
+  AMPLIFY_POINTS_ITEM_ID,
+  AMPLIFY_REVIEW_ITEM_ID,
   BANKING_ADMIN_ITEM_ID,
   PAR_ADMIN_PORTAL_ITEM_ID,
   PAR_LEAD_PORTAL_ITEM_ID,
@@ -226,7 +229,13 @@ export function claimOf(name: AdapterName): SectionClaim {
     case "engineering":
       return ids([ENGINEERING_ADMIN_ITEM_ID]);
     case "amplify":
-      return { kind: "sections", ids: new Set([...AMPLIFY_EDITOR_ITEM_IDS, ...AMPLIFY_DASHBOARD_ITEM_IDS]) };
+      return ids([
+        ...AMPLIFY_EDITOR_ITEM_IDS,
+        ...AMPLIFY_DASHBOARD_ITEM_IDS,
+        AMPLIFY_REVIEW_ITEM_ID,
+        AMPLIFY_POINTS_ITEM_ID,
+        AMPLIFY_ADMIN_ITEM_ID,
+      ]);
     case "swag-store-admin":
       return { kind: "sections", ids: SWAG_STORE_ADMIN_ITEM_IDS };
     case "procurement":

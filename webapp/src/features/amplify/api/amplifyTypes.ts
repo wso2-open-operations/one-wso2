@@ -409,3 +409,115 @@ export interface GroupBoard {
   entries: GroupBoardEntry[];
   unassigned: { participants: number; points: number };
 }
+
+// ---- Own posts (amplify-api /external-shares, /me/external-shares, /po/external-shares) ------------------
+
+/** Where a claim is: waiting for the PO team, approved, featured (AMPLIFIED) or declined (REJECTED). */
+export type ExternalShareStatus = "PENDING" | "APPROVED" | "REJECTED" | "AMPLIFIED";
+
+/** POST /external-shares: an employee's own post, sent for review. */
+export interface ExternalShareClaim {
+  /** The post's public HTTPS link. */
+  evidenceUrl: string;
+  /** "I wrote this post myself, and it's about Choreo Labs." Must be true. */
+  certified: true;
+  /** A note for the reviewer, at most 500 characters. Sent only when there is one. */
+  note?: string;
+}
+
+/** One claim, as the employee and the PO team see it. */
+export interface ExternalShare {
+  id: string;
+  /** Amplify's id for the person who sent it, the same id as GET /me `employee.employeeId`. */
+  employeeId: string;
+  campaignId?: string | null;
+  action: "OWN_POST";
+  evidenceUrl: string;
+  evidenceHost: string;
+  evidenceProvider: "linkedin" | "medium" | "other";
+  status: ExternalShareStatus;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  /** Why it was declined; shown to the employee. */
+  decisionReason?: string | null;
+  amplifiedAt?: string | null;
+  /** The employee's note for the reviewer. Absent until the API sends it. */
+  note?: string | null;
+  createdAt: string;
+  version: number;
+}
+
+/** GET /po/external-shares: one page of claims, oldest first. */
+export interface ExternalSharePage {
+  items: ExternalShare[];
+  page: number;
+  size: number;
+  total: number;
+}
+
+// ---- Points (amplify-api /po/point-rules, /po/points/*, /team/{employeeId}/history, /po/people) ----------
+
+/** What a points rule or a ledger row is for. */
+export type PointAction =
+  | "REPOST"
+  | "REPOST_COMMENTARY"
+  | "SHARE"
+  | "SHARE_COMMENTARY"
+  | "OWN_POST"
+  | "OWN_POST_AMPLIFIED"
+  | "REACTION"
+  | "COMMENT"
+  | "CHALLENGE_ENTRY"
+  | "CHALLENGE_WINNER";
+
+/** One version of a points rule. `inForce` marks the version used for new activity. */
+export interface PointRule {
+  id: string;
+  action: PointAction;
+  points: number;
+  effectiveFrom: string;
+  createdBy: string;
+  createdAt: string;
+  inForce: boolean;
+}
+
+/** One points ledger row. A reversal row cancels the row named in `reversesReference`. */
+export interface LedgerEntry {
+  reference: string;
+  employeeId: string;
+  campaignId?: string | null;
+  sourceType: "ENGAGEMENT" | "EXTERNAL_SHARE" | "ADJUSTMENT" | "REVERSAL";
+  action?: string | null;
+  /** Signed: a removal or a reversal is negative. */
+  points: number;
+  /** The PO team's reason, on adjustment and reversal rows. */
+  reason?: string | null;
+  reversesReference?: string | null;
+  actorId?: string;
+  createdAt: string;
+  status?: "HELD" | "PAID" | null;
+}
+
+/** GET /team/{employeeId}/history: one page of a person's ledger rows, newest first. `total` counts rows. */
+export interface PointsHistory {
+  employeeId: string;
+  page: number;
+  size: number;
+  total: number;
+  items: LedgerEntry[];
+}
+
+/** POST /po/points/adjustments. */
+export interface PointsAdjustment {
+  employeeId: string;
+  /** Signed, not zero, within ±10,000. */
+  points: number;
+  reason: string;
+}
+
+/** One match from GET /po/people: someone who has used Amplify. */
+export interface AmplifyPersonMatch {
+  employeeId: string;
+  displayName: string | null;
+  email: string;
+}
