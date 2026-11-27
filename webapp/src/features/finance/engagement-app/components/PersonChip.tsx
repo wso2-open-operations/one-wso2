@@ -61,7 +61,7 @@ export function PersonTwo({ name, email, sub }: { readonly name: string; readonl
   const faceOf = usePeopleFaces();
   const face = email ? faceOf(email) : {};
   return (
-    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.25, minWidth: 0 }}>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
       <PersonAvatar name={name || email || ""} photo={face.photo} size={32} />
       <Two main={name} sub={sub} />
     </Box>

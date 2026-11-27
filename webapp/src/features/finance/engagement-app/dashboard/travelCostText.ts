@@ -32,9 +32,6 @@ export const COST_SOURCE_LABEL: Readonly<Record<CostSource, string>> = {
   claim: "Expense Claims",
 };
 
-/** Up to this many unconverted amounts are listed in full; more are summed up in one line with the list behind Show Details. */
-export const NOT_CONVERTED_INLINE_MAX = 3;
-
 /** Every unconverted amount with its source, e.g. "AED 5,940.00 (Per Diems), BRL 712.35 (Expense Claims)". */
 export function notConvertedList(rows: readonly NotConverted[]): string {
   return rows.map((r) => `${r.currency ? money(r.amount, r.currency) : `Unknown currency ${money(r.amount, undefined)}`} (${COST_SOURCE_LABEL[r.source]})`).join(", ");
@@ -46,11 +43,30 @@ export function notConvertedText(rows: readonly NotConverted[]): string {
   return `Not converted, left out of the totals: ${notConvertedList(rows)}`;
 }
 
-/** The short form for many amounts: how many, in how many currencies, and from which sources. */
-export function notConvertedSummary(rows: readonly NotConverted[]): string {
-  const recorded = new Set(rows.map((r) => r.currency).filter(Boolean)).size;
-  const unknown = rows.some((r) => !r.currency);
-  const parts = [...(recorded ? [`${recorded} ${recorded === 1 ? "currency" : "currencies"}`] : []), ...(unknown ? ["unknown currency"] : [])];
-  const sources = [...new Set(rows.map((r) => COST_SOURCE_LABEL[r.source]))];
-  return `Not converted, left out of the totals: ${rows.length} amounts in ${parts.join(" and ")} (${sources.join(", ")}).`;
+/** How many amounts the rows stand for: the sum of their lines, or one per row when the backend sent no count. */
+export function notConvertedLines(rows: readonly NotConverted[]): number {
+  return rows.reduce((n, r) => n + (r.lines ?? 1), 0);
+}
+
+/** The one line above the figures about amounts with no exchange rate, or an empty string when there is nothing to say. */
+export function notConvertedNote(rows: readonly NotConverted[], ratesPending: boolean): string {
+  if (ratesPending) return "Some exchange rates are still loading, so totals may be low. Refresh in a minute.";
+  if (!rows.length) return "";
+  const plural = (n: number, one: string, many: string) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+  const known = rows.filter((r) => r.currency);
+  const noCurrency = notConvertedLines(rows.filter((r) => !r.currency));
+  const parts: string[] = [];
+  if (known.length) {
+    const amounts = notConvertedLines(known);
+    const currencies = new Set(known.map((r) => r.currency)).size;
+    parts.push(`${plural(amounts, "amount", "amounts")} in ${plural(currencies, "currency", "currencies")} ${amounts === 1 ? "has" : "have"} no exchange rate, so ${amounts === 1 ? "it is" : "they are"} left out of the totals.`);
+  }
+  if (noCurrency) parts.push(`${plural(noCurrency, "amount has", "amounts have")} no currency recorded, so ${noCurrency === 1 ? "it is" : "they are"} left out of the totals.`);
+  return parts.join(" ");
+}
+
+/** The rows of the "left out" table: by source, then currency. */
+export function notConvertedSorted(rows: readonly NotConverted[]): NotConverted[] {
+  const order = Object.keys(COST_SOURCE_LABEL);
+  return [...rows].sort((a, b) => order.indexOf(a.source) - order.indexOf(b.source) || a.currency.localeCompare(b.currency));
 }

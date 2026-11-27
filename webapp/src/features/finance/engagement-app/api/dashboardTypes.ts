@@ -134,6 +134,8 @@ export interface TravelCosts {
   readonly byPaid: readonly CostBucket[];
   readonly paidSharePercent?: number;
   readonly notConverted: readonly NotConverted[];
+  /** Exchange rates are still loading, so totals may be low. */
+  readonly ratesPending?: boolean;
   /** Sources the backend could not read; their lines are left out of every figure. */
   readonly failedSources: readonly CostSource[];
   /** A source hit the 20,000-line cap. */

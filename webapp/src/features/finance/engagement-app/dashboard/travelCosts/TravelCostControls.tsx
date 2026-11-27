@@ -15,15 +15,16 @@
 // under the License.
 
 import { useEffect, useRef, useState, type JSX } from "react";
-import { Alert, Badge, Box, Button, Card, Chip, FormControlLabel, keyframes, Link, Menu, MenuItem, Stack, Switch, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Alert, Badge, Box, Button, Card, Chip, FormControlLabel, keyframes, Menu, MenuItem, Stack, Switch, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { ChartColumnIcon, DownloadIcon, FilterIcon, TableIcon } from "@wso2/oxygen-ui-icons-react";
 import { eaSurfaceSx } from "../../components/eaStyles";
 import { FilterDate, FilterSelect } from "../../components/FilterFields";
 import { fmtDate } from "../../model/format";
 import { InfoHint } from "../dashboardParts";
 import { utcStamp } from "./costFormat";
-import { COST_SOURCE_LABEL, NOT_CONVERTED_INLINE_MAX, notConvertedList, notConvertedSummary, notConvertedText, USD_RATE_HINT_WITH_TRANSACTIONS } from "../travelCostText";
+import { COST_SOURCE_LABEL, USD_RATE_HINT_WITH_TRANSACTIONS } from "../travelCostText";
 import type { CostCtx } from "../widgets/types";
+import NotConvertedNote from "./NotConvertedNote";
 import CostFilterDialog from "./CostFilterDialog";
 import { describeFilter, FILTER_LABEL } from "./filterOptions";
 import { FILTER_KEYS, filterCount, type FilterKey } from "./costView";
@@ -115,10 +116,6 @@ export default function TravelCostControls({ cost, today, canDownloadTransaction
     // Only a new click: the filters it set are read as they stand then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drill?.id]);
-  const unconverted = data?.notConverted ?? [];
-  const skipped = notConvertedText(unconverted);
-  const manySkipped = unconverted.length > NOT_CONVERTED_INLINE_MAX;
-  const [skippedOpen, setSkippedOpen] = useState(false);
   return (
     <Card ref={card} variant="outlined" component="section" aria-label="Travel Costs controls" sx={[{ p: 2, minWidth: 0, scrollMarginTop: APP_BAR_CLEARANCE + 16 }, eaSurfaceSx]}>
       <Stack direction="row" useFlexGap spacing={2.5} sx={{ alignItems: "center", flexWrap: "wrap", rowGap: 1.5 }}>
@@ -226,21 +223,7 @@ export default function TravelCostControls({ cost, today, canDownloadTransaction
           This range has more lines than the dashboard can total. Choose a shorter period.
         </Alert>
       ) : null}
-      {skipped ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-          {manySkipped ? notConvertedSummary(unconverted) : skipped}
-          {manySkipped ? (
-            <Link component="button" type="button" variant="body2" onClick={() => setSkippedOpen((o) => !o)} aria-expanded={skippedOpen} sx={{ ml: 0.75, verticalAlign: "baseline" }}>
-              {skippedOpen ? "Hide Details" : "Show Details"}
-            </Link>
-          ) : null}
-        </Typography>
-      ) : null}
-      {manySkipped && skippedOpen ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-          {notConvertedList(unconverted)}
-        </Typography>
-      ) : null}
+      <NotConvertedNote rows={data?.notConverted ?? []} ratesPending={data?.ratesPending} />
       {filtersOpen ? (
         <CostFilterDialog
           view={view}

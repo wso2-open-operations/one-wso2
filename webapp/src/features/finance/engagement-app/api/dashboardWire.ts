@@ -124,6 +124,8 @@ export interface WTravelCosts {
   byPaid: WCostBucket[];
   paidSharePercent?: number | null;
   notConverted?: { source: string; currency?: string | null; amount: number; lines?: number }[] | null;
+  /** Exchange rates are still being fetched, so totals may be low. Absent from an older backend. */
+  ratesPending?: boolean;
   failedSources?: string[] | null;
   truncated?: boolean;
   comparisonFailedSources?: string[] | null;

@@ -137,6 +137,7 @@ export function travelCosts(w: DW.WTravelCosts): D.TravelCosts {
     byPaid: buckets(w.byPaid),
     paidSharePercent: num(w.paidSharePercent),
     notConverted: (w.notConverted ?? []).map(notConverted),
+    ratesPending: w.ratesPending === true ? true : undefined,
     failedSources: (w.failedSources ?? []).map(costSource),
     truncated: Boolean(w.truncated),
     comparisonFailedSources: (w.comparisonFailedSources ?? []).map(costSource),
