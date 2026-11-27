@@ -18,8 +18,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import {
   AdapterDateFns,
+  Alert,
   Autocomplete,
   Box,
+  Button,
+  CircularProgress,
   ComplexSelect,
   DatePickers,
   Divider,
@@ -36,13 +39,14 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import type { JSX } from "react";
+import { categoryBasis, suggestionIsCurrent } from "./suggestionBasis";
 import type { AddRiskFormValues } from "./types";
 import { QUARTERS, RISK_ACCEPTORS, YEAR_OPTIONS } from "./constants";
 import FieldLabel from "./FieldLabel";
 import TemplateFields, { CustomerField } from "./TemplateFields";
 import type { TemplateLookups } from "./TemplateFields";
 import { hasComplianceReferences, riskCodePreview, templateOf } from "./templates";
-import { fetchRiskAssignerCandidates, searchEmployees } from "../../api/riskApi";
+import { fetchRiskAssignerCandidates, searchEmployees, suggestCategory } from "../../api/riskApi";
 import type { ComplianceReference, EmployeeOption, LookupOption, RiskCategory, RiskTeam, UserOption } from "../../api/riskApi";
 import { useAuthApiClient } from "@features/security/grc/shim/useAuthApiClient";
 import { BACKEND_BASE_URL } from "@features/security/grc/shim/apiConfig";
@@ -86,13 +90,71 @@ export default function BasicInformationStep({
   lookups,
   onCustomerAdded,
 }: BasicInformationStepProps): JSX.Element {
-  const { control, clearErrors, setValue } = useFormContext<AddRiskFormValues>();
+  const { control, clearErrors, setValue, getValues } = useFormContext<AddRiskFormValues>();
   const authFetch = useAuthApiClient();
 
   const year             = useWatch({ control, name: "year" });
   const quarter          = useWatch({ control, name: "quarter" });
   const sourceRegister   = useWatch({ control, name: "sourceRegister" });
   const identifiedByType = useWatch({ control, name: "identifiedByType" });
+
+  // ── Suggest category ─────────────────────────────────────────────────────
+  // Explicit button only, never automatic/debounced — an automatic call as
+  // the user types would burn AI Gateway usage on every abandoned or
+  // half-finished form, with no way to tell a real attempt from someone who
+  // typed a few words and navigated away.
+  const riskTitle = useWatch({ control, name: "riskTitle" });
+  const riskDescription = useWatch({ control, name: "riskDescription" });
+  const complianceReferences = useWatch({ control, name: "complianceReferences" });
+  const aiCategorySuggestion = useWatch({ control, name: "aiCategorySuggestion" });
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  const handleSuggestCategory = useCallback(async () => {
+    setSuggesting(true);
+    setSuggestError(null);
+    const requestBasis = categoryBasis(riskTitle, riskDescription, complianceReferences);
+    const requestCategory = getValues("riskCategory");
+    try {
+      const result = await suggestCategory(
+        authFetch,
+        riskTitle,
+        riskDescription,
+        complianceReferences ?? [],
+      );
+      // The category and the text can be edited while the request runs. A
+      // response for different inputs, or one that would overwrite a category
+      // the user picked meanwhile, is dropped.
+      const now = getValues();
+      if (
+        categoryBasis(now.riskTitle, now.riskDescription, now.complianceReferences) !== requestBasis ||
+        now.riskCategory !== requestCategory
+      ) {
+        return;
+      }
+      setValue("riskCategory", result.category_id, { shouldValidate: true, shouldDirty: true });
+      setValue("aiCategorySuggestion", {
+        categoryId: result.category_id,
+        reason: result.reason,
+        confidence: result.confidence,
+        basis: categoryBasis(riskTitle, riskDescription, complianceReferences),
+      });
+      clearErrors("riskCategory");
+    } catch (err) {
+      // A failed request must not leave the previous suggestion behind: the
+      // banner is hidden, but the old one would still be saved.
+      setValue("aiCategorySuggestion", null);
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : undefined;
+      setSuggestError(
+        status === 404
+          ? "AI category suggestions aren't enabled yet."
+          : `Couldn't get a suggestion${message ? `: ${message}` : ""} — please pick a category manually.`,
+      );
+    } finally {
+      setSuggesting(false);
+    }
+  }, [authFetch, riskTitle, riskDescription, complianceReferences, setValue, getValues, clearErrors]);
 
   // Risk Assigned To is restricted to users who already hold RISK_CREATE in
   // the chosen source register — the same grant handleCreateRisk itself
@@ -480,7 +542,18 @@ export default function BasicInformationStep({
             rules={{ required: "Risk category is required" }}
             render={({ field, fieldState }) => (
               <Box>
-                <FieldLabel required>Risk Category</FieldLabel>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                  <FieldLabel required>Risk Category</FieldLabel>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleSuggestCategory}
+                    disabled={suggesting || !riskTitle || !riskDescription}
+                    startIcon={suggesting ? <CircularProgress size={14} /> : undefined}
+                  >
+                    {suggesting ? "Suggesting…" : "Suggest category"}
+                  </Button>
+                </Stack>
                 <ComplexSelect
                   {...field}
                   fullWidth
@@ -489,6 +562,9 @@ export default function BasicInformationStep({
                   onChange={(e) => {
                     field.onChange(e);
                     if (e.target.value) clearErrors("riskCategory");
+                    // The suggestion snapshot is kept when the user picks a
+                    // different category, so the backend can record the
+                    // override; only the banner is hidden (see below).
                   }}
                 >
                   <ComplexSelect.MenuItem value="" disabled sx={{ display: "none" }}>
@@ -502,6 +578,22 @@ export default function BasicInformationStep({
                 </ComplexSelect>
                 {fieldState.error && (
                   <FormHelperText error>{fieldState.error.message}</FormHelperText>
+                )}
+                {suggestError && (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    {suggestError}
+                  </Alert>
+                )}
+                {!suggestError &&
+                  aiCategorySuggestion &&
+                  field.value === aiCategorySuggestion.categoryId &&
+                  suggestionIsCurrent(aiCategorySuggestion, categoryBasis(riskTitle, riskDescription, complianceReferences)) && (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      <strong>Suggested</strong> ({aiCategorySuggestion.confidence} confidence):{" "}
+                      {aiCategorySuggestion.reason}
+                    </Typography>
+                  </Alert>
                 )}
               </Box>
             )}
