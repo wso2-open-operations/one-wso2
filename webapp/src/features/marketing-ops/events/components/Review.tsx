@@ -98,6 +98,12 @@ const FILTERS: { key: Status | null; label: string }[] = [
  *  sent back instead. */
 const FINISHED: Status[] = ["Approved", "Imported"];
 
+/** Who signed a list off: automatic review, a person, or nobody yet. */
+function reviewerLabel(s: SubmissionSummary): string {
+  if (s.reviewed_by === "machine") return "Automatic review";
+  return s.reviewed_by || "—";
+}
+
 export function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
   const queue = useReviewQueue();
   const remove = useRemoveFromQueue();
@@ -144,6 +150,7 @@ export function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
                 <TableCell sx={TH}>Event</TableCell>
                 <TableCell sx={TH}>Submitted by</TableCell>
                 <TableCell sx={TH}>Status</TableCell>
+                <TableCell sx={TH}>Reviewed by</TableCell>
                 <TableCell align="right" sx={TH}>Rows</TableCell>
                 <TableCell sx={TH}>Submitted</TableCell>
                 <TableCell align="right" />
@@ -176,6 +183,11 @@ export function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
                   </TableCell>
                   <TableCell>
                     <StatusChip status={r.status} />
+                  </TableCell>
+                  <TableCell>
+                    <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+                      {reviewerLabel(r)}
+                    </Typography>
                   </TableCell>
                   <TableCell align="right">
                     <Typography
@@ -308,7 +320,11 @@ export function ReviewDetail({ id, onBack }: { id: string; onBack: () => void })
     <Box>
       <WorkspaceHead
         title={sub.event_name}
-        caption={[sub.owner_email ?? "unknown submitter", sub.source_filename]
+        caption={[
+          sub.owner_email ?? "unknown submitter",
+          sub.source_filename,
+          sub.reviewed_by ? `reviewed by ${reviewerLabel(sub)}` : null,
+        ]
           .filter(Boolean)
           .join(" · ")}
         onBack={onBack}
@@ -406,6 +422,25 @@ export function ReviewDetail({ id, onBack }: { id: string; onBack: () => void })
         ) : (
           <Typography sx={{ fontSize: 13, color: "warning.main", fontWeight: 600 }}>
             Not provided — ask the submitter before importing.
+          </Typography>
+        )}
+        <Typography
+          sx={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "text.disabled",
+            ml: { sm: 2 },
+          }}
+        >
+          SDR owner
+        </Typography>
+        {sub.sdr_owner_email ? (
+          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{sub.sdr_owner_email}</Typography>
+        ) : (
+          <Typography sx={{ fontSize: 13, color: "warning.main", fontWeight: 600 }}>
+            Not provided
           </Typography>
         )}
       </Panel>

@@ -88,7 +88,7 @@ export function EventsLeadImportPage() {
     <MarketingOpsShell
       eyebrow={MARKETING_OPS_EYEBROW.events}
       title="Lead Import"
-      subtitle="Map a raw event lead file onto the template columns, then download it to edit and submit."
+      subtitle="Map a raw event lead file onto the template columns and create a submission from it."
     >
       <LeadImport />
     </MarketingOpsShell>

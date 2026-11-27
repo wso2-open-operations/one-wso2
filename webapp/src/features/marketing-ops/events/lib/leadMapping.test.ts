@@ -26,7 +26,7 @@ import type { FieldDef } from "../eventsTypes";
 import type { MappingEntry } from "../leadImportTypes";
 import { parseWorkbook } from "../rules/workbook";
 import type { EventsConfig } from "../rules/schema";
-import { applyMapping, buildWorkbook, choose, namePair, outputFileName, splitFullName } from "./leadMapping";
+import { applyMapping, buildPayload, buildWorkbook, choose, namePair, outputFileName, splitFullName } from "./leadMapping";
 
 function def(field_name: string, header_label = field_name, extra: Partial<FieldDef> = {}): FieldDef {
   return { field_name, header_label, data_type: "text", picklist: [], mandatory: false, ...extra };
@@ -188,5 +188,30 @@ describe("the output workbook", () => {
     expect(parsed.totalRows).toBe(2);
     expect(parsed.tabs[0].undefinedHeaders).toEqual([]);
     expect(parsed.tabs[0].missingHeaders).toEqual([]);
+  });
+});
+
+describe("buildPayload", () => {
+  it("stores rows under the same keys as uploading the workbook would", async () => {
+    const output = applyMapping(
+      [
+        ["Nombre", "Correo", "Empresa"],
+        ["Ana Silva", "ana@acme.io", "00123"],
+      ],
+      0,
+      DEFS,
+      [entry("First Name", 0, "first"), entry("Last Name", 0, "last"), entry("Email", 1), entry("Company", 2)],
+    );
+    const payload = buildPayload(DEFS, output, "Booth");
+    expect(payload.tabs.Booth).toEqual([
+      { first_name: "Ana", last_name: "Silva", email: "ana@acme.io", company: "00123" },
+    ]);
+
+    const config: EventsConfig = {
+      statuses: [{ name: "Booth", score: 5, enabled: true }],
+      fields: { Booth: DEFS },
+    };
+    const parsed = await parseWorkbook(new File([await buildWorkbook("Booth", output)], "x.xlsx"), config);
+    expect(payload.tabs.Booth).toEqual(parsed.tabs[0].rows);
   });
 });

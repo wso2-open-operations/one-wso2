@@ -24,12 +24,17 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  TextField,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import { ArrowLeft } from "@wso2/oxygen-ui-icons-react";
 import { STATUS_LABEL, type Status } from "../eventsTypes";
-import { primaryBtn, quietBtn, STATUS_STYLE } from "./eventsStyles";
+import { useCampaignCheck } from "../../api/useEvents";
+import { campaignUrlHint } from "../lib/campaignUrl";
+import { sdrOwnerHint } from "../lib/sdrOwner";
+import { campaignIdFrom } from "../rules/validate";
+import { fieldHint, fieldInput, primaryBtn, quietBtn, STATUS_STYLE } from "./eventsStyles";
 
 // Shared presentational pieces for the Events screens.
 //
@@ -88,6 +93,90 @@ export function ConfirmDialog({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+// ---- the campaign URL -----------------------------------------------------------
+
+/** The Salesforce campaign URL input, with the campaign ID read back (or the problem
+ *  named) on every keystroke. One component, so the three places it is entered agree. */
+export function CampaignUrlField({
+  value,
+  onChange,
+  disabled,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  autoFocus?: boolean;
+}) {
+  const campaignId = campaignIdFrom(value);
+  const check = useCampaignCheck(campaignId);
+  const hint = campaignUrlHint(value, { checking: check.isFetching, check: check.data });
+  return (
+    <>
+      <TextField
+        size="small"
+        fullWidth
+        sx={fieldInput}
+        placeholder="https://wso2.lightning.force.com/lightning/r/Campaign/…"
+        disabled={disabled}
+        autoFocus={autoFocus}
+        value={value}
+        error={hint.tone === "error"}
+        onChange={(e) => onChange(e.target.value)}
+        inputProps={{ "aria-label": "Salesforce campaign URL" }}
+      />
+      <Typography
+        sx={{
+          ...fieldHint,
+          ...(hint.tone === "error" ? { color: "error.main" } : hint.tone === "ok" ? { color: "success.main" } : {}),
+        }}
+      >
+        {hint.text}
+      </Typography>
+    </>
+  );
+}
+
+/** The SDR owner's email, with the rule shown as it is typed. */
+export function SdrOwnerField({
+  value,
+  onChange,
+  disabled,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  autoFocus?: boolean;
+}) {
+  const hint = sdrOwnerHint(value);
+  return (
+    <>
+      <TextField
+        size="small"
+        fullWidth
+        sx={fieldInput}
+        type="email"
+        placeholder="name@wso2.com"
+        disabled={disabled}
+        autoFocus={autoFocus}
+        value={value}
+        error={hint.tone === "error"}
+        onChange={(e) => onChange(e.target.value)}
+        inputProps={{ "aria-label": "SDR owner email" }}
+      />
+      <Typography
+        sx={{
+          ...fieldHint,
+          ...(hint.tone === "error" ? { color: "error.main" } : hint.tone === "ok" ? { color: "success.main" } : {}),
+        }}
+      >
+        {hint.text}
+      </Typography>
+    </>
   );
 }
 

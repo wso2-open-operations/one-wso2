@@ -19,6 +19,7 @@
 
 import type { GridRow } from "../rules/model";
 import { labelOf, type EventsConfig, type Tab } from "../rules/schema";
+import { NOT_ENGLISH } from "../rules/titles";
 
 export interface FieldIssues {
   field: string;
@@ -27,6 +28,9 @@ export interface FieldIssues {
   label: string;
   /** Cells we have a suggestion for — what accept-all acts on. */
   suggested: { row_id: string; field: string }[];
+  /** The suggested cells whose suggestion is a job-title translation, which are answered
+   *  one title at a time rather than in bulk. A subset of `suggested`. */
+  translations: { row_id: string; field: string }[];
   /** Cells only the user can resolve. */
   blocked: number;
 }
@@ -41,15 +45,18 @@ export function issuesByField(
   const out: FieldIssues[] = [];
   for (const field of columns) {
     const suggested: { row_id: string; field: string }[] = [];
+    const translations: { row_id: string; field: string }[] = [];
     let blocked = 0;
     for (const row of rows) {
       const issue = row.issues.find((i) => i.field === field);
       if (!issue) continue;
-      if (issue.suggestion) suggested.push({ row_id: row.id, field });
-      else blocked++;
+      if (issue.suggestion) {
+        suggested.push({ row_id: row.id, field });
+        if (issue.code === NOT_ENGLISH) translations.push({ row_id: row.id, field });
+      } else blocked++;
     }
     if (suggested.length || blocked) {
-      out.push({ field, label: labelOf(config, tab, field), suggested, blocked });
+      out.push({ field, label: labelOf(config, tab, field), suggested, translations, blocked });
     }
   }
   return out;

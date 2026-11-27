@@ -1108,8 +1108,16 @@ export const marketingOpsServiceUrls = {
     `${marketingOpsBackendUrl}/api/events/submissions/${encodeURIComponent(id)}/payload`,
   eventsSubmissionSuggest: (id: string) =>
     `${marketingOpsBackendUrl}/api/events/submissions/${encodeURIComponent(id)}/suggest`,
+  eventsSubmissionTitles: (id: string) =>
+    `${marketingOpsBackendUrl}/api/events/submissions/${encodeURIComponent(id)}/titles`,
   eventsSubmissionSubmit: (id: string) =>
     `${marketingOpsBackendUrl}/api/events/submissions/${encodeURIComponent(id)}/submit`,
+  eventsCampaign: (campaignId: string) =>
+    `${marketingOpsBackendUrl}/api/events/campaigns/${encodeURIComponent(campaignId)}`,
+  eventsSubmissionReview: (id: string) =>
+    `${marketingOpsBackendUrl}/api/events/submissions/${encodeURIComponent(id)}/review`,
+  eventsSubmissionEscalate: (id: string) =>
+    `${marketingOpsBackendUrl}/api/events/submissions/${encodeURIComponent(id)}/escalate`,
   eventsSubmissionWithdraw: (id: string) =>
     `${marketingOpsBackendUrl}/api/events/submissions/${encodeURIComponent(id)}/withdraw`,
   eventsSubmissionComments: (id: string) =>
@@ -1117,6 +1125,16 @@ export const marketingOpsServiceUrls = {
   eventsEventNames: (q: string) =>
     `${marketingOpsBackendUrl}/api/events/event-names?q=${encodeURIComponent(q)}`,
   eventsReference: `${marketingOpsBackendUrl}/api/events/reference`,
+  // Countries and states, a copy of Salesforce's: freshness (open) and Sync now (admin).
+  eventsGeography: `${marketingOpsBackendUrl}/api/events/geography`,
+  eventsGeographySync: `${marketingOpsBackendUrl}/api/events/geography/sync`,
+  // Pick list columns copied from Salesforce (Industry): status (open) and Sync (admin).
+  eventsPicklists: `${marketingOpsBackendUrl}/api/events/picklists`,
+  eventsPicklistsSync: `${marketingOpsBackendUrl}/api/events/picklists/sync`,
+  // Job titles taken as not English, and marking one as English (both admin).
+  eventsFlaggedTitles: (q: string) =>
+    `${marketingOpsBackendUrl}/api/events/titles/flagged${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+  eventsMarkTitleEnglish: `${marketingOpsBackendUrl}/api/events/titles/mark-english`,
   eventsFields: `${marketingOpsBackendUrl}/api/events/fields`,
   eventsFieldsForTab: (tab: string) =>
     `${marketingOpsBackendUrl}/api/events/fields/${encodeURIComponent(tab)}`,

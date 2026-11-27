@@ -216,9 +216,30 @@ export function validateRow(row: Row, tab: Tab, ref: Reference, config: EventsCo
       // cannot be saved through Settings, so this only guards data already stored.
       if (re && !re.test(value)) {
         // Never repaired: the pattern says what is acceptable, not what was meant.
+        // A column that holds an email address says so in plain words; any other names
+        // the column, since "isn't a valid assign to user" reads as nonsense. Told by what
+        // the pattern accepts, not by its text: a social handle's pattern has "@" in it
+        // too, but doesn't accept an address.
+        const holdsEmail = f === SPECIAL.email || re.test('someone@example.com')
         issue({ field: f, code: 'pattern_mismatch', bucket: 'needs_you', value,
-                message: `“${value}” isn’t a valid ${def.field_name.toLowerCase()}.` })
+                message: holdsEmail
+                  ? `“${value}” isn’t a valid email address.`
+                  : `“${value}” isn’t in the format ${def.field_name} needs.` })
       }
+    }
+  }
+
+  // --- email, beyond the configured pattern --------------------------------------------
+  //
+  // The pattern an admin configures is deliberately loose, and two real-world forms pass
+  // it: a trailing dot ("a@b.com.") and a pasted "mailto:" link. Both bounce. This is the
+  // same check the server makes at submit — keep the two in step, or the server refuses
+  // lists the grid calls clean.
+  if (has(SPECIAL.email)) {
+    const email = get(row, SPECIAL.email)
+    if (email && !EMAIL_RE.test(email) && !out.some(i => i.field === SPECIAL.email)) {
+      issue({ field: SPECIAL.email, code: 'pattern_mismatch', bucket: 'needs_you', value: email,
+              message: `“${email}” isn’t a valid email address.` })
     }
   }
 
@@ -263,7 +284,7 @@ export function validateRow(row: Row, tab: Tab, ref: Reference, config: EventsCo
         // are exactly what the model is for; leave the suggestion empty.
         issue({ field: SPECIAL.state, code: 'unknown_state', bucket: 'fixable', value: state,
                 options: allowed, context: `country is ${canonicalCountry}`,
-                message: `“${state}” isn’t a state we recognise for ${canonicalCountry}.` })
+                message: `“${state}” isn’t one of Salesforce’s states for ${canonicalCountry}.` })
       } else if (canonicalState !== state) {
         issue({ field: SPECIAL.state, code: 'unknown_state', bucket: 'fixable', value: state,
                 suggestion: canonicalState, source: 'reference', options: allowed,
@@ -312,7 +333,30 @@ export function validateRow(row: Row, tab: Tab, ref: Reference, config: EventsCo
   return out
 }
 
+/** A usable email address: no spaces, quotes, brackets, colons or commas anywhere, and a
+ *  domain of dot-separated parts with nothing empty — so no trailing dot and no
+ *  "mailto:". The same pattern the server checks at submit; keep the two in step. */
+export const EMAIL_RE = /^[^@\s:<>,;"()[\]]+@[^@\s.,;:<>"()[\]]+(\.[^@\s.,;:<>"()[\]]+)+$/
+
 export function validateRows(rows: Row[], tab: Tab, ref: Reference,
                              config: EventsConfig): Issue[][] {
-  return rows.map(r => validateRow(r, tab, ref, config))
+  const issues = rows.map(r => validateRow(r, tab, ref, config))
+
+  // The same person twice in one member status is the same prospect imported twice —
+  // a cross-row rule, so it lives here rather than in validateRow. Said in the grid, so
+  // it is fixed alongside everything else instead of surfacing only at Review. The server
+  // refuses the same thing at review; both ignore case and surrounding spaces.
+  const first = new Map<string, number>()
+  rows.forEach((r, i) => {
+    const email = get(r, SPECIAL.email).toLowerCase()
+    if (!email) return
+    const seen = first.get(email)
+    if (seen === undefined) {
+      first.set(email, i)
+    } else {
+      issues[i].push({ field: SPECIAL.email, code: 'duplicate', bucket: 'needs_you', value: get(r, SPECIAL.email),
+                       message: `Same email as row ${seen + 1}.` })
+    }
+  })
+  return issues
 }

@@ -15,7 +15,6 @@
 // under the License.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
 import {
   Alert,
   Box,
@@ -33,6 +32,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { ArrowRight, Download, RefreshCw, RotateCcw } from "@wso2/oxygen-ui-icons-react";
 import { leadImportError, useSuggestLeadMapping } from "../../api/useLeadImport";
+import { type EventMeta, useCreateSubmission, useSaveSubmission } from "../../api/useEvents";
 import type { FieldDef } from "../eventsTypes";
 import type { ClaudeStep, MappingEntry } from "../leadImportTypes";
 import { saveBlob } from "../lib/download";
@@ -40,6 +40,7 @@ import { defaultSheet, headerRowOf, MAX_HEADING_CHARS, sourceColumns, type RawSh
 import {
   applyMapping,
   attentionOf,
+  buildPayload,
   buildWorkbook,
   choose,
   decodeChoice,
@@ -48,7 +49,7 @@ import {
   rowLabel,
   sourceLabel,
 } from "../lib/leadMapping";
-import { Count, Panel, WorkspaceHead } from "./EventsUi";
+import { ConfirmDialog, Count, Panel, WorkspaceHead } from "./EventsUi";
 import LeadMappingTable from "./LeadMappingTable";
 import { fieldLabel, primaryBtn, quietBtn } from "./eventsStyles";
 
@@ -56,13 +57,13 @@ import { fieldLabel, primaryBtn, quietBtn } from "./eventsStyles";
 //
 // Top to bottom: what the file is and which rows hold the headings; four numbers that
 // say how far the mapping got; the mapping itself; the file's columns that went nowhere;
-// and the rows exactly as they download. Download is the one filled button. After it,
-// the screen says what to do next: edit the file, then upload it in My Submissions.
+// and the rows exactly as they download. This is step 2 of Lead Import: the filled
+// button creates the submission and moves on to step 3, where its rows are fixed and
+// reviewed. Coming back here after that, a changed mapping can replace the rows.
 
 const PREVIEW_ROWS = 20;
 /** How far down the heading row may be. Vendor exports put titles above it. */
 const HEADER_ROW_CHOICES = 20;
-const MY_SUBMISSIONS = "/marketing-ops/events/mine";
 
 function unmapped(defs: FieldDef[]): MappingEntry[] {
   return defs
@@ -82,7 +83,11 @@ export default function LeadMapping({
   sheets,
   status,
   defs,
-  onStartOver,
+  meta,
+  submissionId,
+  onBack,
+  onCreated,
+  onNext,
 }: {
   fileName: string;
   sheets: RawSheet[];
@@ -90,12 +95,21 @@ export default function LeadMapping({
   status: string;
   /** The columns of `status`, in template order (Settings → Events). */
   defs: FieldDef[];
-  /** Back to the upload screen. */
-  onStartOver: () => void;
+  /** Event details collected on the setup screen. */
+  meta: EventMeta;
+  /** The submission this mapping already created, if it has. */
+  submissionId: string | null;
+  /** Back to step 1. */
+  onBack: () => void;
+  /** The submission was created from this mapping. */
+  onCreated: (id: string) => void;
+  /** On to step 3. `replaced`: the rows were just written again, so reload them. */
+  onNext: (replaced: boolean) => void;
 }) {
-  const navigate = useNavigate();
   const { mutateAsync } = useSuggestLeadMapping();
-  const [sheetIndex, setSheetIndex] = useState(() => defaultSheet(sheets));
+  const createSubmission = useCreateSubmission();
+  const saveSubmission = useSaveSubmission();
+  const [sheetIndex, setSheetIndex] = useState(() => defaultSheet(sheets, status));
   const rows = sheets[sheetIndex].rows;
   const [headerRow, setHeaderRow] = useState(() => headerRowOf(rows));
   const [mapping, setMapping] = useState<MappingEntry[] | null>(null);
@@ -106,6 +120,12 @@ export default function LeadMapping({
   const [exportError, setExportError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  /** The mapping the submission's rows were last written from, to tell whether they're
+   *  out of date. */
+  const [written, setWritten] = useState<string | null>(null);
+  const [confirmReplace, setConfirmReplace] = useState(false);
   /** The mapping on screen, for a download that finishes after the person changed it. */
   const current = useRef<MappingEntry[] | null>(null);
   useEffect(() => {
@@ -179,6 +199,39 @@ export default function LeadMapping({
     }
   }
 
+  /** Write the mapped rows: into a new submission the first time, over the existing
+   *  one's rows after that. */
+  async function submit() {
+    if (!output || output.rows.length === 0) return;
+    setConfirmReplace(false);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const replacing = written !== null;
+      let id = submissionId;
+      if (!id) {
+        const created = await createSubmission.mutateAsync(meta);
+        if (!created?.id) throw new Error("The server did not return the new submission.");
+        id = created.id;
+        // Handed up at once, so if saving the rows fails, trying again saves into this
+        // submission instead of creating another.
+        onCreated(id);
+      }
+      await saveSubmission.mutateAsync({
+        id,
+        payload: buildPayload(defs, output, status),
+        rowCount: output.rows.length,
+        sourceFilename: fileName,
+      });
+      setWritten(signature);
+      onNext(replacing);
+    } catch (e) {
+      setSubmitError(leadImportError(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const loading = mapping === null;
   const byField = new Map((mapping ?? []).map((entry) => [entry.field_name, entry]));
   const targets = defs.filter((d) => !d.computed);
@@ -188,14 +241,30 @@ export default function LeadMapping({
   const unused = sources.filter((s) => !used.has(s.index));
   const changed = Boolean(suggested && mapping && JSON.stringify(suggested) !== JSON.stringify(mapping));
   const noRows = output !== null && output.rows.length === 0;
+  // What the rows were written from: the sheet, its heading row and the mapping. Changing
+  // any of them makes the written rows out of date, even with the same mapping.
+  const signature = JSON.stringify([sheetIndex, headerRow, mapping]);
+  // Nothing written yet — no submission, or one whose rows failed to save — is a first
+  // write. After that: unchanged, Next just moves on; changed, it offers to replace.
+  const firstWrite = written === null;
+  const stale = Boolean(!firstWrite && mapping && written !== signature);
+  const nextLabel = submitting
+    ? firstWrite
+      ? "Creating submission…"
+      : "Replacing the rows…"
+    : firstWrite
+      ? "Create submission"
+      : stale
+        ? "Replace the rows"
+        : "Next: fix & review";
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <WorkspaceHead
         title={fileName}
         caption={`${status} leads${sheets.length > 1 ? ` · sheet ${sheets[sheetIndex].name}` : ""}`}
-        onBack={onStartOver}
-        backLabel="Choose another file"
+        onBack={onBack}
+        backLabel="Back: set up"
       >
         {changed && (
           <Button
@@ -213,13 +282,30 @@ export default function LeadMapping({
         <Tooltip title={noRows ? "No row has a value in a mapped column yet." : ""} arrow>
           <span>
             <Button
-              variant="contained"
-              sx={primaryBtn}
+              sx={quietBtn}
               disabled={loading || noRows || saving}
               onClick={() => void download()}
               startIcon={saving ? <CircularProgress size={15} color="inherit" /> : <Download size={16} />}
             >
-              Download workbook
+              {saving ? "Saving…" : "Download workbook"}
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip title={noRows ? "No row has a value in a mapped column yet." : ""} arrow>
+          <span>
+            <Button
+              variant="contained"
+              sx={primaryBtn}
+              disabled={loading || noRows || submitting}
+              onClick={() => {
+                if (firstWrite) void submit();
+                else if (stale) setConfirmReplace(true);
+                else onNext(false);
+              }}
+              startIcon={submitting ? <CircularProgress size={15} color="inherit" /> : undefined}
+              endIcon={submitting ? undefined : <ArrowRight size={16} />}
+            >
+              {nextLabel}
             </Button>
           </span>
         </Tooltip>
@@ -239,25 +325,46 @@ export default function LeadMapping({
         </Alert>
       )}
 
-      {saved ? (
+      {submitError && (
         <Alert
-          severity="success"
+          severity="error"
           sx={{ fontSize: 13 }}
           action={
-            <Button size="small" endIcon={<ArrowRight size={14} />} onClick={() => navigate(MY_SUBMISSIONS)}>
-              Go to My Submissions
+            <Button size="small" startIcon={<RefreshCw size={14} />} onClick={() => void submit()}>
+              Try again
             </Button>
           }
         >
-          Saved <b>{saved}</b>. Open it, make any changes to the data, then upload it in My Submissions, which checks
-          every row.
+          {submitError}
+        </Alert>
+      )}
+
+      {saved ? (
+        <Alert severity="success" sx={{ fontSize: 13 }}>
+          Saved <b>{saved}</b>.
         </Alert>
       ) : (
         <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
-          Values are copied exactly as they are in the file. Check the mapping below, download the workbook, make any
-          changes, then upload it in My Submissions.
+          Values are copied exactly as they are in the file. Check the mapping, then{" "}
+          {firstWrite ? "create the submission." : "go on to fix and review the rows."}
         </Typography>
       )}
+
+      <ConfirmDialog
+        open={confirmReplace}
+        title="Replace the rows?"
+        confirmLabel="Replace the rows"
+        tone="danger"
+        busy={submitting}
+        body={
+          <>
+            The mapping changed since the rows were created. Writing them again replaces every row in the
+            submission, <b>including any fixes made in step 3</b>.
+          </>
+        }
+        onCancel={() => setConfirmReplace(false)}
+        onConfirm={() => void submit()}
+      />
 
       <Box role="group" aria-label="Mapping summary">
         <Panel sx={{ display: "flex", flexWrap: "wrap", alignItems: "stretch" }}>

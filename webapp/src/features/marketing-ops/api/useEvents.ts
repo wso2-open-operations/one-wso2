@@ -39,20 +39,26 @@ import {
 } from "@config/apiConfig";
 import { downloadAuthed } from "../events/lib/download";
 import type {
+  CampaignCheck,
   Comment,
   FieldDef,
   FieldDefs,
+  FlaggedTitle,
+  GeographyStatus,
   MemberStatus,
   MemberStatusInput,
   NotificationSettings,
   NotificationSettingsOut,
   Payload,
+  PicklistSyncStatus,
   ReferenceResponse,
+  ReviewResult,
   SubmissionFull,
   SubmissionSummary,
   SubmitResult,
   SuggestItem,
   SuggestResult,
+  TitleResult,
 } from "../events/eventsTypes";
 
 // Submissions are PER-USER (owner-scoped server-side), so those keys carry the sub.
@@ -65,6 +71,9 @@ const KEY = {
   statuses: (incl: boolean) => ["marketing-ops", "events", "statuses", incl] as const,
   fields: ["marketing-ops", "events", "fields"] as const,
   reference: ["marketing-ops", "events", "reference"] as const,
+  geography: ["marketing-ops", "events", "geography"] as const,
+  picklists: ["marketing-ops", "events", "picklists"] as const,
+  flaggedTitles: (q: string) => ["marketing-ops", "events", "flagged-titles", q] as const,
   queue: ["marketing-ops", "events", "review", "queue"] as const,
   reviewSubmission: (id: string) => ["marketing-ops", "events", "review", id] as const,
   reviewComments: (id: string) => ["marketing-ops", "events", "review", "comments", id] as const,
@@ -121,6 +130,94 @@ export function useEventsReference() {
   });
 }
 
+// How fresh the country and state lists are, for Settings → Events. Asked on every visit
+// (the app default is not to refetch on mount): the answer changes on its own once a day.
+export function useGeographyStatus() {
+  const { getAccessToken, ready } = useBase();
+  return useQuery<GeographyStatus>({
+    queryKey: KEY.geography,
+    enabled: ready,
+    queryFn: async () => authedGet<GeographyStatus>(urls.eventsGeography, await getAccessToken()),
+    refetchOnMount: true,
+    retry: httpRetry,
+  });
+}
+
+// Sync now: replace the lists with Salesforce's, whatever their age. On success the
+// browser's own copy of the lists is dropped too, so this session validates against
+// the new ones straight away.
+export function useSyncGeography() {
+  const { getAccessToken } = useBase();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      authedPost<GeographyStatus>(urls.eventsGeographySync, await getAccessToken(), {}),
+    onSuccess: (data) => {
+      qc.setQueryData(KEY.geography, data);
+      return qc.invalidateQueries({ queryKey: KEY.reference });
+    },
+    // A failure is recorded server-side; show it in the status too.
+    onError: () => qc.invalidateQueries({ queryKey: KEY.geography }),
+  });
+}
+
+// Pick list columns copied from Salesforce (Industry), for Settings → Events.
+export function usePicklistStatus() {
+  const { getAccessToken, ready } = useBase();
+  return useQuery<PicklistSyncStatus[]>({
+    queryKey: KEY.picklists,
+    enabled: ready,
+    queryFn: async () =>
+      authedGet<PicklistSyncStatus[]>(urls.eventsPicklists, await getAccessToken()),
+    refetchOnMount: true,
+    retry: httpRetry,
+  });
+}
+
+// Sync from Salesforce: copy Salesforce's values onto those columns on every status. On
+// success the column definitions are reloaded, so the editor and this session's checks
+// use the new values straight away.
+export function useSyncPicklists() {
+  const { getAccessToken } = useBase();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      authedPost<PicklistSyncStatus[]>(urls.eventsPicklistsSync, await getAccessToken(), {}),
+    onSuccess: (data) => {
+      qc.setQueryData(KEY.picklists, data);
+      return qc.invalidateQueries({ queryKey: KEY.fields });
+    },
+    // A failure is recorded server-side; show it in the status too.
+    onError: () => qc.invalidateQueries({ queryKey: KEY.picklists }),
+  });
+}
+
+// Job titles the check took as not English, newest first, for Settings → Events.
+export function useFlaggedTitles(q: string) {
+  const { getAccessToken, ready } = useBase();
+  return useQuery<FlaggedTitle[]>({
+    queryKey: KEY.flaggedTitles(q),
+    enabled: ready,
+    queryFn: async () =>
+      authedGet<FlaggedTitle[]>(urls.eventsFlaggedTitles(q), await getAccessToken()),
+    refetchOnMount: true,
+    retry: httpRetry,
+  });
+}
+
+// An admin says a flagged title is English: no list flags it again (a list already open
+// in someone's browser does once it is reloaded).
+export function useMarkTitleEnglish() {
+  const { getAccessToken } = useBase();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (key: string) =>
+      authedPost<{ ok: boolean }>(urls.eventsMarkTitleEnglish, await getAccessToken(), { key }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["marketing-ops", "events", "flagged-titles"] }),
+  });
+}
+
 // Event-name autocomplete. Only fires once the user has typed enough to be worth a
 // round trip — a one-character query would match almost everything.
 export function useEventNames(q: string) {
@@ -134,6 +231,20 @@ export function useEventNames(q: string) {
   });
 }
 
+// Whether Salesforce has this campaign — feedback for the URL field as it is typed.
+// Keyed by the campaign ID, so it asks once per distinct ID however many keystrokes it
+// takes to get there. Automatic review asks again at submit; this is not the check.
+export function useCampaignCheck(campaignId: string) {
+  const { getAccessToken, ready } = useBase();
+  return useQuery<CampaignCheck>({
+    queryKey: ["marketing-ops", "events", "campaign", campaignId],
+    enabled: ready && Boolean(campaignId),
+    queryFn: async () => authedGet<CampaignCheck>(urls.eventsCampaign(campaignId), await getAccessToken()),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}
+
 // ---- submissions (submitter side) ----------------------------------------
 
 export function useSubmissions() {
@@ -144,6 +255,11 @@ export function useSubmissions() {
     queryFn: async () =>
       authedGet<SubmissionSummary[]>(urls.eventsSubmissions, await getAccessToken()),
     staleTime: 30 * 1000,
+    // The app default is refetchOnMount: false. Lead Import creates submissions on
+    // another page and invalidates this list, but an unmounted query is only marked
+    // stale — without this, My Submissions kept showing the list from its last visit.
+    // Refetches only when stale (invalidated or older than staleTime).
+    refetchOnMount: true,
     retry: httpRetry,
   });
 }
@@ -178,6 +294,8 @@ export interface EventMeta {
   event_name: string;
   event_date: string | null;
   sf_campaign_url: string | null;
+  /** Left out, the server keeps the one it has. */
+  sdr_owner_email?: string | null;
 }
 
 export function useCreateSubmission() {
@@ -240,6 +358,16 @@ export function useSaveSubmission() {
         source_filename: sourceFilename,
         template_version: templateVersion,
       }),
+    // Written into the cache as the save starts, not only when it lands: a screen that
+    // leaves with a save in flight and is opened again at once (Lead Import's step 3)
+    // would otherwise rebuild its rows from the copy before that save, and its next save
+    // would put the old rows back.
+    onMutate: ({ id, payload }) => {
+      qc.setQueriesData<SubmissionFull>(
+        { queryKey: ["marketing-ops", "events", "submission", id] },
+        (old) => (old ? { ...old, payload } : old),
+      );
+    },
     onSuccess: (saved, { id, payload }) => {
       // The open submission is cached with staleTime Infinity (see useSubmission), so
       // nothing refreshes it on its own. Before this, the cache kept the EMPTY payload it
@@ -268,6 +396,19 @@ export function useSuggest() {
   });
 }
 
+// Which job titles are not in English, with an English version for each. Only the
+// TITLES travel. Answers are stored server-side, so a list seen before costs no model
+// call. A mutation for the same reason as useSuggest: it fires after a load, not on render.
+export function useCheckTitles() {
+  const { getAccessToken } = useBase();
+  return useMutation({
+    mutationFn: async ({ id, titles }: { id: string; titles: string[] }) =>
+      authedPost<TitleResult>(urls.eventsSubmissionTitles(id), await getAccessToken(), {
+        titles,
+      }),
+  });
+}
+
 // Submit for review. Returns `problems` on a 200 when the SERVER's invariants disagree
 // with the browser's rules — in practice a stale tab. `submitted: false` with problems
 // is a normal outcome, not an error, so callers must check the flag rather than assume
@@ -278,6 +419,28 @@ export function useSubmitSubmission() {
   return useMutation({
     mutationFn: async (id: string) =>
       authedPost<SubmitResult>(urls.eventsSubmissionSubmit(id), await getAccessToken(), {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["marketing-ops", "events"] }),
+  });
+}
+
+// Run automatic review without changing anything, check by check. Nothing to invalidate:
+// the list is exactly as it was.
+export function useRunAutomaticReview() {
+  const { getAccessToken } = useBase();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      authedPost<ReviewResult>(urls.eventsSubmissionReview(id), await getAccessToken(), {}),
+  });
+}
+
+// Send the list to an admin instead of automatic review, with a note saying why — for the
+// cases the rules get wrong. Lands in the review queue as Submitted.
+export function useEscalateSubmission() {
+  const { getAccessToken } = useBase();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, note }: { id: string; note: string }) =>
+      authedPost<SubmitResult>(urls.eventsSubmissionEscalate(id), await getAccessToken(), { note }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["marketing-ops", "events"] }),
   });
 }

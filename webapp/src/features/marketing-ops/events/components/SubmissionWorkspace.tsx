@@ -25,6 +25,7 @@ import {
   DialogTitle,
   Drawer,
   IconButton,
+  TextField,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -34,7 +35,7 @@ import {
   Minimize2,
   PaintBucket,
   Redo2,
-  Send,
+  ShieldCheck,
   Sparkles,
   Columns3,
   Table2,
@@ -45,6 +46,8 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { describeError } from "@api/errors";
 import {
+  useCampaignCheck,
+  useEscalateSubmission,
   useEventsReference,
   useFieldDefs,
   useMemberStatuses,
@@ -52,21 +55,29 @@ import {
   useSubmission,
   useSubmissionComments,
   useSubmitSubmission,
+  useRunAutomaticReview,
   useSuggest,
+  useCheckTitles,
+  useUpdateSubmissionMeta,
   useWithdrawSubmission,
 } from "../../api/useEvents";
-import type { Comment, Problem, SubmissionFull, Tab } from "../eventsTypes";
+import type { Comment, Problem, ReviewResult, SubmissionFull, SubmitResult, Tab } from "../eventsTypes";
+import ReviewDialog, { type ReviewState, type ReviewStep } from "./ReviewDialog";
 import { toReference, type Reference } from "../rules/reference";
 import { WorkbookError, parseWorkbook, type ParsedWorkbook } from "../rules/workbook";
 import {
   accept,
+  answerTitle,
   applySuggestions,
+  applyTranslations,
   changesOf,
   countsFor,
   edit,
   fillField,
   fromPayload,
+  pendingTitles,
   reject,
+  rederive,
   removeRows,
   toPayload,
   totalRows,
@@ -74,6 +85,7 @@ import {
   type Model,
 } from "../rules/model";
 import { buildRequest } from "../rules/suggest";
+import { distinctTitles, titleKey } from "../rules/titles";
 import { buildReport, type Report } from "../rules/report";
 import { SPECIAL, labelOf, liveStatuses, picklistOf, type EventsConfig, type Field } from "../rules/schema";
 import { columnsFor } from "../rules/columns";
@@ -82,7 +94,21 @@ import IssueBar from "./IssueBar";
 import { issuesByField } from "../lib/issueGroups";
 import { ChangeListButton } from "./ChangeList";
 import FillDialog, { type FillTarget } from "./FillDialog";
-import { ConfirmDialog, EventsLoading, Panel, StatusChip, TabRail, WorkspaceHead } from "./EventsUi";
+import TitleDialog from "./TitleDialog";
+import {
+  CampaignUrlField,
+  SdrOwnerField,
+  ConfirmDialog,
+  EventsLoading,
+  Panel,
+  StatusChip,
+  TabRail,
+  WorkspaceHead,
+} from "./EventsUi";
+import { campaignIdFrom } from "../rules/validate";
+import { campaignUrlHint } from "../lib/campaignUrl";
+import { describeEventsError } from "../lib/serverError";
+import { normaliseSdr, sdrOwnerProblem } from "../lib/sdrOwner";
 import { EVENTS_LOADING, LEAVE_MS, primaryBtn, quietBtn, tint, useToneColors } from "./eventsStyles";
 
 // One submission, from the RMM's side.
@@ -120,7 +146,16 @@ const broken = (row: { issues: { field: string }[] }, field: string | null) =>
 // which is why this split exists. Seeding local state from an async load in an effect is
 // the antipattern React's set-state-in-effect rule exists to catch; keying a child on the
 // loaded data is the supported way to do it.
-export default function SubmissionWorkspace({ id, onBack }: { id: string; onBack: () => void }) {
+export default function SubmissionWorkspace({
+  id,
+  onBack,
+  backLabel = "My submissions",
+}: {
+  id: string;
+  onBack: () => void;
+  /** The back button's label — Lead Import's step 3 goes back to the mapping. */
+  backLabel?: string;
+}) {
   const reference = useEventsReference();
   const statuses = useMemberStatuses();
   const fields = useFieldDefs();
@@ -141,6 +176,7 @@ export default function SubmissionWorkspace({ id, onBack }: { id: string; onBack
       key={id}
       id={id}
       onBack={onBack}
+      backLabel={backLabel}
       submission={submission.data}
       reference={toReference(reference.data)}
       config={{ statuses: statuses.data, fields: fields.data }}
@@ -153,6 +189,7 @@ export default function SubmissionWorkspace({ id, onBack }: { id: string; onBack
 function Workspace({
   id,
   onBack,
+  backLabel,
   submission,
   reference: ref,
   config,
@@ -161,6 +198,7 @@ function Workspace({
 }: {
   id: string;
   onBack: () => void;
+  backLabel: string;
   submission: SubmissionFull;
   reference: Reference;
   config: EventsConfig;
@@ -170,7 +208,11 @@ function Workspace({
   const tones = useToneColors();
   const save = useSaveSubmission();
   const suggestMutation = useSuggest();
+  const titlesMutation = useCheckTitles();
   const submitMutation = useSubmitSubmission();
+  const escalateMutation = useEscalateSubmission();
+  const reviewMutation = useRunAutomaticReview();
+  const updateMeta = useUpdateSubmissionMeta();
   const withdrawMutation = useWithdrawSubmission();
 
   // Seeded once from props. `status` is tracked locally too, because submitting and
@@ -202,9 +244,31 @@ function Workspace({
 
   const [uploading, setUploading] = useState(false);
   const [thinking, setThinking] = useState(false);
+  const [checkingTitles, setCheckingTitles] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const [problems, setProblems] = useState<Problem[] | null>(null);
+  /** Whether every problem automatic review raised is one an admin may overrule. */
+  const [canEscalate, setCanEscalate] = useState(false);
+  /** Where the list went after a successful submit, for the banner that says so. */
+  const [outcome, setOutcome] = useState<"approved" | "escalated" | "returned" | null>(null);
+  const [escalateOpen, setEscalateOpen] = useState(false);
+  /** The Review panel while it is open. */
+  const [review, setReview] = useState<ReviewState | null>(null);
+  /** The grid's report from a failed review, for "Show me where". */
+  const [pendingReport, setPendingReport] = useState<Report | null>(null);
+  /** Whether the report's problems are ones an admin may overrule (see startReview). */
+  const [reportCanEscalate, setReportCanEscalate] = useState(false);
+  /** The campaign URL as last saved. Local because fixing it here must reach the grid's
+   *  Campaign ID column and any re-upload without waiting on a refetch. */
+  const [campaignUrl, setCampaignUrl] = useState(submission.sf_campaign_url ?? "");
+  const [editingCampaign, setEditingCampaign] = useState(false);
+  /** The SDR owner as last saved — local for the same reason as the campaign URL. */
+  const [sdrOwner, setSdrOwner] = useState(submission.sdr_owner_email ?? "");
+  const [editingSdr, setEditingSdr] = useState(false);
+  const sdrProblem = sdrOwnerProblem(sdrOwner);
+  const campaignId = campaignIdFrom(campaignUrl);
+  const campaignCheck = useCampaignCheck(campaignId);
   const [uploadNote, setUploadNote] = useState<ParsedWorkbook | null>(null);
   const [dragging, setDragging] = useState(false);
   // Bumped on each chip click so clicking the same field twice still scrolls.
@@ -215,11 +279,13 @@ function Workspace({
   /** Undo/redo. Snapshots of the whole list — see `apply`. */
   const [past, setPast] = useState<Model[]>([]);
   const [future, setFuture] = useState<Model[]>([]);
-  const [confirming, setConfirming] = useState<"reupload" | "submit" | "withdraw" | null>(null);
+  const [confirming, setConfirming] = useState<"reupload" | "withdraw" | null>(null);
   const [deleting, setDeleting] = useState<{ rowId: string; label: string } | null>(null);
   /** Rows ticked for a bulk edit, and the open fill dialog. */
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filling, setFilling] = useState<FillTarget | null>(null);
+  /** The job-title dialog (TitleDialog). */
+  const [reviewingTitles, setReviewingTitles] = useState(false);
 
   // The active row filter, or null for "show everything". `field` scopes it to one column —
   // an any-issue filter is useless on a real list, where one sheet had a problem in every
@@ -347,6 +413,7 @@ function Workspace({
       if (saveTimer.current) clearTimeout(saveTimer.current);
       setSaveState("saving");
       saveTimer.current = setTimeout(async () => {
+        saveTimer.current = null;
         const snapshot = latest.current;
         if (!snapshot) return;
         try {
@@ -369,10 +436,19 @@ function Workspace({
     [id],
   );
 
+  // Leaving with a save still pending SENDS it rather than dropping it: in Lead Import
+  // the grid is one step of three, and stepping back is a click away from an edit.
+  const { mutate: saveNow } = save;
   useEffect(
     () => () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (!saveTimer.current) return;
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      const pending = latest.current;
+      if (pending) saveNow({ id, payload: toPayload(pending), rowCount: totalRows(pending) });
     },
+    // Once, on unmount; `saveNow` is React Query's stable mutate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -402,6 +478,38 @@ function Workspace({
     [id, ref, config, assisted],
   );
 
+  /** Which job titles are not in English. Runs after a load, and again whenever a title
+   *  appears that hasn't been asked about — one typed into a cell, or written in the title
+   *  dialog — so a new title can't slip past as English. Only the titles travel. Not
+   *  gated on `assisted`: answers the server stored earlier still apply when no model is
+   *  configured, and automatic review reads the same answers. */
+  const askingTitles = useRef(false);
+  /** Titles already asked about, by titleKey. */
+  const askedTitles = useRef(new Set<string>());
+  const askForTitles = useCallback(
+    async (current: Model) => {
+      const titles = distinctTitles(current.tabs).filter((t) => !askedTitles.current.has(titleKey(t)));
+      if (!titles.length || askingTitles.current) return;
+      askingTitles.current = true;
+      setCheckingTitles(true);
+      try {
+        const res = await titlesMutation.mutateAsync({ id, titles });
+        if (res?.translations.length) {
+          setModel((m) => (m ? applyTranslations(m, res.translations, ref, config) : m));
+        }
+      } catch {
+        // A head start like suggestions: failing leaves the titles unchecked, never stuck.
+        // Not retried this session — automatic review asks about them again anyway.
+      } finally {
+        titles.forEach((t) => askedTitles.current.add(titleKey(t)));
+        askingTitles.current = false;
+        setCheckingTitles(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [id, ref, config],
+  );
+
   // Suggestions aren't stored — they're recomputed per session — so a submission being
   // reopened needs the same round an upload gets. Fired once on mount for an editable list.
   const askedOnMount = useRef(false);
@@ -409,8 +517,17 @@ function Workspace({
     if (askedOnMount.current || !editable || !model) return;
     askedOnMount.current = true;
     void askForSuggestions(model);
+    void askForTitles(model);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A title written after loading. Waits a moment so a burst of edits is one request, and
+  // re-runs when a request in flight finishes, so a title added meanwhile isn't missed.
+  useEffect(() => {
+    if (!editable || !model || checkingTitles) return;
+    const t = setTimeout(() => void askForTitles(model), 600);
+    return () => clearTimeout(t);
+  }, [editable, model, checkingTitles, askForTitles]);
 
   // A highlighted column means nothing on a different tab, and neither does a selection of
   // rows you can no longer see.
@@ -539,11 +656,14 @@ function Workspace({
 
       const built = fromPayload(
         { tabs: rowsByTab },
-        { name: submission.event_name, date: submission.event_date ?? "", campaignUrl: submission.sf_campaign_url },
+        { name: submission.event_name, date: submission.event_date ?? "", campaignUrl },
         ref,
         config,
       );
       setModel(built);
+      // The new model carries no translations, so titles asked about for the previous
+      // file are asked again (the server answers them from what it stored, without Claude).
+      askedTitles.current.clear();
       // A different file is a different LIST; undoing back into the previous one would
       // interleave two documents' rows.
       setPast([]);
@@ -553,6 +673,7 @@ function Workspace({
       if (first) setActive(first);
       scheduleSave(built, file.name);
       void askForSuggestions(built);
+      void askForTitles(built);
     } catch (e) {
       setError(e instanceof WorkbookError ? e.message : describeError(e));
     } finally {
@@ -607,6 +728,16 @@ function Workspace({
     [model, active, ref, config, apply],
   );
 
+  /** One job title answered on every row that holds it — one undo step per answer. */
+  const onAnswerTitle = useCallback(
+    (key: string, answer: string) => {
+      if (!model) return;
+      apply(answerTitle(model, key, answer, ref, config));
+    },
+    [model, ref, config, apply],
+  );
+  const titlesLeft = useMemo(() => (model ? pendingTitles(model) : []), [model]);
+
   const toggleRow = useCallback((rowId: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -638,38 +769,168 @@ function Workspace({
     setDeleting(null);
   }, [model, deleting, active, ref, config, apply]);
 
-  /** Clicking Submit CHECKS first and only then asks. Confirming something about to be
-   *  refused anyway would be two dialogs to reach the same dead end. */
-  function askToSubmit() {
+  /** Review: every check runs as a visible step, and only a list that passes is offered
+   *  "Add to Salesforce". Never blocked, always EXPLAINED — a failed step names what it
+   *  found, under the step that found it.
+   *
+   *  The steps report real results; the pause between them only keeps each one on screen
+   *  long enough to read, since most finish in a few milliseconds. */
+  async function startReview() {
     if (!model) return;
     setError(null);
     setProblems(null);
-    // Never blocked, always EXPLAINED. A disabled button tells you nothing and leaves you
-    // hunting across five tabs; this says exactly what's left and where.
+    setOutcome(null);
+    setReview({
+      phase: "running",
+      canEscalate: false,
+      rowCount: totalRows(model),
+      localReport: false,
+      steps: REVIEW_STEPS.map((s) => ({ ...s, state: "waiting" as const })),
+    });
+    const mark = (key: string, patch: Partial<ReviewStep>) =>
+      setReview((r) => r && { ...r, steps: r.steps.map((s) => (s.key === key ? { ...s, ...patch } : s)) });
+    const finish = (patch: Partial<ReviewState>) =>
+      setReview((r) =>
+        r && {
+          ...r,
+          ...patch,
+          steps: r.steps.map((s) => (s.state === "waiting" || s.state === "running" ? { ...s, state: "skipped" } : s)),
+        },
+      );
+
+    // 1 · the grid's own rules, in the browser.
+    mark("grid", { state: "running" });
+    await pause();
     const outstanding = buildReport(model, config);
     if (!outstanding.ok) {
-      setReport(outstanding);
+      setReport(null);
+      setPendingReport(outstanding);
+      const { lines, unusable } = describeIssues(model, config);
+      setReportCanEscalate(!unusable);
+      mark("grid", { state: "failed", problems: lines });
+      // An admin can't edit the list either, so what makes a row unusable — no name, no
+      // usable email, consent not confirmed — is not theirs to overrule. Offering "Send
+      // to admin" there only led to the server refusing it.
+      finish({ phase: "failed", canEscalate: !unusable, localReport: true });
       return;
     }
-    setConfirming("submit");
+    mark("grid", { state: "passed" });
+
+    // 2 · what the server checks is what it has STORED.
+    mark("save", { state: "running" });
+    try {
+      await Promise.all([flush(), pause()]);
+    } catch (e) {
+      mark("save", { state: "failed", problems: [describeError(e)] });
+      finish({ phase: "failed" });
+      return;
+    }
+    mark("save", { state: "passed" });
+
+    // 3 · automatic review on the server, revealed one check at a time.
+    mark("rows", { state: "running" });
+    let result: ReviewResult | null | undefined;
+    try {
+      result = await reviewMutation.mutateAsync(id);
+    } catch (e) {
+      mark("rows", { state: "failed", problems: [describeError(e)] });
+      finish({ phase: "failed" });
+      return;
+    }
+    for (const check of result?.checks ?? []) {
+      mark(check.key, { state: "running" });
+      await pause();
+      mark(check.key, {
+        state: check.status,
+        problems: check.problems.map((p) => (p.tab ? `${p.tab} · row ${p.row} — ${p.message}` : p.message)),
+      });
+    }
+    finish({
+      phase: result?.passed ? "passed" : "failed",
+      canEscalate: Boolean(result?.can_escalate),
+      campaign: result?.campaign ?? null,
+      rowCount: result?.row_count ?? totalRows(model),
+    });
   }
 
+  /** Flush whatever is pending — the server reviews what it has STORED. */
+  async function flush() {
+    if (!model) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    await save.mutateAsync({ id, payload: toPayload(model), rowCount: totalRows(model) });
+  }
+
+  function landed(res: SubmitResult | null | undefined) {
+    // A 200 is not success here: `submitted: false` with problems means automatic review
+    // refused it — its own checks, or an invariant a stale tab missed.
+    if (res?.submitted) {
+      setStatus(res.outcome === "approved" ? "Approved" : "Submitted");
+      setOutcome(res.outcome ?? null);
+      setProblems(null);
+    } else {
+      setProblems(res?.problems ?? []);
+      setCanEscalate(Boolean(res?.can_escalate));
+    }
+  }
+
+  /** "Add to Salesforce": the server runs the same checks again before it approves, so a
+   *  list changed since the review is never approved on stale results. */
   async function submit() {
     if (!model) return;
-    // Flush whatever is pending — the server validates what it has STORED.
-    if (saveTimer.current) clearTimeout(saveTimer.current);
     try {
-      await save.mutateAsync({ id, payload: toPayload(model), rowCount: totalRows(model) });
-      const res = await submitMutation.mutateAsync(id);
-      // A 200 is not success here: `submitted: false` with problems means the server's
-      // invariants disagree with the browser's rules.
-      if (res?.submitted) setStatus("Submitted");
-      else setProblems(res?.problems ?? []);
-      setConfirming(null);
+      await flush();
+      landed(await submitMutation.mutateAsync(id));
+    } catch (e) {
+      // Says why — "the list changed while it was being checked" among them.
+      setError(describeEventsError(e));
+    }
+    setReview(null);
+  }
+
+  /** Save a corrected campaign URL and re-stamp every row's Campaign ID from it. Not an
+   *  undoable grid edit — it changes the submission, not a cell. */
+  async function saveCampaignUrl(url: string) {
+    await updateMeta.mutateAsync({
+      id,
+      body: { event_name: submission.event_name, event_date: submission.event_date ?? null, sf_campaign_url: url || null },
+    });
+    setCampaignUrl(url);
+    setProblems(null);
+    if (model) {
+      const next = rederive(model, { name: submission.event_name, date: submission.event_date ?? "", campaignUrl: url }, ref, config);
+      setModel(next);
+      scheduleSave(next);
+    }
+  }
+
+  /** Save the SDR owner. It belongs to the submission, not to any row. */
+  async function saveSdrOwner(email: string) {
+    const value = normaliseSdr(email);
+    await updateMeta.mutateAsync({
+      id,
+      body: {
+        event_name: submission.event_name,
+        event_date: submission.event_date ?? null,
+        sf_campaign_url: campaignUrl.trim() || null,
+        sdr_owner_email: value || null,
+      },
+    });
+    setSdrOwner(value);
+    setProblems(null);
+  }
+
+  /** Skip automatic review: the list goes to an admin's queue with the note saying why. */
+  async function escalate(note: string) {
+    if (!model) return;
+    setError(null);
+    try {
+      await flush();
+      landed(await escalateMutation.mutateAsync({ id, note }));
     } catch (e) {
       setError(describeError(e));
-      setConfirming(null);
     }
+    setEscalateOpen(false);
   }
 
   /** Back to Draft, editable again. The reviewer may have acted in the meantime, which the
@@ -691,6 +952,7 @@ function Workspace({
    *  closer to what someone means by "my fixes" than any diff of the data would be. */
   const fixCount = past.length;
   const submitting = submitMutation.isPending || save.isPending;
+  const escalating = escalateMutation.isPending || save.isPending;
   const busy = withdrawMutation.isPending;
 
   return (
@@ -707,12 +969,12 @@ function Workspace({
             : undefined
         }
         onBack={onBack}
-        backLabel="My submissions"
+        backLabel={backLabel}
         status={<StatusChip status={status} />}
       >
         {ready && editable && (
           <>
-            <SaveHint state={saveState} thinking={thinking} />
+            <SaveHint state={saveState} thinking={thinking || checkingTitles} />
             {assisted && (
               <Tooltip
                 arrow
@@ -752,8 +1014,14 @@ function Workspace({
               Re-upload
             </Button>
             {/* The one filled button on the screen: what you came here to do. */}
-            <Button variant="contained" sx={primaryBtn} startIcon={<Send size={16} />} onClick={askToSubmit}>
-              Submit
+            <Button
+              variant="contained"
+              sx={primaryBtn}
+              startIcon={<ShieldCheck size={16} />}
+              disabled={Boolean(review)}
+              onClick={() => void startReview()}
+            >
+              Review
             </Button>
           </>
         )}
@@ -766,6 +1034,73 @@ function Workspace({
           </Button>
         )}
       </WorkspaceHead>
+
+      {/* The campaign, checked the moment the list opens rather than at Submit: machine
+          review refuses a list without a campaign ID, and this is where it is fixed. */}
+      {editable &&
+        (campaignId && campaignCheck.data?.result !== "not_found" ? (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+            <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
+              Salesforce campaign{" "}
+              <Box component="span" sx={{ color: "text.primary", fontWeight: 600 }}>
+                {campaignCheck.data?.campaign?.name ?? ""}
+              </Box>{" "}
+              <Box component="span" sx={{ fontFamily: "monospace" }}>
+                {campaignId}
+              </Box>
+              {campaignCheck.data?.result === "unavailable" && " · couldn’t check Salesforce just now"}
+            </Typography>
+            <Button onClick={() => setEditingCampaign(true)} sx={{ ...quietBtn, fontSize: 11.5, minWidth: 0 }}>
+              Change
+            </Button>
+          </Box>
+        ) : (
+          <Alert
+            severity="warning"
+            sx={{ mb: 2, fontSize: 13 }}
+            action={
+              <Button size="small" onClick={() => setEditingCampaign(true)}>
+                {campaignUrl.trim() ? "Fix URL" : "Add URL"}
+              </Button>
+            }
+          >
+            {campaignId
+              ? `Salesforce has no campaign with ID ${campaignId}. Automatic review won’t pass until the URL points to a real campaign.`
+              : campaignUrl.trim()
+                ? "The Salesforce campaign URL doesn’t contain a campaign ID. Automatic review won’t pass until it does."
+                : "No Salesforce campaign URL yet. Automatic review needs one to know where these leads go."}
+          </Alert>
+        ))}
+
+      {/* The SDR owner: required, so it is asked for here as soon as the list opens. */}
+      {editable &&
+        (!sdrProblem ? (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, mt: -0.75 }}>
+            <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
+              SDR owner{" "}
+              <Box component="span" sx={{ color: "text.primary", fontWeight: 600 }}>
+                {sdrOwner}
+              </Box>
+            </Typography>
+            <Button onClick={() => setEditingSdr(true)} sx={{ ...quietBtn, fontSize: 11.5, minWidth: 0 }}>
+              Change
+            </Button>
+          </Box>
+        ) : (
+          <Alert
+            severity="warning"
+            sx={{ mb: 2, fontSize: 13 }}
+            action={
+              <Button size="small" onClick={() => setEditingSdr(true)}>
+                {sdrOwner.trim() ? "Fix" : "Add SDR owner"}
+              </Button>
+            }
+          >
+            {sdrOwner.trim()
+              ? `${sdrProblem} Automatic review won’t pass until it is.`
+              : "No SDR owner yet. Automatic review needs the sales development rep who follows up these leads."}
+          </Alert>
+        ))}
 
       {status === "ChangesRequested" && comments.length > 0 && (
         <Box
@@ -816,7 +1151,7 @@ function Workspace({
                 <Typography sx={{ fontSize: 16, fontWeight: 700, flex: 1, minWidth: 0 }} noWrap>
                   {submission.event_name}
                 </Typography>
-                {ready && editable && <SaveHint state={saveState} thinking={thinking} />}
+                {ready && editable && <SaveHint state={saveState} thinking={thinking || checkingTitles} />}
                 <Button sx={quietBtn} startIcon={<Minimize2 size={16} />} onClick={() => setExpanded(false)}>
                   Exit full screen
                 </Button>
@@ -963,6 +1298,7 @@ function Workspace({
                         activeField={jumpTo?.field}
                         onAccept={onAccept}
                         onReject={onReject}
+                        onReviewTitles={() => setReviewingTitles(true)}
                         onJump={(field) => {
                           const off = jumpTo?.field === field;
                           setJumpTo(off ? null : { field, nonce: (jumpTo?.nonce ?? 0) + 1 });
@@ -1024,15 +1360,36 @@ function Workspace({
 
       <ReportDialog
         report={report}
+        canEscalate={reportCanEscalate}
         onClose={() => setReport(null)}
         onGoTo={(tab, field) => {
           setReport(null);
           setActive(tab);
           setJumpTo((j) => ({ field, nonce: (j?.nonce ?? 0) + 1 }));
         }}
+        onEscalate={() => {
+          setReport(null);
+          setEscalateOpen(true);
+        }}
       />
 
-      {problems && <ProblemList problems={problems} onDismiss={() => setProblems(null)} />}
+      {problems && (
+        <ProblemList
+          problems={problems}
+          canEscalate={canEscalate}
+          onEscalate={() => setEscalateOpen(true)}
+          onDismiss={() => setProblems(null)}
+        />
+      )}
+      {outcome && (
+        <Alert severity="success" sx={{ mt: 2, fontSize: 13 }} onClose={() => setOutcome(null)}>
+          {outcome === "approved"
+            ? "Review complete — approved."
+            : outcome === "returned"
+              ? "Review passed. An admin sent this list back earlier, so it goes back to an admin to approve — you can withdraw it until they do."
+              : "Sent to an admin with your note. They'll approve it or send it back — you can withdraw it until they do."}
+        </Alert>
+      )}
       {error && (
         <Alert severity="error" sx={{ mt: 2, fontSize: 13 }}>
           {error}
@@ -1065,23 +1422,22 @@ function Workspace({
         }}
       />
 
-      <ConfirmDialog
-        open={confirming === "submit"}
-        title="Send this to marketing?"
-        confirmLabel={submitting ? "Sending…" : "Submit"}
-        busy={submitting}
-        body={
-          <>
-            <b>{model ? totalRows(model) : 0}</b> rows across{" "}
-            {model ? Object.keys(model.tabs).length : 0} interaction{" "}
-            {model && Object.keys(model.tabs).length === 1 ? "type" : "types"} go to the marketing
-            team. The list becomes read-only for you — if something needs changing after this, they
-            have to send it back.
-          </>
-        }
-        onCancel={() => setConfirming(null)}
-        onConfirm={() => void submit()}
-      />
+      {review && (
+        <ReviewDialog
+          review={review}
+          submitting={submitting}
+          onClose={() => setReview(null)}
+          onAdd={() => void submit()}
+          onEscalate={() => {
+            setReview(null);
+            setEscalateOpen(true);
+          }}
+          onShowWhere={() => {
+            setReview(null);
+            setReport(pendingReport);
+          }}
+        />
+      )}
 
       <FillDialog
         // Keyed on the target so reopening for a different column starts fresh.
@@ -1096,6 +1452,44 @@ function Workspace({
         onClose={() => setFilling(null)}
         onApply={onFill}
       />
+
+      <TitleDialog
+        open={reviewingTitles}
+        pending={titlesLeft}
+        onAnswer={onAnswerTitle}
+        onClose={() => setReviewingTitles(false)}
+      />
+
+      {editingCampaign && (
+        <CampaignDialog
+          initial={campaignUrl}
+          onCancel={() => setEditingCampaign(false)}
+          onSave={async (url) => {
+            await saveCampaignUrl(url);
+            setEditingCampaign(false);
+          }}
+        />
+      )}
+
+      {editingSdr && (
+        <SdrOwnerDialog
+          initial={sdrOwner}
+          onCancel={() => setEditingSdr(false)}
+          onSave={async (email) => {
+            await saveSdrOwner(email);
+            setEditingSdr(false);
+          }}
+        />
+      )}
+
+      {escalateOpen && (
+        <EscalateDialog
+          open
+          busy={escalating}
+          onCancel={() => setEscalateOpen(false)}
+          onSend={(note) => void escalate(note)}
+        />
+      )}
 
       <ConfirmDialog
         open={confirming === "withdraw"}
@@ -1425,6 +1819,51 @@ const SECTION = {
   mb: 0.5,
 } as const;
 
+/** The Review steps, in the order they run. The last five are the server's checks and
+ *  share its keys; their labels match the server's so nothing changes when results land. */
+const REVIEW_STEPS: Omit<ReviewStep, "state">[] = [
+  { key: "grid", label: "Every cell matches the template" },
+  { key: "save", label: "Your latest changes are saved" },
+  { key: "rows", label: "Every row has a name, a valid email and confirmed opt-in" },
+  { key: "duplicates", label: "No one is listed twice" },
+  { key: "sdr", label: "An SDR owner is set" },
+  { key: "titles", label: "Job titles are in English" },
+  { key: "campaign", label: "The campaign exists in Salesforce" },
+];
+
+/** Fields whose problems make a row unusable — the server's invariants (invariants.check).
+ *  A duplicate is not among them: that one an admin may judge. */
+const UNUSABLE_FIELDS = new Set<string>([SPECIAL.firstName, SPECIAL.lastName, SPECIAL.email, SPECIAL.optInStatus]);
+
+/** The grid's problems, one line per distinct message, with the rows that have it.
+ *
+ *  Grouped by the message itself rather than by column: a column's report used to show
+ *  its FIRST row's message for every row ("hasn't confirmed opt-in (6 rows)" when five
+ *  of the six were misspellings). The message carries the value, so identical values
+ *  still group, and different ones are said separately. */
+function describeIssues(model: Model, config: EventsConfig): { lines: string[]; unusable: boolean } {
+  const lines: string[] = [];
+  let unusable = false;
+  for (const [tab, rows] of Object.entries(model.tabs)) {
+    const groups = new Map<string, number[]>();
+    rows.forEach((row, i) => {
+      for (const issue of row.issues) {
+        if (UNUSABLE_FIELDS.has(issue.field) && issue.code !== "duplicate") unusable = true;
+        const key = `${labelOf(config, tab, issue.field)} — ${issue.message}`;
+        groups.set(key, [...(groups.get(key) ?? []), i + 1]);
+      }
+    });
+    for (const [key, at] of groups) {
+      const shown = at.length > 8 ? `${at.slice(0, 8).join(", ")} and ${at.length - 8} more` : at.join(", ");
+      lines.push(`${tab} · ${key} (${at.length === 1 ? "row" : "rows"} ${shown})`);
+    }
+  }
+  return { lines, unusable };
+}
+
+/** Long enough to read a step before the next one starts. */
+const pause = () => new Promise((resolve) => setTimeout(resolve, 450));
+
 /** The expanded view: rail, strip and grid over the whole window. Above the page and its
  *  side panels (drawers are 1200), below dialogs and popovers (1300+), which open from
  *  inside it — Fill, the pick-list editor, the submit report. */
@@ -1440,9 +1879,20 @@ const EXPANDED = {
 
 const LINE = { display: "flex", alignItems: "center", gap: 0.75, mt: 0.4 };
 
-/** The server refused the submission. In practice this means a stale tab, so say so rather
- *  than implying the user did something wrong. */
-function ProblemList({ problems, onDismiss }: { problems: Problem[]; onDismiss: () => void }) {
+/** Automatic review refused the submission. Two cases, worded differently: its own checks
+ *  (fix and resubmit, or send it to an admin), or an invariant the browser should have
+ *  caught — in practice a stale tab, so say so rather than implying the user erred. */
+function ProblemList({
+  problems,
+  canEscalate,
+  onEscalate,
+  onDismiss,
+}: {
+  problems: Problem[];
+  canEscalate: boolean;
+  onEscalate: () => void;
+  onDismiss: () => void;
+}) {
   return (
     <Box
       sx={{
@@ -1456,19 +1906,29 @@ function ProblemList({ problems, onDismiss }: { problems: Problem[]; onDismiss: 
     >
       <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, mb: 0.75 }}>
         <Typography sx={{ fontSize: 13, fontWeight: 700, color: "error.main" }}>
-          The server wouldn't accept this yet
+          {canEscalate ? "Automatic review didn't pass" : "The server wouldn't accept this yet"}
         </Typography>
-        <Button onClick={onDismiss} sx={{ ...quietBtn, ml: "auto", minWidth: 0, fontSize: 11.5 }}>
+        {canEscalate && (
+          <Button onClick={onEscalate} sx={{ ...quietBtn, ml: "auto", fontSize: 11.5 }}>
+            Send to admin
+          </Button>
+        )}
+        <Button
+          onClick={onDismiss}
+          sx={{ ...quietBtn, ml: canEscalate ? 0 : "auto", minWidth: 0, fontSize: 11.5 }}
+        >
           Dismiss
         </Button>
       </Box>
       <Typography sx={{ fontSize: 12, color: "text.secondary", mb: 1 }}>
-        This usually means the page has been open a while. Reload and try again — if it persists,
-        these are the rows it objected to.
+        {canEscalate
+          ? "Fix these and submit again. If you're sure the list is right as it is, send it to an admin with a note saying why."
+          : "This usually means the page has been open a while. Reload and try again — if it persists, these are the rows it objected to."}
       </Typography>
       {problems.slice(0, 10).map((p, i) => (
         <Typography key={i} sx={{ fontSize: 12.5, fontVariantNumeric: "tabular-nums" }}>
-          {p.tab} · row {p.row} — {p.message}
+          {p.tab ? `${p.tab} · row ${p.row} — ` : ""}
+          {p.message}
         </Typography>
       ))}
     </Box>
@@ -1480,12 +1940,18 @@ function ProblemList({ problems, onDismiss }: { problems: Problem[]; onDismiss: 
  *  just a complaint. */
 function ReportDialog({
   report,
+  canEscalate,
   onClose,
   onGoTo,
+  onEscalate,
 }: {
   report: Report | null;
+  /** False when a problem makes rows unusable: an admin can't fix those either. */
+  canEscalate: boolean;
   onClose: () => void;
   onGoTo: (tab: Tab, field: string) => void;
+  /** The way out when the rules are wrong about this list — an admin decides instead. */
+  onEscalate: () => void;
 }) {
   const tones = useToneColors();
   if (!report) return null;
@@ -1564,8 +2030,176 @@ function ReportDialog({
         ))}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
+        {canEscalate && (
+          <Tooltip arrow title="When you're sure the list is right and the checks are wrong about it">
+            <Button onClick={onEscalate} sx={{ ...quietBtn, mr: "auto" }}>
+              Send to admin instead
+            </Button>
+          </Tooltip>
+        )}
         <Button variant="contained" onClick={onClose} sx={primaryBtn}>
           Back to the list
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/** Change the submission's Salesforce campaign URL. Mounted only while open, so it
+ *  starts from the saved value every time. Saving a URL with no campaign ID is refused —
+ *  that is exactly what automatic review would refuse later. */
+function CampaignDialog({
+  initial,
+  onCancel,
+  onSave,
+}: {
+  initial: string;
+  onCancel: () => void;
+  onSave: (url: string) => Promise<void>;
+}) {
+  const [url, setUrl] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Refused: a link with no campaign ID, or one Salesforce says doesn't exist. Allowed
+  // while unchecked or unreachable — automatic review asks again at submit.
+  const check = useCampaignCheck(campaignIdFrom(url));
+  const invalid =
+    campaignUrlHint(url, { checking: check.isFetching, check: check.data }).tone === "error" || check.isFetching;
+  return (
+    <Dialog open onClose={() => !busy && onCancel()} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ fontSize: 16, fontWeight: 800 }}>Salesforce campaign</DialogTitle>
+      <DialogContent>
+        <CampaignUrlField value={url} onChange={setUrl} disabled={busy} autoFocus />
+        {error && (
+          <Alert severity="error" sx={{ mt: 1.5, fontSize: 13 }}>
+            {error}
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onCancel} disabled={busy} sx={quietBtn}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          sx={primaryBtn}
+          disabled={busy || invalid || url.trim() === initial.trim()}
+          onClick={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              await onSave(url.trim());
+            } catch (e) {
+              setError(describeError(e));
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Saving…" : "Save"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/** Set the SDR owner. Mounted only while open, so it starts from the saved value. Only a
+ *  WSO2 address can be saved — anything else automatic review would refuse. */
+function SdrOwnerDialog({
+  initial,
+  onCancel,
+  onSave,
+}: {
+  initial: string;
+  onCancel: () => void;
+  onSave: (email: string) => Promise<void>;
+}) {
+  const [email, setEmail] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const unchanged = normaliseSdr(email) === normaliseSdr(initial);
+  return (
+    <Dialog open onClose={() => !busy && onCancel()} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ fontSize: 16, fontWeight: 800 }}>SDR owner</DialogTitle>
+      <DialogContent>
+        <SdrOwnerField value={email} onChange={setEmail} disabled={busy} autoFocus />
+        {error && (
+          <Alert severity="error" sx={{ mt: 1.5, fontSize: 13 }}>
+            {error}
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onCancel} disabled={busy} sx={quietBtn}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          sx={primaryBtn}
+          disabled={busy || !!sdrOwnerProblem(email) || unchanged}
+          onClick={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              await onSave(email);
+            } catch (e) {
+              setError(describeError(e));
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Saving…" : "Save"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/** Skip automatic review and ask an admin. The note is required: the admin is being asked
+ *  to overrule a check, and needs to know which one and why. */
+function EscalateDialog({
+  open,
+  busy,
+  onCancel,
+  onSend,
+}: {
+  open: boolean;
+  busy: boolean;
+  onCancel: () => void;
+  onSend: (note: string) => void;
+}) {
+  // Mounted only while open (see the caller), so every opening starts with an empty note.
+  const [note, setNote] = useState("");
+  return (
+    <Dialog open={open} onClose={() => !busy && onCancel()} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontSize: 16, fontWeight: 800 }}>Send to an admin?</DialogTitle>
+      <DialogContent>
+        <Typography sx={{ fontSize: 13, color: "text.secondary", lineHeight: 1.55, mb: 1.5 }}>
+          The list skips automatic review and goes to the marketing team's queue. They'll approve it
+          or send it back. Say what the checks got wrong, so they know what to look at.
+        </Typography>
+        <TextField
+          autoFocus
+          multiline
+          minRows={3}
+          fullWidth
+          size="small"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="e.g. Gabon is right for these four rows — they're from the Libreville office."
+          inputProps={{ maxLength: 2000, "aria-label": "Note for the admin" }}
+        />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onCancel} disabled={busy} sx={quietBtn}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          sx={primaryBtn}
+          disabled={busy || !note.trim()}
+          onClick={() => onSend(note.trim())}
+        >
+          {busy ? "Sending…" : "Send to admin"}
         </Button>
       </DialogActions>
     </Dialog>

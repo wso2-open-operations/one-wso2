@@ -17,7 +17,7 @@
 // The upload offers only the lead types in use and refuses a wrong file on pick; the
 // mapping screen shows how each template column got its source, what was left out and
 // the rows as they will download; a person's pick replaces the suggestion and can be
-// reset; download says what to do next.
+// reset; creating the submission moves on to step 3, and the steps go back and forth.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -47,9 +47,25 @@ const fields: Record<string, FieldDef[]> = {
     def("score", "Add to Score (Hasina will fill this)", { computed: true }),
   ],
 };
+const createSubmission = vi.fn();
+const saveSubmission = vi.fn();
 vi.mock("../../api/useEvents", () => ({
   useMemberStatuses: () => ({ data: statuses, isError: false }),
   useFieldDefs: () => ({ data: fields, isError: false }),
+  useEventNames: () => ({ data: [] }),
+  useCampaignCheck: () => ({ data: undefined, isFetching: false }),
+  useCreateSubmission: () => ({ mutateAsync: createSubmission }),
+  useSaveSubmission: () => ({ mutateAsync: saveSubmission }),
+}));
+
+// Step 3 is the My Submissions grid, tested on its own; here it only has to be reached.
+vi.mock("./SubmissionWorkspace", () => ({
+  default: ({ id, onBack, backLabel }: { id: string; onBack: () => void; backLabel: string }) => (
+    <div>
+      Workspace for {id}
+      <button onClick={onBack}>{backLabel}</button>
+    </div>
+  ),
 }));
 
 const saveBlob = vi.fn();
@@ -86,8 +102,9 @@ async function openFile() {
   expect(screen.queryByRole("option", { name: "Retired" })).toBeNull();
   fireEvent.click(screen.getByRole("option", { name: "Booth" }));
   expect(screen.getByText(/4 columns, 2 required: First Name, Last Name, Email, Company\./)).toBeTruthy();
+  fireEvent.change(screen.getByPlaceholderText(/Exito BFSI Summit/), { target: { value: "Apidays Paris" } });
   chooseFile(view.container, "Apidays.xlsx");
-  fireEvent.click(screen.getByRole("button", { name: "Map columns" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next: map columns" }));
   await screen.findByRole("table", { name: "Column mapping" });
   await screen.findByText("Exact match", {}, { timeout: 2000 }).catch(() => undefined);
   return view;
@@ -103,10 +120,14 @@ function stat(label: string): string {
   return within(summary).getByText(label).nextElementSibling?.textContent ?? "";
 }
 
-describe("Lead import", () => {
+// Each test drives the whole page through three screens: 2–4s alone, over the 5s default
+// when the suite runs in parallel. Same allowance as the other full-page tests.
+describe("Lead import", { timeout: 20000 }, () => {
   beforeEach(() => {
     suggest.mockReset();
     saveBlob.mockReset();
+    createSubmission.mockReset().mockResolvedValue({ id: "sub-1" });
+    saveSubmission.mockReset().mockResolvedValue({});
     sheetRows = SHEET;
     suggest.mockResolvedValue({
       claude: "used",
@@ -148,7 +169,7 @@ describe("Lead import", () => {
     );
     chooseFile(view.container, "scan.pdf");
     expect(screen.getByText(/Upload an \.xlsx or \.csv file/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Map columns" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Next: map columns" })).toHaveProperty("disabled", true);
   });
 
   it("sends only headings and samples, and shows what was mapped and how", async () => {
@@ -200,13 +221,86 @@ describe("Lead import", () => {
     expect(screen.queryByRole("button", { name: "Reset to suggestion" })).toBeNull();
   });
 
-  it("download saves the workbook and says what to do next", async () => {
+  it("download saves the workbook", async () => {
     await openFile();
     await waitFor(() => expect(stat("Columns mapped")).toBe("3 of 4"));
     fireEvent.click(screen.getByRole("button", { name: "Download workbook" }));
-    await screen.findByText(/Open it, make any changes to the data/);
+    // Building the workbook can outlast findBy's 1s default when the suite runs in parallel.
+    await screen.findByText(/Apidays - Booth\.xlsx/, {}, { timeout: 5000 });
     expect(saveBlob).toHaveBeenCalledWith(expect.any(Blob), "Apidays - Booth.xlsx");
-    expect(screen.getByRole("button", { name: "Go to My Submissions" })).toBeTruthy();
+  });
+
+  it("create submission saves the rows under the grid's keys and opens step 3", async () => {
+    await openFile();
+    await waitFor(() => expect(stat("Columns mapped")).toBe("3 of 4"));
+    fireEvent.click(screen.getByRole("button", { name: "Create submission" }));
+    await screen.findByText("Workspace for sub-1", {}, { timeout: 5000 });
+    expect(createSubmission).toHaveBeenCalledWith(expect.objectContaining({ event_name: "Apidays Paris" }));
+    expect(saveSubmission).toHaveBeenCalledWith({
+      id: "sub-1",
+      payload: {
+        tabs: {
+          Booth: [
+            { first_name: "Ana", last_name: "Silva", email: "ana@acme.io", company: "" },
+            { first_name: "Ludwig", last_name: "van Beethoven", email: "lvb@x.de", company: "" },
+          ],
+        },
+      },
+      rowCount: 2,
+      sourceFilename: "Apidays.xlsx",
+    });
+    expect(screen.getByText("Fix & review").closest("[aria-current]")?.getAttribute("aria-current")).toBe("step");
+  });
+
+  it("goes back and forth without losing the mapping, and only replaces the rows when asked", async () => {
+    await openFile();
+    await waitFor(() => expect(stat("Columns mapped")).toBe("3 of 4"));
+    fireEvent.click(screen.getByRole("button", { name: "Create submission" }));
+    await screen.findByText("Workspace for sub-1");
+
+    // Back to step 2: the mapping is as it was, and unchanged it just moves on.
+    fireEvent.click(screen.getByRole("button", { name: "Back: map columns" }));
+    expect(stat("Columns mapped")).toBe("3 of 4");
+    fireEvent.click(screen.getByRole("button", { name: "Next: fix & review" }));
+    await screen.findByText("Workspace for sub-1");
+    expect(saveSubmission).toHaveBeenCalledTimes(1);
+
+    // Changed, it offers to replace the rows — in the same submission, after a warning.
+    fireEvent.click(screen.getByRole("button", { name: /Map columns/ }));
+    fireEvent.mouseDown(within(mappingRow("Company")).getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: /^C · Badge/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Replace the rows" }));
+    expect(screen.getByText(/including any fixes made in step 3/)).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Replace the rows" }));
+    await screen.findByText("Workspace for sub-1");
+    expect(createSubmission).toHaveBeenCalledTimes(1);
+    expect(saveSubmission).toHaveBeenCalledTimes(2);
+    expect(saveSubmission.mock.calls[1][0].id).toBe("sub-1");
+
+    // Step 1 is read-only once the submission exists.
+    fireEvent.click(await screen.findByRole("button", { name: /Set up/ }));
+    expect(screen.getByText(/is created, so these are fixed here/)).toBeTruthy();
+    expect(screen.getByPlaceholderText(/Exito BFSI Summit/)).toHaveProperty("disabled", true);
+  });
+
+  it("a failed save keeps the new submission, and trying again saves into it", async () => {
+    saveSubmission.mockRejectedValueOnce(new Error("Network down."));
+    await openFile();
+    await waitFor(() => expect(stat("Columns mapped")).toBe("3 of 4"));
+    fireEvent.click(screen.getByRole("button", { name: "Create submission" }));
+    expect(await screen.findByText(/Network down\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create submission" }));
+    await screen.findByText("Workspace for sub-1", {}, { timeout: 5000 });
+    expect(createSubmission).toHaveBeenCalledTimes(1);
+    expect(saveSubmission.mock.calls.map((c) => c[0].id)).toEqual(["sub-1", "sub-1"]);
+  });
+
+  it("after choosing another file, the old file's mapping can't be reopened", async () => {
+    const view = await openFile();
+    fireEvent.click(screen.getByRole("button", { name: /Set up/ }));
+    expect(screen.getByRole("button", { name: /Map columns/ })).toBeTruthy();
+    chooseFile(view.container, "Other.xlsx");
+    expect(screen.queryByRole("button", { name: /Map columns/ })).toBeNull();
   });
 
   it("a failed download keeps the mapping and retries the download, not the suggestion", async () => {
@@ -219,7 +313,7 @@ describe("Lead import", () => {
     expect(await screen.findByText(/The workbook could not be written\. Disk full\./)).toBeTruthy();
     expect(screen.queryByText(/Couldn't get a suggestion/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await screen.findByText(/Open it, make any changes to the data/);
+    await screen.findByText(/Apidays - Booth\.xlsx/);
     expect(suggest).toHaveBeenCalledTimes(1);
     expect(saveBlob).toHaveBeenCalledTimes(2);
   });

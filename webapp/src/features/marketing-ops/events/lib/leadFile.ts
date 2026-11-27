@@ -24,6 +24,7 @@
 import Papa from "papaparse";
 import type { SourceColumn } from "../leadImportTypes";
 import { clean, findHeaderRow } from "../rules/workbook";
+import { nameKey } from "../rules/schema";
 
 /** My Submissions reads at most this many sheet rows, heading included, so a longer list
  *  would lose rows there. Refused here, with the reason, rather than cut. */
@@ -88,6 +89,9 @@ async function readXlsx(file: File): Promise<RawSheet[]> {
   }
   const sheets: RawSheet[] = [];
   workbook.eachSheet((worksheet) => {
+    // A hidden sheet is one someone put out of sight — an old export, a lookup table.
+    // Offering it for import invites picking the wrong leads.
+    if (worksheet.state && worksheet.state !== "visible") return;
     const rows: (string[] | undefined)[] = [];
     // row.values is the sparse 1-based array exceljs already holds (see readTable in
     // rules/workbook.ts for why getCell per column is not used).
@@ -102,8 +106,19 @@ async function readXlsx(file: File): Promise<RawSheet[]> {
   return sheets;
 }
 
+/** The CSV's text. UTF-8 when the bytes are valid UTF-8; otherwise Windows-1252, which is
+ *  what Excel on Windows writes for "CSV" \u2014 read as UTF-8 it turns every accent into "\uFFFD"
+ *  (Ing\u00E9nieur \u2192 Ing\uFFFDnieur), silently, on exactly the French lists this tool sees most. */
+export function decodeCsv(bytes: ArrayBuffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
 async function readCsv(file: File): Promise<RawSheet[]> {
-  const text = (await file.text()).replace(/^\uFEFF/, "");
+  const text = decodeCsv(await file.arrayBuffer()).replace(/^\uFEFF/, "");
   const parsed = Papa.parse<string[]>(text, { skipEmptyLines: false });
   // An unclosed quote makes Papa Parse fold every following line into one cell, so the
   // leads after it would vanish into a Notes value. Refused rather than recovered.
@@ -151,8 +166,15 @@ function filledRows(sheet: RawSheet): number {
   return sheet.rows.filter((row) => row.some(Boolean)).length;
 }
 
-/** The sheet to start with: the one with the most rows that have a value. */
-export function defaultSheet(sheets: RawSheet[]): number {
+/** The sheet to start with: the one named after the chosen lead type when there is one —
+ *  a workbook with Booth, Session and Attendees tabs means the Booth tab for Booth leads,
+ *  however many rows the others have — otherwise the one with the most rows that have a
+ *  value. */
+export function defaultSheet(sheets: RawSheet[], status?: string): number {
+  if (status) {
+    const named = sheets.findIndex((sheet) => nameKey(sheet.name) === nameKey(status));
+    if (named >= 0) return named;
+  }
   let best = 0;
   sheets.forEach((sheet, i) => {
     if (filledRows(sheet) > filledRows(sheets[best])) best = i;

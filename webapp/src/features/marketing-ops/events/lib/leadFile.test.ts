@@ -108,6 +108,33 @@ describe("the sheet and its columns", () => {
     ).toBe(1);
   });
 
+  it("starts on the sheet named after the lead type, however many rows the others have", () => {
+    const sheets = [
+      { name: "Booth", rows: [["Email"], ["a@x.io"]] },
+      { name: "Attendees", rows: [["Email"], ["a@x.io"], ["b@x.io"], ["c@x.io"]] },
+    ];
+    expect(defaultSheet(sheets, "Booth")).toBe(0);
+    expect(defaultSheet(sheets, " booth ")).toBe(0);
+    expect(defaultSheet(sheets, "Session")).toBe(1); // no Session sheet: the largest
+  });
+
+  it("leaves hidden sheets out", async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet("Booth").addRow(["Email"]);
+    const hidden = workbook.addWorksheet("Old export");
+    hidden.addRow(["Email"]);
+    hidden.state = "hidden";
+    const file = new File([await workbook.xlsx.writeBuffer()], "leads.xlsx");
+    expect((await readLeadFile(file)).map((s) => s.name)).toEqual(["Booth"]);
+  });
+
+  it("reads a Windows-1252 CSV without turning accents into �", async () => {
+    // "Ingénieur,Société" as Excel on Windows writes it: é is the single byte 0xE9.
+    const bytes = new Uint8Array([...Buffer.from("Job,Company\nIng"), 0xe9, ...Buffer.from("nieur,Soci"), 0xe9, 0x74, 0xe9]);
+    const sheets = await readLeadFile(new File([bytes], "latin1.csv"));
+    expect(sheets[0].rows[1]).toEqual(["Ingénieur", "Société"]);
+  });
+
   it("lists each column with a heading or a value, with distinct samples cut short", () => {
     const long = "x".repeat(SAMPLE_CHARS + 20);
     const rows = [["Email", "", "Notes"], ["a@x.io", "", long], ["a@x.io", "B1", ""], ["b@x.io"]];

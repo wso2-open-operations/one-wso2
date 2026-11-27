@@ -38,6 +38,9 @@ import {
   useUpdateStatus,
 } from "../../api/useEvents";
 import type { FieldDef } from "../../events/eventsTypes";
+import GeographySync from "../../events/components/GeographySync";
+import PicklistSync from "../../events/components/PicklistSync";
+import FlaggedTitles from "../../events/components/FlaggedTitles";
 import NewStatusDialog from "../../events/components/NewStatusDialog";
 import StatusEditor from "../../events/components/StatusEditor";
 import { primaryBtn, quietBtn } from "../../events/components/eventsStyles";
@@ -237,6 +240,12 @@ export default function EventsSettingsPage() {
           />
         </Box>
       )}
+
+      {/* Outside the member-status branch: they read their own endpoints, so a failure to
+          load the statuses or columns doesn't take the reference syncs away with it. */}
+      <PicklistSync />
+      <GeographySync />
+      <FlaggedTitles />
     </MarketingOpsShell>
   );
 }

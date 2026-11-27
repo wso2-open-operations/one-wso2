@@ -96,6 +96,8 @@ export interface SubmissionSummary {
   event_name: string;
   event_date?: string | null;
   sf_campaign_url?: string | null;
+  /** The SDR who follows up these leads; required to pass automatic review. */
+  sdr_owner_email?: string | null;
   /** Read out of sf_campaign_url by the server; null when the URL holds none. */
   campaign_id?: string | null;
   owner_email?: string | null;
@@ -105,6 +107,8 @@ export interface SubmissionSummary {
   template_version?: string | null;
   submitted_at?: string | null;
   reviewed_at?: string | null;
+  /** "machine" when automatic review approved it, otherwise the reviewer's email. */
+  reviewed_by?: string | null;
   imported_at?: string | null;
   updated_at?: string | null;
 }
@@ -120,24 +124,133 @@ export interface Comment {
   created_at?: string | null;
 }
 
-// A problem the server refused to accept at submit. A non-empty list means the browser
-// and the server DISAGREE — in practice a stale tab running older rules. Worth
-// surfacing loudly rather than retrying, because retrying won't help.
+// A problem the server refused to accept at submit. Either automatic review's own checks
+// (the campaign URL, duplicate emails), which an admin may overrule, or an invariant the
+// browser should already have caught — in practice a stale tab. `tab` and `row` are
+// null for a problem with the submission rather than a row.
+/** One thing the server's review refused, said so the RMM can find it. */
 export interface Problem {
-  tab: string;
-  row: number;
+  /** The member status (tab) the row is on; null for a problem with the whole list,
+   *  such as a missing campaign URL or SDR owner. */
+  tab: string | null;
+  /** The row's position in that tab, counting from 1 as the grid shows it; null
+   *  whenever `tab` is. */
+  row: number | null;
+  /** The column's key, when the problem is about one cell or one list-level field. */
   field?: string;
+  /** What is wrong, in words for the RMM. */
   message: string;
+}
+
+/** A Salesforce campaign, as the Sales Entity Service describes it. */
+export interface CampaignInfo {
+  /** The Salesforce campaign ID. */
+  id: string;
+  name?: string | null;
+  /** Salesforce's campaign type, e.g. "Conference"; null when not set. */
+  type?: string | null;
+  /** Salesforce's campaign status, e.g. "Planned"; null when not set. */
+  status?: string | null;
+  isActive: boolean;
+  /** YYYY-MM-DD as Salesforce holds it; null or absent when the campaign has none. */
+  startDate?: string | null;
+  /** YYYY-MM-DD as Salesforce holds it; null or absent when the campaign has none. */
+  endDate?: string | null;
+}
+
+/** Whether Salesforce has a campaign. "unavailable" means it couldn't be asked — never
+ *  read it as "does not exist". */
+export interface CampaignCheck {
+  result: "found" | "not_found" | "unavailable";
+  campaign?: CampaignInfo | null;
+}
+
+/** How fresh the country and state lists are — a copy of Salesforce's, refreshed when
+ *  over a day old or by an admin's Sync now. */
+export interface GeographyStatus {
+  /** Last successful sync; null while the lists are still the template's seed. */
+  synced_at: string | null;
+  /** The admin who pressed Sync now; null for the daily refresh. */
+  synced_by: string | null;
+  attempted_at: string | null;
+  /** Why the last attempt failed; cleared by the next success. */
+  error: string | null;
+  country_count: number;
+  state_count: number;
+  countries_with_states: { country: string; states: number }[];
+  stale: boolean;
+  refresh_hours: number;
+}
+
+/** A stored job title the check took as not English, for an admin to correct. */
+export interface FlaggedTitle {
+  key: string;
+  title: string;
+  language: string | null;
+  english: string;
+  model: string;
+  created_at: string;
+}
+
+/** A pick list column whose values are copied from a Salesforce Lead field (Industry). */
+export interface PicklistSyncStatus {
+  /** Our column, e.g. "Industry". */
+  field_name: string;
+  /** The Lead field it is copied from. */
+  salesforce_field: string;
+  /** Last successful sync; null if never synced (the column still has its initial values). */
+  synced_at: string | null;
+  synced_by: string | null;
+  attempted_at: string | null;
+  /** Why the last attempt failed; cleared by the next success. */
+  error: string | null;
+  /** Values on the column now. */
+  value_count: number;
+  /** Member statuses that have the column. */
+  column_count: number;
+}
+
+/** One step of automatic review. */
+export interface ReviewCheck {
+  key: "rows" | "duplicates" | "sdr" | "titles" | "campaign";
+  label: string;
+  status: "passed" | "failed" | "skipped";
+  problems: Problem[];
+}
+
+/** Automatic review run without changing anything — what the Review button shows. */
+export interface ReviewResult {
+  passed: boolean;
+  can_escalate: boolean;
+  checks: ReviewCheck[];
+  campaign?: CampaignInfo | null;
+  row_count: number;
 }
 
 export interface SubmitResult {
   submitted: boolean;
+  /** Where the list went: approved by automatic review, or to an admin's queue. */
+  outcome?: "approved" | "escalated" | "returned" | null;
   problems: Problem[];
+  /** True when every problem is one an admin may overrule — offer "Send to admin". */
+  can_escalate?: boolean;
 }
 
 export interface SuggestResult {
   assisted: boolean;
   suggestions: SuggestionAnswer[];
+}
+
+/** The job titles that are not in English (POST /submissions/{id}/titles). `key` is the
+ *  title's titleKey. */
+/** The list's job titles that are not in English. */
+export interface TitleResult {
+  /** False when the server has no model configured: titles it answered before still
+   *  come back, but new ones go unchecked. */
+  assisted: boolean;
+  /** One entry per flagged title, keyed as titleKey keys it; `language` is null when the
+   *  server could tell only that it isn't English. */
+  translations: { key: string; english: string; language: string | null }[];
 }
 
 // Countries and states, plus whether suggestion assistance is configured at all.
