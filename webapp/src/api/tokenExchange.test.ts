@@ -168,12 +168,35 @@ describe("exchangeAccessToken", () => {
     await expect(exchangeAccessToken(request, getSubjectToken)).resolves.toBe("later");
   });
 
-  it("renews this app's session and retries once when its own token has expired", async () => {
-    subject = jwt(-3600);
+  it.each([
+    ["long ago", -3600],
+    // Inside the allowance classifyToken makes for a fast clock, where the
+    // token still reads as live but the identity provider already refuses it.
+    ["a few seconds ago", -5],
+  ])("renews this app's session before exchanging when its own token expired %s", async (_label, seconds) => {
+    subject = jwt(seconds);
+    const renewed = jwt(3600);
+    refreshAccessToken.mockResolvedValueOnce(renewed);
+    fetchMock.mockResolvedValueOnce(ok({ access_token: "exchanged", expires_in: 3600 }));
+
+    await expect(exchangeAccessToken(request, getSubjectToken)).resolves.toBe("exchanged");
+
+    expect(refreshAccessToken).toHaveBeenCalledWith(subject);
+    // One request only: the expired token is never sent.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as URLSearchParams;
+    expect(body.get("subject_token")).toBe(renewed);
+  });
+
+  it("renews and retries once when its own token runs out while the request is on its way", async () => {
+    subject = jwt(2);
     const renewed = jwt(3600);
     refreshAccessToken.mockResolvedValueOnce(renewed);
     fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 }))
+      .mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(3000);
+        return new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 });
+      })
       .mockResolvedValueOnce(ok({ access_token: "exchanged", expires_in: 3600 }));
 
     await expect(exchangeAccessToken(request, getSubjectToken)).resolves.toBe("exchanged");
@@ -181,5 +204,60 @@ describe("exchangeAccessToken", () => {
     expect(refreshAccessToken).toHaveBeenCalledWith(subject);
     const retryBody = (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as URLSearchParams;
     expect(retryBody.get("subject_token")).toBe(renewed);
+  });
+
+  // Taken from a recording: the token had 38 minutes left by its `exp`, and
+  // every exchange was refused because the identity provider had revoked it.
+  it("renews this app's session and retries once when its own token was revoked before it expired", async () => {
+    const renewed = jwt(3600);
+    refreshAccessToken.mockResolvedValueOnce(renewed);
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: "invalid_request",
+            error_description: "Invalid Subject Token. Subject token is not ACTIVE.",
+          }),
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(ok({ access_token: "exchanged", expires_in: 3600 }));
+
+    await expect(exchangeAccessToken(request, getSubjectToken)).resolves.toBe("exchanged");
+
+    // Passed as the refused token, so the renewal does not hand it back.
+    expect(refreshAccessToken).toHaveBeenCalledWith(subject);
+    const retryBody = (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as URLSearchParams;
+    expect(retryBody.get("subject_token")).toBe(renewed);
+  });
+
+  it("gives up after that one retry, reporting the refusal", async () => {
+    refreshAccessToken.mockResolvedValueOnce(jwt(3600));
+    const refusal = () =>
+      new Response(
+        JSON.stringify({ error: "invalid_request", error_description: "Invalid Subject Token. Subject token is not ACTIVE." }),
+        { status: 400 },
+      );
+    fetchMock.mockResolvedValueOnce(refusal()).mockResolvedValueOnce(refusal());
+
+    await expect(exchangeAccessToken(request, getSubjectToken)).rejects.toBeInstanceOf(TokenExchangeError);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("gets a new token for the other application once its cached one and this app's own have both expired", async () => {
+    fetchMock.mockResolvedValueOnce(ok({ access_token: "first", expires_in: 3600 }));
+    await expect(exchangeAccessToken(request, getSubjectToken)).resolves.toBe("first");
+
+    // An hour inside the other application: nothing renewed this app's token.
+    vi.advanceTimersByTime(3600_000);
+    const renewed = jwt(3600);
+    refreshAccessToken.mockResolvedValueOnce(renewed);
+    fetchMock.mockResolvedValueOnce(ok({ access_token: "second", expires_in: 3600 }));
+
+    await expect(exchangeAccessToken(request, getSubjectToken)).resolves.toBe("second");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const body = (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as URLSearchParams;
+    expect(body.get("subject_token")).toBe(renewed);
   });
 });
