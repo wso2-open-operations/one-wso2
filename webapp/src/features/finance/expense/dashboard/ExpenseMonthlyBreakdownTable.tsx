@@ -14,13 +14,55 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Box, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@wso2/oxygen-ui";
 import { money } from "../../util/financeFormat";
 import { CELL_SX, HEAD_SX } from "../../components/dashboardTableSx";
+import { getCategoryBreakdown } from "./expenseDashboardUtils";
 import type { ExpenseReportMonthlyItem } from "../expenseTypes";
 
-/** One row per month, one column per expense category, with a Total column
- *  and a totals row underneath. */
+// "All Time" and a multi-year custom range are not capped at twelve months, so
+// the row of month columns can outrun the viewport. The category column is
+// pinned to the left edge, which keeps every amount attributable to its row
+// however far the table is scrolled.
+const STICKY_SX = {
+  position: "sticky",
+  left: 0,
+  zIndex: 1,
+  whiteSpace: "nowrap",
+} as const;
+
+/** The theme's row shade, the one the footer totals row is tinted with. */
+const HOVER_TINT = "var(--oxygen-palette-action-hover)";
+
+/**
+ * A pinned cell's geometry, plus a background with no transparency left in
+ * it, so the month columns cannot be read through the cell as they scroll
+ * underneath it.
+ *
+ * `action.hover` is translucent in every theme and `background.paper` is in
+ * several, so painting a pinned cell with either leaves it see-through. A
+ * background COLOUR cannot settle it here either: the footer row shades its
+ * cells through a `& td` rule, and that outranks a cell's own class on
+ * `background-color`. The shades are therefore stacked as background IMAGES,
+ * which nothing else sets, over an opaque page colour at the bottom of the
+ * stack — leaving it opaque whatever colour wins underneath.
+ *
+ * @param tints - Shades to composite on top, nearest the viewer first.
+ */
+const opaqueSticky = (...tints: readonly string[]) => ({
+  ...STICKY_SX,
+  backgroundImage: [
+    ...tints,
+    "var(--oxygen-palette-background-paper)",
+    // Last, so it sits at the bottom: opaque, and not another tint.
+    "var(--oxygen-palette-background-default)",
+  ]
+    .map((layer) => `linear-gradient(${layer}, ${layer})`)
+    .join(", "),
+});
+
+/** One row per expense category, one column per month, with trailing Total and
+ *  % columns and a per-month totals row underneath. */
 export function ExpenseMonthlyBreakdownTable({
   expenseTypeColumns,
   items,
@@ -38,34 +80,16 @@ export function ExpenseMonthlyBreakdownTable({
     );
   }
 
-  const amountFor = (item: ExpenseReportMonthlyItem, expenseType: string): number =>
-    item.amounts.find((amount) => amount.expenseType === expenseType)?.amount ?? 0;
-  const columnTotal = (expenseType: string): number =>
-    items.reduce((sum, item) => sum + amountFor(item, expenseType), 0);
-  const periodTotal = items.reduce((sum, item) => sum + item.total, 0);
+  const { rows, monthTotals, periodTotal } = getCategoryBreakdown(expenseTypeColumns, items);
 
   return (
     <Table size="small">
       <TableHead>
         <TableRow sx={HEAD_SX}>
-          <TableCell>Month</TableCell>
-          {expenseTypeColumns.map((expenseType) => (
-            <TableCell key={expenseType} align="right">
-              <Tooltip title={expenseType} arrow>
-                <Box
-                  component="span"
-                  sx={{
-                    display: "inline-block",
-                    maxWidth: 150,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    verticalAlign: "bottom",
-                  }}
-                >
-                  {expenseType}
-                </Box>
-              </Tooltip>
+          <TableCell sx={opaqueSticky()}>Category</TableCell>
+          {items.map((item) => (
+            <TableCell key={item.month} align="right" sx={{ whiteSpace: "nowrap" }}>
+              {item.label}
             </TableCell>
           ))}
           <TableCell align="right">Total</TableCell>
@@ -73,27 +97,27 @@ export function ExpenseMonthlyBreakdownTable({
         </TableRow>
       </TableHead>
       <TableBody>
-        {items.map((item) => (
-          <TableRow key={item.month}>
-            <TableCell sx={{ ...CELL_SX, whiteSpace: "nowrap" }}>{item.label}</TableCell>
-            {expenseTypeColumns.map((expenseType) => (
-              <TableCell key={expenseType} align="right" sx={CELL_SX}>
-                {money(amountFor(item, expenseType), currency)}
+        {rows.map((row) => (
+          <TableRow key={row.expenseType}>
+            <TableCell sx={{ ...CELL_SX, ...opaqueSticky() }}>{row.expenseType}</TableCell>
+            {row.amountsByMonth.map((amount, index) => (
+              <TableCell key={items[index].month} align="right" sx={CELL_SX}>
+                {money(amount, currency)}
               </TableCell>
             ))}
             <TableCell align="right" sx={CELL_SX}>
-              {money(item.total, currency)}
+              {money(row.total, currency)}
             </TableCell>
             <TableCell align="right" sx={CELL_SX}>
-              {item.percentageOfTotal}%
+              {row.percentageOfTotal}%
             </TableCell>
           </TableRow>
         ))}
         <TableRow sx={{ "& td": { fontWeight: 700, border: 0, bgcolor: "action.hover" } }}>
-          <TableCell sx={CELL_SX}>Total</TableCell>
-          {expenseTypeColumns.map((expenseType) => (
-            <TableCell key={expenseType} align="right" sx={CELL_SX}>
-              {money(columnTotal(expenseType), currency)}
+          <TableCell sx={{ ...CELL_SX, ...opaqueSticky(HOVER_TINT) }}>Total</TableCell>
+          {monthTotals.map((total, index) => (
+            <TableCell key={items[index].month} align="right" sx={CELL_SX}>
+              {money(total, currency)}
             </TableCell>
           ))}
           <TableCell align="right" sx={CELL_SX}>
