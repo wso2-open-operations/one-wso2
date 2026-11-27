@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAsgardeo } from "@asgardeo/react";
 import { Alert, Box, CircularProgress, Link } from "@wso2/oxygen-ui";
@@ -23,6 +23,7 @@ import { CSM_BASE_PATH, csmRemoteEntryUrl, csmUrl } from "@config/apiConfig";
 import { landingPath, landingPathFor } from "@config/landingConfig";
 import { remoteComponent } from "@/remotes/remoteComponent";
 import RemoteBoundary from "@/remotes/RemoteBoundary";
+import WaffleOverlay from "@components/waffle/WaffleOverlay";
 
 /**
  * Where "Back to One WSO2" goes: the person's landing page, unless that is CSM
@@ -41,6 +42,8 @@ interface CsmRemoteProps {
   host: {
     name: string;
     onExit: () => void;
+    onToggleAppSwitcher: (anchor: HTMLElement) => void;
+    appSwitcherOpen: boolean;
     /** Tokens for CSM's own client id, exchanged from this app's. */
     getTokens: (request: TokenExchangeRequest) => Promise<ExchangedTokens>;
   };
@@ -56,15 +59,19 @@ const CsmRemote = csmRemoteEntryUrl ? remoteComponent<CsmRemoteProps>("csm", csm
 export default function CsmRemotePage() {
   const navigate = useNavigate();
   const { getAccessToken } = useAsgardeo();
+  const [appSwitcherAnchor, setAppSwitcherAnchor] = useState<HTMLElement | null>(null);
   const host = useMemo(
     () => ({
       name: "One WSO2",
       onExit: () => navigate(exitPath()),
+      onToggleAppSwitcher: (anchor: HTMLElement) =>
+        setAppSwitcherAnchor((current) => (current ? null : anchor)),
+      appSwitcherOpen: Boolean(appSwitcherAnchor),
       // CSM says which client id and scopes it needs; this app's own token is
       // never handed to it.
       getTokens: (request: TokenExchangeRequest) => exchangeTokens(request, getAccessToken),
     }),
-    [navigate, getAccessToken],
+    [navigate, getAccessToken, appSwitcherAnchor],
   );
   if (!CsmRemote) {
     return <Alert severity="info">CSM is not connected: ONE_WSO2_CSM_REMOTE_ENTRY_URL is not set.</Alert>;
@@ -93,6 +100,9 @@ export default function CsmRemotePage() {
         }
       >
         <CsmRemote basename={CSM_BASE_PATH} host={host} />
+        {appSwitcherAnchor && (
+          <WaffleOverlay anchorEl={appSwitcherAnchor} onClose={() => setAppSwitcherAnchor(null)} />
+        )}
       </Suspense>
     </RemoteBoundary>
   );
