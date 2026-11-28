@@ -84,6 +84,13 @@ export interface BackendNewDecision {
   disclaimerAccepted: boolean;
 }
 
+/** The body of POST /requests/{id}/override. */
+export interface BackendNewOverride {
+  decision: "APPROVED" | "REJECTED";
+  justification: string;
+  comment: string | null;
+}
+
 export interface BackendDecision {
   version: number;
   decidedBy: string;

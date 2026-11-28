@@ -190,7 +190,7 @@ export default function RequestForm({
                   event: draft.event,
                   vendors: draft.category === "EVENTS" ? [] : draft.vendors,
                   budget: budgetForDisplay(draft.budget, lookups, engagementCodes.data ?? []),
-                  budgetApprover: draft.category === "EVENTS" ? "" : budgetApprovers.data?.find((a) => a.id === draft.budgetApproverId)?.name ?? "",
+                  budgetApprover: budgetApprovers.data?.find((a) => a.id === draft.budgetApproverId)?.name ?? "",
                   notes: submittedNotes(draft),
                   attachments: [
                     ...draft.attachments.saved.map((a) => ({ key: `saved-${a.id}`, name: a.name, sizeBytes: a.sizeBytes })),

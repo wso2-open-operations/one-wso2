@@ -22,7 +22,7 @@ import { useAccessToken } from "@hooks/useAccessToken";
 import { useAsgardeoUser } from "@hooks/useAsgardeoUser";
 import { saveBlob } from "@utils/saveFile";
 import { MIN_DIRECTORY_QUERY } from "../request-form/requestFormModel";
-import type { ApprovalDecisionInput, Attachment, BudgetChange, Person, Priority, PurchaseRequestInput, RequestStatus } from "../types";
+import type { ApprovalDecisionInput, Attachment, BudgetChange, OverrideInput, Person, Priority, PurchaseRequestInput, RequestStatus } from "../types";
 import { createProcurementApi, isProcurementAvailable } from "./procurementApi";
 
 const REFERENCE_STALE_TIME = 5 * 60 * 1000;
@@ -284,6 +284,10 @@ function useHandlingAction<V>(requestId: string, run: (api: NonNullable<ReturnTy
 /** Assign to the signed-in user, or to the given email. */
 export const useAssignRequest = (requestId: string) =>
   useHandlingAction<string | undefined>(requestId, (api, email) => api.assignRequest(requestId, email));
+
+/** As a Procurement admin, confirm the approval of a request or reject it. */
+export const useOverrideRequest = (requestId: string) =>
+  useHandlingAction<OverrideInput>(requestId, (api, input) => api.overrideRequest(requestId, input));
 
 /** Replace the budget details of a request. */
 export const useChangeBudget = (requestId: string) =>

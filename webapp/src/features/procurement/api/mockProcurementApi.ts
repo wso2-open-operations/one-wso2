@@ -374,7 +374,8 @@ function buildMockProcurementApi(user: Person): ProcurementApi {
   const toApprove: PurchaseRequest[] = approvalSeeds(user);
   const forTeam: PurchaseRequest[] = teamSeeds();
   let counter = requests.length;
-  const me: ProcurementMe = { ...user, roles: ["procurement_user"], teamLead: TEAM_LEAD, approvalExempt: false };
+  const confirmed = new Set<string>();
+  const me: ProcurementMe = { ...user, roles: ["procurement_user", "procurement_admin"], teamLead: TEAM_LEAD, approvalExempt: false };
 
   const find = (requestId: string): PurchaseRequest => {
     const found = [...requests, ...toApprove, ...forTeam].find((r) => r.id === requestId);
@@ -520,6 +521,20 @@ function buildMockProcurementApi(user: Person): ProcurementApi {
       Object.assign(found, {
         status: decision,
         teamLeadDecision: { decision, notes: comment.trim(), decidedAt: new Date().toISOString(), decidedBy: user.email, isOverride: false },
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    overrideRequest: async (requestId, { decision, justification, comment }) => {
+      const found = find(requestId);
+      if (!me.roles.includes("procurement_admin")) throw new Error("You are not allowed to do this.");
+      if (found.requester.email.toLowerCase() === user.email.toLowerCase()) throw new Error("Request not found.");
+      if (found.status !== "approved") throw new Error("This request is not waiting for a decision.");
+      if (justification.trim() === "") throw new Error("Invalid justification.");
+      if (decision === "approved" && confirmed.has(requestId)) throw new Error("This approval was already confirmed.");
+      if (decision === "approved") confirmed.add(requestId);
+      Object.assign(found, {
+        status: decision === "approved" ? "approved" : "rejected",
+        teamLeadDecision: { decision, notes: comment.trim(), decidedAt: new Date().toISOString(), decidedBy: user.email, isOverride: true },
         updatedAt: new Date().toISOString(),
       });
     },

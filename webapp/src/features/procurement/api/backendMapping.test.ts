@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 import type { Person, PurchaseRequestInput } from "../types";
 import type { BackendRequestDetail } from "./backendTypes";
 import { draftFromRequest, draftToInput, emptyDraft, emptyEvent } from "../request-form/requestFormModel";
-import { toBudgetApprovers, toChoices, toEngagementChoices, toMe, toApprovalItem, toBackendStatus, toNewDecision, toNewRequest, toQueueItem, toRequest, toSummary } from "./backendMapping";
+import { toBudgetApprovers, toChoices, toEngagementChoices, toMe, toApprovalItem, toBackendStatus, toNewDecision, toNewOverride, toNewRequest, toQueueItem, toRequest, toSummary } from "./backendMapping";
 
 const signedIn: Person = { id: "me@example.com", name: "Me Myself", email: "me@example.com" };
 
@@ -388,6 +388,8 @@ describe("approvals", () => {
   it("sends the confirmation only with an approval, and the comment only when there is one", () => {
     expect(toNewDecision({ decision: "approved", comment: " ", disclaimerAccepted: true })).toEqual({ decision: "APPROVED", comment: null, disclaimerAccepted: true });
     expect(toNewDecision({ decision: "rejected", comment: "No", disclaimerAccepted: true })).toEqual({ decision: "REJECTED", comment: "No", disclaimerAccepted: false });
+    expect(toNewOverride({ decision: "approved", justification: "  Within budget  ", comment: " " })).toEqual({ decision: "APPROVED", justification: "Within budget", comment: null });
+    expect(toNewOverride({ decision: "rejected", justification: "Over budget", comment: "Please resubmit" })).toEqual({ decision: "REJECTED", justification: "Over budget", comment: "Please resubmit" });
   });
 });
 

@@ -342,10 +342,11 @@ describe("a Marketing & Events request", () => {
     expect(fields(STEP_BUDGET, completeEvent(), me)).toEqual([]);
   });
 
-  it("needs the budget details but no budget approver, and sends none", () => {
+  it("needs the budget details, takes a budget approver but does not need one, and sends the one chosen", () => {
     expect(fields(STEP_BUDGET, { ...completeEvent(), budget: emptyDraft().budget }, me)).toContain("budgetCategory");
     expect(fields(STEP_BUDGET, { ...completeEvent(), budgetApproverId: "" }, me)).toEqual([]);
-    expect(draftToInput(completeEvent()).budgetApproverId).toBe("");
+    expect(draftToInput({ ...completeEvent(), budgetApproverId: "" }).budgetApproverId).toBe("");
+    expect(draftToInput({ ...completeEvent(), budgetApproverId: "10" }).budgetApproverId).toBe("10");
   });
 
   it("does not ask a shortlisted event for its earlier attendance, even an industry sponsorship", () => {

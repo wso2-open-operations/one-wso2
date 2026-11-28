@@ -2158,6 +2158,7 @@ export const procurementServiceUrls = {
   unassignRequest: (requestId: string): string => `${procurementBackendUrl}/requests/${encodeSegment(requestId)}/unassign`,
   requestPriority: (requestId: string): string => `${procurementBackendUrl}/requests/${encodeSegment(requestId)}/priority`,
   decideRequest: (requestId: string): string => `${procurementBackendUrl}/requests/${encodeSegment(requestId)}/decision`,
+  overrideRequest: (requestId: string): string => `${procurementBackendUrl}/requests/${encodeSegment(requestId)}/override`,
   createRequest: `${procurementBackendUrl}/requests`,
   request: (requestId: string): string => `${procurementBackendUrl}/requests/${encodeSegment(requestId)}`,
   submitRequest: (requestId: string): string => `${procurementBackendUrl}/requests/${encodeSegment(requestId)}/submit`,

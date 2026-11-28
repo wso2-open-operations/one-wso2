@@ -32,6 +32,7 @@ import type {
   Person,
   ProcurementLookups,
   ProcurementMe,
+  OverrideInput,
   PurchaseRequest,
   Priority,
   PurchaseRequestInput,
@@ -65,6 +66,7 @@ import {
   toEngagementChoices,
   toMe,
   toNewDecision,
+  toNewOverride,
   toNewRequest,
   toPerson,
   toQueueItem,
@@ -95,6 +97,8 @@ export interface ProcurementApi {
   listApprovals: (status?: RequestStatus) => Promise<ApprovalItem[]>;
   /** Approve or reject a request that waits for the user's decision. */
   decideRequest: (requestId: string, decision: ApprovalDecisionInput) => Promise<void>;
+  /** As a Procurement admin, confirm the approval of a request its team lead approved, or reject it. A rejection goes back to the requester. */
+  overrideRequest: (requestId: string, input: OverrideInput) => Promise<void>;
   /**
    * The requests Procurement handles, the most urgent first.
    *
@@ -270,6 +274,9 @@ function createHttpProcurementApi(getAccessToken: () => Promise<string>, user: P
       (await get<BackendApprovalItem[]>(urls.approvals(REQUEST_PAGE_SIZE, status && toBackendStatus(status)))).map(toApprovalItem),
     decideRequest: async (requestId, decision) => {
       await authedPost(urls.decideRequest(requestId), await getAccessToken(), toNewDecision(decision));
+    },
+    overrideRequest: async (requestId, input) => {
+      await authedPost(urls.overrideRequest(requestId), await getAccessToken(), toNewOverride(input));
     },
     listTeamQueue: async ({ status, priority, assignee } = {}) => {
       const page = async (offset: number): Promise<QueueItem[]> =>

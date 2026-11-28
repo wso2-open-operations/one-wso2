@@ -23,6 +23,7 @@ import SavedRequestSummary from "../../components/SavedRequestSummary";
 import { useProcurementMe, useRequest } from "../../api/useProcurement";
 import BudgetEdit from "../components/BudgetEdit";
 import HandlingPanel from "../components/HandlingPanel";
+import OverrideReview from "../components/OverrideReview";
 import { workspacePaths } from "../workspacePaths";
 
 export default function TeamRequestPage() {
@@ -69,6 +70,7 @@ export default function TeamRequestPage() {
               Who you are could not be read, so the assignment and budget controls are hidden. {describeError(me.error)}
             </Alert>
           )}
+          {data.status === "approved" && me.data && <OverrideReview request={data} me={me.data} />}
           {handling && me.data && <HandlingPanel request={data} me={me.data.email} />}
           <SavedRequestSummary request={data} budgetAction={handling && me.data ? <BudgetEdit request={data} me={me.data.email} /> : undefined} />
         </Stack>

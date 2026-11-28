@@ -296,6 +296,15 @@ export interface ApprovalDecisionInput {
   disclaimerAccepted: boolean;
 }
 
+/** A Procurement admin's decision about a request its team lead approved: the approval stands, or the request is rejected. */
+export interface OverrideInput {
+  decision: "approved" | "rejected";
+  /** Why the admin decides so. Required. */
+  justification: string;
+  /** A note for the requester, if there is one. */
+  comment: string;
+}
+
 /** A row of My Requests. */
 export interface RequestSummary {
   id: string;

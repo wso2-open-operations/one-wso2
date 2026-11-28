@@ -170,6 +170,21 @@ describe("the Procurement sample data", () => {
     await expect(api.changeTeamLead("approval-1", "alex.morgan@example.com")).rejects.toThrow(/Only the requester/);
   });
 
+  it("lets an admin confirm an approval once or reject the request, with a justification, and refuses what the backend refuses", async () => {
+    const api = createMockProcurementApi(user);
+    await expect(api.overrideRequest("team-1", { decision: "rejected", justification: " ", comment: "" })).rejects.toThrow(/justification/);
+    await expect(api.overrideRequest("seed-1", { decision: "rejected", justification: "No", comment: "" })).rejects.toThrow(/not found/);
+    await expect(api.overrideRequest("approval-1", { decision: "rejected", justification: "No", comment: "" })).rejects.toThrow(/not waiting/);
+    await expect(api.overrideRequest("team-2", { decision: "approved", justification: "Fine", comment: "" })).rejects.toThrow(/not waiting/);
+    await api.overrideRequest("team-1", { decision: "approved", justification: "Within budget", comment: "" });
+    expect((await api.getRequest("team-1")).teamLeadDecision).toMatchObject({ decision: "approved", isOverride: true });
+    await expect(api.overrideRequest("team-1", { decision: "approved", justification: "Again", comment: "" })).rejects.toThrow(/already confirmed/);
+    await api.overrideRequest("team-1", { decision: "rejected", justification: "Over budget", comment: "Please resubmit" });
+    const rejected = await api.getRequest("team-1");
+    expect(rejected.status).toBe("rejected");
+    expect(rejected.teamLeadDecision).toMatchObject({ decision: "rejected", notes: "Please resubmit", isOverride: true });
+  });
+
   it("lists only the requests assigned to a person when asked, whatever the case of the email", async () => {
     const api = createMockProcurementApi(user);
     expect((await api.listTeamQueue({ assignee: "BLAKE.RIVERS@example.com" })).map((r) => r.id)).toEqual(["team-2"]);

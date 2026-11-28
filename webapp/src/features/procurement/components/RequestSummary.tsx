@@ -363,7 +363,7 @@ export default function RequestSummary({
         <Row label="Region" value={b.region} optional={budgetOptional} />
         <Row label={view.category === "EVENTS" ? "Engagement code / Budget owner" : "Engagement code"} value={b.engagementCode} optional={budgetOptional} />
         <Row label="Salesforce campaign" value={b.salesforceCampaign} optional />
-        {view.category !== "EVENTS" && <Row label="Budget approver" value={view.budgetApprover} optional={budgetOptional} />}
+        <Row label="Budget approver" value={view.budgetApprover} optional={budgetOptional || view.category === "EVENTS"} />
       </Section>
 
       <Section title="Notes" onEdit={edit(view.category === "EVENTS" ? 3 : 4)}>

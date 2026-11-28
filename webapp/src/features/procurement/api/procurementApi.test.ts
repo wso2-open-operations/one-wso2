@@ -423,6 +423,12 @@ describe("the Procurement backend adapter", () => {
     expect(authedPost).toHaveBeenCalledWith("/requests/7/decision", "token", { decision: "APPROVED", comment: null, disclaimerAccepted: true });
   });
 
+  it("sends an admin override", async () => {
+    authedPost.mockResolvedValue(null);
+    await api().overrideRequest("7", { decision: "rejected", justification: "Over budget", comment: "" });
+    expect(authedPost).toHaveBeenCalledWith("/requests/7/override", "token", { decision: "REJECTED", justification: "Over budget", comment: null });
+  });
+
   it("finds the requests assigned to one person on every page of the queue, since the backend cannot filter by assignee", async () => {
     const row = (id: number, assignee: string | null) => ({
       id, referenceNo: `PR-2026-${id}`, title: `Request ${id}`, category: "NON_IT", status: "ASSIGNED", version: 1, submittedOn: null,

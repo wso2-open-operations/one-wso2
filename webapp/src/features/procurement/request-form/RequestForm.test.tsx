@@ -299,7 +299,7 @@ describe("RequestForm, the steps after it", () => {
     expect(message).toHaveTextContent("Select an option");
   });
 
-  it("asks for the budget without vendors on the next step", async () => {
+  it("asks for the budget and an optional budget approver, without vendors, on the next step", async () => {
     const draft = {
       ...emptyDraft(),
       category: "EVENTS" as const,
@@ -319,6 +319,7 @@ describe("RequestForm, the steps after it", () => {
     for (let i = 0; i < 3; i += 1) await user.click(screen.getByRole("button", { name: /Continue/ }));
     expect(screen.getByRole("heading", { name: "Budget" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add files" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Budget approver" })).toBeInTheDocument();
     expect(screen.queryByText("Proposed vendor")).toBeNull();
   });
 

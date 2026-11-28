@@ -67,6 +67,15 @@ describe("RequestSummary", () => {
     expect(screen.getByText("Marketing & Events Procurement")).toBeInTheDocument();
   });
 
+  it("shows the budget approver of a Marketing & Events request, with Not provided when none was chosen", () => {
+    const { rerender } = render(<RequestSummary view={view({ category: "EVENTS" })} />);
+    expect(screen.getByText("Budget approver")).toBeInTheDocument();
+    expect(screen.getByText("Budget Owner")).toBeInTheDocument();
+    rerender(<RequestSummary view={view({ category: "EVENTS", budgetApprover: "" })} />);
+    const row = screen.getByText("Budget approver").parentElement as HTMLElement;
+    expect(within(row).getByText("Not provided")).toBeInTheDocument();
+  });
+
   it("says Not provided for a skipped optional field and leaves out a required one that is empty", () => {
     render(<RequestSummary view={view()} />);
     expect(screen.getAllByText("Not provided").length).toBeGreaterThan(0);

@@ -29,6 +29,7 @@ import type {
   PackageInclusion,
   ApprovalDecisionInput,
   ApprovalItem,
+  OverrideInput,
   Person,
   ProcurementMe,
   PurchaseRequest,
@@ -46,6 +47,7 @@ import type {
   BackendAttachment,
   BackendBudgetChange,
   BackendNewDecision,
+  BackendNewOverride,
   BackendProcurementItem,
   BackendItDetails,
   BackendBudgetApprover,
@@ -174,6 +176,14 @@ export function toNewDecision(input: ApprovalDecisionInput): BackendNewDecision 
     decision: input.decision === "approved" ? "APPROVED" : "REJECTED",
     comment: orNull(input.comment),
     disclaimerAccepted: input.decision === "approved" && input.disclaimerAccepted,
+  };
+}
+
+export function toNewOverride(input: OverrideInput): BackendNewOverride {
+  return {
+    decision: input.decision === "approved" ? "APPROVED" : "REJECTED",
+    justification: input.justification.trim(),
+    comment: orNull(input.comment),
   };
 }
 

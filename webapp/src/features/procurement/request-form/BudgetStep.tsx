@@ -133,21 +133,21 @@ export default function BudgetStep({
       </Box>
       {codes.isError && <Alert severity="error">{describeError(codes.error)}</Alert>}
 
+      <SectionHeading>Budget approval</SectionHeading>
+      <OptionField
+        label="Budget approver" name="budgetApprover"
+        required={required && !isEvent}
+        choices={approverChoices}
+        value={draft.budgetApproverId}
+        onChange={(budgetApproverId) => onChange({ budgetApproverId })}
+        disabled={!b.businessUnit && !b.region}
+        placeholder={!b.businessUnit && !b.region ? "Select a business unit or region first" : approvers.isFetching ? "Loading…" : undefined}
+        emptyText="No budget approver covers this business unit or region"
+      />
+      {approvers.isError && <Alert severity="error">{describeError(approvers.error)}</Alert>}
+
       {!isEvent && (
         <>
-          <SectionHeading>Budget approval</SectionHeading>
-          <OptionField
-            label="Budget approver" name="budgetApprover"
-            required={required}
-            choices={approverChoices}
-            value={draft.budgetApproverId}
-            onChange={(budgetApproverId) => onChange({ budgetApproverId })}
-            disabled={!b.businessUnit && !b.region}
-            placeholder={!b.businessUnit && !b.region ? "Select a business unit or region first" : approvers.isFetching ? "Loading…" : undefined}
-            emptyText="No budget approver covers this business unit or region"
-          />
-          {approvers.isError && <Alert severity="error">{describeError(approvers.error)}</Alert>}
-
           <SectionHeading>Notes</SectionHeading>
           <TextInput
             multiline

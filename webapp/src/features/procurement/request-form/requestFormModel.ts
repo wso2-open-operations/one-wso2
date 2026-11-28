@@ -541,7 +541,7 @@ export function draftToInput(draft: RequestDraft): PurchaseRequestInput {
     event: draft.category === "EVENTS" ? draft.event : emptyEvent(),
     vendors: draft.category === "EVENTS" ? [] : draft.vendors.filter((v) => !blank(v.name)),
     budget: draft.budget,
-    budgetApproverId: draft.category === "EVENTS" ? "" : draft.budgetApproverId,
+    budgetApproverId: draft.budgetApproverId,
     notes: submittedNotes(draft),
     attachments: draft.attachments,
     declarationAccepted: draft.declarationAccepted,
