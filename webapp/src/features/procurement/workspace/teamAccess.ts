@@ -19,16 +19,23 @@
 
 import { describeError } from "@api/errors";
 import type { VisibilityAnswer } from "@components/side-rail/visibilityFold";
+import { PROCUREMENT_WORKSPACE_ITEM } from "@constants/procurementApps";
 import { useProcurementMe } from "../api/useProcurement";
 import { isProcurementAvailable } from "../api/procurementApi";
 
-const TEAM_ROLES = ["procurement_user", "procurement_admin"];
+const ADMIN_ROLE = "procurement_admin";
+const TEAM_ROLES = ["procurement_user", ADMIN_ROLE];
 
 /** Whether a person's roles let them handle requests. */
 export const hasTeamRole = (roles: readonly string[]): boolean => roles.some((role) => TEAM_ROLES.includes(role));
 
+/** Whether a person's roles let them change Procurement's settings. */
+export const hasAdminRole = (roles: readonly string[]): boolean => roles.includes(ADMIN_ROLE);
+
 export interface ProcurementTeamRailGate {
   canSee: boolean;
+  /** Whether the settings row shows too: only Procurement admins have it. */
+  isAdmin: boolean;
   isResolving: boolean;
   error: string | undefined;
   retry: () => void;
@@ -45,6 +52,7 @@ export function useProcurementTeamRailGate(enabled: boolean): ProcurementTeamRai
   const me = useProcurementMe(active);
   return {
     canSee: active && !me.isError && Boolean(me.data) && hasTeamRole(me.data?.roles ?? []),
+    isAdmin: active && !me.isError && Boolean(me.data) && hasAdminRole(me.data?.roles ?? []),
     isResolving: active && me.isPending,
     error: active && me.isError ? describeError(me.error) : undefined,
     retry: () => void me.refetch(),
@@ -52,7 +60,7 @@ export function useProcurementTeamRailGate(enabled: boolean): ProcurementTeamRai
 }
 
 export function procurementTeamVisibility(gate: ProcurementTeamRailGate): VisibilityAnswer {
-  const canSee = () => gate.canSee;
+  const canSee = (sectionId: string) => (sectionId === PROCUREMENT_WORKSPACE_ITEM.settings ? gate.isAdmin : gate.canSee);
   return gate.error
     ? { canSee, resolving: gate.isResolving, error: gate.error, retry: gate.retry }
     : { canSee, resolving: gate.isResolving, retry: () => undefined };

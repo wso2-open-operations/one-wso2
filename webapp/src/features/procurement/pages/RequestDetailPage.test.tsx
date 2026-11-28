@@ -116,6 +116,19 @@ describe("RequestDetailPage", () => {
     }
   });
 
+  it("offers Cancel and Edit only to the requester, and hides them when who you are is not known", () => {
+    const other = { ...me, id: "other@example.com", email: "Other@example.com" };
+    state.me = query(other);
+    const { unmount } = renderAt("/me/procurement/requests/1");
+    expect(screen.queryByRole("button", { name: "Cancel request" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit and resubmit" })).toBeNull();
+    unmount();
+    state.me = { ...query(), isError: true, error: new Error("Employee not found."), refetch: vi.fn() };
+    renderAt("/me/procurement/requests/1");
+    expect(screen.queryByRole("button", { name: "Cancel request" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit and resubmit" })).toBeNull();
+  });
+
   it("says who made the decision, and when it was a Procurement review", () => {
     state.requests = {
       "1": request("1", { teamLeadDecision: { decision: "rejected", notes: "Over budget.", decidedAt: "2026-11-04T08:00:00.000Z", decidedBy: "admin@example.com", isOverride: true } }),
@@ -126,10 +139,13 @@ describe("RequestDetailPage", () => {
 
   it("shows the editor's failed dependency with a Retry, instead of loading for ever", async () => {
     const failing = { ...query(), isError: true, error: new Error("Employee not found."), refetch: vi.fn() };
-    state.me = failing;
     const user = userEvent.setup();
     renderAt("/me/procurement/requests/1");
     await user.click(screen.getByRole("button", { name: "Edit and resubmit" }));
+    act(() => {
+      state.me = failing;
+      state.notify();
+    });
     expect(screen.getByText("Employee not found.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(failing.refetch).toHaveBeenCalledOnce();

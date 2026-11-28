@@ -20,7 +20,7 @@
 // for approving and assigning join the registry with their own gate when those
 // screens land.
 
-import { CheckCheckIcon, ClipboardListIcon, ShoppingCartIcon } from "@wso2/oxygen-ui-icons-react";
+import { CheckCheckIcon, ClipboardListIcon, SettingsIcon, ShoppingCartIcon } from "@wso2/oxygen-ui-icons-react";
 import type { MenuApp } from "@constants/appMenu";
 import { PROCUREMENT_PATH } from "@features/procurement/procurementPaths";
 import { workspacePaths } from "@features/procurement/workspace/workspacePaths";
@@ -50,10 +50,11 @@ export const PROCUREMENT_APPS: readonly MenuApp[] = [
 export const PROCUREMENT_WORKSPACE_ITEM = {
   approvals: "procurement-approvals",
   queue: "procurement-team-queue",
+  settings: "procurement-settings",
 } as const;
 
-/** The rail rows only the Procurement team sees. Approvals is open to everyone, so the team's role check does not claim it. */
-export const PROCUREMENT_TEAM_ITEM_IDS: ReadonlySet<string> = new Set([PROCUREMENT_WORKSPACE_ITEM.queue]);
+/** The rail rows only the Procurement team sees, and Settings only for its admins. Approvals is open to everyone, so the team's role check does not claim it. */
+export const PROCUREMENT_TEAM_ITEM_IDS: ReadonlySet<string> = new Set([PROCUREMENT_WORKSPACE_ITEM.queue, PROCUREMENT_WORKSPACE_ITEM.settings]);
 
 /**
  * The Procurement perspective: approvals for anyone a request names as an
@@ -87,6 +88,21 @@ export const PROCUREMENT_TEAM_APPS: readonly MenuApp[] = [
         icon: CheckCheckIcon,
         desc: "Approve or reject the purchase requests that name you as an approver.",
         path: workspacePaths.approvals,
+      },
+    ],
+  },
+  {
+    key: "procurement-settings",
+    name: "Settings",
+    icon: SettingsIcon,
+    purpose: "Choose who can be a budget approver, and the options of the request form.",
+    items: [
+      {
+        id: PROCUREMENT_WORKSPACE_ITEM.settings,
+        label: "Settings",
+        icon: SettingsIcon,
+        desc: "Choose who can be a budget approver, and the options of the request form.",
+        path: workspacePaths.settings,
       },
     ],
   },

@@ -139,6 +139,7 @@ describe("the Procurement perspective", () => {
     expect(perspective?.sections?.flatMap((s) => s.children ?? []).map((c) => [c.label, c.path])).toEqual([
       ["Requests", "/procurement/requests"],
       ["Approvals", "/procurement/approvals"],
+      ["Settings", "/procurement/settings"],
     ]);
   });
 

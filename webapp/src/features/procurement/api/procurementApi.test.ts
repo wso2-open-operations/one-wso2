@@ -51,6 +51,10 @@ const answers: Record<string, unknown> = {
   "/reference-data?type=REGION": [{ code: "REG-1", label: "Global" }],
   "/budget-approvers?businessUnit=BU-1": [{ id: 10, name: "Budget Owner" }],
   "/budget-approvers?businessUnit=BU-1&region=REG-1": [{ id: 11, name: "Regional Owner" }],
+  "/settings/budget-approvers": [
+    { id: 10, name: "Budget Owner", email: "budget.owner@example.com", isActive: true, scopes: [{ scopeType: "BUSINESS_UNIT", code: "BU-1" }, { scopeType: "REGION", code: "REG-1" }] },
+  ],
+  "/settings/reference-data": [{ id: 3, type: "REGION", code: "REG-1", label: "Global", isActive: false }],
   "/engagement-codes?businessUnit=Sales": [{ code: "ENG-1", name: "Platform" }],
   "/procurement/team": [{ email: "sam.lee@example.com", name: "Sam Lee" }, { email: "robin.shaw@example.com", name: "Robin Shaw" }],
   "/directory/employees?query=dre": [{ email: "drew.parker@example.com", name: "Drew Parker" }, { email: "intern@example.com", name: "An Intern" }],
@@ -197,6 +201,34 @@ describe("the Procurement backend adapter", () => {
     });
     await api().changeBudget("7", { budget: { category: "", businessUnit: "", product: "", region: "", engagementCode: "", salesforceCampaign: "" }, budgetApproverId: "" });
     expect(authedPut.mock.calls[1][2]).toMatchObject({ budgetCategoryCode: null, budgetApproverId: null });
+  });
+
+  it("lists the budget approvers for Settings, and adds and changes one with the business units and regions as scopes", async () => {
+    authedPost.mockResolvedValue({ id: 11 });
+    authedPut.mockResolvedValue({ id: 10 });
+    expect(await api().listBudgetApproverSettings()).toEqual([
+      { id: "10", name: "Budget Owner", email: "budget.owner@example.com", isActive: true, businessUnits: ["BU-1"], regions: ["REG-1"] },
+    ]);
+    await api().addBudgetApprover("new.approver@example.com", { businessUnits: ["BU-1"], regions: [] });
+    await api().changeBudgetApprover("10", { isActive: false, businessUnits: [], regions: ["REG-1"] });
+    expect(authedPost).toHaveBeenCalledWith("/settings/budget-approvers", "token", {
+      email: "new.approver@example.com",
+      scopes: [{ scopeType: "BUSINESS_UNIT", code: "BU-1" }],
+    });
+    expect(authedPut).toHaveBeenCalledWith("/settings/budget-approvers/10", "token", {
+      isActive: false,
+      scopes: [{ scopeType: "REGION", code: "REG-1" }],
+    });
+  });
+
+  it("lists the options of the form's lists for Settings, and adds and changes one", async () => {
+    authedPost.mockResolvedValue({ id: 4 });
+    authedPut.mockResolvedValue({ id: 3 });
+    expect(await api().listReferenceSettings()).toEqual([{ id: "3", kind: "REGION", code: "REG-1", label: "Global", isActive: false }]);
+    await api().addReferenceOption({ kind: "PRODUCT", code: "PRD-9", label: "Ballerina" });
+    await api().changeReferenceOption("3", { label: "Worldwide", isActive: true });
+    expect(authedPost).toHaveBeenCalledWith("/settings/reference-data", "token", { type: "PRODUCT", code: "PRD-9", label: "Ballerina" });
+    expect(authedPut).toHaveBeenCalledWith("/settings/reference-data/3", "token", { label: "Worldwide", isActive: true });
   });
 
   it("lists the Procurement team's members as people, for the assignee dropdown", async () => {

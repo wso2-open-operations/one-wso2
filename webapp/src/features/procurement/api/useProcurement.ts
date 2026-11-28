@@ -22,7 +22,7 @@ import { useAccessToken } from "@hooks/useAccessToken";
 import { useAsgardeoUser } from "@hooks/useAsgardeoUser";
 import { saveBlob } from "@utils/saveFile";
 import { MIN_DIRECTORY_QUERY } from "../request-form/requestFormModel";
-import type { ApprovalDecisionInput, Attachment, BudgetChange, Person, Priority, PurchaseRequestInput, RequestStatus } from "../types";
+import type { ApprovalDecisionInput, Attachment, BudgetApproverChange, BudgetApproverScopes, BudgetChange, NewReferenceOption, Person, Priority, ReferenceOptionChange, PurchaseRequestInput, RequestStatus } from "../types";
 import { createProcurementApi, isProcurementAvailable } from "./procurementApi";
 
 const REFERENCE_STALE_TIME = 5 * 60 * 1000;
@@ -266,6 +266,79 @@ export function useProcurementTeam(active = true) {
     queryFn: () => api!.listTeamMembers(),
   });
 }
+
+/**
+ * Every budget approver, offered or not, for Settings.
+ *
+ * @param active - Whether to ask at all; only Procurement admins have these
+ */
+export function useBudgetApproverSettings(active = true) {
+  const { api, userId, enabled } = useProcurementContext();
+  return useQuery({
+    queryKey: [...root(userId), "settings", "budget-approvers"],
+    enabled: enabled && active,
+    retry: defaultQueryRetry,
+    queryFn: () => api!.listBudgetApproverSettings(),
+  });
+}
+
+/** Run a change to the budget approvers, then refresh Settings and the approvers the form offers. */
+function useBudgetApproverAction<V>(run: (api: NonNullable<ReturnType<typeof useProcurementContext>["api"]>, variables: V) => Promise<unknown>) {
+  const { api, userId } = useProcurementContext();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: V) => run(api!, variables),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: [...root(userId), "settings", "budget-approvers"] }),
+        queryClient.invalidateQueries({ queryKey: [...root(userId), "budget-approvers"] }),
+      ]),
+  });
+}
+
+/** Make an employee, by email, a budget approver. */
+export const useAddBudgetApprover = () =>
+  useBudgetApproverAction<{ email: string; scopes: BudgetApproverScopes }>((api, { email, scopes }) => api.addBudgetApprover(email, scopes));
+
+/** Change whether a budget approver is offered, and what they cover. */
+export const useChangeBudgetApprover = () =>
+  useBudgetApproverAction<{ id: string; change: BudgetApproverChange }>((api, { id, change }) => api.changeBudgetApprover(id, change));
+
+/**
+ * The options of every list of the form, offered or not, for Settings.
+ *
+ * @param active - Whether to ask at all; only Procurement admins have these
+ */
+export function useReferenceSettings(active = true) {
+  const { api, userId, enabled } = useProcurementContext();
+  return useQuery({
+    queryKey: [...root(userId), "settings", "reference-data"],
+    enabled: enabled && active,
+    retry: defaultQueryRetry,
+    queryFn: () => api!.listReferenceSettings(),
+  });
+}
+
+/** Run a change to an option, then refresh Settings and the lists the form offers. */
+function useReferenceAction<V>(run: (api: NonNullable<ReturnType<typeof useProcurementContext>["api"]>, variables: V) => Promise<unknown>) {
+  const { api, userId } = useProcurementContext();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: V) => run(api!, variables),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: [...root(userId), "settings", "reference-data"] }),
+        queryClient.invalidateQueries({ queryKey: [...root(userId), "lookups"] }),
+      ]),
+  });
+}
+
+/** Add an option to a list of the form. */
+export const useAddReferenceOption = () => useReferenceAction<NewReferenceOption>((api, option) => api.addReferenceOption(option));
+
+/** Change an option's label and whether it is offered. */
+export const useChangeReferenceOption = () =>
+  useReferenceAction<{ id: string; change: ReferenceOptionChange }>((api, { id, change }) => api.changeReferenceOption(id, change));
 
 /** Run a handling action on a request, then refresh that request and the queue. */
 function useHandlingAction<V>(requestId: string, run: (api: NonNullable<ReturnType<typeof useProcurementContext>["api"]>, variables: V) => Promise<unknown>) {

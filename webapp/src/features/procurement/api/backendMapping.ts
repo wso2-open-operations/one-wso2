@@ -21,6 +21,8 @@ import { emptyDetails, emptyEvent } from "../request-form/requestFormModel";
 import type {
   Attachment,
   BudgetApproverOption,
+  BudgetApproverScopes,
+  BudgetApproverSetting,
   BudgetChange,
   BudgetDetails,
   Choice,
@@ -34,6 +36,7 @@ import type {
   PurchaseRequest,
   PurchaseRequestInput,
   QueueItem,
+  ReferenceSetting,
   ProcurementCategory,
   RequestStatus,
   RequestSummary,
@@ -44,7 +47,9 @@ import type {
 import type {
   BackendApprovalItem,
   BackendAttachment,
+  BackendBudgetApproverSetting,
   BackendBudgetChange,
+  BackendBudgetScope,
   BackendNewDecision,
   BackendProcurementItem,
   BackendItDetails,
@@ -55,6 +60,7 @@ import type {
   BackendEngagementOption,
   BackendNewRequest,
   BackendReferenceItem,
+  BackendReferenceSetting,
   BackendRequestDetail,
   BackendRequestSummary,
   BackendItAssessment,
@@ -93,6 +99,24 @@ export const toEngagementChoices = (items: BackendEngagementOption[]): Choice[] 
 
 export const toBudgetApprovers = (items: BackendBudgetApprover[]): BudgetApproverOption[] =>
   items.map(({ id, name }) => ({ id: String(id), name }));
+
+export const toBudgetApproverSettings = (items: BackendBudgetApproverSetting[]): BudgetApproverSetting[] =>
+  items.map(({ id, name, email, isActive, scopes }) => ({
+    id: String(id),
+    name,
+    email,
+    isActive,
+    businessUnits: scopes.filter((s) => s.scopeType === "BUSINESS_UNIT").map((s) => s.code),
+    regions: scopes.filter((s) => s.scopeType === "REGION").map((s) => s.code),
+  }));
+
+export const toReferenceSettings = (items: BackendReferenceSetting[]): ReferenceSetting[] =>
+  items.map(({ id, type, code, label, isActive }) => ({ id: String(id), kind: type, code, label, isActive }));
+
+export const toBackendScopes = ({ businessUnits, regions }: BudgetApproverScopes): BackendBudgetScope[] => [
+  ...businessUnits.map((code): BackendBudgetScope => ({ scopeType: "BUSINESS_UNIT", code })),
+  ...regions.map((code): BackendBudgetScope => ({ scopeType: "REGION", code })),
+];
 
 /**
  * @param signedIn - The signed-in person from the id_token, because the backend names only the email

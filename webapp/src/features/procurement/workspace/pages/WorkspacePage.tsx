@@ -27,10 +27,19 @@ const REQUESTS = {
   subtitle: "Approved purchase requests, to assign and handle.",
 };
 
+const SETTINGS = {
+  title: "Procurement settings",
+  subtitle: "Choose who can be a budget approver, and the options that requesters pick from on the request form.",
+};
+
 /** The frame of the Procurement perspective's screens, worded for the screen the person is on. */
 export default function WorkspacePage() {
   const { pathname } = useLocation();
-  const { title, subtitle } = pathname.startsWith(workspacePaths.approvals) ? APPROVALS : REQUESTS;
+  const { title, subtitle } = pathname.startsWith(workspacePaths.approvals)
+    ? APPROVALS
+    : pathname.startsWith(workspacePaths.settings)
+      ? SETTINGS
+      : REQUESTS;
   return (
     <ProcurementShell title={title} subtitle={subtitle}>
       <Outlet />

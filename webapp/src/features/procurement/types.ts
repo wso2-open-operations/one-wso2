@@ -341,6 +341,51 @@ export interface BudgetApproverOption {
   name: string;
 }
 
+/** A list of the request form that Settings keeps, as the backend names it. */
+export type ReferenceKind = "BUDGET_CATEGORY" | "BUSINESS_UNIT" | "PRODUCT" | "REGION";
+
+/** An option of one of those lists, offered to requesters or not. */
+export interface ReferenceSetting {
+  id: string;
+  kind: ReferenceKind;
+  /** What the option is stored as; it cannot be changed once added. */
+  code: string;
+  label: string;
+  isActive: boolean;
+}
+
+/** A new option for one of the lists. */
+export interface NewReferenceOption {
+  kind: ReferenceKind;
+  code: string;
+  label: string;
+}
+
+/** What Settings changes about an option: its label, and whether it is offered. */
+export interface ReferenceOptionChange {
+  label: string;
+  isActive: boolean;
+}
+
+/** The business units and regions a budget approver covers, by code. */
+export interface BudgetApproverScopes {
+  businessUnits: string[];
+  regions: string[];
+}
+
+/** A budget approver as Settings shows them, offered to requesters or not. */
+export interface BudgetApproverSetting extends BudgetApproverScopes {
+  id: string;
+  name: string;
+  email: string;
+  isActive: boolean;
+}
+
+/** What Settings changes about a budget approver; the scopes replace the old ones. */
+export interface BudgetApproverChange extends BudgetApproverScopes {
+  isActive: boolean;
+}
+
 /** The lists the form's pickers draw from. Engagement codes and budget approvers depend on the business unit and region, so they are asked for separately. */
 export interface ProcurementLookups {
   budgetCategories: Choice[];

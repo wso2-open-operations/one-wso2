@@ -22,6 +22,9 @@ import PerspectiveLanding from "@components/perspective-landing/PerspectiveLandi
 import TeamOnlyRoute from "./components/TeamOnlyRoute";
 import ApprovalReviewPage from "./pages/ApprovalReviewPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
+import BudgetApproversSettings from "./components/BudgetApproversSettings";
+import ReferenceOptionsSettings from "./components/ReferenceOptionsSettings";
+import SettingsPage from "./pages/SettingsPage";
 import TeamQueuePage from "./pages/TeamQueuePage";
 import TeamRequestPage from "./pages/TeamRequestPage";
 import WorkspacePage from "./pages/WorkspacePage";
@@ -29,7 +32,8 @@ import { WORKSPACE_PATH } from "./workspacePaths";
 
 // Approvals is open to everyone: the backend lists only the requests that name the caller, and
 // checks again on every decision. The queue and the handling page are for the Procurement team,
-// whose role TeamOnlyRoute checks; the backend checks it again on every call.
+// whose role TeamOnlyRoute checks; the backend checks it again on every call. Settings is
+// for the team's admins.
 export const procurementWorkspaceRoutes = (
   <Route path={WORKSPACE_PATH.replace(/^\//, "")} element={<WorkspacePage />}>
     <Route index element={<PerspectiveLanding />} />
@@ -38,6 +42,13 @@ export const procurementWorkspaceRoutes = (
     <Route element={<TeamOnlyRoute />}>
       <Route path="requests" element={<TeamQueuePage />} />
       <Route path="requests/:requestId" element={<TeamRequestPage />} />
+    </Route>
+    <Route element={<TeamOnlyRoute adminOnly />}>
+      <Route path="settings" element={<SettingsPage />}>
+        <Route index element={<Navigate to="budget-approvers" replace />} />
+        <Route path="budget-approvers" element={<BudgetApproversSettings />} />
+        <Route path="options" element={<ReferenceOptionsSettings />} />
+      </Route>
     </Route>
     <Route path="*" element={<Navigate to={WORKSPACE_PATH} replace />} />
   </Route>

@@ -85,6 +85,7 @@ function RequestDetailContent() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const cancel = useCancelRequest(requestId ?? "");
   const data = request.data;
+  const isRequester = !!data && !!me.data && data.requester.email.toLowerCase() === me.data.email.toLowerCase();
 
   return (
     <>
@@ -96,12 +97,12 @@ function RequestDetailContent() {
         {data && !editing && (
           <Stack direction="row" spacing={2} alignItems="center">
             <RequestStatusChip status={data.status} />
-            {(data.status === "submitted" || data.status === "rejected") && (
+            {isRequester && (data.status === "submitted" || data.status === "rejected") && (
               <Button color="inherit" variant="outlined" onClick={() => setConfirmingCancel(true)}>
                 Cancel request
               </Button>
             )}
-            {data.status === "rejected" && (
+            {isRequester && data.status === "rejected" && (
               <Button variant="contained" onClick={() => setEditing(true)}>
                 Edit and resubmit
               </Button>

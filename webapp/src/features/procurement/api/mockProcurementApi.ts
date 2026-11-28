@@ -24,14 +24,19 @@
 import type {
   Attachment,
   AttachmentsDraft,
-  BudgetApproverOption,
+  BudgetApproverScopes,
+  BudgetApproverSetting,
   Choice,
+  NewReferenceOption,
   Person,
   Priority,
   ProcurementLookups,
   ProcurementMe,
   PurchaseRequest,
   PurchaseRequestInput,
+  ReferenceKind,
+  ReferenceOptionChange,
+  ReferenceSetting,
 } from "../types";
 import { MAX_COLLABORATORS } from "../types";
 import { emptyDetails, emptyEvent } from "../request-form/requestFormModel";
@@ -118,8 +123,6 @@ const MOCK_ENGAGEMENT_CODES: Choice[] = [
   { value: "ENG-1002", label: "ENG-1002 - Sales Operations" },
   { value: "ENG-2040", label: "ENG-2040 - Facilities" },
 ];
-
-const MOCK_BUDGET_APPROVERS: BudgetApproverOption[] = [{ id: "10", name: "Budget Owner" }];
 
 /** The code of a sample list entry, found by its label. */
 const codeOf = (list: Choice[], label: string): string => list.find((c) => c.label === label)?.value ?? "";
@@ -374,7 +377,56 @@ function buildMockProcurementApi(user: Person): ProcurementApi {
   const toApprove: PurchaseRequest[] = approvalSeeds(user);
   const forTeam: PurchaseRequest[] = teamSeeds();
   let counter = requests.length;
-  const me: ProcurementMe = { ...user, roles: ["procurement_user"], teamLead: TEAM_LEAD, approvalExempt: false };
+  const me: ProcurementMe = { ...user, roles: ["procurement_user", "procurement_admin"], teamLead: TEAM_LEAD, approvalExempt: false };
+  const approvers: BudgetApproverSetting[] = [
+    {
+      id: "10",
+      name: "Budget Owner",
+      email: "budget.owner@example.com",
+      isActive: true,
+      businessUnits: MOCK_LOOKUPS.businessUnits.map((c) => c.value),
+      regions: MOCK_LOOKUPS.regions.map((c) => c.value),
+    },
+  ];
+  let approverCounter = 10;
+
+  const LIST_KINDS: Record<keyof ProcurementLookups, ReferenceKind> = {
+    budgetCategories: "BUDGET_CATEGORY",
+    businessUnits: "BUSINESS_UNIT",
+    products: "PRODUCT",
+    regions: "REGION",
+  };
+  let optionCounter = 0;
+  const options: ReferenceSetting[] = (Object.keys(LIST_KINDS) as (keyof ProcurementLookups)[]).flatMap((list) =>
+    MOCK_LOOKUPS[list].map((c) => ({ id: String((optionCounter += 1)), kind: LIST_KINDS[list], code: c.value, label: c.label, isActive: true })),
+  );
+  /** The lists as the form sees them: only the options that are offered. */
+  const offered = (kind: ReferenceKind): Choice[] => options.filter((o) => o.kind === kind && o.isActive).map(({ code, label }) => ({ value: code, label }));
+  const currentLookups = (): ProcurementLookups => ({
+    budgetCategories: offered("BUDGET_CATEGORY"),
+    businessUnits: offered("BUSINESS_UNIT"),
+    products: offered("PRODUCT"),
+    regions: offered("REGION"),
+  });
+  const assertLabel = (label: string): void => {
+    if (label.trim() === "" || label.trim().length > 150) throw new Error("Invalid label.");
+  };
+
+  const assertAdmin = (): void => {
+    if (!me.roles.includes("procurement_admin")) throw new Error("You are not allowed to do this.");
+  };
+
+  const assertScopes = ({ businessUnits, regions }: BudgetApproverScopes): void => {
+    if (businessUnits.length + regions.length === 0) throw new Error("Add at least one business unit or region.");
+    const known = (kind: ReferenceKind, codes: string[]) => codes.every((code) => options.some((o) => o.kind === kind && o.code === code));
+    if (!known("BUSINESS_UNIT", businessUnits) || !known("REGION", regions)) throw new Error("A business unit or region cannot be used.");
+  };
+
+  const findApprover = (id: string): BudgetApproverSetting => {
+    const found = approvers.find((a) => a.id === id);
+    if (!found) throw new Error("The budget approver was not found.");
+    return found;
+  };
 
   const find = (requestId: string): PurchaseRequest => {
     const found = [...requests, ...toApprove, ...forTeam].find((r) => r.id === requestId);
@@ -422,12 +474,17 @@ function buildMockProcurementApi(user: Person): ProcurementApi {
     attached.set(requestId, kept);
   };
 
-  const approverName = (id: string): string => MOCK_BUDGET_APPROVERS.find((a) => a.id === id)?.name ?? "";
+  const approverName = (id: string): string => approvers.find((a) => a.id === id)?.name ?? "";
 
   return {
     getMe: async () => me,
-    getLookups: async () => MOCK_LOOKUPS,
-    getBudgetApprovers: async ({ businessUnit, region }) => (businessUnit || region ? MOCK_BUDGET_APPROVERS : []),
+    getLookups: async () => currentLookups(),
+    getBudgetApprovers: async ({ businessUnit, region }) =>
+      businessUnit || region
+        ? approvers
+            .filter((a) => a.isActive && (a.businessUnits.includes(businessUnit) || a.regions.includes(region)))
+            .map(({ id, name }) => ({ id, name }))
+        : [],
     getEngagementCodes: async (businessUnitName) => (businessUnitName ? MOCK_ENGAGEMENT_CODES : []),
     searchDirectory: async (query, leadsOnly) => {
       const q = query.trim().toLowerCase();
@@ -598,6 +655,43 @@ function buildMockProcurementApi(user: Person): ProcurementApi {
     removeCollaborator: async (requestId, email) => {
       const found = find(requestId);
       Object.assign(found, { collaborators: found.collaborators.filter((c) => c.toLowerCase() !== email.toLowerCase()), updatedAt: new Date().toISOString() });
+    },
+    listBudgetApproverSettings: async () => {
+      assertAdmin();
+      return approvers.map((a) => ({ ...a, businessUnits: [...a.businessUnits], regions: [...a.regions] })).sort((a, b) => a.name.localeCompare(b.name));
+    },
+    addBudgetApprover: async (email, scopes) => {
+      assertAdmin();
+      assertScopes(scopes);
+      const employee = MOCK_DIRECTORY.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
+      if (!employee) throw new Error("The approver must be an active employee.");
+      if (approvers.some((a) => a.email.toLowerCase() === employee.email.toLowerCase())) throw new Error("That person is a budget approver already.");
+      approverCounter += 1;
+      approvers.push({ id: String(approverCounter), name: employee.name, email: employee.email, isActive: true, ...scopes });
+    },
+    changeBudgetApprover: async (id, { isActive, ...scopes }) => {
+      assertAdmin();
+      assertScopes(scopes);
+      Object.assign(findApprover(id), { isActive, ...scopes });
+    },
+    listReferenceSettings: async () => {
+      assertAdmin();
+      return options.map((o) => ({ ...o })).sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label));
+    },
+    addReferenceOption: async ({ kind, code, label }: NewReferenceOption) => {
+      assertAdmin();
+      const trimmed = code.trim();
+      if (trimmed === "" || trimmed.length > 50) throw new Error("Invalid code.");
+      assertLabel(label);
+      if (options.some((o) => o.kind === kind && o.code === trimmed)) throw new Error("That code is in the list already.");
+      options.push({ id: String((optionCounter += 1)), kind, code: trimmed, label: label.trim(), isActive: true });
+    },
+    changeReferenceOption: async (id: string, { label, isActive }: ReferenceOptionChange) => {
+      assertAdmin();
+      assertLabel(label);
+      const found = options.find((o) => o.id === id);
+      if (!found) throw new Error("The option was not found.");
+      Object.assign(found, { label: label.trim(), isActive });
     },
   };
 }

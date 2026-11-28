@@ -47,6 +47,48 @@ export interface BackendBudgetApprover {
   name: string;
 }
 
+export interface BackendReferenceSetting {
+  id: number;
+  type: "BUDGET_CATEGORY" | "BUSINESS_UNIT" | "PRODUCT" | "REGION";
+  code: string;
+  label: string;
+  isActive: boolean;
+}
+
+export interface BackendNewReferenceItem {
+  type: BackendReferenceSetting["type"];
+  code: string;
+  label: string;
+}
+
+export interface BackendReferenceItemChange {
+  label: string;
+  isActive: boolean;
+}
+
+export interface BackendBudgetScope {
+  scopeType: "BUSINESS_UNIT" | "REGION";
+  code: string;
+}
+
+export interface BackendBudgetApproverSetting {
+  id: number;
+  name: string;
+  email: string;
+  isActive: boolean;
+  scopes: BackendBudgetScope[];
+}
+
+export interface BackendNewBudgetApprover {
+  email: string;
+  scopes: BackendBudgetScope[];
+}
+
+export interface BackendBudgetApproverChange {
+  isActive: boolean;
+  scopes: BackendBudgetScope[];
+}
+
 export interface BackendEngagementOption {
   code: string;
   name: string;

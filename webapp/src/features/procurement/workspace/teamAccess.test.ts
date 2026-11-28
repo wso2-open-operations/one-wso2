@@ -16,7 +16,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { hasTeamRole, procurementTeamVisibility, useProcurementTeamRailGate } from "./teamAccess";
+import { PROCUREMENT_WORKSPACE_ITEM } from "@constants/procurementApps";
+import { hasAdminRole, hasTeamRole, procurementTeamVisibility, useProcurementTeamRailGate } from "./teamAccess";
 
 const me = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 vi.mock("../api/useProcurement", () => ({ useProcurementMe: () => me.current }));
@@ -30,17 +31,34 @@ describe("the Procurement team's access", () => {
     expect(hasTeamRole(["someone_else"])).toBe(false);
   });
 
+  it("gives settings to Procurement admins only", () => {
+    expect(hasAdminRole(["procurement_admin"])).toBe(true);
+    expect(hasAdminRole(["procurement_user"])).toBe(false);
+    expect(hasAdminRole([])).toBe(false);
+  });
+
   it("shows the rail row only to the team, and carries a failure to the rail", () => {
     const retry = () => undefined;
-    expect(procurementTeamVisibility({ canSee: true, isResolving: false, error: undefined, retry }).canSee("any")).toBe(true);
-    expect(procurementTeamVisibility({ canSee: false, isResolving: true, error: undefined, retry }).resolving).toBe(true);
-    expect(procurementTeamVisibility({ canSee: false, isResolving: false, error: "Could not read your roles.", retry }).error).toBe("Could not read your roles.");
+    expect(procurementTeamVisibility({ canSee: true, isAdmin: false, isResolving: false, error: undefined, retry }).canSee("any")).toBe(true);
+    expect(procurementTeamVisibility({ canSee: false, isAdmin: false, isResolving: true, error: undefined, retry }).resolving).toBe(true);
+    expect(procurementTeamVisibility({ canSee: false, isAdmin: false, isResolving: false, error: "Could not read your roles.", retry }).error).toBe("Could not read your roles.");
+  });
+
+  it("shows the settings row only to an admin, and the other rows to the whole team", () => {
+    const retry = () => undefined;
+    const team = procurementTeamVisibility({ canSee: true, isAdmin: false, isResolving: false, error: undefined, retry });
+    expect(team.canSee(PROCUREMENT_WORKSPACE_ITEM.settings)).toBe(false);
+    expect(team.canSee(PROCUREMENT_WORKSPACE_ITEM.queue)).toBe(true);
+    const admin = procurementTeamVisibility({ canSee: true, isAdmin: true, isResolving: false, error: undefined, retry });
+    expect(admin.canSee(PROCUREMENT_WORKSPACE_ITEM.settings)).toBe(true);
   });
 
   it("shows the row for a read that worked, and hides it while the read is out or after a refresh failed", () => {
     const gate = () => renderHook(() => useProcurementTeamRailGate(true)).result.current;
     me.current = { data: { roles: ["procurement_user"] }, isPending: false, isError: false, refetch: vi.fn() };
-    expect(gate().canSee).toBe(true);
+    expect(gate()).toMatchObject({ canSee: true, isAdmin: false });
+    me.current = { data: { roles: ["procurement_admin"] }, isPending: false, isError: false, refetch: vi.fn() };
+    expect(gate()).toMatchObject({ canSee: true, isAdmin: true });
     me.current = { data: { roles: ["procurement_user"] }, isPending: false, isError: true, error: new Error("down"), refetch: vi.fn() };
     expect(gate()).toMatchObject({ canSee: false, error: "down" });
     me.current = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };

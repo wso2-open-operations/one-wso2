@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 import type { Person, PurchaseRequestInput } from "../types";
 import type { BackendRequestDetail } from "./backendTypes";
 import { draftFromRequest, draftToInput, emptyDraft, emptyEvent } from "../request-form/requestFormModel";
-import { toBudgetApprovers, toChoices, toEngagementChoices, toMe, toApprovalItem, toBackendStatus, toNewDecision, toNewRequest, toQueueItem, toRequest, toSummary } from "./backendMapping";
+import { toBackendScopes, toBudgetApproverSettings, toReferenceSettings, toBudgetApprovers, toChoices, toEngagementChoices, toMe, toApprovalItem, toBackendStatus, toNewDecision, toNewRequest, toQueueItem, toRequest, toSummary } from "./backendMapping";
 
 const signedIn: Person = { id: "me@example.com", name: "Me Myself", email: "me@example.com" };
 
@@ -226,6 +226,28 @@ describe("backend mapping", () => {
       { value: "E2", label: "E2" },
     ]);
     expect(toBudgetApprovers([{ id: 10, name: "Budget Owner" }])).toEqual([{ id: "10", name: "Budget Owner" }]);
+  });
+
+  it("reads an option of a list of the form with its list as the kind", () => {
+    expect(toReferenceSettings([{ id: 3, type: "REGION", code: "REG-1", label: "Global", isActive: false }])).toEqual([
+      { id: "3", kind: "REGION", code: "REG-1", label: "Global", isActive: false },
+    ]);
+  });
+
+  it("splits what a budget approver covers into business units and regions, and joins them again to send", () => {
+    const scopes = [
+      { scopeType: "BUSINESS_UNIT" as const, code: "BU-1" },
+      { scopeType: "REGION" as const, code: "REG-1" },
+      { scopeType: "BUSINESS_UNIT" as const, code: "BU-2" },
+    ];
+    expect(toBudgetApproverSettings([{ id: 10, name: "Budget Owner", email: "budget.owner@example.com", isActive: false, scopes }])).toEqual([
+      { id: "10", name: "Budget Owner", email: "budget.owner@example.com", isActive: false, businessUnits: ["BU-1", "BU-2"], regions: ["REG-1"] },
+    ]);
+    expect(toBackendScopes({ businessUnits: ["BU-1", "BU-2"], regions: ["REG-1"] })).toEqual([
+      { scopeType: "BUSINESS_UNIT", code: "BU-1" },
+      { scopeType: "BUSINESS_UNIT", code: "BU-2" },
+      { scopeType: "REGION", code: "REG-1" },
+    ]);
   });
 });
 

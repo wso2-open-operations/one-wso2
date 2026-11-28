@@ -18,11 +18,16 @@ import { Outlet } from "react-router";
 import { Alert, Button, Skeleton } from "@wso2/oxygen-ui";
 import { describeError } from "@api/errors";
 import { useProcurementMe } from "../../api/useProcurement";
-import { hasTeamRole } from "../teamAccess";
+import { hasAdminRole, hasTeamRole } from "../teamAccess";
 
-/** Renders the Procurement team's screens for the team, and tells anyone else so. */
-export default function TeamOnlyRoute() {
+/**
+ * Renders the Procurement team's screens for the team, and tells anyone else so.
+ *
+ * @param adminOnly - Open the screens to the team's admins only
+ */
+export default function TeamOnlyRoute({ adminOnly = false }: { adminOnly?: boolean }) {
   const me = useProcurementMe();
+  const allowed = (roles: string[]) => (adminOnly ? hasAdminRole(roles) : hasTeamRole(roles));
   return (
     <>
       {me.isError && (
@@ -38,10 +43,12 @@ export default function TeamOnlyRoute() {
         </Alert>
       )}
       {me.isPending && !me.isError && <Skeleton variant="rounded" height={200} />}
-      {me.data && !hasTeamRole(me.data.roles) && (
-        <Alert severity="info">These screens are for the Procurement team. You don't have access to them.</Alert>
+      {me.data && !allowed(me.data.roles) && (
+        <Alert severity="info">
+          These screens are for {adminOnly ? "Procurement admins" : "the Procurement team"}. You don't have access to them.
+        </Alert>
       )}
-      {me.data && hasTeamRole(me.data.roles) && <Outlet />}
+      {me.data && allowed(me.data.roles) && <Outlet />}
     </>
   );
 }

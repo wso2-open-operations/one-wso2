@@ -194,4 +194,45 @@ describe("the Procurement sample data", () => {
     await api.changeBudget("team-1", { budget: { ...budget, engagementCode: "ENG-2041" }, budgetApproverId: "10" });
     expect((await api.getRequest("team-1")).budget.engagementCode).toBe("ENG-2041");
   });
+  it("lets an admin add, change and stop offering a budget approver, and offers the form only the ones who are active and cover the scope", async () => {
+    const api = createMockProcurementApi(user);
+    const lookups = await api.getLookups();
+    const unit = lookups.businessUnits[0].value;
+    await api.addBudgetApprover("drew.parker@example.com", { businessUnits: [unit], regions: [] });
+    const added = (await api.listBudgetApproverSettings()).find((a) => a.email === "drew.parker@example.com");
+    expect(added).toMatchObject({ name: "Drew Parker", isActive: true, businessUnits: [unit], regions: [] });
+    expect((await api.getBudgetApprovers({ businessUnit: unit, region: "" })).map((a) => a.name)).toEqual(["Budget Owner", "Drew Parker"]);
+    await api.changeBudgetApprover(added!.id, { isActive: false, businessUnits: [unit], regions: [] });
+    expect((await api.getBudgetApprovers({ businessUnit: unit, region: "" })).map((a) => a.name)).toEqual(["Budget Owner"]);
+  });
+
+  it("refuses a budget approver with no scope, an unknown scope, someone who is not an employee, or someone who already is one", async () => {
+    const api = createMockProcurementApi(user);
+    const unit = (await api.getLookups()).businessUnits[0].value;
+    await expect(api.addBudgetApprover("drew.parker@example.com", { businessUnits: [], regions: [] })).rejects.toThrow(/at least one/);
+    await expect(api.addBudgetApprover("drew.parker@example.com", { businessUnits: ["nope"], regions: [] })).rejects.toThrow(/cannot be used/);
+    await expect(api.addBudgetApprover("nobody@example.com", { businessUnits: [unit], regions: [] })).rejects.toThrow(/active employee/);
+    await expect(api.addBudgetApprover("Budget.Owner@example.com", { businessUnits: [unit], regions: [] })).rejects.toThrow(/already/);
+    await expect(api.changeBudgetApprover("99", { isActive: true, businessUnits: [unit], regions: [] })).rejects.toThrow(/not found/);
+  });
+  it("lets an admin add an option and stop offering another, so the form's lists follow", async () => {
+    const api = createMockProcurementApi(user);
+    await api.addReferenceOption({ kind: "PRODUCT", code: "PRD-99", label: "Ballerina Central" });
+    const listed = await api.listReferenceSettings();
+    const region = listed.find((o) => o.kind === "REGION")!;
+    await api.changeReferenceOption(region.id, { label: region.label, isActive: false });
+    const lookups = await api.getLookups();
+    expect(lookups.products.map((c) => c.label)).toContain("Ballerina Central");
+    expect(lookups.regions.map((c) => c.value)).not.toContain(region.code);
+    expect((await api.listReferenceSettings()).find((o) => o.id === region.id)).toMatchObject({ isActive: false });
+  });
+
+  it("refuses an option with a blank or repeated code, or a blank label, and one that is not there", async () => {
+    const api = createMockProcurementApi(user);
+    const first = (await api.listReferenceSettings())[0];
+    await expect(api.addReferenceOption({ kind: first.kind, code: " ", label: "X" })).rejects.toThrow(/Invalid code/);
+    await expect(api.addReferenceOption({ kind: first.kind, code: first.code, label: "X" })).rejects.toThrow(/already/);
+    await expect(api.addReferenceOption({ kind: first.kind, code: "NEW-1", label: " " })).rejects.toThrow(/Invalid label/);
+    await expect(api.changeReferenceOption("999", { label: "X", isActive: true })).rejects.toThrow(/not found/);
+  });
 });

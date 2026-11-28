@@ -26,9 +26,13 @@ import type {
   ApprovalDecisionInput,
   ApprovalItem,
   Attachment,
+  BudgetApproverChange,
   BudgetApproverOption,
+  BudgetApproverScopes,
+  BudgetApproverSetting,
   BudgetChange,
   Choice,
+  NewReferenceOption,
   Person,
   ProcurementLookups,
   ProcurementMe,
@@ -36,12 +40,20 @@ import type {
   Priority,
   PurchaseRequestInput,
   QueueItem,
+  ReferenceOptionChange,
+  ReferenceSetting,
   RequestStatus,
   RequestSummary,
   SubmittedRequest,
 } from "../types";
 import type {
   BackendBudgetApprover,
+  BackendBudgetApproverChange,
+  BackendBudgetApproverSetting,
+  BackendNewBudgetApprover,
+  BackendNewReferenceItem,
+  BackendReferenceItemChange,
+  BackendReferenceSetting,
   BackendApprovalItem,
   BackendAttachment,
   BackendCreatedRequest,
@@ -59,7 +71,9 @@ import {
   toApprovalItem,
   toAttachment,
   toBackendBudgetChange,
+  toBackendScopes,
   toBackendStatus,
+  toBudgetApproverSettings,
   toBudgetApprovers,
   toChoices,
   toEngagementChoices,
@@ -68,6 +82,7 @@ import {
   toNewRequest,
   toPerson,
   toQueueItem,
+  toReferenceSettings,
   toRequest,
   toSummary,
 } from "./backendMapping";
@@ -122,6 +137,17 @@ export interface ProcurementApi {
   addCollaborator: (requestId: string, email: string) => Promise<void>;
   /** Take a collaborator off a request. */
   removeCollaborator: (requestId: string, email: string) => Promise<void>;
+  /** Every budget approver, offered to requesters or not. Procurement admins only. */
+  listBudgetApproverSettings: () => Promise<BudgetApproverSetting[]>;
+  /** Make an active employee, by email, a budget approver for the business units and regions given. */
+  addBudgetApprover: (email: string, scopes: BudgetApproverScopes) => Promise<void>;
+  /** Change whether a budget approver is offered, and replace what they cover. */
+  changeBudgetApprover: (id: string, change: BudgetApproverChange) => Promise<void>;
+  /** The options of every list of the form, offered to requesters or not. Procurement admins only. */
+  listReferenceSettings: () => Promise<ReferenceSetting[]>;
+  addReferenceOption: (option: NewReferenceOption) => Promise<void>;
+  /** Change an option's label and whether it is offered. Its code cannot change. */
+  changeReferenceOption: (id: string, change: ReferenceOptionChange) => Promise<void>;
 }
 
 /** Whether a dev build should serve sample data in place of the missing backend. */
@@ -315,6 +341,24 @@ function createHttpProcurementApi(getAccessToken: () => Promise<string>, user: P
     },
     removeCollaborator: async (requestId, email) => {
       await authedDelete(urls.requestCollaborator(requestId, email), await getAccessToken());
+    },
+    listBudgetApproverSettings: async () => toBudgetApproverSettings(await get<BackendBudgetApproverSetting[]>(urls.settingsBudgetApprovers)),
+    addBudgetApprover: async (email, scopes) => {
+      const body: BackendNewBudgetApprover = { email, scopes: toBackendScopes(scopes) };
+      await authedPost(urls.settingsBudgetApprovers, await getAccessToken(), body);
+    },
+    changeBudgetApprover: async (id, { isActive, ...scopes }) => {
+      const body: BackendBudgetApproverChange = { isActive, scopes: toBackendScopes(scopes) };
+      await authedPut(urls.settingsBudgetApprover(id), await getAccessToken(), body);
+    },
+    listReferenceSettings: async () => toReferenceSettings(await get<BackendReferenceSetting[]>(urls.settingsReferenceData)),
+    addReferenceOption: async ({ kind, code, label }) => {
+      const body: BackendNewReferenceItem = { type: kind, code, label };
+      await authedPost(urls.settingsReferenceData, await getAccessToken(), body);
+    },
+    changeReferenceOption: async (id, change) => {
+      const body: BackendReferenceItemChange = change;
+      await authedPut(urls.settingsReferenceItem(id), await getAccessToken(), body);
     },
   };
 }

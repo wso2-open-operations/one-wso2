@@ -2137,6 +2137,14 @@ export const procurementServiceUrls = {
   },
   engagementCodes: (businessUnit: string): string =>
     `${procurementBackendUrl}/engagement-codes?businessUnit=${encodeSegment(businessUnit)}`,
+  /** GET lists every budget approver, offered or not; POST makes an employee one. Procurement admins only. */
+  settingsBudgetApprovers: `${procurementBackendUrl}/settings/budget-approvers`,
+  /** GET lists the options of every list of the form, offered or not; POST adds one. Procurement admins only. */
+  settingsReferenceData: `${procurementBackendUrl}/settings/reference-data`,
+  /** PUT changes the label of an option and whether it is offered. */
+  settingsReferenceItem: (id: string): string => `${procurementBackendUrl}/settings/reference-data/${encodeSegment(id)}`,
+  /** PUT changes whether a budget approver is offered and what they cover. */
+  settingsBudgetApprover: (id: string): string => `${procurementBackendUrl}/settings/budget-approvers/${encodeSegment(id)}`,
   /** PUT replaces the budget details of an approved or assigned request. */
   requestBudget: (requestId: string): string => `${procurementBackendUrl}/requests/${encodeSegment(requestId)}/budget`,
   /** POST adds a collaborator to an approved or assigned request, by email. */
